@@ -84,6 +84,9 @@ export type ProviderRow = {
   base_url: string
   status: number
   group: string
+  settings?: string
+  balance?: number
+  balance_updated_time?: number
   used_quota: number
   response_time: number
   priority: number | string | null
@@ -91,11 +94,8 @@ export type ProviderRow = {
   type?: number
   created_time?: number
   test_time?: number
-  balance?: number
-  balance_updated_time?: number
   models?: string
   channel_info?: ChannelInfo
-  settings?: string
   channel_count: number
   enabled_count: number
   children: Channel[]

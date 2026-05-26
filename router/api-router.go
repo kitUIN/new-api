@@ -224,6 +224,8 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/providers", controller.CreateChannelProvider)
 			channelRoute.PUT("/providers", controller.UpdateChannelProvider)
 			channelRoute.DELETE("/providers/:id", controller.DeleteChannelProvider)
+			channelRoute.GET("/providers/:id/update_balance", controller.UpdateChannelProviderBalance)
+			channelRoute.GET("/providers/:id/update_groups", controller.UpdateChannelProviderGroups)
 			channelRoute.GET("/models", controller.ChannelListModels)
 			channelRoute.GET("/models_enabled", controller.EnabledListModels)
 			channelRoute.GET("/:id", controller.GetChannel)

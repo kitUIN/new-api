@@ -41,6 +41,7 @@ func TestMain(m *testing.M) {
 		&Log{},
 		&PerfMetricBucket{},
 		&Channel{},
+		&ChannelProvider{},
 		&TopUp{},
 		&QuotaData{},
 		&SubscriptionPlan{},
@@ -62,6 +63,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM perf_metric_buckets")
 		DB.Exec("DELETE FROM channels")
+		DB.Exec("DELETE FROM channel_providers")
 		DB.Exec("DELETE FROM top_ups")
 		DB.Exec("DELETE FROM quota_data")
 		DB.Exec("DELETE FROM subscription_orders")

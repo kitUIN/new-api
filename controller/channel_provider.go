@@ -71,6 +71,9 @@ func CreateChannelProvider(c *gin.Context) {
 	if provider.Status != 0 && provider.Status != created.Status {
 		updates["status"] = provider.Status
 	}
+	if strings.TrimSpace(provider.Settings) != "" {
+		updates["settings"] = provider.Settings
+	}
 	if strings.TrimSpace(provider.Remark) != "" {
 		updates["remark"] = provider.Remark
 	}

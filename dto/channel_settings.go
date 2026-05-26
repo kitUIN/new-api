@@ -45,6 +45,11 @@ type ChannelOtherSettings struct {
 	GroupQuery                            GroupQuery    `json:"group_query,omitempty"`                                // 渠道上游分组查询配置
 }
 
+type ChannelProviderSettings struct {
+	BalanceQuery BalanceQuery `json:"balance_query,omitempty"` // 供应商余额查询配置
+	GroupQuery   GroupQuery   `json:"group_query,omitempty"`   // 供应商上游分组查询配置
+}
+
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 	if s == nil || s.OpenRouterEnterprise == nil {
 		return false

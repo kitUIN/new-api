@@ -21,7 +21,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChannelUpstreamUpdates } from '../hooks/use-channel-upstream-updates'
 import { channelsQueryKeys } from '../lib'
-import type { Channel } from '../types'
+import type { Channel, ProviderRow } from '../types'
 
 // ============================================================================
 // Types
@@ -38,6 +38,7 @@ type DialogType =
   | 'tag-batch-edit'
   | 'edit-tag'
   | 'copy-channel'
+  | 'provider-query-settings'
   | null
 
 type UpstreamUpdateState = ReturnType<typeof useChannelUpstreamUpdates>
@@ -47,6 +48,8 @@ type ChannelsContextType = {
   setOpen: (open: DialogType) => void
   currentRow: Channel | null
   setCurrentRow: (row: Channel | null) => void
+  currentProvider: ProviderRow | null
+  setCurrentProvider: (row: ProviderRow | null) => void
   currentTag: string | null
   setCurrentTag: (tag: string | null) => void
   enableTagMode: boolean
@@ -71,6 +74,9 @@ const ChannelsContext = createContext<ChannelsContextType | undefined>(
 export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState<DialogType>(null)
   const [currentRow, setCurrentRow] = useState<Channel | null>(null)
+  const [currentProvider, setCurrentProvider] = useState<ProviderRow | null>(
+    null
+  )
   const [currentTag, setCurrentTag] = useState<string | null>(null)
   const [enableTagMode, setEnableTagMode] = useState(() => {
     return localStorage.getItem('enable-tag-mode') === 'true'
@@ -92,6 +98,8 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
         setOpen,
         currentRow,
         setCurrentRow,
+        currentProvider,
+        setCurrentProvider,
         currentTag,
         setCurrentTag,
         enableTagMode,

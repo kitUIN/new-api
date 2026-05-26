@@ -24,12 +24,13 @@ import { EditTagDialog } from './dialogs/edit-tag-dialog'
 import { FetchModelsDialog } from './dialogs/fetch-models-dialog'
 import { MultiKeyManageDialog } from './dialogs/multi-key-manage-dialog'
 import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
+import { ProviderQuerySettingsDialog } from './dialogs/provider-query-settings-dialog'
 import { TagBatchEditDialog } from './dialogs/tag-batch-edit-dialog'
 import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
 import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
 
 export function ChannelsDialogs() {
-  const { open, setOpen, currentRow, upstream } = useChannels()
+  const { open, setOpen, currentRow, currentProvider, upstream } = useChannels()
 
   return (
     <>
@@ -50,6 +51,12 @@ export function ChannelsDialogs() {
       <BalanceQueryDialog
         open={open === 'balance-query'}
         onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      <ProviderQuerySettingsDialog
+        open={open === 'provider-query-settings'}
+        onOpenChange={(v) => !v && setOpen(null)}
+        provider={currentProvider}
       />
 
       {/* Fetch Models Dialog */}

@@ -381,6 +381,12 @@ type balanceQueryExecution struct {
 	Settings dto.ChannelOtherSettings
 }
 
+type providerBalanceQueryExecution struct {
+	Provider *model.ChannelProvider
+	Channel  *model.Channel
+	Settings dto.ChannelProviderSettings
+}
+
 type channelLowBalanceNotifyPayload struct {
 	QQ      string `json:"qq"`
 	AdminQQ string `json:"admin_qq"`
@@ -770,6 +776,32 @@ func persistBalanceQueryResult(channel *model.Channel, settings dto.ChannelOther
 	}
 }
 
+func persistProviderBalanceQueryResult(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, result dto.BalanceQueryResult, err error) {
+	settings.BalanceQuery.LastCheckTime = common.GetTimestamp()
+	settings.BalanceQuery.LastResult = &result
+	if err != nil {
+		settings.BalanceQuery.LastError = err.Error()
+	} else if !result.IsValid {
+		settings.BalanceQuery.LastError = result.InvalidMessage
+	} else {
+		settings.BalanceQuery.LastError = ""
+	}
+	provider.SetOtherSettings(settings)
+	updates := map[string]interface{}{
+		"settings":     provider.Settings,
+		"updated_time": common.GetTimestamp(),
+	}
+	if err == nil && result.IsValid {
+		provider.Balance = result.Remaining
+		provider.BalanceUpdatedTime = common.GetTimestamp()
+		updates["balance"] = provider.Balance
+		updates["balance_updated_time"] = provider.BalanceUpdatedTime
+	}
+	if updateErr := model.DB.Model(&model.ChannelProvider{}).Where("id = ?", provider.Id).Updates(updates).Error; updateErr != nil {
+		common.SysLog(fmt.Sprintf("failed to persist provider balance query result: provider_id=%d, error=%v", provider.Id, updateErr))
+	}
+}
+
 func updateChannelConfiguredBalance(channel *model.Channel) (float64, *dto.BalanceQueryResult, bool, error) {
 	settings := channel.GetOtherSettings()
 	config := settings.BalanceQuery
@@ -794,6 +826,108 @@ func updateChannelConfiguredBalance(channel *model.Channel) (float64, *dto.Balan
 		execution = balanceQueryExecution{Channel: sourceChannel, Settings: sourceSettings}
 	}
 	return executeChannelConfiguredBalance(channel, settings, execution)
+}
+
+func getProviderQuerySourceChannel(provider *model.ChannelProvider, sourceChannelID int) (*model.Channel, error) {
+	if provider == nil {
+		return nil, errors.New("供应商不存在")
+	}
+	if sourceChannelID > 0 {
+		channel, err := model.GetChannelById(sourceChannelID, true)
+		if err != nil {
+			return nil, err
+		}
+		if channel.ProviderID != provider.Id {
+			return nil, errors.New("查询源渠道不属于该供应商")
+		}
+		if channel.ChannelInfo.IsMultiKey {
+			return nil, errors.New("多密钥渠道不支持作为供应商查询源")
+		}
+		return channel, nil
+	}
+	var channels []*model.Channel
+	if err := model.DB.Where("provider_id = ? AND status = ?", provider.Id, common.ChannelStatusEnabled).Order("id asc").Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		if !channel.ChannelInfo.IsMultiKey {
+			return channel, nil
+		}
+	}
+	if err := model.DB.Where("provider_id = ?", provider.Id).Order("id asc").Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		if !channel.ChannelInfo.IsMultiKey {
+			return channel, nil
+		}
+	}
+	return nil, errors.New("供应商下没有可用的单密钥查询源渠道")
+}
+
+func updateProviderConfiguredBalance(provider *model.ChannelProvider) (float64, *dto.BalanceQueryResult, bool, error) {
+	settings := provider.GetOtherSettings()
+	config := settings.BalanceQuery
+	if !config.Enabled {
+		return 0, nil, false, nil
+	}
+	sourceChannel, err := getProviderQuerySourceChannel(provider, config.SourceChannelID)
+	if err != nil {
+		result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+		persistProviderBalanceQueryResult(provider, settings, result, err)
+		return 0, &result, true, err
+	}
+	return executeProviderConfiguredBalance(provider, settings, providerBalanceQueryExecution{Provider: provider, Channel: sourceChannel, Settings: settings})
+}
+
+func executeProviderConfiguredBalance(provider *model.ChannelProvider, providerSettings dto.ChannelProviderSettings, execution providerBalanceQueryExecution) (float64, *dto.BalanceQueryResult, bool, error) {
+	channel := execution.Channel
+	config := buildBalanceQueryConfig(channel, execution.Settings.BalanceQuery)
+	method := strings.ToUpper(strings.TrimSpace(config.Request.Method))
+	if method == "" {
+		method = http.MethodGet
+	}
+	url := replaceBalanceQueryVars(config.Request.URL, channel, config)
+	if strings.TrimSpace(url) == "" {
+		err := errors.New("余额查询请求地址不能为空")
+		result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+		persistProviderBalanceQueryResult(provider, providerSettings, result, err)
+		return 0, &result, true, err
+	}
+	headers := http.Header{}
+	for key, value := range config.Request.Headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		headers.Set(key, replaceBalanceQueryVars(value, channel, config))
+	}
+	requestBody := replaceBalanceQueryVars(config.Request.Body, channel, config)
+	debugInfo := balanceQueryDebugInfo{
+		ChannelID: channel.Id,
+		URL:       url,
+		Method:    method,
+		Headers:   balanceQueryHeadersToMap(headers),
+		Body:      requestBody,
+	}
+	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	if err != nil {
+		debugInfo.Error = err.Error()
+		logBalanceQueryDebug(debugInfo)
+		result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+		persistProviderBalanceQueryResult(provider, providerSettings, result, err)
+		return 0, &result, true, err
+	}
+	debugInfo.Response = string(body)
+	result := extractBalanceQueryResult(body, config.Extractor)
+	if !result.IsValid {
+		err = errors.New(result.InvalidMessage)
+		debugInfo.Error = err.Error()
+		logBalanceQueryDebug(debugInfo)
+		persistProviderBalanceQueryResult(provider, providerSettings, result, err)
+		return 0, &result, true, err
+	}
+	persistProviderBalanceQueryResult(provider, providerSettings, result, nil)
+	return result.Remaining, &result, true, nil
 }
 
 func executeChannelConfiguredBalance(target *model.Channel, targetSettings dto.ChannelOtherSettings, execution balanceQueryExecution) (float64, *dto.BalanceQueryResult, bool, error) {
@@ -920,6 +1054,13 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	return balance, nil
 }
 
+func updateProviderBalance(provider *model.ChannelProvider) (float64, error) {
+	if balance, _, configured, err := updateProviderConfiguredBalance(provider); configured {
+		return balance, err
+	}
+	return 0, errors.New("供应商未启用余额查询配置")
+}
+
 func UpdateChannelBalance(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -950,6 +1091,33 @@ func UpdateChannelBalance(c *gin.Context) {
 		"data": gin.H{
 			"settings":             channel.OtherSettings,
 			"balance_updated_time": channel.BalanceUpdatedTime,
+		},
+	})
+}
+
+func UpdateChannelProviderBalance(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	provider, err := model.GetChannelProviderByID(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	balance, err := updateProviderBalance(provider)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"balance": balance,
+		"data": gin.H{
+			"settings":             provider.Settings,
+			"balance_updated_time": provider.BalanceUpdatedTime,
 		},
 	})
 }
@@ -986,6 +1154,19 @@ func GetChannelBalanceQueryInstances(c *gin.Context) {
 	})
 }
 
+func shouldRunProviderBalanceQuery(provider *model.ChannelProvider, now int64) bool {
+	settings := provider.GetOtherSettings()
+	config := settings.BalanceQuery
+	if !config.Enabled {
+		return false
+	}
+	interval := getBalanceQueryIntervalSeconds(config)
+	if interval == 0 {
+		return false
+	}
+	return config.LastCheckTime <= 0 || now-config.LastCheckTime >= int64(interval)
+}
+
 func shouldRunChannelBalanceQuery(channel *model.Channel, now int64) bool {
 	settings := channel.GetOtherSettings()
 	config := settings.BalanceQuery
@@ -1000,6 +1181,28 @@ func shouldRunChannelBalanceQuery(channel *model.Channel, now int64) bool {
 }
 
 func updateConfiguredChannelsBalanceDue() error {
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		return err
+	}
+	now := common.GetTimestamp()
+	for _, provider := range providers {
+		if provider.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if !shouldRunProviderBalanceQuery(provider, now) {
+			continue
+		}
+		balance, err := updateProviderBalance(provider)
+		if err == nil && balance <= 0 {
+			disableProviderChannelsForBalance(provider.Id)
+		}
+		time.Sleep(common.RequestInterval)
+	}
+	return nil
+}
+
+func updateConfiguredChannelsBalanceDueLegacy() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
@@ -1065,6 +1268,17 @@ func updateConfiguredChannelsBalanceDue() error {
 	return nil
 }
 
+func disableProviderChannelsForBalance(providerID int) {
+	var channels []*model.Channel
+	if err := model.DB.Where("provider_id = ? AND status = ?", providerID, common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+		common.SysLog(fmt.Sprintf("failed to list provider channels for balance disable: provider_id=%d, error=%v", providerID, err))
+		return
+	}
+	for _, channel := range channels {
+		service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "供应商余额不足")
+	}
+}
+
 func propagateSharedBalanceQueryResult(channels []*model.Channel, sourceChannelID int, result *dto.BalanceQueryResult, queryErr error) {
 	if result == nil {
 		return
@@ -1082,6 +1296,24 @@ func propagateSharedBalanceQueryResult(channels []*model.Channel, sourceChannelI
 }
 
 func updateAllChannelsBalance() error {
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		return err
+	}
+	for _, provider := range providers {
+		if provider.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		balance, err := updateProviderBalance(provider)
+		if err == nil && balance <= 0 {
+			disableProviderChannelsForBalance(provider.Id)
+		}
+		time.Sleep(common.RequestInterval)
+	}
+	return nil
+}
+
+func updateAllChannelsBalanceLegacy() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err

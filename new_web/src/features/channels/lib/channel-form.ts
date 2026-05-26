@@ -22,11 +22,7 @@ import {
   ERROR_MESSAGES,
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
-import type {
-  BalanceQueryConfig,
-  Channel,
-  GroupQueryConfig,
-} from '../types'
+import type { BalanceQueryConfig, Channel, GroupQueryConfig } from '../types'
 
 // ============================================================================
 // Form Validation Schema
@@ -299,7 +295,10 @@ export const channelFormSchema = z
     balance_query_request_headers: z
       .string()
       .optional()
-      .refine(isOptionalJsonRecord, 'Balance query headers must be a JSON object'),
+      .refine(
+        isOptionalJsonRecord,
+        'Balance query headers must be a JSON object'
+      ),
     balance_query_request_body: z.string().optional(),
     balance_query_plan_name_path: z.string().optional(),
     balance_query_remaining_path: z.string().optional(),
@@ -327,7 +326,10 @@ export const channelFormSchema = z
     group_query_request_headers: z
       .string()
       .optional()
-      .refine(isOptionalJsonRecord, 'Group query headers must be a JSON object'),
+      .refine(
+        isOptionalJsonRecord,
+        'Group query headers must be a JSON object'
+      ),
     group_query_request_body: z.string().optional(),
     group_query_data_path: z.string().optional(),
     group_query_desc_path: z.string().optional(),
@@ -508,7 +510,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   group_query_desc_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.desc_path,
   group_query_ratio_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.ratio_path,
   group_query_success_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
-  group_query_success_value: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
+  group_query_success_value:
+    GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
   group_query_success_optional:
     GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_optional,
   group_query_message_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
@@ -517,7 +520,9 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   group_query_last_error: '',
 }
 
-function parseSettingsObject(settings: string | undefined): Record<string, unknown> {
+function parseSettingsObject(
+  settings: string | undefined
+): Record<string, unknown> {
   if (!settings?.trim()) return {}
   try {
     const parsed = JSON.parse(settings)
@@ -531,16 +536,14 @@ function parseSettingsObject(settings: string | undefined): Record<string, unkno
   return {}
 }
 
-function stringifyHeaders(headers: unknown, fallback: Record<string, string>): string {
-  return JSON.stringify(isJsonObjectValue(headers) ? headers : fallback, null, 2)
-}
-
-function parseHeaders(headers: string | undefined): Record<string, string> {
-  if (!headers?.trim()) return {}
-  const parsed = JSON.parse(headers)
-  if (!isJsonObjectValue(parsed)) return {}
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [key, String(value)])
+function stringifyHeaders(
+  headers: unknown,
+  fallback: Record<string, string>
+): string {
+  return JSON.stringify(
+    isJsonObjectValue(headers) ? headers : fallback,
+    null,
+    2
   )
 }
 
@@ -641,10 +644,8 @@ function getGroupQueryFormDefaults(groupQuery: GroupQueryConfig | undefined) {
       template.request.headers
     ),
     group_query_request_body: request.body || '',
-    group_query_data_path:
-      extractor.data_path || template.extractor.data_path,
-    group_query_desc_path:
-      extractor.desc_path || template.extractor.desc_path,
+    group_query_data_path: extractor.data_path || template.extractor.data_path,
+    group_query_desc_path: extractor.desc_path || template.extractor.desc_path,
     group_query_ratio_path:
       extractor.ratio_path || template.extractor.ratio_path,
     group_query_success_path:
@@ -720,8 +721,7 @@ export function transformChannelToFormDefaults(
 
   if (channel.settings) {
     const parsed = parseSettingsObject(channel.settings)
-    vertexKeyType =
-      parsed.vertex_key_type === 'api_key' ? 'api_key' : 'json'
+    vertexKeyType = parsed.vertex_key_type === 'api_key' ? 'api_key' : 'json'
     azureResponsesVersion =
       typeof parsed.azure_responses_version === 'string'
         ? parsed.azure_responses_version
@@ -920,78 +920,8 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   }
 
-  const previousBalanceQuery = isJsonObjectValue(settingsObj.balance_query)
-    ? (settingsObj.balance_query as BalanceQueryConfig)
-    : {}
-  const previousGroupQuery = isJsonObjectValue(settingsObj.group_query)
-    ? (settingsObj.group_query as GroupQueryConfig)
-    : {}
-
-  settingsObj.balance_query = {
-    ...previousBalanceQuery,
-    enabled: formData.balance_query_enabled === true,
-    template: formData.balance_query_template || 'custom',
-    interval_seconds: normalizeInterval(
-      formData.balance_query_interval_seconds
-    ),
-    source_channel_id: normalizeSourceChannelId(
-      formData.balance_query_source_channel_id
-    ),
-    access_token: formData.balance_query_access_token || '',
-    user_id: formData.balance_query_user_id || '',
-    request: {
-      url: formData.balance_query_request_url || '',
-      method: formData.balance_query_request_method || 'GET',
-      headers: parseHeaders(formData.balance_query_request_headers),
-      body: formData.balance_query_request_body || '',
-    },
-    extractor: {
-      plan_name_path: formData.balance_query_plan_name_path || '',
-      remaining_path: formData.balance_query_remaining_path || '',
-      used_path: formData.balance_query_used_path || '',
-      total_path: formData.balance_query_total_path || '',
-      unit_path: formData.balance_query_unit_path || '',
-      unit: formData.balance_query_unit || 'USD',
-      divisor: Number(formData.balance_query_divisor) || 1,
-      success_path: formData.balance_query_success_path || '',
-      success_value: formData.balance_query_success_value || '',
-      success_optional: formData.balance_query_success_optional === true,
-      message_path: formData.balance_query_message_path || '',
-    },
-    last_result: previousBalanceQuery.last_result || null,
-    last_check_time: Number(previousBalanceQuery.last_check_time) || 0,
-    last_error: previousBalanceQuery.last_error || '',
-  }
-
-  settingsObj.group_query = {
-    ...previousGroupQuery,
-    enabled: formData.group_query_enabled === true,
-    template: formData.group_query_template || 'custom',
-    interval_seconds: normalizeInterval(formData.group_query_interval_seconds),
-    source_channel_id: normalizeSourceChannelId(
-      formData.group_query_source_channel_id
-    ),
-    access_token: formData.group_query_access_token || '',
-    user_id: formData.group_query_user_id || '',
-    request: {
-      url: formData.group_query_request_url || '',
-      method: formData.group_query_request_method || 'GET',
-      headers: parseHeaders(formData.group_query_request_headers),
-      body: formData.group_query_request_body || '',
-    },
-    extractor: {
-      data_path: formData.group_query_data_path || '',
-      desc_path: formData.group_query_desc_path || '',
-      ratio_path: formData.group_query_ratio_path || '',
-      success_path: formData.group_query_success_path || '',
-      success_value: formData.group_query_success_value || '',
-      success_optional: formData.group_query_success_optional === true,
-      message_path: formData.group_query_message_path || '',
-    },
-    last_result: previousGroupQuery.last_result || null,
-    last_check_time: Number(previousGroupQuery.last_check_time) || 0,
-    last_error: previousGroupQuery.last_error || '',
-  }
+  delete settingsObj.balance_query
+  delete settingsObj.group_query
 
   return JSON.stringify(settingsObj)
 }

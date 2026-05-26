@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronRight,
   ListOrdered,
+  Settings2,
   Shuffle,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -51,7 +52,7 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
-import { getCodexUsage } from '../api'
+import { getCodexUsage, updateProviderBalance } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
@@ -61,13 +62,13 @@ import {
   getChannelTypeIcon,
   getChannelTypeLabel,
   getResponseTimeConfig,
+  channelsQueryKeys,
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
   parseChannelSettings,
   handleUpdateChannelField,
   handleUpdateTagField,
-  handleUpdateChannelBalance,
   isChannelGroupRow,
   isLeafChannel,
   isProviderRow,
@@ -127,15 +128,25 @@ function parseChannelOtherSettings(settings: string | null | undefined): {
 function getBalanceQueryMeta(
   channel: ChannelRow | TagRow
 ): BalanceQueryConfig | undefined {
-  if (isChannelGroupRow(channel)) return undefined
+  if (isTagAggregateRow(channel)) return undefined
   return parseChannelOtherSettings(channel.settings).balance_query
 }
 
 function getGroupQueryMeta(
   channel: ChannelRow | TagRow
 ): GroupQueryConfig | undefined {
-  if (isChannelGroupRow(channel)) return undefined
+  if (isTagAggregateRow(channel)) return undefined
   return parseChannelOtherSettings(channel.settings).group_query
+}
+
+function getProviderBalanceSource(provider: ProviderRow): Channel | undefined {
+  const balanceQuery = getBalanceQueryMeta(provider)
+  if (balanceQuery?.source_channel_id) {
+    return provider.children.find(
+      (child) => child.id === balanceQuery.source_channel_id
+    )
+  }
+  return provider.children?.[0]
 }
 
 function formatGroupQueryRatio(ratio: unknown): string {
@@ -382,7 +393,10 @@ function WeightCell({ channel }: { channel: ChannelRow | TagRow }) {
 function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const isGroupRow = isChannelGroupRow(channel)
+  const isProvider = isProviderRow(channel)
+  const sourceChannel = isProvider
+    ? getProviderBalanceSource(channel)
+    : undefined
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
   const [isUpdating, setIsUpdating] = useState(false)
@@ -393,7 +407,7 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
     tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
-  const balanceQuery = getBalanceQueryMeta(channel)
+  const balanceQuery = isProvider ? getBalanceQueryMeta(channel) : undefined
   const balanceResult = balanceQuery?.last_result
   const displayedBalance =
     balanceResult?.is_valid === true &&
@@ -410,8 +424,7 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
     formatQuotaValue(balanceResult?.total || 0)
   )
 
-  // Group rows: only show cumulative used quota
-  if (isGroupRow) {
+  if (!isProvider) {
     return (
       <StatusBadge
         label={`Used: ${usedDisplay}`}
@@ -422,16 +435,15 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
     )
   }
 
-  // Regular channel row: show used and remaining with click to update
   const variant = getBalanceVariant(displayedBalance)
 
   const handleClickUpdate = async () => {
-    if (isUpdating) return
+    if (isUpdating || !sourceChannel) return
 
     setIsUpdating(true)
-    if (channel.type === 57) {
+    if (sourceChannel.type === 57) {
       try {
-        const res = await getCodexUsage(channel.id)
+        const res = await getCodexUsage(sourceChannel.id)
         if (!res.success) {
           throw new Error(res.message || t('Failed to fetch usage'))
         }
@@ -447,7 +459,15 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
       return
     }
 
-    await handleUpdateChannelBalance(channel.id, queryClient)
+    const response = await updateProviderBalance(channel.provider_id)
+    if (response.success && response.balance !== undefined) {
+      toast.success(t('Balance updated successfully'))
+      await queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.lists(),
+      })
+    } else {
+      toast.error(response.message || t('Failed to update balance'))
+    }
     setIsUpdating(false)
   }
 
@@ -479,12 +499,12 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
                 label={
                   isUpdating
                     ? t('Updating...')
-                    : channel.type === 57
+                    : sourceChannel?.type === 57
                       ? t('Account Info')
                       : remainingDisplay
                 }
                 variant={
-                  channel.type === 57
+                  sourceChannel?.type === 57
                     ? 'info'
                     : isUpdating
                       ? 'neutral'
@@ -498,7 +518,9 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
             }
           />
           <TooltipContent>
-            {channel.type === 57 ? (
+            {!sourceChannel ? (
+              <p>{t('No balance source channel')}</p>
+            ) : sourceChannel.type === 57 ? (
               <p>{t('Click to view Codex usage')}</p>
             ) : balanceResult?.is_valid === true ? (
               <div className='space-y-1'>
@@ -517,7 +539,9 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
                 <p>
                   {t('Last check time')}:{' '}
                   {formatTimestampToDate(
-                    balanceResult.checked_at || channel.balance_updated_time
+                    balanceResult.checked_at ||
+                      channel.balance_updated_time ||
+                      sourceChannel.balance_updated_time
                   )}
                 </p>
                 <p>{t('Click to update balance')}</p>
@@ -542,14 +566,14 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
       <CodexUsageDialog
         open={codexUsageOpen}
         onOpenChange={setCodexUsageOpen}
-        channelName={channel.name}
-        channelId={channel.id}
+        channelName={sourceChannel?.name || channel.name}
+        channelId={sourceChannel?.id || 0}
         response={codexUsageResponse}
         onRefresh={async () => {
-          if (isUpdating) return
+          if (isUpdating || !sourceChannel) return
           setIsUpdating(true)
           try {
-            const res = await getCodexUsage(channel.id)
+            const res = await getCodexUsage(sourceChannel.id)
             if (!res.success) {
               throw new Error(res.message || t('Failed to fetch usage'))
             }
@@ -573,14 +597,9 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
 function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
   const { t } = useTranslation()
 
-  if (isChannelGroupRow(channel)) {
+  if (!isProviderRow(channel)) {
     return (
-      <StatusBadge
-        label='-'
-        variant='neutral'
-        size='sm'
-        copyable={false}
-      />
+      <StatusBadge label='-' variant='neutral' size='sm' copyable={false} />
     )
   }
 
@@ -669,6 +688,44 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
   )
 }
 
+function ProviderActionsCell({ provider }: { provider: ProviderRow }) {
+  const { t } = useTranslation()
+  const { setCurrentProvider, setOpen } = useChannels()
+
+  return (
+    <div className='flex items-center justify-end gap-1'>
+      <StatusBadge
+        label={`${t('Channels')} ${provider.enabled_count || 0}/${
+          provider.channel_count || provider.children.length
+        }`}
+        variant='cyan'
+        size='sm'
+        copyable={false}
+      />
+      <TooltipProvider delay={100}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                aria-label={t('Provider query settings')}
+                onClick={() => {
+                  setCurrentProvider(provider)
+                  setOpen('provider-query-settings')
+                }}
+              />
+            }
+          >
+            <Settings2 className='size-4' />
+          </TooltipTrigger>
+          <TooltipContent>{t('Provider query settings')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  )
+}
+
 /**
  * Generate channels columns configuration
  */
@@ -676,7 +733,10 @@ function ProviderNameCell({
   row,
   provider,
 }: {
-  row: { getToggleExpandedHandler: () => () => void; getIsExpanded: () => boolean }
+  row: {
+    getToggleExpandedHandler: () => () => void
+    getIsExpanded: () => boolean
+  }
   provider: ProviderRow
 }) {
   const { t } = useTranslation()
@@ -787,9 +847,7 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
         const name = row.getValue('name') as string
 
         if (isProviderRow(row.original)) {
-          return (
-            <ProviderNameCell row={row} provider={row.original} />
-          )
+          return <ProviderNameCell row={row} provider={row.original} />
         }
 
         // Tag row with expand/collapse
@@ -1036,7 +1094,8 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
         if (isProviderRow(row.original)) {
           const provider = row.original
           const enabledCount = provider.enabled_count || 0
-          const channelCount = provider.channel_count || provider.children.length
+          const channelCount =
+            provider.channel_count || provider.children.length
           const active = enabledCount > 0
           return (
             <StatusBadge
@@ -1380,17 +1439,7 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
       cell: ({ row }) => {
         // Check if this is a tag row (has children)
         if (isProviderRow(row.original)) {
-          const provider = row.original
-          return (
-            <StatusBadge
-              label={`${t('Channels')} ${provider.enabled_count || 0}/${
-                provider.channel_count || provider.children.length
-              }`}
-              variant='cyan'
-              size='sm'
-              copyable={false}
-            />
-          )
+          return <ProviderActionsCell provider={row.original} />
         }
 
         if (isTagAggregateRow(row.original)) {

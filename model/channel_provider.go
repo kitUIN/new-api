@@ -9,43 +9,53 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 
 	"gorm.io/gorm"
 )
 
 type ChannelProvider struct {
-	Id          int    `json:"id"`
-	Name        string `json:"name" gorm:"size:128;not null"`
-	BaseURL     string `json:"base_url" gorm:"size:255;not null;uniqueIndex"`
-	Status      int    `json:"status" gorm:"default:1"`
-	CreatedTime int64  `json:"created_time" gorm:"bigint"`
-	UpdatedTime int64  `json:"updated_time" gorm:"bigint"`
-	Remark      string `json:"remark" gorm:"type:varchar(255)"`
+	Id                 int     `json:"id"`
+	Name               string  `json:"name" gorm:"size:128;not null"`
+	BaseURL            string  `json:"base_url" gorm:"size:255;not null;uniqueIndex"`
+	Status             int     `json:"status" gorm:"default:1"`
+	Balance            float64 `json:"balance"`
+	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
+	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
+	UpdatedTime        int64   `json:"updated_time" gorm:"bigint"`
+	Remark             string  `json:"remark" gorm:"type:varchar(255)"`
+	Settings           string  `json:"settings" gorm:"column:settings;type:text"`
 }
 
 type ChannelProviderSummary struct {
-	Id      int    `json:"id"`
-	Name    string `json:"name"`
-	BaseURL string `json:"base_url"`
-	Status  int    `json:"status"`
+	Id                 int     `json:"id"`
+	Name               string  `json:"name"`
+	BaseURL            string  `json:"base_url"`
+	Status             int     `json:"status"`
+	Balance            float64 `json:"balance"`
+	BalanceUpdatedTime int64   `json:"balance_updated_time"`
+	Settings           string  `json:"settings"`
 }
 
 type ChannelProviderTree struct {
-	Key          string     `json:"key"`
-	Id           string     `json:"id"`
-	IsProvider   bool       `json:"is_provider"`
-	ProviderID   int        `json:"provider_id"`
-	Name         string     `json:"name"`
-	BaseURL      string     `json:"base_url"`
-	Status       int        `json:"status"`
-	Group        string     `json:"group"`
-	UsedQuota    int64      `json:"used_quota"`
-	ResponseTime int        `json:"response_time"`
-	Priority     any        `json:"priority"`
-	Weight       any        `json:"weight"`
-	ChannelCount int        `json:"channel_count"`
-	EnabledCount int        `json:"enabled_count"`
-	Children     []*Channel `json:"children"`
+	Key                string     `json:"key"`
+	Id                 string     `json:"id"`
+	IsProvider         bool       `json:"is_provider"`
+	ProviderID         int        `json:"provider_id"`
+	Name               string     `json:"name"`
+	BaseURL            string     `json:"base_url"`
+	Status             int        `json:"status"`
+	Group              string     `json:"group"`
+	Settings           string     `json:"settings"`
+	Balance            float64    `json:"balance"`
+	BalanceUpdatedTime int64      `json:"balance_updated_time"`
+	UsedQuota          int64      `json:"used_quota"`
+	ResponseTime       int        `json:"response_time"`
+	Priority           any        `json:"priority"`
+	Weight             any        `json:"weight"`
+	ChannelCount       int        `json:"channel_count"`
+	EnabledCount       int        `json:"enabled_count"`
+	Children           []*Channel `json:"children"`
 }
 
 func NormalizeChannelProviderBaseURL(baseURL string) string {
@@ -128,6 +138,28 @@ func GetChannelProviderByID(id int) (*ChannelProvider, error) {
 	return &provider, nil
 }
 
+func (provider *ChannelProvider) GetOtherSettings() dto.ChannelProviderSettings {
+	setting := dto.ChannelProviderSettings{}
+	if provider == nil || provider.Settings == "" {
+		return setting
+	}
+	if err := common.UnmarshalJsonStr(provider.Settings, &setting); err != nil {
+		common.SysLog(fmt.Sprintf("failed to unmarshal provider settings: provider_id=%d, error=%v", provider.Id, err))
+		provider.Settings = "{}"
+		_ = DB.Model(&ChannelProvider{}).Where("id = ?", provider.Id).Update("settings", provider.Settings).Error
+	}
+	return setting
+}
+
+func (provider *ChannelProvider) SetOtherSettings(setting dto.ChannelProviderSettings) {
+	settingBytes, err := common.Marshal(setting)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to marshal provider settings: provider_id=%d, error=%v", provider.Id, err))
+		return
+	}
+	provider.Settings = string(settingBytes)
+}
+
 func EnsureProviderForChannel(tx *gorm.DB, channel *Channel) (*ChannelProvider, error) {
 	if channel == nil {
 		return nil, errors.New("channel is nil")
@@ -190,10 +222,13 @@ func AttachChannelProviderSummaries(channels []*Channel) {
 	for i := range providers {
 		provider := providers[i]
 		providerMap[provider.Id] = &ChannelProviderSummary{
-			Id:      provider.Id,
-			Name:    provider.Name,
-			BaseURL: provider.BaseURL,
-			Status:  provider.Status,
+			Id:                 provider.Id,
+			Name:               provider.Name,
+			BaseURL:            provider.BaseURL,
+			Status:             provider.Status,
+			Balance:            provider.Balance,
+			BalanceUpdatedTime: provider.BalanceUpdatedTime,
+			Settings:           provider.Settings,
 		}
 	}
 	for _, channel := range channels {
@@ -212,7 +247,7 @@ func MigrateChannelProviders() error {
 		return nil
 	}
 
-	return DB.Transaction(func(tx *gorm.DB) error {
+	if err := DB.Transaction(func(tx *gorm.DB) error {
 		for _, channel := range channels {
 			baseURL := EffectiveBaseURLForChannel(channel)
 			if baseURL == "" {
@@ -237,7 +272,79 @@ func MigrateChannelProviders() error {
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	return MigrateChannelProviderQuerySettings()
+}
+
+func MigrateChannelProviderQuerySettings() error {
+	var providers []*ChannelProvider
+	if err := DB.Find(&providers).Error; err != nil {
+		return err
+	}
+	for _, provider := range providers {
+		settings := provider.GetOtherSettings()
+		if settings.BalanceQuery.Enabled && settings.GroupQuery.Enabled {
+			continue
+		}
+		var channels []*Channel
+		if err := DB.Where("provider_id = ?", provider.Id).Order("id asc").Find(&channels).Error; err != nil {
+			return err
+		}
+		changed := false
+		for _, channel := range channels {
+			channelSettings := channel.GetOtherSettings()
+			if !settings.BalanceQuery.Enabled && channelSettings.BalanceQuery.Enabled {
+				sourceChannel := channel
+				sourceSettings := channelSettings
+				if channelSettings.BalanceQuery.SourceChannelID > 0 && channelSettings.BalanceQuery.SourceChannelID != channel.Id {
+					if source, err := GetChannelById(channelSettings.BalanceQuery.SourceChannelID, true); err == nil && source.ProviderID == provider.Id {
+						sourceChannel = source
+						sourceSettings = source.GetOtherSettings()
+					}
+				}
+				if sourceSettings.BalanceQuery.Enabled {
+					settings.BalanceQuery = sourceSettings.BalanceQuery
+					settings.BalanceQuery.SourceChannelID = sourceChannel.Id
+					provider.Balance = sourceChannel.Balance
+					provider.BalanceUpdatedTime = sourceChannel.BalanceUpdatedTime
+					changed = true
+				}
+			}
+			if !settings.GroupQuery.Enabled && channelSettings.GroupQuery.Enabled {
+				sourceChannel := channel
+				sourceSettings := channelSettings
+				if channelSettings.GroupQuery.SourceChannelID > 0 && channelSettings.GroupQuery.SourceChannelID != channel.Id {
+					if source, err := GetChannelById(channelSettings.GroupQuery.SourceChannelID, true); err == nil && source.ProviderID == provider.Id {
+						sourceChannel = source
+						sourceSettings = source.GetOtherSettings()
+					}
+				}
+				if sourceSettings.GroupQuery.Enabled {
+					settings.GroupQuery = sourceSettings.GroupQuery
+					settings.GroupQuery.SourceChannelID = sourceChannel.Id
+					changed = true
+				}
+			}
+			if settings.BalanceQuery.Enabled && settings.GroupQuery.Enabled {
+				break
+			}
+		}
+		if !changed {
+			continue
+		}
+		provider.SetOtherSettings(settings)
+		if err := DB.Model(&ChannelProvider{}).Where("id = ?", provider.Id).Updates(map[string]interface{}{
+			"settings":             provider.Settings,
+			"balance":              provider.Balance,
+			"balance_updated_time": provider.BalanceUpdatedTime,
+			"updated_time":         common.GetTimestamp(),
+		}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ListChannelProviders(offset int, limit int) ([]*ChannelProvider, int64, error) {
@@ -295,12 +402,16 @@ func UpdateChannelProvider(provider *ChannelProvider) error {
 		}
 		provider.CreatedTime = origin.CreatedTime
 		provider.UpdatedTime = common.GetTimestamp()
+		if provider.Settings == "" {
+			provider.Settings = origin.Settings
+		}
 		if err := tx.Model(&ChannelProvider{}).Where("id = ?", provider.Id).Updates(map[string]interface{}{
 			"name":         provider.Name,
 			"base_url":     provider.BaseURL,
 			"status":       provider.Status,
 			"updated_time": provider.UpdatedTime,
 			"remark":       provider.Remark,
+			"settings":     provider.Settings,
 		}).Error; err != nil {
 			return err
 		}
@@ -346,17 +457,28 @@ func BuildChannelProviderTrees(channels []*Channel, offset int, limit int) ([]*C
 				baseURL = channel.Provider.BaseURL
 				status = channel.Provider.Status
 			}
+			var providerSettings string
+			var providerBalance float64
+			var providerBalanceUpdatedTime int64
+			if channel.Provider != nil {
+				providerSettings = channel.Provider.Settings
+				providerBalance = channel.Provider.Balance
+				providerBalanceUpdatedTime = channel.Provider.BalanceUpdatedTime
+			}
 			tree = &ChannelProviderTree{
-				Key:        fmt.Sprintf("provider-%d", providerID),
-				Id:         fmt.Sprintf("P%d", providerID),
-				IsProvider: true,
-				ProviderID: channel.ProviderID,
-				Name:       name,
-				BaseURL:    baseURL,
-				Status:     status,
-				Priority:   nil,
-				Weight:     nil,
-				Children:   make([]*Channel, 0),
+				Key:                fmt.Sprintf("provider-%d", providerID),
+				Id:                 fmt.Sprintf("P%d", providerID),
+				IsProvider:         true,
+				ProviderID:         channel.ProviderID,
+				Name:               name,
+				BaseURL:            baseURL,
+				Status:             status,
+				Settings:           providerSettings,
+				Balance:            providerBalance,
+				BalanceUpdatedTime: providerBalanceUpdatedTime,
+				Priority:           nil,
+				Weight:             nil,
+				Children:           make([]*Channel, 0),
 			}
 			treeMap[providerID] = tree
 			order = append(order, providerID)

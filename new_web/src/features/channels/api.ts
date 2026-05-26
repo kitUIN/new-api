@@ -38,6 +38,7 @@ import type {
   SearchChannelsParams,
   SearchChannelsResponse,
   TagOperationParams,
+  ProviderRow,
 } from './types'
 
 // Extended API config types
@@ -193,6 +194,40 @@ export async function updateChannelBalance(
   id: number
 ): Promise<ChannelBalanceResponse> {
   const res = await api.get(`/api/channel/update_balance/${id}`)
+  return res.data
+}
+
+export async function updateProviderBalance(
+  id: number
+): Promise<ChannelBalanceResponse> {
+  const res = await api.get(`/api/channel/providers/${id}/update_balance`)
+  return res.data
+}
+
+export async function updateProviderGroups(id: number): Promise<{
+  success: boolean
+  message?: string
+  data?: {
+    groups?: Record<string, unknown>
+    settings?: string
+    group_last_check_time?: number
+  }
+}> {
+  const res = await api.get(`/api/channel/providers/${id}/update_groups`)
+  return res.data
+}
+
+export async function updateChannelProvider(
+  data: Partial<ProviderRow> & { provider_id?: number; id?: number | string }
+): Promise<{ success: boolean; message?: string; data?: ProviderRow }> {
+  const id =
+    typeof data.id === 'string' && data.id.startsWith('P')
+      ? Number(data.id.slice(1))
+      : Number(data.provider_id || data.id)
+  const res = await api.put('/api/channel/providers', {
+    ...data,
+    id,
+  })
   return res.data
 }
 

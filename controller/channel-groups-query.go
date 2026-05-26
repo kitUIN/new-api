@@ -33,6 +33,12 @@ type groupQueryExecution struct {
 	Settings dto.ChannelOtherSettings
 }
 
+type providerGroupQueryExecution struct {
+	Provider *model.ChannelProvider
+	Channel  *model.Channel
+	Settings dto.ChannelProviderSettings
+}
+
 type groupQueryDebugInfo struct {
 	ChannelID int               `json:"channel_id"`
 	URL       string            `json:"url"`
@@ -241,6 +247,23 @@ func persistGroupQueryResult(channel *model.Channel, settings dto.ChannelOtherSe
 	}
 }
 
+func persistProviderGroupQueryResult(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, result map[string]dto.GroupQueryItem, queryErr error) {
+	settings.GroupQuery.LastCheckTime = common.GetTimestamp()
+	if queryErr != nil {
+		settings.GroupQuery.LastError = queryErr.Error()
+	} else {
+		settings.GroupQuery.LastResult = result
+		settings.GroupQuery.LastError = ""
+	}
+	provider.SetOtherSettings(settings)
+	if updateErr := model.DB.Model(&model.ChannelProvider{}).Where("id = ?", provider.Id).Updates(map[string]interface{}{
+		"settings":     provider.Settings,
+		"updated_time": common.GetTimestamp(),
+	}).Error; updateErr != nil {
+		common.SysLog(fmt.Sprintf("failed to persist provider group query result: provider_id=%d, error=%v", provider.Id, updateErr))
+	}
+}
+
 func updateChannelConfiguredGroups(channel *model.Channel) (map[string]dto.GroupQueryItem, bool, error) {
 	settings := channel.GetOtherSettings()
 	config := settings.GroupQuery
@@ -263,6 +286,71 @@ func updateChannelConfiguredGroups(channel *model.Channel) (map[string]dto.Group
 		execution = groupQueryExecution{Channel: sourceChannel, Settings: sourceSettings}
 	}
 	return executeChannelConfiguredGroups(channel, settings, execution)
+}
+
+func updateProviderConfiguredGroups(provider *model.ChannelProvider) (map[string]dto.GroupQueryItem, bool, error) {
+	settings := provider.GetOtherSettings()
+	config := settings.GroupQuery
+	if !config.Enabled {
+		return nil, false, nil
+	}
+	sourceChannel, err := getProviderQuerySourceChannel(provider, config.SourceChannelID)
+	if err != nil {
+		persistProviderGroupQueryResult(provider, settings, nil, err)
+		return nil, true, err
+	}
+	return executeProviderConfiguredGroups(provider, settings, providerGroupQueryExecution{Provider: provider, Channel: sourceChannel, Settings: settings})
+}
+
+func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSettings dto.ChannelProviderSettings, execution providerGroupQueryExecution) (map[string]dto.GroupQueryItem, bool, error) {
+	channel := execution.Channel
+	config := buildGroupQueryConfig(channel, execution.Settings.GroupQuery)
+	method := strings.ToUpper(strings.TrimSpace(config.Request.Method))
+	if method == "" {
+		method = http.MethodGet
+	}
+	url := replaceGroupQueryVars(config.Request.URL, channel, config)
+	if strings.TrimSpace(url) == "" {
+		err := errors.New("上游分组查询请求地址不能为空")
+		persistProviderGroupQueryResult(provider, providerSettings, nil, err)
+		return nil, true, err
+	}
+	headers := http.Header{}
+	for key, value := range config.Request.Headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		headers.Set(key, replaceGroupQueryVars(value, channel, config))
+	}
+	requestBody := replaceGroupQueryVars(config.Request.Body, channel, config)
+	debugInfo := groupQueryDebugInfo{
+		ChannelID: channel.Id,
+		URL:       url,
+		Method:    method,
+		Headers:   balanceQueryHeadersToMap(headers),
+		Body:      requestBody,
+	}
+	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	if err != nil {
+		debugInfo.Error = err.Error()
+		logGroupQueryDebug(debugInfo)
+		persistProviderGroupQueryResult(provider, providerSettings, nil, err)
+		return nil, true, err
+	}
+	debugInfo.Response = string(body)
+	result, err := extractGroupQueryResult(body, config.Extractor)
+	if err != nil {
+		debugInfo.Error = err.Error()
+		logGroupQueryDebug(debugInfo)
+		persistProviderGroupQueryResult(provider, providerSettings, nil, err)
+		return nil, true, err
+	}
+	previous := providerSettings.GroupQuery.LastResult
+	persistProviderGroupQueryResult(provider, providerSettings, result, nil)
+	if previous != nil && !reflect.DeepEqual(previous, result) {
+		sendProviderGroupQueryChangedNotify(provider, previous, result)
+	}
+	return result, true, nil
 }
 
 func executeChannelConfiguredGroups(target *model.Channel, targetSettings dto.ChannelOtherSettings, execution groupQueryExecution) (map[string]dto.GroupQueryItem, bool, error) {
@@ -330,6 +418,19 @@ func shouldRunChannelGroupQuery(channel *model.Channel, now int64) bool {
 	return config.LastCheckTime <= 0 || now-config.LastCheckTime >= int64(interval)
 }
 
+func shouldRunProviderGroupQuery(provider *model.ChannelProvider, now int64) bool {
+	settings := provider.GetOtherSettings()
+	config := settings.GroupQuery
+	if !config.Enabled {
+		return false
+	}
+	interval := getGroupQueryIntervalSeconds(config)
+	if interval == 0 {
+		return false
+	}
+	return config.LastCheckTime <= 0 || now-config.LastCheckTime >= int64(interval)
+}
+
 func propagateSharedGroupQueryResult(channels []*model.Channel, sourceChannelID int, result map[string]dto.GroupQueryItem, queryErr error) {
 	if result == nil && queryErr == nil {
 		return
@@ -347,6 +448,28 @@ func propagateSharedGroupQueryResult(channels []*model.Channel, sourceChannelID 
 }
 
 func updateConfiguredChannelsGroupsDue() error {
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		return err
+	}
+	now := common.GetTimestamp()
+	for _, provider := range providers {
+		if provider.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if !shouldRunProviderGroupQuery(provider, now) {
+			continue
+		}
+		_, configured, _ := updateProviderConfiguredGroups(provider)
+		if !configured {
+			continue
+		}
+		time.Sleep(common.RequestInterval)
+	}
+	return nil
+}
+
+func updateConfiguredChannelsGroupsDueLegacy() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
@@ -400,6 +523,24 @@ func updateConfiguredChannelsGroupsDue() error {
 }
 
 func updateAllChannelsGroups() error {
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		return err
+	}
+	for _, provider := range providers {
+		if provider.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		_, configured, _ := updateProviderConfiguredGroups(provider)
+		if !configured {
+			continue
+		}
+		time.Sleep(common.RequestInterval)
+	}
+	return nil
+}
+
+func updateAllChannelsGroupsLegacy() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
@@ -495,6 +636,47 @@ func sendChannelGroupQueryChangedNotify(channel *model.Channel, previous, curren
 	}()
 }
 
+func sendProviderGroupQueryChangedNotify(provider *model.ChannelProvider, previous, current map[string]dto.GroupQueryItem) {
+	if provider == nil || common.QQCallbackAddress == "" || common.QQCallbackAccessToken == "" || common.QQAdminNumber == "" {
+		return
+	}
+	changes := formatGroupQueryChanges(previous, current)
+	if len(changes) == 0 {
+		return
+	}
+	go func() {
+		message := fmt.Sprintf("供应商上游分组发生变化：供应商ID %d，名称 %s\n%s", provider.Id, provider.Name, strings.Join(changes, "\n"))
+		payload, err := common.Marshal(channelLowBalanceNotifyPayload{
+			QQ:      common.QQAdminNumber,
+			AdminQQ: common.QQAdminNumber,
+			To:      common.QQAdminNumber,
+			Message: message,
+			Content: message,
+		})
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to marshal provider group query notify payload: provider_id=%d, error=%v", provider.Id, err))
+			return
+		}
+		req, err := http.NewRequest(http.MethodPost, channelQQServiceURL("/api/nachoai/send_message"), bytes.NewReader(payload))
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to create provider group query notify request: provider_id=%d, error=%v", provider.Id, err))
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		setChannelQQServiceAuthHeader(req)
+		client := http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to send provider group query notify: provider_id=%d, error=%v", provider.Id, err))
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			common.SysLog(fmt.Sprintf("failed to send provider group query notify: provider_id=%d, status=%d", provider.Id, resp.StatusCode))
+		}
+	}()
+}
+
 func UpdateChannelGroups(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -532,6 +714,40 @@ func UpdateChannelGroups(c *gin.Context) {
 			"groups":                result,
 			"settings":              channel.OtherSettings,
 			"group_last_check_time": channel.GetOtherSettings().GroupQuery.LastCheckTime,
+		},
+	})
+}
+
+func UpdateChannelProviderGroups(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	provider, err := model.GetChannelProviderByID(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	result, configured, err := updateProviderConfiguredGroups(provider)
+	if !configured {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "供应商未启用上游分组查询配置",
+		})
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"groups":                result,
+			"settings":              provider.Settings,
+			"group_last_check_time": provider.GetOtherSettings().GroupQuery.LastCheckTime,
 		},
 	})
 }
