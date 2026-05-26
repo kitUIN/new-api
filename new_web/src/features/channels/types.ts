@@ -88,6 +88,81 @@ export interface ChannelSettings {
   system_prompt_override?: boolean
 }
 
+export type QueryRequestConfig = {
+  url?: string
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+export type BalanceQueryExtractorConfig = {
+  plan_name_path?: string
+  remaining_path?: string
+  used_path?: string
+  total_path?: string
+  unit_path?: string
+  unit?: string
+  divisor?: number
+  success_path?: string
+  success_value?: string
+  success_optional?: boolean
+  message_path?: string
+}
+
+export type BalanceQueryResult = {
+  is_valid: boolean
+  invalid_message?: string
+  plan_name?: string
+  remaining?: number
+  used?: number
+  total?: number
+  unit?: string
+  checked_at?: number
+}
+
+export type BalanceQueryConfig = {
+  enabled?: boolean
+  template?: string
+  interval_seconds?: number
+  source_channel_id?: number
+  access_token?: string
+  user_id?: string
+  request?: QueryRequestConfig
+  extractor?: BalanceQueryExtractorConfig
+  last_result?: BalanceQueryResult | null
+  last_check_time?: number
+  last_error?: string
+}
+
+export type GroupQueryExtractorConfig = {
+  data_path?: string
+  desc_path?: string
+  ratio_path?: string
+  success_path?: string
+  success_value?: string
+  success_optional?: boolean
+  message_path?: string
+}
+
+export type GroupQueryItem = {
+  desc?: string
+  ratio?: number
+}
+
+export type GroupQueryConfig = {
+  enabled?: boolean
+  template?: string
+  interval_seconds?: number
+  source_channel_id?: number
+  access_token?: string
+  user_id?: string
+  request?: QueryRequestConfig
+  extractor?: GroupQueryExtractorConfig
+  last_result?: Record<string, GroupQueryItem> | null
+  last_check_time?: number
+  last_error?: string
+}
+
 export interface ChannelOtherSettings {
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
@@ -105,6 +180,8 @@ export interface ChannelOtherSettings {
   upstream_model_update_ignored_models?: string[]
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
+  balance_query?: BalanceQueryConfig
+  group_query?: GroupQueryConfig
 }
 
 // ============================================================================
@@ -168,6 +245,23 @@ export interface CopyChannelResponse {
   data?: {
     id: number
   }
+}
+
+export interface QueryInstance {
+  id: number
+  name?: string
+  type?: number
+  template?: string
+  interval_seconds?: number
+  last_check_time?: number
+  last_error?: string
+  last_result?: BalanceQueryResult | Record<string, GroupQueryItem> | null
+}
+
+export interface QueryInstancesResponse {
+  success: boolean
+  message?: string
+  data?: QueryInstance[]
 }
 
 // ============================================================================
@@ -322,6 +416,52 @@ export interface ChannelFormData {
   multi_key_mode?: 'single' | 'batch' | 'multi_to_single'
   multi_key_type?: 'random' | 'polling'
   batch_add_set_key_prefix_2_name?: boolean
+  // Balance query settings (stored in settings JSON)
+  balance_query_enabled?: boolean
+  balance_query_template?: string
+  balance_query_interval_seconds?: number
+  balance_query_source_channel_id?: number
+  balance_query_access_token?: string
+  balance_query_user_id?: string
+  balance_query_request_url?: string
+  balance_query_request_method?: string
+  balance_query_request_headers?: string
+  balance_query_request_body?: string
+  balance_query_plan_name_path?: string
+  balance_query_remaining_path?: string
+  balance_query_used_path?: string
+  balance_query_total_path?: string
+  balance_query_unit_path?: string
+  balance_query_unit?: string
+  balance_query_divisor?: number
+  balance_query_success_path?: string
+  balance_query_success_value?: string
+  balance_query_success_optional?: boolean
+  balance_query_message_path?: string
+  balance_query_last_check_time?: number
+  balance_query_last_result?: BalanceQueryResult | null
+  balance_query_last_error?: string
+  // Group query settings (stored in settings JSON)
+  group_query_enabled?: boolean
+  group_query_template?: string
+  group_query_interval_seconds?: number
+  group_query_source_channel_id?: number
+  group_query_access_token?: string
+  group_query_user_id?: string
+  group_query_request_url?: string
+  group_query_request_method?: string
+  group_query_request_headers?: string
+  group_query_request_body?: string
+  group_query_data_path?: string
+  group_query_desc_path?: string
+  group_query_ratio_path?: string
+  group_query_success_path?: string
+  group_query_success_value?: string
+  group_query_success_optional?: boolean
+  group_query_message_path?: string
+  group_query_last_check_time?: number
+  group_query_last_result?: Record<string, GroupQueryItem> | null
+  group_query_last_error?: string
 }
 
 // ============================================================================

@@ -71,7 +71,12 @@ import {
   type TagRow,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
-import type { Channel } from '../types'
+import type {
+  BalanceQueryConfig,
+  Channel,
+  GroupQueryConfig,
+  GroupQueryItem,
+} from '../types'
 import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
@@ -95,6 +100,58 @@ function parseIonetMeta(otherInfo: string | null | undefined): null | {
     return null
   }
   return null
+}
+
+function parseChannelOtherSettings(settings: string | null | undefined): {
+  balance_query?: BalanceQueryConfig
+  group_query?: GroupQueryConfig
+} {
+  if (!settings) return {}
+  try {
+    const parsed = JSON.parse(settings)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed
+    }
+  } catch {
+    return {}
+  }
+  return {}
+}
+
+function getBalanceQueryMeta(channel: Channel): BalanceQueryConfig | undefined {
+  if (isTagAggregateRow(channel)) return undefined
+  return parseChannelOtherSettings(channel.settings).balance_query
+}
+
+function getGroupQueryMeta(channel: Channel): GroupQueryConfig | undefined {
+  if (isTagAggregateRow(channel)) return undefined
+  return parseChannelOtherSettings(channel.settings).group_query
+}
+
+function formatGroupQueryRatio(ratio: unknown): string {
+  const value = Number(ratio)
+  if (!Number.isFinite(value)) return '-'
+  return `${value % 1 === 0 ? value : Number(value.toFixed(2))}x`
+}
+
+function getGroupQueryItems(groupQuery: GroupQueryConfig | undefined) {
+  const result = groupQuery?.last_result
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return []
+
+  return Object.entries(result)
+    .map(([name, value]) => {
+      const item = (value || {}) as GroupQueryItem
+      return {
+        name,
+        desc: typeof item.desc === 'string' ? item.desc : name,
+        ratio: item.ratio,
+      }
+    })
+    .sort((a, b) => {
+      if (a.name === 'default' || a.name === 'normal') return -1
+      if (b.name === 'default' || b.name === 'normal') return 1
+      return a.name.localeCompare(b.name)
+    })
 }
 
 /**
@@ -298,9 +355,22 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
     tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
+  const balanceQuery = getBalanceQueryMeta(channel)
+  const balanceResult = balanceQuery?.last_result
+  const displayedBalance =
+    balanceResult?.is_valid === true &&
+    typeof balanceResult.remaining === 'number'
+      ? balanceResult.remaining
+      : balance
 
   const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
-  const remainingDisplay = withSuffix(formatBalance(balance))
+  const remainingDisplay = withSuffix(formatBalance(displayedBalance))
+  const queriedUsedDisplay = withSuffix(
+    formatQuotaValue(balanceResult?.used || 0)
+  )
+  const queriedTotalDisplay = withSuffix(
+    formatQuotaValue(balanceResult?.total || 0)
+  )
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
@@ -315,7 +385,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   }
 
   // Regular channel row: show used and remaining with click to update
-  const variant = getBalanceVariant(balance)
+  const variant = getBalanceVariant(displayedBalance)
 
   const handleClickUpdate = async () => {
     if (isUpdating) return
@@ -390,12 +460,43 @@ function BalanceCell({ channel }: { channel: Channel }) {
             }
           />
           <TooltipContent>
-            <p>
-              {channel.type === 57
-                ? t('Click to view Codex usage')
-                : `${t('Remaining:')} ${remainingDisplay}`}
-            </p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            {channel.type === 57 ? (
+              <p>{t('Click to view Codex usage')}</p>
+            ) : balanceResult?.is_valid === true ? (
+              <div className='space-y-1'>
+                <p>
+                  {t('Plan')}: {balanceResult.plan_name || t('Default plan')}
+                </p>
+                <p>
+                  {t('Remaining:')} {remainingDisplay}
+                </p>
+                <p>
+                  {t('Used:')} {queriedUsedDisplay}
+                </p>
+                <p>
+                  {t('Total')}: {queriedTotalDisplay}
+                </p>
+                <p>
+                  {t('Last check time')}:{' '}
+                  {formatTimestampToDate(
+                    balanceResult.checked_at || channel.balance_updated_time
+                  )}
+                </p>
+                <p>{t('Click to update balance')}</p>
+              </div>
+            ) : (
+              <div className='space-y-1'>
+                <p>
+                  {t('Remaining:')} {remainingDisplay}
+                </p>
+                {balanceQuery?.last_error ? (
+                  <p className='text-destructive'>
+                    {t('Balance query failed')}: {balanceQuery.last_error}
+                  </p>
+                ) : null}
+                <p>{t('Click to update balance')}</p>
+              </div>
+            )}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -427,6 +528,100 @@ function BalanceCell({ channel }: { channel: Channel }) {
         }}
         isRefreshing={isUpdating}
       />
+    </TooltipProvider>
+  )
+}
+
+function UpstreamGroupsCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+
+  if (isTagAggregateRow(channel)) {
+    return (
+      <StatusBadge
+        label='-'
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
+    )
+  }
+
+  const groupQuery = getGroupQueryMeta(channel)
+  if (!groupQuery?.enabled) {
+    return (
+      <StatusBadge
+        label={t('Not enabled')}
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
+    )
+  }
+
+  if (groupQuery.last_error) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <StatusBadge
+                label={t('Query failed')}
+                variant='danger'
+                size='sm'
+                copyable={false}
+                className='cursor-help'
+              />
+            }
+          />
+          <TooltipContent side='top' className='max-w-xs'>
+            {groupQuery.last_error}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  const items = getGroupQueryItems(groupQuery)
+  if (items.length === 0) {
+    return (
+      <StatusBadge
+        label={t('Not cached')}
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
+    )
+  }
+
+  const groupBadges = items.map((item) => (
+    <StatusBadge
+      key={item.name}
+      label={`${item.name} · ${formatGroupQueryRatio(item.ratio)}`}
+      variant='cyan'
+      size='sm'
+      copyable={false}
+    />
+  ))
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger render={<div />}>
+          {renderLimitedItems(groupBadges, 2)}
+        </TooltipTrigger>
+        <TooltipContent
+          side='top'
+          className='border-border bg-popover max-h-64 max-w-[360px] overflow-y-auto p-2'
+        >
+          <div className='space-y-2'>
+            <div className='text-muted-foreground text-xs'>
+              {t('Last check time')}:{' '}
+              {formatTimestampToDate(groupQuery.last_check_time || 0)}
+            </div>
+            <div className='flex flex-wrap gap-1'>{groupBadges}</div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
     </TooltipProvider>
   )
 }
@@ -916,6 +1111,16 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         return groupArray.some((g) => value.includes(g))
       },
       size: 150,
+      enableSorting: false,
+    },
+
+    // Upstream Groups column
+    {
+      id: 'upstream_groups',
+      meta: { label: t('Upstream Groups'), mobileHidden: true },
+      header: t('Upstream Groups'),
+      cell: ({ row }) => <UpstreamGroupsCell channel={row.original} />,
+      size: 180,
       enableSorting: false,
     },
 

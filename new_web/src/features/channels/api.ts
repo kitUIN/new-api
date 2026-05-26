@@ -34,6 +34,7 @@ import type {
   GetChannelsResponse,
   MultiKeyManageParams,
   MultiKeyStatusResponse,
+  QueryInstancesResponse,
   SearchChannelsParams,
   SearchChannelsResponse,
   TagOperationParams,
@@ -192,6 +193,16 @@ export async function updateChannelBalance(
   id: number
 ): Promise<ChannelBalanceResponse> {
   const res = await api.get(`/api/channel/update_balance/${id}`)
+  return res.data
+}
+
+export async function getBalanceQueryInstances(): Promise<QueryInstancesResponse> {
+  const res = await api.get('/api/channel/balance_query_instances')
+  return res.data
+}
+
+export async function getGroupQueryInstances(): Promise<QueryInstancesResponse> {
+  const res = await api.get('/api/channel/group_query_instances')
   return res.data
 }
 

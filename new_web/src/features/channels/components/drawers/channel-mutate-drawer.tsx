@@ -108,9 +108,11 @@ import {
 import {
   fetchModels,
   getAllModels,
+  getBalanceQueryInstances,
   getChannel,
   getChannelKey,
   getGroups,
+  getGroupQueryInstances,
   getPrefillGroups,
   refreshCodexCredential,
 } from '../../api'
@@ -126,6 +128,8 @@ import {
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  BALANCE_QUERY_TEMPLATES,
+  GROUP_QUERY_TEMPLATES,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -246,6 +250,11 @@ function formatUnixTime(timestamp: unknown): string {
   return new Date(seconds * 1000).toLocaleString()
 }
 
+function getObjectSize(value: unknown): number {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 0
+  return Object.keys(value).length
+}
+
 function CardHeading({ title, icon }: { title: string; icon?: ReactNode }) {
   return (
     <div className='flex items-center gap-3'>
@@ -330,6 +339,18 @@ export function ChannelMutateDrawer({
     queryFn: () => getPrefillGroups('model'),
   })
 
+  const { data: balanceQueryInstancesData } = useQuery({
+    queryKey: ['channel_balance_query_instances'],
+    queryFn: getBalanceQueryInstances,
+    enabled: open,
+  })
+
+  const { data: groupQueryInstancesData } = useQuery({
+    queryKey: ['channel_group_query_instances'],
+    queryFn: getGroupQueryInstances,
+    enabled: open,
+  })
+
   const { copyToClipboard } = useCopyToClipboard()
 
   const {
@@ -376,6 +397,15 @@ export function ChannelMutateDrawer({
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
+  const selectedBalanceQuerySourceId = form.watch(
+    'balance_query_source_channel_id'
+  )
+  const selectedGroupQuerySourceId = form.watch('group_query_source_channel_id')
+  const balanceQueryLastCheckTime = form.watch('balance_query_last_check_time')
+  const balanceQueryLastError = form.watch('balance_query_last_error')
+  const groupQueryLastCheckTime = form.watch('group_query_last_check_time')
+  const groupQueryLastError = form.watch('group_query_last_error')
+  const groupQueryLastResult = form.watch('group_query_last_result')
   const currentSettings = form.watch('settings')
   const {
     unlocked: doubaoApiEditUnlocked,
@@ -483,6 +513,71 @@ export function ChannelMutateDrawer({
       label: model,
     }))
   }, [allModelsList, currentModelsArray])
+
+  const balanceQueryInstanceOptions = useMemo(() => {
+    const options = [
+      {
+        value: '0',
+        label: t('Use current channel configuration'),
+      },
+    ]
+
+    for (const item of balanceQueryInstancesData?.data || []) {
+      if (!item || item.id === channelId) continue
+      options.push({
+        value: String(item.id),
+        label: `#${item.id} ${item.name || t('Unnamed channel')}`,
+      })
+    }
+
+    const selectedId = Number(selectedBalanceQuerySourceId) || 0
+    if (
+      selectedId > 0 &&
+      !options.some((option) => Number(option.value) === selectedId)
+    ) {
+      options.push({
+        value: String(selectedId),
+        label: `#${selectedId} ${t('Currently selected instance')}`,
+      })
+    }
+
+    return options
+  }, [balanceQueryInstancesData, channelId, selectedBalanceQuerySourceId, t])
+
+  const groupQueryInstanceOptions = useMemo(() => {
+    const options = [
+      {
+        value: '0',
+        label: t('Use current channel configuration'),
+      },
+    ]
+
+    for (const item of groupQueryInstancesData?.data || []) {
+      if (!item || item.id === channelId) continue
+      options.push({
+        value: String(item.id),
+        label: `#${item.id} ${item.name || t('Unnamed channel')}`,
+      })
+    }
+
+    const selectedId = Number(selectedGroupQuerySourceId) || 0
+    if (
+      selectedId > 0 &&
+      !options.some((option) => Number(option.value) === selectedId)
+    ) {
+      options.push({
+        value: String(selectedId),
+        label: `#${selectedId} ${t('Currently selected instance')}`,
+      })
+    }
+
+    return options
+  }, [channelId, groupQueryInstancesData, selectedGroupQuerySourceId, t])
+
+  const groupQueryLastResultCount = useMemo(
+    () => getObjectSize(groupQueryLastResult),
+    [groupQueryLastResult]
+  )
 
   const modelMappingGuardrail = useMemo<ModelMappingGuardrail>(() => {
     if (!currentModelMapping?.trim()) {
@@ -839,6 +934,75 @@ export function ChannelMutateDrawer({
     },
     [form]
   )
+
+  const setFormValues = useCallback(
+    (values: Partial<ChannelFormValues>) => {
+      Object.entries(values).forEach(([key, value]) => {
+        form.setValue(key as keyof ChannelFormValues, value as never, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+      })
+    },
+    [form]
+  )
+
+  const applyBalanceQueryTemplate = useCallback(
+    (templateKey: keyof typeof BALANCE_QUERY_TEMPLATES) => {
+      const template = BALANCE_QUERY_TEMPLATES[templateKey]
+      setFormValues({
+        balance_query_template: templateKey,
+        balance_query_request_url: template.request.url,
+        balance_query_request_method: template.request.method,
+        balance_query_request_headers: JSON.stringify(
+          template.request.headers,
+          null,
+          2
+        ),
+        balance_query_request_body: '',
+        balance_query_plan_name_path: template.extractor.plan_name_path,
+        balance_query_remaining_path: template.extractor.remaining_path,
+        balance_query_used_path: template.extractor.used_path,
+        balance_query_total_path: template.extractor.total_path,
+        balance_query_unit_path: template.extractor.unit_path,
+        balance_query_unit: template.extractor.unit,
+        balance_query_divisor: template.extractor.divisor,
+        balance_query_success_path: template.extractor.success_path,
+        balance_query_success_value: template.extractor.success_value,
+        balance_query_success_optional: template.extractor.success_optional,
+        balance_query_message_path: template.extractor.message_path,
+      })
+      toast.success(
+        t('Filled {{name}} balance query template', {
+          name: templateKey === 'sub2api' ? 'sub2api' : 'New API',
+        })
+      )
+    },
+    [setFormValues, t]
+  )
+
+  const applyGroupQueryTemplate = useCallback(() => {
+    const template = GROUP_QUERY_TEMPLATES.newapi
+    setFormValues({
+      group_query_template: 'newapi',
+      group_query_request_url: template.request.url,
+      group_query_request_method: template.request.method,
+      group_query_request_headers: JSON.stringify(
+        template.request.headers,
+        null,
+        2
+      ),
+      group_query_request_body: '',
+      group_query_data_path: template.extractor.data_path,
+      group_query_desc_path: template.extractor.desc_path,
+      group_query_ratio_path: template.extractor.ratio_path,
+      group_query_success_path: template.extractor.success_path,
+      group_query_success_value: template.extractor.success_value,
+      group_query_success_optional: template.extractor.success_optional,
+      group_query_message_path: template.extractor.message_path,
+    })
+    toast.success(t('Filled New API group query template'))
+  }, [setFormValues, t])
 
   // Handle successful submission
   const handleSuccess = useCallback(() => {
@@ -2882,6 +3046,725 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+                      </div>
+                    </div>
+
+                    {/* ── Balance Query ── */}
+                    <div className={sideDrawerSectionClassName()}>
+                      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                        <CardHeading
+                          title={t('Channel balance query')}
+                          icon={<RefreshCw className='h-4 w-4' />}
+                        />
+                        <div className='flex flex-wrap gap-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={() => applyBalanceQueryTemplate('newapi')}
+                          >
+                            <Sparkles className='mr-2 h-4 w-4' />
+                            {t('New API template')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={() => applyBalanceQueryTemplate('sub2api')}
+                          >
+                            <Sparkles className='mr-2 h-4 w-4' />
+                            {t('sub2api template')}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='balance_query_enabled'
+                        render={({ field }) => (
+                          <FormItem className={sideDrawerSwitchItemClassName()}>
+                            <div className='space-y-0.5'>
+                              <FormLabel>{t('Enable balance query')}</FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Manual balance updates and background checks use this configuration first.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <FormField
+                          control={form.control}
+                          name='balance_query_template'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Template')}</FormLabel>
+                              <Select
+                                value={field.value || 'newapi'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    <SelectItem value='newapi'>New API</SelectItem>
+                                    <SelectItem value='sub2api'>sub2api</SelectItem>
+                                    <SelectItem value='custom'>
+                                      {t('Custom')}
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='balance_query_interval_seconds'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Check interval (seconds)')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  placeholder='300'
+                                  value={field.value ?? 300}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t('Default 300 seconds. Set 0 to disable scheduled checks.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='balance_query_source_channel_id'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Balance query instance')}</FormLabel>
+                            <Select
+                              value={String(field.value ?? 0)}
+                              onValueChange={(value) =>
+                                field.onChange(Number(value) || 0)
+                              }
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  {balanceQueryInstanceOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              {t(
+                                'Reuse another channel query configuration and cached result. The background checker only calls the shared instance once.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <FormField
+                          control={form.control}
+                          name='balance_query_access_token'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Access Token</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'Used for {{accessToken}}. Empty uses the channel key.'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='balance_query_user_id'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('User ID')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'Used for {{userId}}. New API template sends it as New-Api-User.'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='balance_query_request_url'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Request URL')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder='{{baseUrl}}/api/user/self'
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Supports {{baseUrl}}, {{accessToken}}, {{apiKey}}, and {{userId}} variables.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        <FormField
+                          control={form.control}
+                          name='balance_query_request_method'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Request method')}</FormLabel>
+                              <Select
+                                value={field.value || 'GET'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    {['GET', 'POST', 'PUT', 'PATCH'].map(
+                                      (method) => (
+                                        <SelectItem key={method} value={method}>
+                                          {method}
+                                        </SelectItem>
+                                      )
+                                    )}
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='balance_query_divisor'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Value divisor')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  value={field.value ?? 1}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='balance_query_unit'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Unit')}</FormLabel>
+                              <FormControl>
+                                <Input placeholder='USD' {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='balance_query_request_headers'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Request headers JSON')}</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                className='font-mono text-sm'
+                                rows={5}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='balance_query_request_body'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Request body')}</FormLabel>
+                            <FormControl>
+                              <Textarea rows={3} {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        {[
+                          ['balance_query_remaining_path', 'Remaining path', 'data.quota'],
+                          ['balance_query_used_path', 'Used path', 'data.used_quota'],
+                          ['balance_query_total_path', 'Total path', ''],
+                          ['balance_query_plan_name_path', 'Plan name path', 'data.group'],
+                          ['balance_query_unit_path', 'Unit path', 'unit,quota.unit'],
+                          ['balance_query_message_path', 'Error message path', 'message'],
+                          ['balance_query_success_path', 'Success path', 'success'],
+                          ['balance_query_success_value', 'Success value', 'true'],
+                        ].map(([name, label, placeholder]) => (
+                          <FormField
+                            key={name}
+                            control={form.control}
+                            name={name as keyof ChannelFormValues}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t(label)}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder={placeholder}
+                                    value={String(field.value || '')}
+                                    onChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ))}
+                        <FormField
+                          control={form.control}
+                          name='balance_query_success_optional'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border px-3 py-2'>
+                              <FormLabel>{t('Success may be absent')}</FormLabel>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className='text-muted-foreground space-y-1 border-t pt-3 text-xs'>
+                        <div>
+                          <span className='text-foreground font-medium'>
+                            {t('Last check time')}:
+                          </span>{' '}
+                          {formatUnixTime(balanceQueryLastCheckTime)}
+                        </div>
+                        {balanceQueryLastError ? (
+                          <div className='text-destructive'>
+                            {balanceQueryLastError}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* ── Group Query ── */}
+                    <div className={sideDrawerSectionClassName()}>
+                      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                        <CardHeading
+                          title={t('Upstream group query')}
+                          icon={<Route className='h-4 w-4' />}
+                        />
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={applyGroupQueryTemplate}
+                        >
+                          <Sparkles className='mr-2 h-4 w-4' />
+                          {t('New API template')}
+                        </Button>
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='group_query_enabled'
+                        render={({ field }) => (
+                          <FormItem className={sideDrawerSwitchItemClassName()}>
+                            <div className='space-y-0.5'>
+                              <FormLabel>{t('Enable group query')}</FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'When enabled, background checks query upstream groups and cache the result.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <FormField
+                          control={form.control}
+                          name='group_query_template'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Template')}</FormLabel>
+                              <Select
+                                value={field.value || 'newapi'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    <SelectItem value='newapi'>New API</SelectItem>
+                                    <SelectItem value='custom'>
+                                      {t('Custom')}
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='group_query_interval_seconds'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Check interval (seconds)')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  placeholder='300'
+                                  value={field.value ?? 300}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t('Default 300 seconds. Set 0 to disable scheduled checks.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='group_query_source_channel_id'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Group query instance')}</FormLabel>
+                            <Select
+                              value={String(field.value ?? 0)}
+                              onValueChange={(value) =>
+                                field.onChange(Number(value) || 0)
+                              }
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  {groupQueryInstanceOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              {t(
+                                'Reuse another channel query configuration and cached result. The background checker only calls the shared instance once.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <FormField
+                          control={form.control}
+                          name='group_query_access_token'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Access Token</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'Used for {{accessToken}}. Empty uses the channel key.'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='group_query_user_id'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('User ID')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'Used for {{userId}}. New API template sends it as New-Api-User.'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='group_query_request_url'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Request URL')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder='{{baseUrl}}/api/user/self/groups'
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Supports {{baseUrl}}, {{accessToken}}, {{apiKey}}, and {{userId}} variables.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        <FormField
+                          control={form.control}
+                          name='group_query_request_method'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Request method')}</FormLabel>
+                              <Select
+                                value={field.value || 'GET'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    {['GET', 'POST', 'PUT', 'PATCH'].map(
+                                      (method) => (
+                                        <SelectItem key={method} value={method}>
+                                          {method}
+                                        </SelectItem>
+                                      )
+                                    )}
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        {[
+                          ['group_query_data_path', 'Group data path', 'data'],
+                          ['group_query_ratio_path', 'Ratio path', 'ratio'],
+                        ].map(([name, label, placeholder]) => (
+                          <FormField
+                            key={name}
+                            control={form.control}
+                            name={name as keyof ChannelFormValues}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t(label)}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder={placeholder}
+                                    value={String(field.value || '')}
+                                    onChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ))}
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name='group_query_request_headers'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Request headers JSON')}</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                className='font-mono text-sm'
+                                rows={5}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='group_query_request_body'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Request body')}</FormLabel>
+                            <FormControl>
+                              <Textarea rows={3} {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        {[
+                          ['group_query_desc_path', 'Description path', 'desc'],
+                          ['group_query_success_path', 'Success path', 'success'],
+                          ['group_query_success_value', 'Success value', 'true'],
+                          ['group_query_message_path', 'Error message path', 'message'],
+                        ].map(([name, label, placeholder]) => (
+                          <FormField
+                            key={name}
+                            control={form.control}
+                            name={name as keyof ChannelFormValues}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t(label)}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder={placeholder}
+                                    value={String(field.value || '')}
+                                    onChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ))}
+                        <FormField
+                          control={form.control}
+                          name='group_query_success_optional'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border px-3 py-2'>
+                              <FormLabel>{t('Success may be absent')}</FormLabel>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className='text-muted-foreground space-y-1 border-t pt-3 text-xs'>
+                        <div>
+                          <span className='text-foreground font-medium'>
+                            {t('Last check time')}:
+                          </span>{' '}
+                          {formatUnixTime(groupQueryLastCheckTime)}
+                          {groupQueryLastResultCount > 0 ? (
+                            <span className='ml-2'>
+                              {t('Cached {{count}} groups', {
+                                count: groupQueryLastResultCount,
+                              })}
+                            </span>
+                          ) : null}
+                        </div>
+                        {groupQueryLastError ? (
+                          <div className='text-destructive'>
+                            {groupQueryLastError}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 

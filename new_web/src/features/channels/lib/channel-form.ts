@@ -22,11 +22,95 @@ import {
   ERROR_MESSAGES,
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
-import type { Channel } from '../types'
+import type {
+  BalanceQueryConfig,
+  Channel,
+  GroupQueryConfig,
+} from '../types'
 
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
+
+export const BALANCE_QUERY_NEWAPI_TEMPLATE = {
+  request: {
+    url: '{{baseUrl}}/api/user/self',
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer {{accessToken}}',
+      'User-Agent': 'cc-switch/1.0',
+      'New-Api-User': '{{userId}}',
+    },
+  },
+  extractor: {
+    plan_name_path: 'data.group',
+    remaining_path: 'data.quota',
+    used_path: 'data.used_quota',
+    total_path: '',
+    unit_path: '',
+    unit: 'USD',
+    divisor: 500000,
+    success_path: 'success',
+    success_value: 'true',
+    success_optional: false,
+    message_path: 'message',
+  },
+} as const
+
+export const BALANCE_QUERY_SUB2API_TEMPLATE = {
+  request: {
+    url: '{{baseUrl}}/v1/usage',
+    method: 'GET',
+    headers: {
+      Authorization: 'Bearer {{apiKey}}',
+    },
+  },
+  extractor: {
+    plan_name_path: '',
+    remaining_path: 'remaining,quota.remaining,balance',
+    used_path: '',
+    total_path: '',
+    unit_path: 'unit,quota.unit',
+    unit: 'USD',
+    divisor: 1,
+    success_path: 'is_active,isValid',
+    success_value: 'true',
+    success_optional: true,
+    message_path: 'message,error',
+  },
+} as const
+
+export const BALANCE_QUERY_TEMPLATES = {
+  newapi: BALANCE_QUERY_NEWAPI_TEMPLATE,
+  sub2api: BALANCE_QUERY_SUB2API_TEMPLATE,
+} as const
+
+export const GROUP_QUERY_NEWAPI_TEMPLATE = {
+  request: {
+    url: '{{baseUrl}}/api/user/self/groups',
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer {{accessToken}}',
+      'User-Agent': 'cc-switch/1.0',
+      'New-Api-User': '{{userId}}',
+    },
+  },
+  extractor: {
+    data_path: 'data',
+    desc_path: 'desc',
+    ratio_path: 'ratio',
+    success_path: 'success',
+    success_value: 'true',
+    success_optional: false,
+    message_path: 'message',
+  },
+} as const
+
+export const GROUP_QUERY_TEMPLATES = {
+  newapi: GROUP_QUERY_NEWAPI_TEMPLATE,
+} as const
 
 function parseOptionalJson(value: string | undefined): unknown {
   if (!value?.trim()) return undefined
@@ -44,6 +128,10 @@ function isOptionalJsonObject(value: string | undefined): boolean {
   } catch {
     return false
   }
+}
+
+function isOptionalJsonRecord(value: string | undefined): boolean {
+  return isOptionalJsonObject(value)
 }
 
 function isOptionalModelMapping(value: string | undefined): boolean {
@@ -199,6 +287,58 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // Balance query settings (stored in settings JSON)
+    balance_query_enabled: z.boolean().optional(),
+    balance_query_template: z.string().optional(),
+    balance_query_interval_seconds: z.number().optional(),
+    balance_query_source_channel_id: z.number().optional(),
+    balance_query_access_token: z.string().optional(),
+    balance_query_user_id: z.string().optional(),
+    balance_query_request_url: z.string().optional(),
+    balance_query_request_method: z.string().optional(),
+    balance_query_request_headers: z
+      .string()
+      .optional()
+      .refine(isOptionalJsonRecord, 'Balance query headers must be a JSON object'),
+    balance_query_request_body: z.string().optional(),
+    balance_query_plan_name_path: z.string().optional(),
+    balance_query_remaining_path: z.string().optional(),
+    balance_query_used_path: z.string().optional(),
+    balance_query_total_path: z.string().optional(),
+    balance_query_unit_path: z.string().optional(),
+    balance_query_unit: z.string().optional(),
+    balance_query_divisor: z.number().optional(),
+    balance_query_success_path: z.string().optional(),
+    balance_query_success_value: z.string().optional(),
+    balance_query_success_optional: z.boolean().optional(),
+    balance_query_message_path: z.string().optional(),
+    balance_query_last_check_time: z.number().optional(),
+    balance_query_last_result: z.unknown().optional(),
+    balance_query_last_error: z.string().optional(),
+    // Group query settings (stored in settings JSON)
+    group_query_enabled: z.boolean().optional(),
+    group_query_template: z.string().optional(),
+    group_query_interval_seconds: z.number().optional(),
+    group_query_source_channel_id: z.number().optional(),
+    group_query_access_token: z.string().optional(),
+    group_query_user_id: z.string().optional(),
+    group_query_request_url: z.string().optional(),
+    group_query_request_method: z.string().optional(),
+    group_query_request_headers: z
+      .string()
+      .optional()
+      .refine(isOptionalJsonRecord, 'Group query headers must be a JSON object'),
+    group_query_request_body: z.string().optional(),
+    group_query_data_path: z.string().optional(),
+    group_query_desc_path: z.string().optional(),
+    group_query_ratio_path: z.string().optional(),
+    group_query_success_path: z.string().optional(),
+    group_query_success_value: z.string().optional(),
+    group_query_success_optional: z.boolean().optional(),
+    group_query_message_path: z.string().optional(),
+    group_query_last_check_time: z.number().optional(),
+    group_query_last_result: z.unknown().optional(),
+    group_query_last_error: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if ([3, 8, 36, 45].includes(data.type) && !data.base_url?.trim()) {
@@ -316,6 +456,211 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  balance_query_enabled: false,
+  balance_query_template: 'newapi',
+  balance_query_interval_seconds: 300,
+  balance_query_source_channel_id: 0,
+  balance_query_access_token: '',
+  balance_query_user_id: '',
+  balance_query_request_url: BALANCE_QUERY_NEWAPI_TEMPLATE.request.url,
+  balance_query_request_method: BALANCE_QUERY_NEWAPI_TEMPLATE.request.method,
+  balance_query_request_headers: JSON.stringify(
+    BALANCE_QUERY_NEWAPI_TEMPLATE.request.headers,
+    null,
+    2
+  ),
+  balance_query_request_body: '',
+  balance_query_plan_name_path:
+    BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.plan_name_path,
+  balance_query_remaining_path:
+    BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.remaining_path,
+  balance_query_used_path: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.used_path,
+  balance_query_total_path: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.total_path,
+  balance_query_unit_path: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit_path,
+  balance_query_unit: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit,
+  balance_query_divisor: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.divisor,
+  balance_query_success_path:
+    BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
+  balance_query_success_value:
+    BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
+  balance_query_success_optional:
+    BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_optional,
+  balance_query_message_path:
+    BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
+  balance_query_last_check_time: 0,
+  balance_query_last_result: null,
+  balance_query_last_error: '',
+  group_query_enabled: false,
+  group_query_template: 'newapi',
+  group_query_interval_seconds: 300,
+  group_query_source_channel_id: 0,
+  group_query_access_token: '',
+  group_query_user_id: '',
+  group_query_request_url: GROUP_QUERY_NEWAPI_TEMPLATE.request.url,
+  group_query_request_method: GROUP_QUERY_NEWAPI_TEMPLATE.request.method,
+  group_query_request_headers: JSON.stringify(
+    GROUP_QUERY_NEWAPI_TEMPLATE.request.headers,
+    null,
+    2
+  ),
+  group_query_request_body: '',
+  group_query_data_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.data_path,
+  group_query_desc_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.desc_path,
+  group_query_ratio_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.ratio_path,
+  group_query_success_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
+  group_query_success_value: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
+  group_query_success_optional:
+    GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_optional,
+  group_query_message_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
+  group_query_last_check_time: 0,
+  group_query_last_result: null,
+  group_query_last_error: '',
+}
+
+function parseSettingsObject(settings: string | undefined): Record<string, unknown> {
+  if (!settings?.trim()) return {}
+  try {
+    const parsed = JSON.parse(settings)
+    if (isJsonObjectValue(parsed)) {
+      return parsed
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to parse channel settings:', error)
+  }
+  return {}
+}
+
+function stringifyHeaders(headers: unknown, fallback: Record<string, string>): string {
+  return JSON.stringify(isJsonObjectValue(headers) ? headers : fallback, null, 2)
+}
+
+function parseHeaders(headers: string | undefined): Record<string, string> {
+  if (!headers?.trim()) return {}
+  const parsed = JSON.parse(headers)
+  if (!isJsonObjectValue(parsed)) return {}
+  return Object.fromEntries(
+    Object.entries(parsed).map(([key, value]) => [key, String(value)])
+  )
+}
+
+function normalizeInterval(value: unknown, fallback = 300): number {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return fallback
+  return Math.max(0, Math.round(numeric))
+}
+
+function normalizeSourceChannelId(value: unknown): number {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0
+  return Math.round(numeric)
+}
+
+function getBalanceQueryFormDefaults(
+  balanceQuery: BalanceQueryConfig | undefined
+) {
+  const template =
+    BALANCE_QUERY_TEMPLATES[
+      balanceQuery?.template as keyof typeof BALANCE_QUERY_TEMPLATES
+    ] || BALANCE_QUERY_NEWAPI_TEMPLATE
+  const request = balanceQuery?.request || {}
+  const extractor = balanceQuery?.extractor || {}
+
+  return {
+    balance_query_enabled: balanceQuery?.enabled === true,
+    balance_query_template: balanceQuery?.template || 'newapi',
+    balance_query_interval_seconds: normalizeInterval(
+      balanceQuery?.interval_seconds
+    ),
+    balance_query_source_channel_id: normalizeSourceChannelId(
+      balanceQuery?.source_channel_id
+    ),
+    balance_query_access_token: balanceQuery?.access_token || '',
+    balance_query_user_id: balanceQuery?.user_id || '',
+    balance_query_request_url: request.url || template.request.url,
+    balance_query_request_method: request.method || template.request.method,
+    balance_query_request_headers: stringifyHeaders(
+      request.headers,
+      template.request.headers
+    ),
+    balance_query_request_body: request.body || '',
+    balance_query_plan_name_path:
+      extractor.plan_name_path || template.extractor.plan_name_path,
+    balance_query_remaining_path:
+      extractor.remaining_path || template.extractor.remaining_path,
+    balance_query_used_path:
+      extractor.used_path || template.extractor.used_path,
+    balance_query_total_path:
+      extractor.total_path || template.extractor.total_path,
+    balance_query_unit_path:
+      extractor.unit_path || template.extractor.unit_path,
+    balance_query_unit: extractor.unit || template.extractor.unit,
+    balance_query_divisor:
+      typeof extractor.divisor === 'number'
+        ? extractor.divisor
+        : template.extractor.divisor,
+    balance_query_success_path:
+      extractor.success_path || template.extractor.success_path,
+    balance_query_success_value:
+      extractor.success_value || template.extractor.success_value,
+    balance_query_success_optional:
+      typeof extractor.success_optional === 'boolean'
+        ? extractor.success_optional
+        : template.extractor.success_optional,
+    balance_query_message_path:
+      extractor.message_path || template.extractor.message_path,
+    balance_query_last_check_time: Number(balanceQuery?.last_check_time) || 0,
+    balance_query_last_result: balanceQuery?.last_result || null,
+    balance_query_last_error: balanceQuery?.last_error || '',
+  }
+}
+
+function getGroupQueryFormDefaults(groupQuery: GroupQueryConfig | undefined) {
+  const template =
+    GROUP_QUERY_TEMPLATES[
+      groupQuery?.template as keyof typeof GROUP_QUERY_TEMPLATES
+    ] || GROUP_QUERY_NEWAPI_TEMPLATE
+  const request = groupQuery?.request || {}
+  const extractor = groupQuery?.extractor || {}
+
+  return {
+    group_query_enabled: groupQuery?.enabled === true,
+    group_query_template: groupQuery?.template || 'newapi',
+    group_query_interval_seconds: normalizeInterval(
+      groupQuery?.interval_seconds
+    ),
+    group_query_source_channel_id: normalizeSourceChannelId(
+      groupQuery?.source_channel_id
+    ),
+    group_query_access_token: groupQuery?.access_token || '',
+    group_query_user_id: groupQuery?.user_id || '',
+    group_query_request_url: request.url || template.request.url,
+    group_query_request_method: request.method || template.request.method,
+    group_query_request_headers: stringifyHeaders(
+      request.headers,
+      template.request.headers
+    ),
+    group_query_request_body: request.body || '',
+    group_query_data_path:
+      extractor.data_path || template.extractor.data_path,
+    group_query_desc_path:
+      extractor.desc_path || template.extractor.desc_path,
+    group_query_ratio_path:
+      extractor.ratio_path || template.extractor.ratio_path,
+    group_query_success_path:
+      extractor.success_path || template.extractor.success_path,
+    group_query_success_value:
+      extractor.success_value || template.extractor.success_value,
+    group_query_success_optional:
+      typeof extractor.success_optional === 'boolean'
+        ? extractor.success_optional
+        : template.extractor.success_optional,
+    group_query_message_path:
+      extractor.message_path || template.extractor.message_path,
+    group_query_last_check_time: Number(groupQuery?.last_check_time) || 0,
+    group_query_last_result: groupQuery?.last_result || null,
+    group_query_last_error: groupQuery?.last_error || '',
+  }
 }
 
 // ============================================================================
@@ -370,34 +715,45 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let balanceQueryDefaults = getBalanceQueryFormDefaults(undefined)
+  let groupQueryDefaults = getGroupQueryFormDefaults(undefined)
 
   if (channel.settings) {
-    try {
-      const parsed = JSON.parse(channel.settings)
-      vertexKeyType = parsed.vertex_key_type || 'json'
-      azureResponsesVersion = parsed.azure_responses_version || ''
-      isEnterpriseAccount = parsed.openrouter_enterprise === true
-      awsKeyType = parsed.aws_key_type || 'ak_sk'
-      allowServiceTier = parsed.allow_service_tier === true
-      disableStore = parsed.disable_store === true
-      allowSafetyIdentifier = parsed.allow_safety_identifier === true
-      allowIncludeObfuscation = parsed.allow_include_obfuscation === true
-      allowInferenceGeo = parsed.allow_inference_geo === true
-      allowSpeed = parsed.allow_speed === true
-      claudeBetaQuery = parsed.claude_beta_query === true
-      upstreamModelUpdateCheckEnabled =
-        parsed.upstream_model_update_check_enabled === true
-      upstreamModelUpdateAutoSyncEnabled =
-        parsed.upstream_model_update_auto_sync_enabled === true
-      upstreamModelUpdateIgnoredModels = Array.isArray(
-        parsed.upstream_model_update_ignored_models
-      )
-        ? parsed.upstream_model_update_ignored_models.join(',')
+    const parsed = parseSettingsObject(channel.settings)
+    vertexKeyType =
+      parsed.vertex_key_type === 'api_key' ? 'api_key' : 'json'
+    azureResponsesVersion =
+      typeof parsed.azure_responses_version === 'string'
+        ? parsed.azure_responses_version
         : ''
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to parse channel settings:', error)
-    }
+    isEnterpriseAccount = parsed.openrouter_enterprise === true
+    awsKeyType = parsed.aws_key_type === 'api_key' ? 'api_key' : 'ak_sk'
+    allowServiceTier = parsed.allow_service_tier === true
+    disableStore = parsed.disable_store === true
+    allowSafetyIdentifier = parsed.allow_safety_identifier === true
+    allowIncludeObfuscation = parsed.allow_include_obfuscation === true
+    allowInferenceGeo = parsed.allow_inference_geo === true
+    allowSpeed = parsed.allow_speed === true
+    claudeBetaQuery = parsed.claude_beta_query === true
+    upstreamModelUpdateCheckEnabled =
+      parsed.upstream_model_update_check_enabled === true
+    upstreamModelUpdateAutoSyncEnabled =
+      parsed.upstream_model_update_auto_sync_enabled === true
+    upstreamModelUpdateIgnoredModels = Array.isArray(
+      parsed.upstream_model_update_ignored_models
+    )
+      ? parsed.upstream_model_update_ignored_models.join(',')
+      : ''
+    balanceQueryDefaults = getBalanceQueryFormDefaults(
+      isJsonObjectValue(parsed.balance_query)
+        ? (parsed.balance_query as BalanceQueryConfig)
+        : undefined
+    )
+    groupQueryDefaults = getGroupQueryFormDefaults(
+      isJsonObjectValue(parsed.group_query)
+        ? (parsed.group_query as GroupQueryConfig)
+        : undefined
+    )
   }
 
   return {
@@ -443,6 +799,8 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    ...balanceQueryDefaults,
+    ...groupQueryDefaults,
   }
 }
 
@@ -469,12 +827,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
 
   // Try to parse existing settings first
   if (formData.settings && formData.settings !== '{}') {
-    try {
-      settingsObj = JSON.parse(formData.settings)
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to parse existing settings:', error)
-    }
+    settingsObj = parseSettingsObject(formData.settings)
   }
 
   // Add vertex_key_type for Vertex AI channels (type 41)
@@ -565,6 +918,79 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     if (typeof settingsObj.upstream_model_update_last_check_time !== 'number') {
       settingsObj.upstream_model_update_last_check_time = 0
     }
+  }
+
+  const previousBalanceQuery = isJsonObjectValue(settingsObj.balance_query)
+    ? (settingsObj.balance_query as BalanceQueryConfig)
+    : {}
+  const previousGroupQuery = isJsonObjectValue(settingsObj.group_query)
+    ? (settingsObj.group_query as GroupQueryConfig)
+    : {}
+
+  settingsObj.balance_query = {
+    ...previousBalanceQuery,
+    enabled: formData.balance_query_enabled === true,
+    template: formData.balance_query_template || 'custom',
+    interval_seconds: normalizeInterval(
+      formData.balance_query_interval_seconds
+    ),
+    source_channel_id: normalizeSourceChannelId(
+      formData.balance_query_source_channel_id
+    ),
+    access_token: formData.balance_query_access_token || '',
+    user_id: formData.balance_query_user_id || '',
+    request: {
+      url: formData.balance_query_request_url || '',
+      method: formData.balance_query_request_method || 'GET',
+      headers: parseHeaders(formData.balance_query_request_headers),
+      body: formData.balance_query_request_body || '',
+    },
+    extractor: {
+      plan_name_path: formData.balance_query_plan_name_path || '',
+      remaining_path: formData.balance_query_remaining_path || '',
+      used_path: formData.balance_query_used_path || '',
+      total_path: formData.balance_query_total_path || '',
+      unit_path: formData.balance_query_unit_path || '',
+      unit: formData.balance_query_unit || 'USD',
+      divisor: Number(formData.balance_query_divisor) || 1,
+      success_path: formData.balance_query_success_path || '',
+      success_value: formData.balance_query_success_value || '',
+      success_optional: formData.balance_query_success_optional === true,
+      message_path: formData.balance_query_message_path || '',
+    },
+    last_result: previousBalanceQuery.last_result || null,
+    last_check_time: Number(previousBalanceQuery.last_check_time) || 0,
+    last_error: previousBalanceQuery.last_error || '',
+  }
+
+  settingsObj.group_query = {
+    ...previousGroupQuery,
+    enabled: formData.group_query_enabled === true,
+    template: formData.group_query_template || 'custom',
+    interval_seconds: normalizeInterval(formData.group_query_interval_seconds),
+    source_channel_id: normalizeSourceChannelId(
+      formData.group_query_source_channel_id
+    ),
+    access_token: formData.group_query_access_token || '',
+    user_id: formData.group_query_user_id || '',
+    request: {
+      url: formData.group_query_request_url || '',
+      method: formData.group_query_request_method || 'GET',
+      headers: parseHeaders(formData.group_query_request_headers),
+      body: formData.group_query_request_body || '',
+    },
+    extractor: {
+      data_path: formData.group_query_data_path || '',
+      desc_path: formData.group_query_desc_path || '',
+      ratio_path: formData.group_query_ratio_path || '',
+      success_path: formData.group_query_success_path || '',
+      success_value: formData.group_query_success_value || '',
+      success_optional: formData.group_query_success_optional === true,
+      message_path: formData.group_query_message_path || '',
+    },
+    last_result: previousGroupQuery.last_result || null,
+    last_check_time: Number(previousGroupQuery.last_check_time) || 0,
+    last_error: previousGroupQuery.last_error || '',
   }
 
   return JSON.stringify(settingsObj)
