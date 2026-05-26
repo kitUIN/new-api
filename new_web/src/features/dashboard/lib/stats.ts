@@ -18,6 +18,29 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { QuotaDataItem } from '@/features/dashboard/types'
 
+export function getQuotaDataTokenBreakdown(item: QuotaDataItem) {
+  let promptTokens = Number(item.prompt_tokens) || 0
+  const completionTokens = Number(item.completion_tokens) || 0
+  const cacheReadTokens = Number(item.cache_read_tokens) || 0
+  const cacheWriteTokens = Number(item.cache_write_tokens) || 0
+  const rawTokenUsed = Number(item.token_used) || 0
+  const breakdownTotal =
+    promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens
+  const tokenUsed = rawTokenUsed || breakdownTotal
+
+  if (breakdownTotal === 0 && rawTokenUsed > 0) {
+    promptTokens = rawTokenUsed
+  }
+
+  return {
+    tokenUsed,
+    promptTokens,
+    completionTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+  }
+}
+
 /**
  * Safe division: handles NaN and Infinity cases
  */
@@ -37,11 +60,14 @@ export function safeDivide(
  */
 export function calculateDashboardStats(data: QuotaDataItem[]) {
   return data.reduce(
-    (acc, item) => ({
-      totalQuota: acc.totalQuota + (Number(item.quota) || 0),
-      totalCount: acc.totalCount + (Number(item.count) || 0),
-      totalTokens: acc.totalTokens + (Number(item.token_used) || 0),
-    }),
+    (acc, item) => {
+      const tokens = getQuotaDataTokenBreakdown(item)
+      return {
+        totalQuota: acc.totalQuota + (Number(item.quota) || 0),
+        totalCount: acc.totalCount + (Number(item.count) || 0),
+        totalTokens: acc.totalTokens + tokens.tokenUsed,
+      }
+    },
     { totalQuota: 0, totalCount: 0, totalTokens: 0 }
   )
 }
