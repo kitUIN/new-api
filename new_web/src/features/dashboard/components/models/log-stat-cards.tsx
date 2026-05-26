@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
+import { Package } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { formatNumber, formatQuota } from '@/lib/format'
+import { formatNumber, formatPercent, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
@@ -32,6 +34,7 @@ import type {
   QuotaDataItem,
   DashboardFilters,
 } from '@/features/dashboard/types'
+import type { DashboardStats } from '@/features/dashboard/lib/stats'
 
 interface LogStatCardsProps {
   filters?: DashboardFilters
@@ -39,14 +42,11 @@ interface LogStatCardsProps {
 }
 
 export function LogStatCards(props: LogStatCardsProps) {
+  const { t } = useTranslation()
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = !!(user?.role && user.role >= 10)
-  const [stats, setStats] = useState<{
-    totalQuota: number
-    totalCount: number
-    totalTokens: number
-  } | null>(null)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -100,7 +100,13 @@ export function LogStatCards(props: LogStatCardsProps) {
     tpm: stats?.totalTokens ?? 0,
   }
 
+  const cacheRatioDisplay =
+    stats && stats.totalTokens > 0
+      ? formatPercent((stats.totalCacheTokens / stats.totalTokens) * 100)
+      : formatPercent(0)
+
   const items = statCardsConfig.map((config) => ({
+    key: config.key,
     title: config.title,
     value:
       config.key === 'quota'
@@ -108,6 +114,7 @@ export function LogStatCards(props: LogStatCardsProps) {
         : formatNumber(config.getValue(adaptedStats, timeRangeMinutes)),
     desc: config.description,
     icon: config.icon,
+    cacheRatioDisplay: config.key === 'tokens' ? cacheRatioDisplay : undefined,
   }))
 
   return (
@@ -143,8 +150,17 @@ export function LogStatCards(props: LogStatCardsProps) {
                 </>
               ) : (
                 <>
-                  <div className='text-foreground mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
-                    {it.value}
+                  <div className='text-foreground mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
+                    <span className='break-all'>{it.value}</span>
+                    {it.cacheRatioDisplay && (
+                      <span
+                        className='text-muted-foreground bg-muted/60 inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-none font-semibold sm:text-xs'
+                        title={`${t('Cache ratio')}: ${it.cacheRatioDisplay}`}
+                      >
+                        <Package className='size-3' aria-hidden='true' />
+                        <span>{it.cacheRatioDisplay}</span>
+                      </span>
+                    )}
                   </div>
                   <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
                     {it.desc}

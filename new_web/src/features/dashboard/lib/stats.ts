@@ -18,6 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { QuotaDataItem } from '@/features/dashboard/types'
 
+export interface DashboardStats {
+  totalQuota: number
+  totalCount: number
+  totalTokens: number
+  totalCacheTokens: number
+}
+
 export function getQuotaDataTokenBreakdown(item: QuotaDataItem) {
   let promptTokens = Number(item.prompt_tokens) || 0
   const completionTokens = Number(item.completion_tokens) || 0
@@ -62,12 +69,14 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
   return data.reduce(
     (acc, item) => {
       const tokens = getQuotaDataTokenBreakdown(item)
+      const cacheTokens = tokens.cacheReadTokens + tokens.cacheWriteTokens
       return {
         totalQuota: acc.totalQuota + (Number(item.quota) || 0),
         totalCount: acc.totalCount + (Number(item.count) || 0),
         totalTokens: acc.totalTokens + tokens.tokenUsed,
+        totalCacheTokens: acc.totalCacheTokens + cacheTokens,
       }
     },
-    { totalQuota: 0, totalCount: 0, totalTokens: 0 }
+    { totalQuota: 0, totalCount: 0, totalTokens: 0, totalCacheTokens: 0 }
   )
 }
