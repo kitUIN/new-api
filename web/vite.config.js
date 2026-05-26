@@ -91,15 +91,15 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: "https://ai.kituin.fun",
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
       '/mj': {
-        target: "https://ai.kituin.fun",
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
       '/pg': {
-        target: "https://ai.kituin.fun",
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },
