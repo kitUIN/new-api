@@ -84,6 +84,8 @@ export function ChannelsTable() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     models: false,
     tag: false,
+    priority: false,
+    weight: false,
   })
   const [rowSelection, setRowSelection] = useState({})
   const [expanded, setExpanded] = useState<ExpandedState>({})

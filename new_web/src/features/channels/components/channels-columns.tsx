@@ -606,14 +606,19 @@ function UpstreamGroupsCell({ channel }: { channel: Channel }) {
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger render={<div />}>
-          {renderLimitedItems(groupBadges, 2)}
-        </TooltipTrigger>
-        <TooltipContent
-          side='top'
-          className='border-border bg-popover max-h-64 max-w-[360px] overflow-y-auto p-2'
-        >
-          <div className='space-y-2'>
+        <TooltipTrigger
+          render={
+            <StatusBadge
+              label={String(items.length)}
+              variant='cyan'
+              size='sm'
+              copyable={false}
+              className='cursor-help'
+            />
+          }
+        />
+        <TooltipContent side='top' className='w-fit max-w-[calc(100vw-2rem)]'>
+          <div className='max-h-64 max-w-[360px] space-y-2 overflow-y-auto p-1'>
             <div className='text-muted-foreground text-xs'>
               {t('Last check time')}:{' '}
               {formatTimestampToDate(groupQuery.last_check_time || 0)}
