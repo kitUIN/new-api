@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import type { Table } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { TableRow, TableCell } from '@/components/ui/table'
+import {
+  TableRow,
+  TableCell,
+  getTableStickyColumnClass,
+} from '@/components/ui/table'
 
 const SKELETON_WIDTHS = [
   '75%',
@@ -66,7 +70,17 @@ export function TableSkeleton<TData>({
               SKELETON_WIDTHS.length
 
             return (
-              <TableCell key={column.id} className='py-3'>
+              <TableCell
+                key={column.id}
+                className={cn(
+                  'py-3',
+                  getTableStickyColumnClass(
+                    column.columnDef.meta?.sticky ??
+                      (column.id === 'actions' ? 'right' : false),
+                    'cell'
+                  )
+                )}
+              >
                 <Skeleton
                   className={cn(
                     'h-4 rounded-sm',

@@ -66,6 +66,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  getTableStickyColumnClass,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/status-badge'
 import { applyUpstreamOverwrite } from '../../api'
@@ -83,6 +84,15 @@ const FIELD_LABELS: Record<string, string> = {
   endpoints: 'Endpoints',
   quota_types: 'Quota Types',
   enable_groups: 'Enable Groups',
+}
+
+function getConflictTableColumnClass(
+  columnId: string,
+  variant: 'header' | 'cell'
+): string | undefined {
+  return columnId === 'actions'
+    ? getTableStickyColumnClass('right', variant)
+    : undefined
 }
 
 const formatValue = (value: unknown) => {
@@ -524,7 +534,13 @@ export function UpstreamConflictDialog({
                           {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
                               {headerGroup.headers.map((header) => (
-                                <TableHead key={header.id}>
+                                <TableHead
+                                  key={header.id}
+                                  className={getConflictTableColumnClass(
+                                    header.column.id,
+                                    'header'
+                                  )}
+                                >
                                   {header.isPlaceholder
                                     ? null
                                     : flexRender(
@@ -543,7 +559,13 @@ export function UpstreamConflictDialog({
                               data-state={row.getIsSelected() && 'selected'}
                             >
                               {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id}>
+                                <TableCell
+                                  key={cell.id}
+                                  className={getConflictTableColumnClass(
+                                    cell.column.id,
+                                    'cell'
+                                  )}
+                                >
                                   {flexRender(
                                     cell.column.columnDef.cell,
                                     cell.getContext()

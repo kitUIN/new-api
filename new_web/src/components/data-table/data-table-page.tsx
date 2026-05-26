@@ -19,10 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 import {
   flexRender,
+  type Cell,
   type ColumnDef,
+  type Header,
   type Row,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 import {
@@ -31,7 +34,10 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableHorizontalScrollbar,
+  TableHorizontalScrollProvider,
   TableRow,
+  getTableStickyColumnClass,
 } from '@/components/ui/table'
 import { PageFooterPortal } from '@/components/layout'
 import { MobileCardList } from './mobile-card-list'
@@ -216,15 +222,16 @@ export type DataTablePageProps<TData> = {
  * `toolbar` / `mobile` / `renderRow` slots instead of the `*Props` variants.
  */
 export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
+  const { t } = useTranslation()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const showMobile = isMobile && !props.hideMobile
 
   const toolbarNode = renderToolbar(props)
   const mobileNode = renderMobile(props, showMobile)
-  const desktopNode = renderDesktop(props, showMobile)
+  const desktopNode = renderDesktop(props, showMobile, t)
 
   return (
-    <>
+    <TableHorizontalScrollProvider>
       <div className={cn('space-y-2.5 sm:space-y-3', props.className)}>
         {toolbarNode}
         {mobileNode}
@@ -239,14 +246,18 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
       {props.showPagination !== false &&
         (props.paginationInFooter !== false ? (
           <PageFooterPortal>
-            <DataTablePagination table={props.table} />
+            <div className='space-y-2'>
+              {!showMobile && <TableHorizontalScrollbar />}
+              <DataTablePagination table={props.table} />
+            </div>
           </PageFooterPortal>
         ) : (
-          <div className='pt-2'>
+          <div className='space-y-2 pt-2'>
+            {!showMobile && <TableHorizontalScrollbar />}
             <DataTablePagination table={props.table} />
           </div>
         ))}
-    </>
+    </TableHorizontalScrollProvider>
   )
 }
 
@@ -293,7 +304,8 @@ function renderMobile<TData>(
 
 function renderDesktop<TData>(
   props: DataTablePageProps<TData>,
-  showMobile: boolean
+  showMobile: boolean,
+  t: (key: string) => string
 ): React.ReactNode {
   if (showMobile) return null
 
@@ -303,7 +315,7 @@ function renderDesktop<TData>(
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border transition-opacity duration-150',
+        'overflow-clip rounded-lg border transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
       )}
@@ -316,18 +328,14 @@ function renderDesktop<TData>(
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
+                  className={getStickyColumnClass(header, 'header')}
                   style={
                     props.applyHeaderSize
                       ? { width: header.getSize() }
                       : undefined
                   }
                 >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
+                  {renderHeaderContent(header, t)}
                 </TableHead>
               ))}
             </TableRow>
@@ -381,10 +389,45 @@ function DefaultRow<TData>({
       className={className}
     >
       {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
+        <TableCell
+          key={cell.id}
+          className={getStickyColumnClass(cell, 'cell')}
+        >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </TableCell>
       ))}
     </TableRow>
   )
+}
+
+function getStickyColumnClass<TData>(
+  item: Header<TData, unknown> | Cell<TData, unknown>,
+  variant: 'header' | 'cell'
+): string | undefined {
+  const side = item.column.columnDef.meta?.sticky ?? getDefaultStickySide(item)
+  if (!side) return undefined
+
+  return getTableStickyColumnClass(side, variant)
+}
+
+function getDefaultStickySide<TData>(
+  item: Header<TData, unknown> | Cell<TData, unknown>
+): 'right' | false {
+  return item.column.id === 'actions' ? 'right' : false
+}
+
+function renderHeaderContent<TData>(
+  header: Header<TData, unknown>,
+  t: (key: string) => string
+): React.ReactNode {
+  if (header.isPlaceholder) return null
+
+  const content = flexRender(header.column.columnDef.header, header.getContext())
+  if (content != null) return content
+
+  if (header.column.id === 'actions') {
+    return <span className='block text-right'>{t('Actions')}</span>
+  }
+
+  return null
 }

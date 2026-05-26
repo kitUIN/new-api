@@ -47,6 +47,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  getTableStickyColumnClass,
 } from '@/components/ui/table'
 import {
   DataTableBulkActions,
@@ -79,6 +80,15 @@ type ModelRatioVisualEditorProps = {
   billingMode: string
   billingExpr: string
   onChange: (field: string, value: string) => void
+}
+
+function getModelRatioTableColumnClass(
+  columnId: string,
+  variant: 'header' | 'cell'
+): string | undefined {
+  return columnId === 'actions'
+    ? getTableStickyColumnClass('right', variant)
+    : undefined
 }
 
 type ModelRow = {
@@ -648,6 +658,7 @@ export const ModelRatioVisualEditor = memo(
         },
         {
           id: 'actions',
+          header: t('Actions'),
           cell: ({ row }) => (
             <div className='flex justify-end gap-2'>
               <Button
@@ -928,7 +939,14 @@ export const ModelRatioVisualEditor = memo(
                     {table.getHeaderGroups().map((headerGroup) => (
                       <TableRow key={headerGroup.id}>
                         {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id} colSpan={header.colSpan}>
+                          <TableHead
+                            key={header.id}
+                            colSpan={header.colSpan}
+                            className={getModelRatioTableColumnClass(
+                              header.column.id,
+                              'header'
+                            )}
+                          >
                             {header.isPlaceholder
                               ? null
                               : flexRender(
@@ -960,7 +978,13 @@ export const ModelRatioVisualEditor = memo(
                         }}
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
+                          <TableCell
+                            key={cell.id}
+                            className={getModelRatioTableColumnClass(
+                              cell.column.id,
+                              'cell'
+                            )}
+                          >
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext()

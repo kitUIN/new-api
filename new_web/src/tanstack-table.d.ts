@@ -29,5 +29,7 @@ declare module '@tanstack/react-table' {
     sortable?: boolean
     // Custom CSS classes to apply to the column cells
     className?: string
+    // Pin the column to one side of the horizontal table viewport
+    sticky?: 'left' | 'right' | false
   }
 }
