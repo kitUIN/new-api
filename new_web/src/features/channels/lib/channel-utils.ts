@@ -27,7 +27,13 @@ import {
   RESPONSE_TIME_THRESHOLDS,
   TYPE_TO_KEY_PROMPT,
 } from '../constants'
-import type { Channel, ChannelSettings, ChannelOtherSettings } from '../types'
+import type {
+  Channel,
+  ChannelRow,
+  ChannelSettings,
+  ChannelOtherSettings,
+  ProviderRow,
+} from '../types'
 
 // ============================================================================
 // Channel Type Utilities
@@ -147,14 +153,14 @@ export function getMultiKeyStatusBadge(status: number) {
 /**
  * Check if channel is enabled
  */
-export function isChannelEnabled(channel: Channel): boolean {
+export function isChannelEnabled(channel: ChannelRow | TagRow): boolean {
   return channel.status === 1
 }
 
 /**
  * Check if channel is multi-key
  */
-export function isMultiKeyChannel(channel: Channel): boolean {
+export function isMultiKeyChannel(channel: ChannelRow | TagRow): boolean {
   return channel.channel_info?.is_multi_key || false
 }
 
@@ -505,10 +511,33 @@ export type TagRow = Channel & {
 }
 
 /**
+ * Type guard to check whether a row is a provider aggregate row
+ */
+export function isProviderRow(row: ChannelRow | TagRow): row is ProviderRow {
+  return (row as ProviderRow).is_provider === true
+}
+
+/**
  * Type guard to check whether a row is a tag aggregate row
  */
-export function isTagAggregateRow(row: Channel | TagRow): row is TagRow {
-  return Array.isArray((row as TagRow).children)
+export function isTagAggregateRow(row: ChannelRow | TagRow): row is TagRow {
+  return !isProviderRow(row) && Array.isArray((row as TagRow).children)
+}
+
+/**
+ * Type guard to check whether a row is a non-channel parent row
+ */
+export function isChannelGroupRow(
+  row: ChannelRow | TagRow
+): row is ProviderRow | TagRow {
+  return isProviderRow(row) || isTagAggregateRow(row)
+}
+
+/**
+ * Type guard to check whether a row is a real channel leaf row
+ */
+export function isLeafChannel(row: ChannelRow | TagRow): row is Channel {
+  return !isChannelGroupRow(row)
 }
 
 /**
@@ -516,12 +545,13 @@ export function isTagAggregateRow(row: Channel | TagRow): row is TagRow {
  * Converts flat array into tree structure grouped by tag
  */
 export function aggregateChannelsByTag(
-  channels: Channel[]
+  channels: ChannelRow[]
 ): (Channel | TagRow)[] {
   const tagMap = new Map<string, TagRow>()
   const result: (Channel | TagRow)[] = []
 
   for (const channel of channels) {
+    if (isProviderRow(channel)) continue
     const tag = channel.tag || ''
 
     if (!tagMap.has(tag)) {

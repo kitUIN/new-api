@@ -48,11 +48,11 @@ import {
 import {
   channelsQueryKeys,
   aggregateChannelsByTag,
-  isTagAggregateRow,
+  isChannelGroupRow,
   getChannelTypeIcon,
   getChannelTypeLabel,
 } from '../lib'
-import type { Channel, ChannelSortBy } from '../types'
+import type { ChannelRow, ChannelSortBy } from '../types'
 import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
@@ -68,9 +68,9 @@ const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'test_time',
 ])
 
-function isDisabledChannelRow(channel: Channel) {
+function isDisabledChannelRow(channel: ChannelRow) {
   return (
-    !isTagAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
+    !isChannelGroupRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
   )
 }
 
@@ -210,6 +210,7 @@ export function ChannelsTable() {
           ? Number(typeFilter[0])
           : undefined,
       tag_mode: enableTagMode,
+      provider_mode: !enableTagMode,
       id_sort: idSort,
       ...sortParams,
       p: pagination.pageIndex + 1,
@@ -233,6 +234,7 @@ export function ChannelsTable() {
               ? Number(typeFilter[0])
               : undefined,
           tag_mode: enableTagMode,
+          provider_mode: !enableTagMode,
           id_sort: idSort,
           ...sortParams,
           p: pagination.pageIndex + 1,
@@ -253,6 +255,7 @@ export function ChannelsTable() {
               ? Number(typeFilter[0])
               : undefined,
           tag_mode: enableTagMode,
+          provider_mode: !enableTagMode,
           id_sort: idSort,
           ...sortParams,
           p: pagination.pageIndex + 1,
@@ -294,7 +297,8 @@ export function ChannelsTable() {
       expanded,
       globalFilter,
     },
-    enableRowSelection: (row: Row<Channel>) => !isTagAggregateRow(row.original),
+    enableRowSelection: (row: Row<ChannelRow>) =>
+      !isChannelGroupRow(row.original),
     onRowSelectionChange: setRowSelection,
     onSortingChange: handleSortingChange,
     onColumnFiltersChange,
@@ -304,7 +308,8 @@ export function ChannelsTable() {
     onGlobalFilterChange,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
-    getSubRows: (row: Channel & { children?: Channel[] }) => row.children,
+    getSubRows: (row: ChannelRow) =>
+      isChannelGroupRow(row) ? row.children : undefined,
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,

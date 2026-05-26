@@ -75,6 +75,34 @@ export const channelSchema = z.object({
 
 export type Channel = z.infer<typeof channelSchema>
 
+export type ProviderRow = {
+  id: string
+  key: string
+  is_provider: true
+  provider_id: number
+  name: string
+  base_url: string
+  status: number
+  group: string
+  used_quota: number
+  response_time: number
+  priority: number | string | null
+  weight: number | string | null
+  type?: number
+  created_time?: number
+  test_time?: number
+  balance?: number
+  balance_updated_time?: number
+  models?: string
+  channel_info?: ChannelInfo
+  settings?: string
+  channel_count: number
+  enabled_count: number
+  children: Channel[]
+}
+
+export type ChannelRow = Channel | ProviderRow
+
 // ============================================================================
 // Channel Settings Types
 // ============================================================================
@@ -192,7 +220,7 @@ export interface GetChannelsResponse {
   success: boolean
   message?: string
   data?: {
-    items: Channel[]
+    items: ChannelRow[]
     total: number
     page: number
     page_size: number
@@ -204,7 +232,7 @@ export interface SearchChannelsResponse {
   success: boolean
   message?: string
   data?: {
-    items: Channel[]
+    items: ChannelRow[]
     total: number
     type_counts?: Record<string, number>
   }
@@ -324,6 +352,7 @@ export interface GetChannelsParams {
   group?: string
   id_sort?: boolean
   tag_mode?: boolean
+  provider_mode?: boolean
   sort_by?: ChannelSortBy
   sort_order?: ChannelSortOrder
 }
@@ -336,6 +365,7 @@ export interface SearchChannelsParams {
   type?: number
   id_sort?: boolean
   tag_mode?: boolean
+  provider_mode?: boolean
   sort_by?: ChannelSortBy
   sort_order?: ChannelSortOrder
   p?: number
