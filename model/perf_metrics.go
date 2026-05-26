@@ -1,13 +1,46 @@
 package model
 
 import (
+	"errors"
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
 )
 
 const defaultPerfMetricsLimit = 200
+
+type PerfMetricBucket struct {
+	Id                int    `json:"id"`
+	BucketStart       int64  `json:"bucket_start" gorm:"bigint;uniqueIndex:idx_perf_metric_bucket"`
+	BucketSeconds     int64  `json:"bucket_seconds" gorm:"bigint;uniqueIndex:idx_perf_metric_bucket"`
+	ModelName         string `json:"model_name" gorm:"size:191;uniqueIndex:idx_perf_metric_bucket;index"`
+	Group             string `json:"group" gorm:"size:191;uniqueIndex:idx_perf_metric_bucket;index"`
+	RequestCount      int64  `json:"request_count" gorm:"bigint;default:0"`
+	SuccessCount      int64  `json:"success_count" gorm:"bigint;default:0"`
+	TotalLatencyMs    int64  `json:"total_latency_ms" gorm:"bigint;default:0"`
+	TotalTTFTMs       int64  `json:"total_ttft_ms" gorm:"bigint;default:0"`
+	TTFTCount         int64  `json:"ttft_count" gorm:"bigint;default:0"`
+	CompletionTokens  int64  `json:"completion_tokens" gorm:"bigint;default:0"`
+	TotalTPSLatencyMs int64  `json:"total_tps_latency_ms" gorm:"bigint;default:0"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt         int64  `json:"updated_at" gorm:"bigint"`
+}
+
+type PerfMetricSample struct {
+	Timestamp        int64
+	ModelName        string
+	Group            string
+	Success          bool
+	LatencyMs        int64
+	TTFTMs           int64
+	CompletionTokens int64
+	TPSLatencyMs     int64
+}
 
 type PerfModelSummary struct {
 	ModelName    string  `json:"model_name"`
@@ -44,35 +77,226 @@ type PerformanceMetrics struct {
 	Groups       []PerformanceGroup `json:"groups"`
 }
 
-type perfModelSummaryRow struct {
-	ModelName               string
-	RequestCount            int64
-	SuccessCount            int64
-	SuccessUseTime          int64
-	TpsUseTime              int64
-	TpsCompletionTokens     int64
-	SuccessCompletionTokens int64
+type perfMetricKey struct {
+	bucketStart   int64
+	bucketSeconds int64
+	modelName     string
+	group         string
 }
 
 type perfAccumulator struct {
-	requestCount     int64
-	successCount     int64
-	successUseTime   int64
-	tpsUseTime       int64
-	completionTokens int64
+	requestCount      int64
+	successCount      int64
+	totalLatencyMs    int64
+	totalTTFTMs       int64
+	ttftCount         int64
+	completionTokens  int64
+	totalTPSLatencyMs int64
 }
 
-func (a perfAccumulator) summary() (avgLatencyMs float64, successRate float64, avgTps float64) {
-	if a.requestCount > 0 {
-		successRate = roundFloat(float64(a.successCount)/float64(a.requestCount)*100, 2)
+var (
+	perfMetricsMu      sync.Mutex
+	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
+)
+
+func RecordPerfMetricSample(sample PerfMetricSample) {
+	config := common.GetPerfMetricsConfig()
+	if !config.Enabled {
+		return
 	}
-	if a.successCount > 0 {
-		avgLatencyMs = roundFloat(float64(a.successUseTime)/float64(a.successCount)*1000, 2)
+	modelName := strings.TrimSpace(sample.ModelName)
+	if modelName == "" {
+		return
 	}
-	if a.tpsUseTime > 0 {
-		avgTps = roundFloat(float64(a.completionTokens)/float64(a.tpsUseTime), 2)
+	group := strings.TrimSpace(sample.Group)
+	if group == "" {
+		group = "default"
 	}
-	return avgLatencyMs, successRate, avgTps
+	if sample.Timestamp <= 0 {
+		sample.Timestamp = time.Now().Unix()
+	}
+	if sample.LatencyMs < 0 {
+		sample.LatencyMs = 0
+	}
+	if sample.TTFTMs < 0 {
+		sample.TTFTMs = 0
+	}
+	if sample.CompletionTokens < 0 {
+		sample.CompletionTokens = 0
+	}
+	if sample.TPSLatencyMs < 0 {
+		sample.TPSLatencyMs = 0
+	}
+
+	bucketSeconds := config.BucketSeconds
+	if bucketSeconds <= 0 {
+		bucketSeconds = 3600
+	}
+	key := perfMetricKey{
+		bucketStart:   sample.Timestamp - sample.Timestamp%bucketSeconds,
+		bucketSeconds: bucketSeconds,
+		modelName:     modelName,
+		group:         group,
+	}
+
+	perfMetricsMu.Lock()
+	acc := pendingPerfMetrics[key]
+	acc.requestCount++
+	if sample.Success {
+		acc.successCount++
+		acc.totalLatencyMs += sample.LatencyMs
+		if sample.TTFTMs > 0 {
+			acc.totalTTFTMs += sample.TTFTMs
+			acc.ttftCount++
+		}
+		if sample.CompletionTokens > 0 && sample.TPSLatencyMs > 0 {
+			acc.completionTokens += sample.CompletionTokens
+			acc.totalTPSLatencyMs += sample.TPSLatencyMs
+		}
+	}
+	pendingPerfMetrics[key] = acc
+	perfMetricsMu.Unlock()
+}
+
+func FlushPerfMetrics() error {
+	snapshot := takePendingPerfMetrics()
+	if len(snapshot) == 0 {
+		return nil
+	}
+	if LOG_DB == nil {
+		restorePendingPerfMetrics(snapshot)
+		return errors.New("log database is not initialized")
+	}
+
+	now := time.Now().Unix()
+	err := LOG_DB.Transaction(func(tx *gorm.DB) error {
+		for key, acc := range snapshot {
+			if acc.requestCount <= 0 {
+				continue
+			}
+			if err := upsertPerfMetricBucket(tx, key, acc, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		restorePendingPerfMetrics(snapshot)
+		return err
+	}
+
+	config := common.GetPerfMetricsConfig()
+	if config.RetentionDays > 0 {
+		return CleanupPerfMetrics(config.RetentionDays)
+	}
+	return nil
+}
+
+func StartPerfMetricsFlushLoop() {
+	for {
+		config := common.GetPerfMetricsConfig()
+		interval := config.FlushInterval
+		if interval <= 0 {
+			interval = 5
+		}
+		time.Sleep(time.Duration(interval) * time.Minute)
+		if err := FlushPerfMetrics(); err != nil {
+			common.SysError("failed to flush performance metrics: " + err.Error())
+		}
+	}
+}
+
+func CleanupPerfMetrics(retentionDays int) error {
+	if LOG_DB == nil || retentionDays <= 0 {
+		return nil
+	}
+	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
+	return LOG_DB.Where("bucket_start < ?", cutoff).Delete(&PerfMetricBucket{}).Error
+}
+
+func ResetPerfMetricsForTest() {
+	perfMetricsMu.Lock()
+	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
+	perfMetricsMu.Unlock()
+}
+
+func takePendingPerfMetrics() map[perfMetricKey]perfAccumulator {
+	perfMetricsMu.Lock()
+	defer perfMetricsMu.Unlock()
+	if len(pendingPerfMetrics) == 0 {
+		return nil
+	}
+	snapshot := pendingPerfMetrics
+	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
+	return snapshot
+}
+
+func restorePendingPerfMetrics(snapshot map[perfMetricKey]perfAccumulator) {
+	if len(snapshot) == 0 {
+		return
+	}
+	perfMetricsMu.Lock()
+	defer perfMetricsMu.Unlock()
+	for key, acc := range snapshot {
+		existing := pendingPerfMetrics[key]
+		existing.add(acc)
+		pendingPerfMetrics[key] = existing
+	}
+}
+
+func upsertPerfMetricBucket(tx *gorm.DB, key perfMetricKey, acc perfAccumulator, now int64) error {
+	var bucket PerfMetricBucket
+	err := tx.Where(
+		"bucket_start = ? AND bucket_seconds = ? AND model_name = ? AND "+perfMetricGroupCol()+" = ?",
+		key.bucketStart,
+		key.bucketSeconds,
+		key.modelName,
+		key.group,
+	).First(&bucket).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		return tx.Create(&PerfMetricBucket{
+			BucketStart:       key.bucketStart,
+			BucketSeconds:     key.bucketSeconds,
+			ModelName:         key.modelName,
+			Group:             key.group,
+			RequestCount:      acc.requestCount,
+			SuccessCount:      acc.successCount,
+			TotalLatencyMs:    acc.totalLatencyMs,
+			TotalTTFTMs:       acc.totalTTFTMs,
+			TTFTCount:         acc.ttftCount,
+			CompletionTokens:  acc.completionTokens,
+			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}).Error
+	}
+	return tx.Model(&bucket).Updates(map[string]interface{}{
+		"request_count":        gorm.Expr("request_count + ?", acc.requestCount),
+		"success_count":        gorm.Expr("success_count + ?", acc.successCount),
+		"total_latency_ms":     gorm.Expr("total_latency_ms + ?", acc.totalLatencyMs),
+		"total_ttft_ms":        gorm.Expr("total_ttft_ms + ?", acc.totalTTFTMs),
+		"ttft_count":           gorm.Expr("ttft_count + ?", acc.ttftCount),
+		"completion_tokens":    gorm.Expr("completion_tokens + ?", acc.completionTokens),
+		"total_tps_latency_ms": gorm.Expr("total_tps_latency_ms + ?", acc.totalTPSLatencyMs),
+		"updated_at":           now,
+	}).Error
+}
+
+type perfMetricAggregateRow struct {
+	ModelName         string
+	Group             string `gorm:"column:group_name"`
+	BucketStart       int64
+	BucketSeconds     int64
+	RequestCount      int64
+	SuccessCount      int64
+	TotalLatencyMs    int64
+	TotalTTFTMs       int64
+	TTFTCount         int64
+	CompletionTokens  int64
+	TotalTPSLatencyMs int64
 }
 
 func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
@@ -81,25 +305,18 @@ func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 		limit = defaultPerfMetricsLimit
 	}
 
-	var rows []perfModelSummaryRow
-	err := LOG_DB.Table("logs").
-		Select(
-			`model_name,
-			COUNT(*) AS request_count,
-			SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) AS success_count,
-			SUM(CASE WHEN type = ? THEN use_time ELSE 0 END) AS success_use_time,
-			SUM(CASE WHEN type = ? AND use_time > 0 THEN use_time ELSE 0 END) AS tps_use_time,
-			SUM(CASE WHEN type = ? AND use_time > 0 THEN completion_tokens ELSE 0 END) AS tps_completion_tokens,
-			SUM(CASE WHEN type = ? THEN completion_tokens ELSE 0 END) AS success_completion_tokens`,
-			LogTypeConsume,
-			LogTypeConsume,
-			LogTypeConsume,
-			LogTypeConsume,
-			LogTypeConsume,
-		).
-		Where("created_at >= ?", startTimestamp).
+	var rows []perfMetricAggregateRow
+	err := LOG_DB.Model(&PerfMetricBucket{}).
+		Select(`model_name,
+			SUM(request_count) AS request_count,
+			SUM(success_count) AS success_count,
+			SUM(total_latency_ms) AS total_latency_ms,
+			SUM(total_ttft_ms) AS total_ttft_ms,
+			SUM(ttft_count) AS ttft_count,
+			SUM(completion_tokens) AS completion_tokens,
+			SUM(total_tps_latency_ms) AS total_tps_latency_ms`).
+		Where("bucket_start >= ?", startTimestamp).
 		Where("model_name <> ''").
-		Where("type IN ?", []int{LogTypeConsume, LogTypeError}).
 		Group("model_name").
 		Order("request_count DESC").
 		Limit(limit).
@@ -110,14 +327,8 @@ func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 
 	models := make([]PerfModelSummary, 0, len(rows))
 	for _, row := range rows {
-		acc := perfAccumulator{
-			requestCount:     row.RequestCount,
-			successCount:     row.SuccessCount,
-			successUseTime:   row.SuccessUseTime,
-			tpsUseTime:       row.TpsUseTime,
-			completionTokens: row.TpsCompletionTokens,
-		}
-		avgLatencyMs, successRate, avgTps := acc.summary()
+		acc := accumulatorFromRow(row)
+		avgLatencyMs, _, successRate, avgTps := acc.summary()
 		models = append(models, PerfModelSummary{
 			ModelName:    row.ModelName,
 			AvgLatencyMs: avgLatencyMs,
@@ -134,13 +345,24 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 	modelName = strings.TrimSpace(modelName)
 	startTimestamp := time.Now().Add(-time.Duration(hours) * time.Hour).Unix()
 
-	var logs []Log
-	err := LOG_DB.Model(&Log{}).
-		Where("created_at >= ?", startTimestamp).
+	var rows []perfMetricAggregateRow
+	groupCol := perfMetricGroupCol()
+	err := LOG_DB.Model(&PerfMetricBucket{}).
+		Select(`bucket_start,
+			bucket_seconds,
+			`+groupCol+` AS group_name,
+			SUM(request_count) AS request_count,
+			SUM(success_count) AS success_count,
+			SUM(total_latency_ms) AS total_latency_ms,
+			SUM(total_ttft_ms) AS total_ttft_ms,
+			SUM(ttft_count) AS ttft_count,
+			SUM(completion_tokens) AS completion_tokens,
+			SUM(total_tps_latency_ms) AS total_tps_latency_ms`).
+		Where("bucket_start >= ?", startTimestamp).
 		Where("model_name = ?", modelName).
-		Where("type IN ?", []int{LogTypeConsume, LogTypeError}).
-		Order("created_at ASC").
-		Find(&logs).Error
+		Group("bucket_start, bucket_seconds, " + groupCol).
+		Order("bucket_start ASC").
+		Scan(&rows).Error
 	if err != nil {
 		return PerformanceMetrics{}, err
 	}
@@ -151,8 +373,8 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 	}
 
 	groups := make(map[string]*groupedAccumulator)
-	for _, log := range logs {
-		groupName := strings.TrimSpace(log.Group)
+	for _, row := range rows {
+		groupName := strings.TrimSpace(row.Group)
 		if groupName == "" {
 			groupName = "default"
 		}
@@ -161,15 +383,14 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 			group = &groupedAccumulator{series: make(map[int64]*perfAccumulator)}
 			groups[groupName] = group
 		}
-
-		applyPerfLog(&group.total, log)
-		bucketTs := log.CreatedAt - log.CreatedAt%3600
-		bucket := group.series[bucketTs]
+		acc := accumulatorFromRow(row)
+		group.total.add(acc)
+		bucket := group.series[row.BucketStart]
 		if bucket == nil {
 			bucket = &perfAccumulator{}
-			group.series[bucketTs] = bucket
+			group.series[row.BucketStart] = bucket
 		}
-		applyPerfLog(bucket, log)
+		bucket.add(acc)
 	}
 
 	groupNames := make([]string, 0, len(groups))
@@ -181,7 +402,7 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 	resultGroups := make([]PerformanceGroup, 0, len(groupNames))
 	for _, groupName := range groupNames {
 		group := groups[groupName]
-		avgLatencyMs, successRate, avgTps := group.total.summary()
+		avgLatencyMs, avgTTFTMs, successRate, avgTps := group.total.summary()
 
 		bucketTsList := make([]int64, 0, len(group.series))
 		for bucketTs := range group.series {
@@ -193,10 +414,10 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 
 		series := make([]PerformanceSeriesPoint, 0, len(bucketTsList))
 		for _, bucketTs := range bucketTsList {
-			bucketLatencyMs, bucketSuccessRate, bucketTps := group.series[bucketTs].summary()
+			bucketLatencyMs, bucketTTFTMs, bucketSuccessRate, bucketTps := group.series[bucketTs].summary()
 			series = append(series, PerformanceSeriesPoint{
 				Ts:           bucketTs,
-				AvgTTFTMs:    bucketLatencyMs,
+				AvgTTFTMs:    bucketTTFTMs,
 				AvgLatencyMs: bucketLatencyMs,
 				SuccessRate:  bucketSuccessRate,
 				AvgTps:       bucketTps,
@@ -205,7 +426,7 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 
 		resultGroups = append(resultGroups, PerformanceGroup{
 			Group:        groupName,
-			AvgTTFTMs:    avgLatencyMs,
+			AvgTTFTMs:    avgTTFTMs,
 			AvgLatencyMs: avgLatencyMs,
 			SuccessRate:  successRate,
 			AvgTps:       avgTps,
@@ -213,24 +434,50 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 		})
 	}
 
+	config := common.GetPerfMetricsConfig()
 	return PerformanceMetrics{
 		ModelName:    modelName,
-		SeriesSchema: "hourly; avg_ttft_ms currently mirrors avg_latency_ms because logs do not store TTFT separately",
+		SeriesSchema: config.BucketTime,
 		Groups:       resultGroups,
 	}, nil
 }
 
-func applyPerfLog(acc *perfAccumulator, log Log) {
-	acc.requestCount++
-	if log.Type != LogTypeConsume {
-		return
+func accumulatorFromRow(row perfMetricAggregateRow) perfAccumulator {
+	return perfAccumulator{
+		requestCount:      row.RequestCount,
+		successCount:      row.SuccessCount,
+		totalLatencyMs:    row.TotalLatencyMs,
+		totalTTFTMs:       row.TotalTTFTMs,
+		ttftCount:         row.TTFTCount,
+		completionTokens:  row.CompletionTokens,
+		totalTPSLatencyMs: row.TotalTPSLatencyMs,
 	}
-	acc.successCount++
-	acc.successUseTime += int64(log.UseTime)
-	if log.UseTime > 0 {
-		acc.tpsUseTime += int64(log.UseTime)
-		acc.completionTokens += int64(log.CompletionTokens)
+}
+
+func (a *perfAccumulator) add(other perfAccumulator) {
+	a.requestCount += other.requestCount
+	a.successCount += other.successCount
+	a.totalLatencyMs += other.totalLatencyMs
+	a.totalTTFTMs += other.totalTTFTMs
+	a.ttftCount += other.ttftCount
+	a.completionTokens += other.completionTokens
+	a.totalTPSLatencyMs += other.totalTPSLatencyMs
+}
+
+func (a perfAccumulator) summary() (avgLatencyMs float64, avgTTFTMs float64, successRate float64, avgTps float64) {
+	if a.requestCount > 0 {
+		successRate = roundFloat(float64(a.successCount)/float64(a.requestCount)*100, 2)
 	}
+	if a.successCount > 0 {
+		avgLatencyMs = roundFloat(float64(a.totalLatencyMs)/float64(a.successCount), 2)
+	}
+	if a.ttftCount > 0 {
+		avgTTFTMs = roundFloat(float64(a.totalTTFTMs)/float64(a.ttftCount), 2)
+	}
+	if a.totalTPSLatencyMs > 0 {
+		avgTps = roundFloat(float64(a.completionTokens)/(float64(a.totalTPSLatencyMs)/1000), 2)
+	}
+	return avgLatencyMs, avgTTFTMs, successRate, avgTps
 }
 
 func roundFloat(value float64, precision int) float64 {
@@ -239,4 +486,14 @@ func roundFloat(value float64, precision int) float64 {
 	}
 	multiplier := math.Pow10(precision)
 	return math.Round(value*multiplier) / multiplier
+}
+
+func perfMetricGroupCol() string {
+	if logGroupCol != "" {
+		return logGroupCol
+	}
+	if common.UsingPostgreSQL {
+		return `"group"`
+	}
+	return "`group`"
 }

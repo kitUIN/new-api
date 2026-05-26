@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	_ "github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -95,6 +96,9 @@ func main() {
 
 	// 数据看板
 	go model.UpdateQuotaData()
+
+	// Relay model performance metrics aggregation
+	go model.StartPerfMetricsFlushLoop()
 
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))

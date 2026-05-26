@@ -31,3 +31,5 @@ data/
 .gopath
 
 token_estimator_test.go
+new_web/.env.*
+build.sh

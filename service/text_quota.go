@@ -428,5 +428,6 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		IsStream:            relayInfo.IsStream,
 		Group:               relayInfo.UsingGroup,
 		Other:               other,
+		RelayInfo:           relayInfo,
 	})
 }

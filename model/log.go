@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -143,7 +145,15 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 }
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
-	isStream bool, group string, other map[string]interface{}) {
+	isStream bool, group string, other map[string]interface{}, relayInfo ...*relaycommon.RelayInfo) {
+	if len(relayInfo) > 0 && relayInfo[0] != nil {
+		RecordRelayPerfMetric(c, relayInfo[0], PerfMetricSample{
+			ModelName: modelName,
+			Group:     group,
+			Success:   false,
+		})
+	}
+
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
@@ -189,9 +199,19 @@ type RecordConsumeLogParams struct {
 	IsStream            bool                   `json:"is_stream"`
 	Group               string                 `json:"group"`
 	Other               map[string]interface{} `json:"other"`
+	RelayInfo           *relaycommon.RelayInfo `json:"-"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
+	if params.RelayInfo != nil {
+		RecordRelayPerfMetric(c, params.RelayInfo, PerfMetricSample{
+			ModelName:        params.ModelName,
+			Group:            params.Group,
+			Success:          true,
+			CompletionTokens: int64(params.CompletionTokens),
+		})
+	}
+
 	if !common.LogConsumeEnabled {
 		return
 	}
@@ -239,6 +259,32 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			)
 		})
 	}
+}
+
+func RecordRelayPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInfo, sample PerfMetricSample) {
+	if relayInfo == nil || relayInfo.IsPlayground || relayInfo.IsChannelTest || relayInfo.TaskRelayInfo != nil {
+		return
+	}
+	if strings.TrimSpace(sample.ModelName) == "" {
+		sample.ModelName = relayInfo.OriginModelName
+	}
+	if strings.TrimSpace(sample.Group) == "" {
+		sample.Group = relayInfo.UsingGroup
+	}
+	if relayInfo.StartTime.IsZero() {
+		return
+	}
+	now := time.Now()
+	sample.Timestamp = now.Unix()
+	sample.LatencyMs = now.Sub(relayInfo.StartTime).Milliseconds()
+	if sample.LatencyMs < 0 {
+		sample.LatencyMs = 0
+	}
+	if relayInfo.FirstResponseTime.After(relayInfo.StartTime) {
+		sample.TTFTMs = relayInfo.FirstResponseTime.Sub(relayInfo.StartTime).Milliseconds()
+	}
+	sample.TPSLatencyMs = sample.LatencyMs
+	RecordPerfMetricSample(sample)
 }
 
 type RecordTaskBillingLogParams struct {
