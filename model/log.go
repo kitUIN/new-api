@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,6 +58,12 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
+		if logs[i].Type == LogTypeError {
+			logs[i].Content = errorLogUserContent(logs[i].Content, otherMap)
+			logs[i].Other = common.MapToJsonStr(errorLogUserOther(otherMap))
+			logs[i].Id = startIdx + i + 1
+			continue
+		}
 		if otherMap != nil {
 			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")
@@ -66,6 +73,82 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
 	}
+}
+
+func errorLogUserContent(content string, otherMap map[string]interface{}) string {
+	if statusCode, ok := intFromLogOther(otherMap, "status_code"); ok && statusCode > 0 {
+		return fmt.Sprintf("status_code=%d", statusCode)
+	}
+	if errorCode := stringFromLogOther(otherMap, "error_code"); errorCode != "" {
+		return fmt.Sprintf("error_code=%s", errorCode)
+	}
+	if statusCode := statusCodeFromContent(content); statusCode != "" {
+		return "status_code=" + statusCode
+	}
+	return "error"
+}
+
+func errorLogUserOther(otherMap map[string]interface{}) map[string]interface{} {
+	userOther := make(map[string]interface{})
+	if statusCode, ok := intFromLogOther(otherMap, "status_code"); ok && statusCode > 0 {
+		userOther["status_code"] = statusCode
+	}
+	if errorCode := stringFromLogOther(otherMap, "error_code"); errorCode != "" {
+		userOther["error_code"] = errorCode
+	}
+	return userOther
+}
+
+func intFromLogOther(otherMap map[string]interface{}, key string) (int, bool) {
+	if otherMap == nil {
+		return 0, false
+	}
+	switch v := otherMap[key].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func stringFromLogOther(otherMap map[string]interface{}, key string) string {
+	if otherMap == nil {
+		return ""
+	}
+	switch v := otherMap[key].(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case fmt.Stringer:
+		return strings.TrimSpace(v.String())
+	case nil:
+		return ""
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
+func statusCodeFromContent(content string) string {
+	const marker = "status_code="
+	idx := strings.Index(content, marker)
+	if idx < 0 {
+		return ""
+	}
+	rest := content[idx+len(marker):]
+	end := 0
+	for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return ""
+	}
+	return rest[:end]
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {

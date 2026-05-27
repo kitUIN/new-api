@@ -408,6 +408,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isViolation = isViolationFeeLog(other)
   const isRefund = props.log.type === 6
   const isConsume = props.log.type === 2
+  const isError = props.log.type === 5
   const isTopup = props.log.type === 1
   const isManage = props.log.type === 3
   const isSubscription = other?.billing_source === 'subscription'
@@ -668,6 +669,49 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 <p className='text-xs break-words'>{other.reject_reason}</p>
               </DetailSection>
             )}
+
+            {/* Relay error metadata (admin only) */}
+            {props.isAdmin &&
+              isError &&
+              (other?.status_code ||
+                other?.error_code ||
+                other?.error_type ||
+                adminInfo?.upstream_error_body) && (
+                <DetailSection
+                  icon={
+                    <AlertTriangle className='size-3.5' aria-hidden='true' />
+                  }
+                  label={t('Upstream Response')}
+                  variant='danger'
+                >
+                  {other?.status_code != null && (
+                    <DetailRow
+                      label={t('Status Code')}
+                      value={String(other.status_code)}
+                      mono
+                    />
+                  )}
+                  {other?.error_code && (
+                    <DetailRow
+                      label={t('Code')}
+                      value={other.error_code}
+                      mono
+                    />
+                  )}
+                  {other?.error_type && (
+                    <DetailRow
+                      label={t('Type')}
+                      value={other.error_type}
+                      mono
+                    />
+                  )}
+                  {adminInfo?.upstream_error_body && (
+                    <pre className='bg-background/60 mt-1 max-h-40 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap'>
+                      {adminInfo.upstream_error_body}
+                    </pre>
+                  )}
+                </DetailSection>
+              )}
 
             {/* Violation fee info */}
             {isViolation && other && (

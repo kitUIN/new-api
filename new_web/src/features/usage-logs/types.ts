@@ -109,7 +109,12 @@ export interface LogOtherData {
     // Manage audit fields (type=3, admin only)
     admin_username?: string
     admin_id?: number | string
+    // Relay error audit fields (type=5, admin only)
+    upstream_error_body?: string
   }
+  error_type?: string
+  error_code?: string
+  status_code?: number
   request_path?: string
   request_conversion?: string[]
   ws?: boolean
