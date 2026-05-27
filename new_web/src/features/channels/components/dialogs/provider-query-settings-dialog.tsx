@@ -366,7 +366,7 @@ export function ProviderQuerySettingsDialog(props: Props) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
+      <DialogContent className='max-h-[90vh] w-[calc(100vw-2rem)] max-w-6xl overflow-y-auto sm:max-w-6xl'>
         <DialogHeader>
           <DialogTitle>{t('Provider query settings')}</DialogTitle>
         </DialogHeader>
