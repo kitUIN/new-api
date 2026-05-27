@@ -344,7 +344,7 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Switch
                       checked={Boolean(field.value)}
-                      onCheckedChange={handlePerfMetricsEnabledChange}
+                      onCheckedChange={field.onChange}
                     />
                   </FormControl>
                 </SettingsSwitchItem>
@@ -525,7 +525,7 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Switch
                       checked={field.value}
-                      onCheckedChange={field.onChange}
+                      onCheckedChange={handlePerfMetricsEnabledChange}
                     />
                   </FormControl>
                 </SettingsSwitchItem>
