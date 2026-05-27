@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
   AlertTriangle,
@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getUserGroups } from '@/lib/api'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,
@@ -94,6 +95,14 @@ import {
 } from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
+type GroupMetadata = Record<
+  string,
+  {
+    desc?: string
+    ratio?: number
+  }
+>
+
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
   source?: string
   deployment_id?: string
@@ -154,6 +163,35 @@ function formatGroupQueryRatio(ratio: unknown): string {
   const value = Number(ratio)
   if (!Number.isFinite(value)) return '-'
   return `${value % 1 === 0 ? value : Number(value.toFixed(2))}x`
+}
+
+function normalizeGroupRatio(ratio: unknown): number | undefined {
+  const value = Number(ratio)
+  if (!Number.isFinite(value)) return undefined
+  return value % 1 === 0 ? value : Number(value.toFixed(4))
+}
+
+function useGroupMetadata(): GroupMetadata {
+  const { data } = useQuery({
+    queryKey: ['user-self-groups'],
+    queryFn: getUserGroups,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => {
+      if (!res.success || !res.data) return {}
+
+      const metadata: GroupMetadata = {}
+      for (const [group, info] of Object.entries(res.data)) {
+        const ratio = normalizeGroupRatio(info.ratio)
+        metadata[group] = {
+          desc: typeof info.desc === 'string' ? info.desc : undefined,
+          ratio,
+        }
+      }
+      return metadata
+    },
+  })
+
+  return data ?? {}
 }
 
 function getGroupQueryItems(groupQuery: GroupQueryConfig | undefined) {
@@ -812,6 +850,7 @@ function ProviderNameCell({
 
 export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
   const { t } = useTranslation()
+  const groupMetadata = useGroupMetadata()
   return [
     // Checkbox column
     {
@@ -1303,9 +1342,22 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
         const group = row.getValue('group') as string
         const groupArray = parseGroupsList(group)
 
+        if (groupArray.length === 0) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+
         const groupBadges = groupArray.map((g) => (
-          <GroupBadge key={g} group={g} size='sm' />
+          <GroupBadge
+            key={g}
+            group={g}
+            ratio={groupMetadata[g]?.ratio}
+            size='sm'
+          />
         ))
+        const hasGroupDetails = groupArray.some((g) => {
+          const meta = groupMetadata[g]
+          return Boolean(meta?.desc || meta?.ratio !== undefined)
+        })
 
         return (
           <TooltipProvider>
@@ -1313,12 +1365,34 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
               <TooltipTrigger render={<div />}>
                 {renderLimitedItems(groupBadges, 2)}
               </TooltipTrigger>
-              {groupArray.length > 2 && (
+              {(groupArray.length > 2 || hasGroupDetails) && (
                 <TooltipContent
                   side='top'
                   className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
-                  <div className='flex flex-wrap gap-1'>{groupBadges}</div>
+                  {hasGroupDetails ? (
+                    <div className='space-y-2'>
+                      {groupArray.map((g) => {
+                        const meta = groupMetadata[g]
+                        return (
+                          <div key={g} className='space-y-1'>
+                            <GroupBadge
+                              group={g}
+                              ratio={meta?.ratio}
+                              size='sm'
+                            />
+                            {meta?.desc && (
+                              <div className='text-muted-foreground text-xs'>
+                                {meta.desc}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className='flex flex-wrap gap-1'>{groupBadges}</div>
+                  )}
                 </TooltipContent>
               )}
             </Tooltip>
