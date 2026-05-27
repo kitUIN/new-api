@@ -20,7 +20,6 @@ import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import {
   DASHBOARD_CHART_PREFERENCES_STORAGE_KEY,
   DEFAULT_DASHBOARD_CHART_PREFERENCES,
-  DEFAULT_TIME_GRANULARITY,
   EMPTY_DASHBOARD_FILTERS,
   TIME_GRANULARITY_STORAGE_KEY,
   TIME_RANGE_PRESETS,
@@ -35,12 +34,6 @@ import type {
 
 function isTimeGranularity(value: unknown): value is TimeGranularity {
   return value === 'hour' || value === 'day' || value === 'week'
-}
-
-function getLegacySavedGranularity(): TimeGranularity {
-  if (typeof window === 'undefined') return DEFAULT_TIME_GRANULARITY
-  const saved = localStorage.getItem(TIME_GRANULARITY_STORAGE_KEY)
-  return isTimeGranularity(saved) ? saved : DEFAULT_TIME_GRANULARITY
 }
 
 function isConsumptionDistributionChartType(
@@ -94,10 +87,7 @@ export function saveGranularity(granularity: TimeGranularity): void {
 export function getSavedChartPreferences(): DashboardChartPreferences {
   if (typeof window === 'undefined') return DEFAULT_DASHBOARD_CHART_PREFERENCES
 
-  const fallbackPreferences = {
-    ...DEFAULT_DASHBOARD_CHART_PREFERENCES,
-    defaultTimeGranularity: getLegacySavedGranularity(),
-  }
+  const fallbackPreferences = DEFAULT_DASHBOARD_CHART_PREFERENCES
 
   try {
     const raw = localStorage.getItem(DASHBOARD_CHART_PREFERENCES_STORAGE_KEY)
