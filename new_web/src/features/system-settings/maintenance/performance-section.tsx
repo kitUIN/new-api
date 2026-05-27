@@ -282,6 +282,21 @@ export function PerformanceSection(props: Props) {
     'performance_setting.disk_cache_max_size_mb'
   )
 
+  const handlePerfMetricsEnabledChange = (checked: boolean) => {
+    // react-hook-form treats dotted names as nested paths in its type helper,
+    // while system option keys are intentionally flat dotted strings.
+    const setValue = form.setValue as (
+      name: string,
+      value: boolean,
+      options: { shouldDirty: boolean; shouldTouch: boolean; shouldValidate: boolean }
+    ) => void
+    setValue('perf_metrics_setting.enabled', checked, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+  }
+
   const lowDiskSpace =
     diskEnabled &&
     stats?.disk_space_info &&
@@ -328,8 +343,8 @@ export function PerformanceSection(props: Props) {
                   </SettingsSwitchContent>
                   <FormControl>
                     <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                      checked={Boolean(field.value)}
+                      onCheckedChange={handlePerfMetricsEnabledChange}
                     />
                   </FormControl>
                 </SettingsSwitchItem>
