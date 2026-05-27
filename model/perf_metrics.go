@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"math"
 	"sort"
@@ -193,16 +194,37 @@ func FlushPerfMetrics() error {
 }
 
 func StartPerfMetricsFlushLoop() {
+	startPerfMetricsFlushLoop(context.Background(), sleepPerfMetricsFlushInterval)
+}
+
+func startPerfMetricsFlushLoop(ctx context.Context, sleep func(context.Context, time.Duration) bool) {
 	for {
-		config := common.GetPerfMetricsConfig()
-		interval := config.FlushInterval
-		if interval <= 0 {
-			interval = 5
+		if !sleep(ctx, perfMetricsFlushInterval()) {
+			return
 		}
-		time.Sleep(time.Duration(interval) * time.Minute)
 		if err := FlushPerfMetrics(); err != nil {
 			common.SysError("failed to flush performance metrics: " + err.Error())
 		}
+	}
+}
+
+func perfMetricsFlushInterval() time.Duration {
+	config := common.GetPerfMetricsConfig()
+	interval := config.FlushInterval
+	if interval <= 0 {
+		interval = 5
+	}
+	return time.Duration(interval) * time.Minute
+}
+
+func sleepPerfMetricsFlushInterval(ctx context.Context, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -242,6 +264,19 @@ func restorePendingPerfMetrics(snapshot map[perfMetricKey]perfAccumulator) {
 		existing.add(acc)
 		pendingPerfMetrics[key] = existing
 	}
+}
+
+func snapshotPendingPerfMetrics() map[perfMetricKey]perfAccumulator {
+	perfMetricsMu.Lock()
+	defer perfMetricsMu.Unlock()
+	if len(pendingPerfMetrics) == 0 {
+		return nil
+	}
+	snapshot := make(map[perfMetricKey]perfAccumulator, len(pendingPerfMetrics))
+	for key, acc := range pendingPerfMetrics {
+		snapshot[key] = acc
+	}
+	return snapshot
 }
 
 func upsertPerfMetricBucket(tx *gorm.DB, key perfMetricKey, acc perfAccumulator, now int64) error {
@@ -299,6 +334,34 @@ type perfMetricAggregateRow struct {
 	TotalTPSLatencyMs int64
 }
 
+func pendingPerfMetricRows(startTimestamp int64, modelName string) []perfMetricAggregateRow {
+	modelName = strings.TrimSpace(modelName)
+	pending := snapshotPendingPerfMetrics()
+	if len(pending) == 0 {
+		return nil
+	}
+	rows := make([]perfMetricAggregateRow, 0)
+	for key, acc := range pending {
+		if key.bucketStart < startTimestamp || key.modelName != modelName {
+			continue
+		}
+		rows = append(rows, perfMetricAggregateRow{
+			ModelName:         key.modelName,
+			Group:             key.group,
+			BucketStart:       key.bucketStart,
+			BucketSeconds:     key.bucketSeconds,
+			RequestCount:      acc.requestCount,
+			SuccessCount:      acc.successCount,
+			TotalLatencyMs:    acc.totalLatencyMs,
+			TotalTTFTMs:       acc.totalTTFTMs,
+			TTFTCount:         acc.ttftCount,
+			CompletionTokens:  acc.completionTokens,
+			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
+		})
+	}
+	return rows
+}
+
 func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 	startTimestamp := time.Now().Add(-time.Duration(hours) * time.Hour).Unix()
 	if limit <= 0 {
@@ -318,24 +381,46 @@ func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 		Where("bucket_start >= ?", startTimestamp).
 		Where("model_name <> ''").
 		Group("model_name").
-		Order("request_count DESC").
-		Limit(limit).
 		Scan(&rows).Error
 	if err != nil {
 		return PerfMetricsSummary{}, err
 	}
 
-	models := make([]PerfModelSummary, 0, len(rows))
+	aggregates := make(map[string]perfAccumulator, len(rows))
 	for _, row := range rows {
 		acc := accumulatorFromRow(row)
+		existing := aggregates[row.ModelName]
+		existing.add(acc)
+		aggregates[row.ModelName] = existing
+	}
+	for key, acc := range snapshotPendingPerfMetrics() {
+		if key.bucketStart < startTimestamp || strings.TrimSpace(key.modelName) == "" {
+			continue
+		}
+		existing := aggregates[key.modelName]
+		existing.add(acc)
+		aggregates[key.modelName] = existing
+	}
+
+	models := make([]PerfModelSummary, 0, len(aggregates))
+	for modelName, acc := range aggregates {
 		avgLatencyMs, _, successRate, avgTps := acc.summary()
 		models = append(models, PerfModelSummary{
-			ModelName:    row.ModelName,
+			ModelName:    modelName,
 			AvgLatencyMs: avgLatencyMs,
 			SuccessRate:  successRate,
 			AvgTps:       avgTps,
-			RequestCount: row.RequestCount,
+			RequestCount: acc.requestCount,
 		})
+	}
+	sort.Slice(models, func(i, j int) bool {
+		if models[i].RequestCount == models[j].RequestCount {
+			return models[i].ModelName < models[j].ModelName
+		}
+		return models[i].RequestCount > models[j].RequestCount
+	})
+	if limit > 0 && len(models) > limit {
+		models = models[:limit]
 	}
 
 	return PerfMetricsSummary{Models: models}, nil
@@ -366,6 +451,7 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 	if err != nil {
 		return PerformanceMetrics{}, err
 	}
+	rows = append(rows, pendingPerfMetricRows(startTimestamp, modelName)...)
 
 	type groupedAccumulator struct {
 		total  perfAccumulator

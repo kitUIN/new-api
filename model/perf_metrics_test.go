@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -68,6 +69,35 @@ func TestGetPerfMetricsSummaryAggregatesBuckets(t *testing.T) {
 	require.Equal(t, 60.0, modelSummary.AvgTps)
 }
 
+func TestGetPerfMetricsSummaryIncludesPendingSamples(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "hour",
+		FlushInterval: 5,
+	})
+
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        time.Now().Unix(),
+		ModelName:        "pending-summary",
+		Group:            "default",
+		Success:          true,
+		LatencyMs:        1200,
+		CompletionTokens: 24,
+		TPSLatencyMs:     1200,
+	})
+
+	summary, err := GetPerfMetricsSummary(24, 10)
+	require.NoError(t, err)
+	require.Len(t, summary.Models, 1)
+	require.Equal(t, "pending-summary", summary.Models[0].ModelName)
+	require.EqualValues(t, 1, summary.Models[0].RequestCount)
+	require.Equal(t, 100.0, summary.Models[0].SuccessRate)
+	require.Equal(t, 1200.0, summary.Models[0].AvgLatencyMs)
+	require.Equal(t, 20.0, summary.Models[0].AvgTps)
+}
+
 func TestGetPerformanceMetricsGroupsAndBuckets(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
@@ -129,6 +159,74 @@ func TestGetPerformanceMetricsGroupsAndBuckets(t *testing.T) {
 	require.Equal(t, 30.0, metrics.Groups[1].AvgTps)
 	require.Len(t, metrics.Groups[1].Series, 1)
 	require.Equal(t, base, metrics.Groups[1].Series[0].Ts)
+}
+
+func TestGetPerformanceMetricsIncludesPendingSamples(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "hour",
+		FlushInterval: 5,
+	})
+
+	base := time.Now().Unix()
+	base = base - base%3600
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        base + 30,
+		ModelName:        "pending-detail",
+		Group:            "vip",
+		Success:          true,
+		LatencyMs:        1500,
+		TTFTMs:           300,
+		CompletionTokens: 45,
+		TPSLatencyMs:     1500,
+	})
+
+	metrics, err := GetPerformanceMetrics("pending-detail", 24)
+	require.NoError(t, err)
+	require.Len(t, metrics.Groups, 1)
+	require.Equal(t, "vip", metrics.Groups[0].Group)
+	require.Equal(t, 100.0, metrics.Groups[0].SuccessRate)
+	require.Equal(t, 1500.0, metrics.Groups[0].AvgLatencyMs)
+	require.Equal(t, 300.0, metrics.Groups[0].AvgTTFTMs)
+	require.Equal(t, 30.0, metrics.Groups[0].AvgTps)
+	require.Len(t, metrics.Groups[0].Series, 1)
+	require.Equal(t, base, metrics.Groups[0].Series[0].Ts)
+}
+
+func TestStartPerfMetricsFlushLoopFlushesPendingSamples(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "hour",
+		FlushInterval: 5,
+	})
+
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        time.Now().Unix(),
+		ModelName:        "loop-flush",
+		Group:            "default",
+		Success:          true,
+		LatencyMs:        900,
+		CompletionTokens: 18,
+		TPSLatencyMs:     900,
+	})
+
+	sleepCalls := 0
+	startPerfMetricsFlushLoop(context.Background(), func(_ context.Context, duration time.Duration) bool {
+		sleepCalls++
+		require.Equal(t, 5*time.Minute, duration)
+		return sleepCalls == 1
+	})
+
+	require.Equal(t, 2, sleepCalls)
+	var bucket PerfMetricBucket
+	require.NoError(t, LOG_DB.Where("model_name = ?", "loop-flush").First(&bucket).Error)
+	require.EqualValues(t, 1, bucket.RequestCount)
+	require.EqualValues(t, 1, bucket.SuccessCount)
+	require.EqualValues(t, 900, bucket.TotalLatencyMs)
 }
 
 func TestFlushPerfMetricsIncrementsExistingBucket(t *testing.T) {
