@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -30,6 +31,8 @@ type Pricing struct {
 	ImageRatio             *float64                `json:"image_ratio,omitempty"`
 	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
 	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
+	BillingMode            string                  `json:"billing_mode,omitempty"`
+	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
@@ -318,6 +321,12 @@ func updatePricing() {
 		if ratio_setting.ContainsAudioCompletionRatio(model) {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
+		}
+		if billingMode := billing_setting.GetBillingMode(model); billingMode == billing_setting.BillingModeTieredExpr {
+			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
+				pricing.BillingMode = billingMode
+				pricing.BillingExpr = expr
+			}
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

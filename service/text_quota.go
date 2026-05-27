@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -62,6 +63,64 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
+}
+
+func calculateTieredToolSurchargeQuota(summary textQuotaSummary) int {
+	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
+	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	surcharge := decimal.Zero
+
+	if summary.WebSearchCallCount > 0 {
+		surcharge = surcharge.Add(decimal.NewFromFloat(summary.WebSearchPrice).
+			Mul(decimal.NewFromInt(int64(summary.WebSearchCallCount))).
+			Div(decimal.NewFromInt(1000)).
+			Mul(dGroupRatio).
+			Mul(dQuotaPerUnit))
+	}
+	if summary.ClaudeWebSearchCallCount > 0 {
+		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ClaudeWebSearchPrice).
+			Div(decimal.NewFromInt(1000)).
+			Mul(dGroupRatio).
+			Mul(dQuotaPerUnit).
+			Mul(decimal.NewFromInt(int64(summary.ClaudeWebSearchCallCount))))
+	}
+	if summary.FileSearchCallCount > 0 {
+		surcharge = surcharge.Add(decimal.NewFromFloat(summary.FileSearchPrice).
+			Mul(decimal.NewFromInt(int64(summary.FileSearchCallCount))).
+			Div(decimal.NewFromInt(1000)).
+			Mul(dGroupRatio).
+			Mul(dQuotaPerUnit))
+	}
+	if summary.ImageGenerationCallPrice > 0 {
+		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ImageGenerationCallPrice).
+			Mul(dGroupRatio).
+			Mul(dQuotaPerUnit))
+	}
+
+	return int(surcharge.Round(0).IntPart())
+}
+
+func applyTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary, usage *dto.Usage) *billingexpr.TieredResult {
+	if relayInfo == nil || relayInfo.TieredBillingSnapshot == nil || summary == nil {
+		return nil
+	}
+	if usage == nil {
+		usage = &dto.Usage{
+			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
+			CompletionTokens: 0,
+			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
+		}
+	}
+
+	usedVars := billingexpr.UsedVars(relayInfo.TieredBillingSnapshot.ExprString)
+	params := BuildTieredTokenParams(usage, summary.IsClaudeUsageSemantic, usedVars)
+	ok, tieredQuota, tieredResult := TryTieredSettle(relayInfo, params)
+	if !ok {
+		return nil
+	}
+
+	summary.Quota = tieredQuota + calculateTieredToolSurchargeQuota(*summary)
+	return tieredResult
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -302,6 +361,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	adminRejectReason := common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason)
 	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	tieredResult := applyTieredTextQuota(relayInfo, &summary, usage)
 
 	if summary.WebSearchCallCount > 0 {
 		extraContent = append(extraContent, fmt.Sprintf("Web Search 调用 %d 次，调用花费 %s", summary.WebSearchCallCount, decimal.NewFromFloat(summary.WebSearchPrice).Mul(decimal.NewFromInt(int64(summary.WebSearchCallCount))).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
@@ -357,6 +417,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
+	}
+	if tieredResult != nil {
+		other["tiered_actual_quota_before_group"] = tieredResult.ActualQuotaBeforeGroup
+		other["tiered_actual_quota_after_group"] = tieredResult.ActualQuotaAfterGroup
+		other["tiered_crossed_tier"] = tieredResult.CrossedTier
+		if tieredResult.MatchedTier != "" {
+			other["matched_tier"] = tieredResult.MatchedTier
+		}
 	}
 	if summary.ImageTokens != 0 {
 		other["image"] = true

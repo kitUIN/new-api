@@ -79,6 +79,8 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  groupRatio: string
+  userUsableGroups: string
   onChange: (field: string, value: string) => void
 }
 
@@ -214,6 +216,8 @@ export const ModelRatioVisualEditor = memo(
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    groupRatio,
+    userUsableGroups,
     onChange,
   }: ModelRatioVisualEditorProps) {
     const { t } = useTranslation()
@@ -421,6 +425,23 @@ export const ModelRatioVisualEditor = memo(
         ),
       [models]
     )
+
+    const groupOptions = useMemo(() => {
+      const ratioMap = safeJsonParse<Record<string, unknown>>(groupRatio, {
+        fallback: {},
+        silent: true,
+      })
+      const usableMap = safeJsonParse<Record<string, unknown>>(
+        userUsableGroups,
+        {
+          fallback: {},
+          silent: true,
+        }
+      )
+      return Array.from(
+        new Set([...Object.keys(ratioMap), ...Object.keys(usableMap)])
+      ).sort((a, b) => a.localeCompare(b))
+    }, [groupRatio, userUsableGroups])
 
     const handleEdit = useCallback(
       (model: ModelRow) => {
@@ -1010,6 +1031,7 @@ export const ModelRatioVisualEditor = memo(
                 onCancel={handleCancel}
                 editData={editData}
                 selectedTargetCount={selectedTargetCount}
+                groupOptions={groupOptions}
                 className='sticky top-4 h-[calc(100vh-8rem)] min-h-[620px]'
               />
             ) : (
@@ -1048,6 +1070,7 @@ export const ModelRatioVisualEditor = memo(
             onCancel={handleCancel}
             editData={editData}
             selectedTargetCount={selectedTargetCount}
+            groupOptions={groupOptions}
           />
         )}
       </div>
@@ -1066,6 +1089,8 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.groupRatio === nextProps.groupRatio &&
+      prevProps.userUsableGroups === nextProps.userUsableGroups &&
       prevProps.onChange === nextProps.onChange
     )
   }

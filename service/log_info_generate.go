@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -117,6 +118,20 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
 	if relayInfo == nil || other == nil {
 		return
+	}
+	if snap := relayInfo.TieredBillingSnapshot; snap != nil && snap.BillingMode == "tiered_expr" {
+		other["billing_mode"] = "tiered_expr"
+		other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(snap.ExprString))
+		other["billing_expr_hash"] = snap.ExprHash
+		other["estimated_tier"] = snap.EstimatedTier
+		other["estimated_quota_before_group"] = snap.EstimatedQuotaBeforeGroup
+		other["estimated_quota_after_group"] = snap.EstimatedQuotaAfterGroup
+		if snap.Group != "" {
+			other["billing_group"] = snap.Group
+		}
+		if snap.EstimatedTier != "" {
+			other["matched_tier"] = snap.EstimatedTier
+		}
 	}
 	// billing_source: "wallet" or "subscription"
 	if relayInfo.BillingSource != "" {

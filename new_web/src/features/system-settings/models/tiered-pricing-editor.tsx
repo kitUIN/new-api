@@ -114,8 +114,9 @@ const CONDITION_INPUT_OPTIONS: {
   { value: 'len', labelKey: 'Full input length' },
   { value: 'p', labelKey: 'Billable input tokens' },
   { value: 'c', labelKey: 'Billable output tokens' },
+  { value: 'group', labelKey: 'Group' },
 ]
-const OPS: TierConditionInput['op'][] = ['<', '<=', '>', '>=']
+const OPS: Array<'<' | '<=' | '>' | '>='> = ['<', '<=', '>', '>=']
 
 type Preset = {
   key: string
@@ -187,7 +188,7 @@ const PRESET_GROUPS: PresetGroup[] = [
       {
         key: 'gemini-3-pro-image',
         label: 'Gemini 3 Pro Image',
-        expr: 'tier("base", p * 2 + c * 12 + img_o * 120)',
+        expr: 'tier("base", p * 2 + c * 12 + img * 120)',
       },
       {
         key: 'qwen3-omni-flash',
@@ -421,15 +422,25 @@ function DraftNumberInput({
 
 type ConditionRowProps = {
   condition: TierConditionInput
+  groupOptions: string[]
   onChange: (next: TierConditionInput) => void
   onRemove: () => void
 }
 
-function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
+function ConditionRow({
+  condition,
+  groupOptions,
+  onChange,
+  onRemove,
+}: ConditionRowProps) {
   const { t } = useTranslation()
   const currentInputOption = CONDITION_INPUT_OPTIONS.find(
     (option) => option.value === condition.var
   )
+  const availableGroups = useMemo(() => {
+    if (condition.var !== 'group' || !condition.value) return groupOptions
+    return Array.from(new Set([String(condition.value), ...groupOptions]))
+  }, [condition, groupOptions])
 
   return (
     <div className='flex items-center gap-2'>
@@ -442,7 +453,17 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
         ]}
         value={condition.var}
         onValueChange={(value) =>
-          onChange({ ...condition, var: value as TierConditionInput['var'] })
+          value === 'group'
+            ? onChange({
+                var: 'group',
+                op: '==',
+                value: availableGroups[0] || '',
+              })
+            : onChange({
+                var: value as 'p' | 'c' | 'len',
+                op: '<',
+                value: 200000,
+              })
         }
       >
         <SelectTrigger className='w-32' size='sm'>
@@ -462,36 +483,72 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
           </SelectGroup>
         </SelectContent>
       </Select>
-      <Select
-        items={[...OPS.map((op) => ({ value: op, label: op }))]}
-        value={condition.op}
-        onValueChange={(value) =>
-          onChange({ ...condition, op: value as TierConditionInput['op'] })
-        }
-      >
-        <SelectTrigger className='w-20' size='sm'>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
-          <SelectGroup>
-            {OPS.map((op) => (
-              <SelectItem key={op} value={op}>
-                {op}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <DraftNumberInput
-        min={0}
-        value={condition.value}
-        onValueChange={(value) => onChange({ ...condition, value })}
-        placeholder='tokens'
-        className='w-32'
-      />
-      <span className='text-muted-foreground text-xs'>
-        {formatTokenHint(condition.value)}
-      </span>
+      {condition.var === 'group' ? (
+        <>
+          <div className='text-muted-foreground flex h-8 w-20 items-center rounded-md border px-3 text-xs'>
+            {t('Equals')}
+          </div>
+          <Select
+            items={availableGroups.map((group) => ({
+              value: group,
+              label: group,
+            }))}
+            value={String(condition.value || '')}
+            onValueChange={(value) =>
+              onChange({ var: 'group', op: '==', value: value || '' })
+            }
+          >
+            <SelectTrigger className='w-40' size='sm'>
+              <SelectValue>{String(condition.value || t('Group'))}</SelectValue>
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {availableGroups.map((group) => (
+                  <SelectItem key={group} value={group}>
+                    {group}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </>
+      ) : (
+        <>
+          <Select
+            items={[...OPS.map((op) => ({ value: op, label: op }))]}
+            value={condition.op}
+            onValueChange={(value) =>
+              onChange({
+                ...condition,
+                op: value as '<' | '<=' | '>' | '>=',
+              })
+            }
+          >
+            <SelectTrigger className='w-20' size='sm'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {OPS.map((op) => (
+                  <SelectItem key={op} value={op}>
+                    {op}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <DraftNumberInput
+            min={0}
+            value={condition.value}
+            onValueChange={(value) => onChange({ ...condition, value })}
+            placeholder='tokens'
+            className='w-32'
+          />
+          <span className='text-muted-foreground text-xs'>
+            {formatTokenHint(condition.value)}
+          </span>
+        </>
+      )}
       <Button
         variant='ghost'
         size='icon'
@@ -540,6 +597,7 @@ type VisualTierCardProps = {
   tier: VisualTier
   index: number
   total: number
+  groupOptions: string[]
   onChange: (next: VisualTier) => void
   onRemove: () => void
   onAddCondition: () => void
@@ -549,6 +607,7 @@ function VisualTierCard({
   tier,
   index,
   total,
+  groupOptions,
   onChange,
   onRemove,
   onAddCondition,
@@ -667,6 +726,7 @@ function VisualTierCard({
             <ConditionRow
               key={conditionIndex}
               condition={condition}
+              groupOptions={groupOptions}
               onChange={(next) => handleConditionChange(conditionIndex, next)}
               onRemove={() => handleConditionRemove(conditionIndex)}
             />
@@ -769,10 +829,15 @@ function VisualTierCard({
 
 type VisualEditorProps = {
   visualConfig: VisualConfig | null
+  groupOptions: string[]
   onChange: (next: VisualConfig) => void
 }
 
-function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
+function VisualEditor({
+  visualConfig,
+  groupOptions,
+  onChange,
+}: VisualEditorProps) {
   const { t } = useTranslation()
   const config = useMemo(
     () => normalizeVisualConfig(visualConfig),
@@ -842,7 +907,7 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
     <div className='space-y-2'>
       <p className='text-muted-foreground text-xs'>
         {t(
-          'Each tier supports up to 2 conditions. The last tier without conditions is the fallback.'
+          'Each tier supports up to 2 conditions over len, p, c, or group. Use group == "name" for group conditions; the last tier without conditions is the fallback.'
         )}
       </p>
       {config.tiers.map((tier, index) => (
@@ -851,6 +916,7 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
           tier={tier}
           index={index}
           total={config.tiers.length}
+          groupOptions={groupOptions}
           onChange={(next) => handleTierChange(index, next)}
           onRemove={() => handleRemoveTier(index)}
           onAddCondition={() => handleAddCondition(index)}
@@ -887,8 +953,8 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
           <div>
             {t('Variables')}: <code>len</code>, <code>p</code>, <code>c</code>,{' '}
             <code>cr</code>, <code>cc</code>, <code>cc1h</code>,{' '}
-            <code>img</code>, <code>img_o</code>, <code>ai</code>,{' '}
-            <code>ao</code>
+            <code>img</code>, <code>ai</code>, <code>ao</code>,{' '}
+            <code>group</code>
           </div>
           <div>
             {t('Functions')}: <code>tier(name, value)</code>, <code>max</code>,{' '}
@@ -1367,7 +1433,6 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
     cacheCreateTokens: 0,
     cacheCreate1hTokens: 0,
     imageTokens: 0,
-    imageOutputTokens: 0,
     audioInputTokens: 0,
     audioOutputTokens: 0,
   })
@@ -1484,6 +1549,7 @@ Expressions are based on standard arithmetic with ternary operators.
 Input side:
 - p — input token count (for pricing). Automatically excludes sub-categories priced separately (e.g., if cr is used, cache tokens are deducted from p)
 - len — total input context length (for condition checks). Not affected by auto-exclusion; always reflects the full input length. Use in tier conditions
+- group — current token group after auto_group selection. Use group == "vip" for group-specific tiers
 - cr — cache-hit (read) token count
 - cc — cache-create token count (5-min TTL)
 - cc1h — cache-create token count (1-hour TTL, Claude-specific)
@@ -1492,7 +1558,6 @@ Input side:
 
 Output side:
 - c — output token count. Also auto-excludes sub-categories priced separately
-- img_o — image output token count
 - ao — audio output token count
 
 ### p/c Auto-exclusion
@@ -1528,6 +1593,11 @@ len <= 200000
   ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)
   : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)
 
+Group-specific tier:
+group == "vip"
+  ? tier("vip", p * 2 + c * 10)
+  : tier("base", p * 3 + c * 15)
+
 Image model:
 tier("base", p * 2 + c * 8 + img * 2.5)
 
@@ -1545,7 +1615,7 @@ len <= 128000
 
 1. Every leaf branch must be wrapped in tier("name", cost_expr)
 2. Use English tier names, e.g. "base", "standard", "long_context"
-3. Use len for tier conditions (not p), supports <, <=, >, >=
+3. Use len/group for tier conditions. len, p, and c support <, <=, >, >=; group supports == only
 4. Multi-tier uses nested ternary: cond1 ? tier(...) : (cond2 ? tier(...) : tier(...))
 5. Price coefficients are the provider's official $/1M tokens prices
 6. If cache/image/audio don't need separate pricing, omit those variables; their tokens are included in p/c automatically
@@ -1625,6 +1695,7 @@ export type TieredPricingEditorProps = {
   modelName?: string
   billingExpr: string
   requestRuleExpr: string
+  groupOptions?: string[]
   onBillingExprChange: (next: string) => void
   onRequestRuleExprChange: (next: string) => void
 }
@@ -1635,6 +1706,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   modelName,
   billingExpr: currentExpr,
   requestRuleExpr: currentRequestRuleExpr,
+  groupOptions = [],
   onBillingExprChange,
   onRequestRuleExprChange,
 }: TieredPricingEditorProps) {
@@ -1804,6 +1876,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
         {editorMode === 'visual' ? (
           <VisualEditor
             visualConfig={visualConfig}
+            groupOptions={groupOptions}
             onChange={handleVisualChange}
           />
         ) : (

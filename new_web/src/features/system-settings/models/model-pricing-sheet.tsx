@@ -121,6 +121,7 @@ type ModelPricingSheetProps = {
   onCancel?: () => void
   editData?: ModelRatioData | null
   selectedTargetCount?: number
+  groupOptions?: string[]
 }
 
 type ModelPricingEditorPanelProps = Omit<
@@ -384,6 +385,7 @@ export function ModelPricingSheet({
   onCancel,
   editData,
   selectedTargetCount = 0,
+  groupOptions = [],
 }: ModelPricingSheetProps) {
   const { t } = useTranslation()
   const title = editData ? t('Edit model pricing') : t('Add model pricing')
@@ -403,6 +405,7 @@ export function ModelPricingSheet({
           onSave={onSave}
           editData={editData}
           selectedTargetCount={selectedTargetCount}
+          groupOptions={groupOptions}
           onCancel={() => {
             onCancel?.()
             onOpenChange(false)
@@ -420,6 +423,7 @@ export function ModelPricingEditorPanel({
   selectedTargetCount = 0,
   onCancel,
   className,
+  groupOptions = [],
 }: ModelPricingEditorPanelProps) {
   const { t } = useTranslation()
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
@@ -903,6 +907,7 @@ export function ModelPricingEditorPanel({
                     modelName={watchedValues.name}
                     billingExpr={billingExpr}
                     requestRuleExpr={requestRuleExpr}
+                    groupOptions={groupOptions}
                     onBillingExprChange={setBillingExpr}
                     onRequestRuleExprChange={setRequestRuleExpr}
                   />

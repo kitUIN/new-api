@@ -16,17 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { BILLING_CACHE_VAR_MAP } from './billing-expr'
+import {
+  BILLING_CACHE_VAR_MAP,
+  type GroupTierCondition,
+  type NumericTierCondition,
+} from './billing-expr'
 
 export const CACHE_MODE_TIMED = 'timed'
 export const CACHE_MODE_GENERIC = 'generic'
 export type CacheMode = typeof CACHE_MODE_TIMED | typeof CACHE_MODE_GENERIC
 
-export type TierConditionInput = {
-  var: 'p' | 'c' | 'len'
-  op: '<' | '<=' | '>' | '>='
-  value: number | string
-}
+export type TierConditionInput =
+  | (Omit<NumericTierCondition, 'value'> & { value: number | string })
+  | GroupTierCondition
 
 export type VisualTier = {
   label: string
@@ -38,7 +40,6 @@ export type VisualTier = {
   cache_create_unit_cost?: number
   cache_create_1h_unit_cost?: number
   image_unit_cost?: number
-  image_output_unit_cost?: number
   audio_input_unit_cost?: number
   audio_output_unit_cost?: number
   [field: string]: unknown
@@ -72,7 +73,6 @@ export function normalizeVisualTier(
     cache_create_unit_cost: Number(tier.cache_create_unit_cost) || 0,
     cache_create_1h_unit_cost: Number(tier.cache_create_1h_unit_cost) || 0,
     image_unit_cost: Number(tier.image_unit_cost) || 0,
-    image_output_unit_cost: Number(tier.image_output_unit_cost) || 0,
     audio_input_unit_cost: Number(tier.audio_input_unit_cost) || 0,
     audio_output_unit_cost: Number(tier.audio_output_unit_cost) || 0,
   }
@@ -108,7 +108,12 @@ function buildConditionStr(conditions: TierConditionInput[]): string {
   if (!conditions || conditions.length === 0) return ''
   return conditions
     .filter((c) => c.var && c.op && c.value != null && c.value !== '')
-    .map((c) => `${c.var} ${c.op} ${c.value}`)
+    .map((c) => {
+      if (c.var === 'group') {
+        return `group == ${JSON.stringify(String(c.value))}`
+      }
+      return `${c.var} ${c.op} ${c.value}`
+    })
     .join(' && ')
 }
 
@@ -193,9 +198,10 @@ export function tryParseVisualConfig(
       })
     }
 
-    const condGroup =
-      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
+    const numericCond = '(?:p|c|len)\\s*(?:<=|<|>=|>)\\s*[\\d.eE+-]+'
+    const groupCond = 'group\\s*==\\s*"(?:[^"\\\\]|\\\\.)*"'
+    const anyCond = `(?:${numericCond}|${groupCond})`
+    const condGroup = `(${anyCond}(?:\\s*&&\\s*${anyCond})*)`
     const tierRe = new RegExp(
       `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*${bodyPat}\\)`,
       'g'
@@ -207,11 +213,28 @@ export function tryParseVisualConfig(
       const conditions: TierConditionInput[] = []
       if (condStr) {
         for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
+          const groupMatch = cp
+            .trim()
+            .match(/^group\s*==\s*("(?:[^"\\]|\\.)*")$/)
+          if (groupMatch) {
+            try {
+              conditions.push({
+                var: 'group',
+                op: '==',
+                value: JSON.parse(groupMatch[1]) as string,
+              })
+            } catch {
+              // ignore malformed condition
+            }
+            continue
+          }
+          const cm = cp
+            .trim()
+            .match(/^(p|c|len)\s*(<=|<|>=|>)\s*([\d.eE+-]+)$/)
           if (cm) {
             conditions.push({
-              var: cm[1] as TierConditionInput['var'],
-              op: cm[2] as TierConditionInput['op'],
+              var: cm[1] as NumericTierCondition['var'],
+              op: cm[2] as NumericTierCondition['op'],
               value: Number(cm[3]),
             })
           }
@@ -252,7 +275,6 @@ const ESTIMATOR_VARS = [
   { var: 'cc', stateKey: 'cacheCreateTokens' },
   { var: 'cc1h', stateKey: 'cacheCreate1hTokens' },
   { var: 'img', stateKey: 'imageTokens' },
-  { var: 'img_o', stateKey: 'imageOutputTokens' },
   { var: 'ai', stateKey: 'audioInputTokens' },
   { var: 'ao', stateKey: 'audioOutputTokens' },
 ] as const
@@ -291,6 +313,7 @@ export function evalExprLocally(
     const env: Record<string, unknown> = {
       p: promptTokens,
       c: completionTokens,
+      group: '',
       len,
       tier: tierFn,
       max: Math.max,

@@ -73,6 +73,15 @@ export const BILLING_VARS: BillingVar[] = [
     isConditionOnly: true,
   },
   {
+    key: 'group',
+    field: null,
+    tierField: null,
+    label: 'Group',
+    shortLabel: 'Group',
+    side: 'condition',
+    isConditionOnly: true,
+  },
+  {
     key: 'cr',
     field: 'cacheReadPrice',
     tierField: 'cache_read_unit_cost',
@@ -109,15 +118,6 @@ export const BILLING_VARS: BillingVar[] = [
     group: 'media',
   },
   {
-    key: 'img_o',
-    field: 'imageOutputPrice',
-    tierField: 'image_output_unit_cost',
-    label: 'Image output price',
-    shortLabel: 'Image Out',
-    side: 'output',
-    group: 'media',
-  },
-  {
     key: 'ai',
     field: 'audioInputPrice',
     tierField: 'audio_input_unit_cost',
@@ -142,7 +142,7 @@ export const BILLING_PRICING_VARS: BillingVar[] = BILLING_VARS.filter(
   (v) => !v.isConditionOnly
 )
 
-/** Vars valid in tier conditions (`p`, `c`, `len`) */
+/** Vars valid in tier conditions (`p`, `c`, `len`, `group`) */
 export const BILLING_CONDITION_VARS: string[] = BILLING_VARS.filter(
   (v) => v.isBase || v.isConditionOnly
 ).map((v) => v.key)
@@ -228,11 +228,19 @@ export type RequestRuleGroup = {
   multiplier: string
 }
 
-export type TierCondition = {
+export type NumericTierCondition = {
   var: 'p' | 'c' | 'len'
   op: '<' | '<=' | '>' | '>='
   value: number
 }
+
+export type GroupTierCondition = {
+  var: 'group'
+  op: '=='
+  value: string
+}
+
+export type TierCondition = NumericTierCondition | GroupTierCondition
 
 export type ParsedTier = {
   label: string
@@ -265,13 +273,45 @@ function parseTierBody(bodyStr: string): Record<string, number> {
   return tier
 }
 
+const NUMERIC_TIER_CONDITION_PATTERN =
+  '(?:p|c|len)\\s*(?:<=|<|>=|>)\\s*[\\d.eE+-]+'
+const GROUP_TIER_CONDITION_PATTERN =
+  'group\\s*==\\s*"(?:[^"\\\\]|\\\\.)*"'
+const TIER_CONDITION_PATTERN = `(?:${NUMERIC_TIER_CONDITION_PATTERN}|${GROUP_TIER_CONDITION_PATTERN})`
+
+function parseTierConditionPart(part: string): TierCondition | null {
+  const trimmed = part.trim()
+  const groupMatch = trimmed.match(/^group\s*==\s*("(?:[^"\\]|\\.)*")$/)
+  if (groupMatch) {
+    try {
+      return {
+        var: 'group',
+        op: '==',
+        value: JSON.parse(groupMatch[1]) as string,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  const numericMatch = trimmed.match(
+    /^(p|c|len)\s*(<=|<|>=|>)\s*([\d.eE+-]+)$/
+  )
+  if (!numericMatch) return null
+  return {
+    var: numericMatch[1] as NumericTierCondition['var'],
+    op: numericMatch[2] as NumericTierCondition['op'],
+    value: Number(numericMatch[3]),
+  }
+}
+
 export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (!exprStr) return []
   try {
     const { body } = stripExprVersion(exprStr)
     const condGroup =
-      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
+      `(${TIER_CONDITION_PATTERN}` +
+      `(?:\\s*&&\\s*${TIER_CONDITION_PATTERN})*)`
     const tierRe = new RegExp(
       `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
       'g'
@@ -283,14 +323,8 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
       const conditions: TierCondition[] = []
       if (condStr) {
         for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
-          if (cm) {
-            conditions.push({
-              var: cm[1] as TierCondition['var'],
-              op: cm[2] as TierCondition['op'],
-              value: Number(cm[3]),
-            })
-          }
+          const parsed = parseTierConditionPart(cp)
+          if (parsed) conditions.push(parsed)
         }
       }
       const tier = parseTierBody(m[3]) as ParsedTier

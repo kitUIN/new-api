@@ -70,12 +70,14 @@ const VAR_LABELS: Record<string, string> = {
   p: 'Input',
   c: 'Output',
   len: 'Length',
+  group: 'Group',
 }
 const OP_LABELS: Record<string, string> = {
   '<': '<',
   '<=': '≤',
   '>': '>',
   '>=': '≥',
+  '==': '=',
 }
 const TIME_FUNC_LABELS: Record<string, string> = {
   hour: 'Hour',
@@ -104,6 +106,9 @@ function formatConditionSummary(
   return conditions
     .map((c) => {
       const varLabel = t(VAR_LABELS[c.var] || c.var)
+      if (c.var === 'group') {
+        return `${varLabel} = ${c.value}`
+      }
       const hint = formatTokenHint(c.value)
       return `${varLabel} ${OP_LABELS[c.op] || c.op} ${hint || c.value}`
     })

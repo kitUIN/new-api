@@ -466,6 +466,8 @@ export function RatioSettingsCard({
           onReset={handleResetRatios}
           isSaving={updateOption.isPending}
           isResetting={resetMutation.isPending}
+          groupRatio={groupForm.watch('GroupRatio')}
+          userUsableGroups={groupForm.watch('UserUsableGroups')}
         />
       )
     }

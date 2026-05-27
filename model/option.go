@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -596,6 +597,10 @@ func handleConfigUpdate(key, value string) bool {
 	}
 	if configName == "perf_metrics_setting" {
 		perf_metrics_setting.UpdateAndSync()
+	}
+	if configName == "billing_setting" {
+		billingexpr.InvalidateCache()
+		RefreshPricing()
 	}
 
 	return true // 已处理
