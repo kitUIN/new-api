@@ -804,8 +804,8 @@ export const ModelRatioVisualEditor = memo(
               data.billingExpr || '',
               data.requestRuleExpr || ''
             )
+            billingModeMap[name] = 'tiered_expr'
             if (combined) {
-              billingModeMap[name] = 'tiered_expr'
               billingExprMap[name] = combined
             }
             // Always serialize ratio/price values for tiered_expr models so they

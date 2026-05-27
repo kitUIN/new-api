@@ -149,20 +149,32 @@ export function generateExprFromVisualConfig(
     return body
   }
 
-  const parts: string[] = []
+  const conditionalParts: string[] = []
+  let fallbackBody = ''
+
   for (let i = 0; i < tiers.length; i++) {
     const tier = tiers[i]
     const label = tier.label || `tier_${i + 1}`
     const body = `tier("${label}", ${buildTierBodyExpr(tier)})`
     const cond = buildConditionStr(tier.conditions)
 
-    if (i < tiers.length - 1 && cond) {
-      parts.push(`${cond} ? ${body}`)
+    if (cond) {
+      conditionalParts.push(`${cond} ? ${body}`)
     } else {
-      parts.push(body)
+      fallbackBody = body
     }
   }
-  return parts.join(' : ')
+
+  if (!fallbackBody) {
+    const fallbackIndex = tiers.length - 1
+    const fallback = tiers[fallbackIndex]
+    const label = fallback.label || `tier_${fallbackIndex + 1}`
+    fallbackBody = `tier("${label}", ${buildTierBodyExpr(fallback)})`
+    conditionalParts.pop()
+  }
+
+  if (conditionalParts.length === 0) return fallbackBody
+  return [...conditionalParts, fallbackBody].join(' : ')
 }
 
 export function tryParseVisualConfig(

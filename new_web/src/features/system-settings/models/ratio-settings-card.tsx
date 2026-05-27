@@ -199,6 +199,44 @@ type ModelFormValues = z.infer<typeof modelSchema>
 type GroupFormValues = z.infer<typeof groupSchema>
 type RatioTabId = 'models' | 'groups' | 'tool-prices' | 'upstream-sync'
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  return Object.values(value).every((item) => typeof item === 'string')
+}
+
+function normalizeBillingModeForExpressions(
+  billingMode: string,
+  billingExpr: string
+): string {
+  let modeMap: Record<string, string>
+  let exprMap: Record<string, string>
+  try {
+    const parsedMode = billingMode ? JSON.parse(billingMode) : {}
+    const parsedExpr = JSON.parse(billingExpr)
+    if (!isStringRecord(parsedMode) || !isStringRecord(parsedExpr)) {
+      return billingMode
+    }
+    modeMap = parsedMode
+    exprMap = parsedExpr
+  } catch {
+    return billingMode
+  }
+
+  let changed = false
+  Object.entries(exprMap).forEach(([modelName, expr]) => {
+    if (typeof expr === 'string' && expr.trim() !== '') {
+      if (modeMap[modelName] !== 'tiered_expr') {
+        modeMap[modelName] = 'tiered_expr'
+        changed = true
+      }
+    }
+  })
+
+  return changed ? JSON.stringify(modeMap) : billingMode
+}
+
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
   groupDefaults: GroupFormValues
@@ -361,6 +399,7 @@ export function RatioSettingsCard({
 
   const saveModelRatios = useCallback(
     async (values: ModelFormValues) => {
+      const normalizedBillingExpr = normalizeJsonString(values.BillingExpr)
       const normalized = {
         ModelPrice: normalizeJsonString(values.ModelPrice),
         ModelRatio: normalizeJsonString(values.ModelRatio),
@@ -371,8 +410,11 @@ export function RatioSettingsCard({
         AudioRatio: normalizeJsonString(values.AudioRatio),
         AudioCompletionRatio: normalizeJsonString(values.AudioCompletionRatio),
         ExposeRatioEnabled: values.ExposeRatioEnabled,
-        BillingMode: normalizeJsonString(values.BillingMode),
-        BillingExpr: normalizeJsonString(values.BillingExpr),
+        BillingMode: normalizeBillingModeForExpressions(
+          normalizeJsonString(values.BillingMode),
+          normalizedBillingExpr
+        ),
+        BillingExpr: normalizedBillingExpr,
       }
 
       const apiKeyMap: Record<string, string> = {
