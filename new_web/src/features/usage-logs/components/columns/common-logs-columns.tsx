@@ -29,7 +29,10 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import {
+  formatBillingCurrencyFromUSD,
+  getCurrencyDisplay,
+} from '@/lib/currency'
 import {
   formatUseTime,
   formatLogQuota,
@@ -193,10 +196,39 @@ function getCacheWriteBreakdown(log: UsageLog, other: LogOtherData | null) {
   }
 }
 
+function quotaToUSD(quota: number | undefined): number | undefined {
+  if (quota == null || !Number.isFinite(quota)) return undefined
+  const { config } = getCurrencyDisplay()
+  return quota / config.quotaPerUnit
+}
+
+type TieredPriceEntries = NonNullable<
+  ReturnType<typeof getTieredBillingSummary>
+>['priceEntries']
+
+function hasTieredPriceField(
+  priceEntries: TieredPriceEntries,
+  field: string
+): boolean {
+  return priceEntries.some((entry) => entry.field === field)
+}
+
+function getTieredUnitPrice(
+  priceEntries: TieredPriceEntries,
+  field: string
+): number | undefined {
+  return priceEntries.find((entry) => entry.field === field)?.price
+}
+
 interface CostDetail {
   billedQuota: number
   groupRatio: number
   serviceTier: string
+  billingMode?: string
+  matchedTier?: string
+  crossedTier?: boolean
+  beforeGroupQuota?: number
+  afterGroupQuota?: number
   originalAmount?: number
   inputAmount?: number
   outputAmount?: number
@@ -208,13 +240,17 @@ interface CostDetail {
   cacheWriteUnitPrice?: number | null
   cacheWriteUnitPrice5m?: number | null
   cacheWriteUnitPrice1h?: number | null
+  extraAmounts?: Array<{
+    label: string
+    amount: number
+    unitPrice: number
+  }>
 }
 
 function buildCostDetail(
   log: UsageLog,
   other: LogOtherData | null
 ): CostDetail {
-  const modelPrice = Number(other?.model_price)
   const groupRatio = getEffectiveGroupRatio(
     other?.group_ratio,
     other?.user_group_ratio
@@ -231,6 +267,142 @@ function buildCostDetail(
       '') ??
     ''
 
+  if (other?.billing_mode === 'tiered_expr') {
+    const tieredSummary = getTieredBillingSummary(other)
+    const priceEntries = tieredSummary?.priceEntries ?? []
+    const inputUnitPrice = getTieredUnitPrice(priceEntries, 'inputPrice')
+    const outputUnitPrice = getTieredUnitPrice(priceEntries, 'outputPrice')
+    const cacheReadUnitPrice = getTieredUnitPrice(
+      priceEntries,
+      'cacheReadPrice'
+    )
+    const cacheWriteUnitPrice = getTieredUnitPrice(
+      priceEntries,
+      'cacheCreatePrice'
+    )
+    const cacheWriteUnitPrice1h = getTieredUnitPrice(
+      priceEntries,
+      'cacheCreate1hPrice'
+    )
+
+    const totalInputTokens = toPositiveNumber(
+      other.input_tokens_total || log.prompt_tokens
+    )
+    const cacheReadTokens = getCacheReadTokens(log, other)
+    const cacheWriteBreakdown = getCacheWriteBreakdown(log, other)
+    const cacheWriteTokens =
+      cacheWriteBreakdown.legacyTokens +
+      cacheWriteBreakdown.tokens5m +
+      cacheWriteBreakdown.tokens1h
+    const imageTokens = toPositiveNumber(other.image_output)
+    const audioInputTokens = toPositiveNumber(other.audio_input_token_count)
+    let inputTokens = totalInputTokens
+
+    if (hasTieredPriceField(priceEntries, 'cacheReadPrice')) {
+      inputTokens -= cacheReadTokens
+    }
+    if (
+      hasTieredPriceField(priceEntries, 'cacheCreatePrice') ||
+      hasTieredPriceField(priceEntries, 'cacheCreate1hPrice')
+    ) {
+      inputTokens -= cacheWriteTokens
+    }
+    if (hasTieredPriceField(priceEntries, 'imagePrice')) {
+      inputTokens -= imageTokens
+    }
+    if (hasTieredPriceField(priceEntries, 'audioInputPrice')) {
+      inputTokens -= audioInputTokens
+    }
+    inputTokens = Math.max(inputTokens, 0)
+
+    const outputTokens = toPositiveNumber(log.completion_tokens)
+    const inputAmount =
+      inputUnitPrice == null
+        ? undefined
+        : (inputTokens / 1_000_000) * inputUnitPrice
+    const outputAmount =
+      outputUnitPrice == null
+        ? undefined
+        : (outputTokens / 1_000_000) * outputUnitPrice
+    const cacheReadAmount =
+      cacheReadUnitPrice == null
+        ? undefined
+        : (cacheReadTokens / 1_000_000) * cacheReadUnitPrice
+    const cacheWriteAmount =
+      (cacheWriteBreakdown.legacyTokens / 1_000_000) *
+        (cacheWriteUnitPrice ?? 0) +
+      (cacheWriteBreakdown.tokens5m / 1_000_000) *
+        (cacheWriteUnitPrice ?? 0) +
+      (cacheWriteBreakdown.tokens1h / 1_000_000) *
+        (cacheWriteUnitPrice1h ?? cacheWriteUnitPrice ?? 0)
+
+    const extraAmounts = priceEntries
+      .filter(
+        (entry) =>
+          ![
+            'inputPrice',
+            'outputPrice',
+            'cacheReadPrice',
+            'cacheCreatePrice',
+            'cacheCreate1hPrice',
+          ].includes(entry.field)
+      )
+      .map((entry) => {
+        const tokens =
+          entry.field === 'imagePrice'
+            ? imageTokens
+            : entry.field === 'audioInputPrice'
+              ? audioInputTokens
+              : 0
+        return {
+          label: entry.shortLabel,
+          amount: (tokens / 1_000_000) * entry.price,
+          unitPrice: entry.price,
+        }
+      })
+      .filter((entry) => entry.amount > 0)
+
+    const calculatedOriginalAmount =
+      [inputAmount, outputAmount, cacheReadAmount, cacheWriteAmount]
+        .filter((amount): amount is number => amount != null)
+        .reduce((sum, amount) => sum + amount, 0) +
+      extraAmounts.reduce((sum, entry) => sum + entry.amount, 0)
+
+    return {
+      billingMode: 'tiered_expr',
+      matchedTier:
+        other.matched_tier || other.estimated_tier || tieredSummary?.tier.label,
+      crossedTier: other.tiered_crossed_tier,
+      beforeGroupQuota:
+        other.tiered_actual_quota_before_group ??
+        other.estimated_quota_before_group,
+      afterGroupQuota:
+        other.tiered_actual_quota_after_group ??
+        other.estimated_quota_after_group,
+      inputAmount,
+      outputAmount,
+      cacheReadAmount,
+      cacheWriteAmount: cacheWriteAmount > 0 ? cacheWriteAmount : undefined,
+      inputUnitPrice,
+      outputUnitPrice,
+      cacheReadUnitPrice,
+      cacheWriteUnitPrice:
+        cacheWriteBreakdown.tokens1h > 0 ? null : cacheWriteUnitPrice,
+      cacheWriteUnitPrice5m:
+        cacheWriteBreakdown.tokens5m > 0 ? cacheWriteUnitPrice : null,
+      cacheWriteUnitPrice1h:
+        cacheWriteBreakdown.tokens1h > 0 ? cacheWriteUnitPrice1h : null,
+      extraAmounts,
+      groupRatio,
+      originalAmount:
+        quotaToUSD(other.tiered_actual_quota_before_group) ??
+        calculatedOriginalAmount,
+      billedQuota,
+      serviceTier,
+    }
+  }
+
+  const modelPrice = Number(other?.model_price)
   if (Number.isFinite(modelPrice) && modelPrice !== -1) {
     return {
       groupRatio,
@@ -1066,6 +1238,22 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <p className='text-muted-foreground font-medium'>
                 {t('Billing Details')}
               </p>
+              {costDetail.billingMode === 'tiered_expr' && (
+                <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                  <span>{t('Billing Mode')}</span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {t('Expression')}
+                  </span>
+                </div>
+              )}
+              {costDetail.matchedTier && (
+                <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                  <span>{t('Matched Tier')}</span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {costDetail.matchedTier}
+                  </span>
+                </div>
+              )}
               {costDetail.inputAmount != null && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Input')}</span>
@@ -1098,6 +1286,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   </span>
                 </div>
               )}
+              {costDetail.extraAmounts?.map((entry) => (
+                <div key={entry.label} className={DETAIL_TOOLTIP_ROW_CLASS}>
+                  <span>{t(entry.label)}</span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {formatCostAmount(entry.amount)}
+                  </span>
+                </div>
+              ))}
               {costDetail.inputUnitPrice != null && (
                 <div className={DETAIL_TOOLTIP_BORDER_ROW_CLASS}>
                   <span>{t('Input price')}</span>
@@ -1146,11 +1342,40 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   </span>
                 </div>
               )}
+              {costDetail.extraAmounts?.map((entry) => (
+                <div
+                  key={`${entry.label}-price`}
+                  className={DETAIL_TOOLTIP_ROW_CLASS}
+                >
+                  <span>
+                    {t(entry.label)} {t('price')}
+                  </span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {formatUnitPrice(entry.unitPrice)}
+                  </span>
+                </div>
+              ))}
               {costDetail.serviceTier && (
                 <div className={DETAIL_TOOLTIP_BORDER_ROW_CLASS}>
                   <span>{t('Service Tier')}</span>
                   <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
                     {costDetail.serviceTier}
+                  </span>
+                </div>
+              )}
+              {costDetail.crossedTier === true && (
+                <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                  <span>{t('Tier changed after completion')}</span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {t('Yes')}
+                  </span>
+                </div>
+              )}
+              {costDetail.beforeGroupQuota != null && (
+                <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                  <span>{t('Before group ratio')}</span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {formatLogQuota(costDetail.beforeGroupQuota)}
                   </span>
                 </div>
               )}

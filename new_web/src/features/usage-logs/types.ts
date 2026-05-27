@@ -144,6 +144,13 @@ export interface LogOtherData {
   billing_mode?: string
   expr_b64?: string
   matched_tier?: string
+  estimated_quota_before_group?: number
+  estimated_quota_after_group?: number
+  estimated_tier?: string
+  billing_group?: string
+  tiered_actual_quota_before_group?: number
+  tiered_actual_quota_after_group?: number
+  tiered_crossed_tier?: boolean
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number
