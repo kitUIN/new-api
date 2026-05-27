@@ -25,6 +25,7 @@ import type {
   BatchSetTagParams,
   Channel,
   ChannelBalanceResponse,
+  ChannelProvidersResponse,
   ChannelTestResponse,
   CopyChannelParams,
   CopyChannelResponse,
@@ -214,6 +215,15 @@ export async function updateProviderGroups(id: number): Promise<{
   }
 }> {
   const res = await api.get(`/api/channel/providers/${id}/update_groups`)
+  return res.data
+}
+
+export async function getChannelProviders(params: {
+  keyword?: string
+  p?: number
+  page_size?: number
+} = {}): Promise<ChannelProvidersResponse> {
+  const res = await api.get('/api/channel/providers', { params })
   return res.data
 }
 

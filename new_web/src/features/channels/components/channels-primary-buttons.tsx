@@ -57,6 +57,7 @@ export function ChannelsPrimaryButtons() {
   const {
     setOpen,
     setCurrentRow,
+    setCurrentProvider,
     enableTagMode,
     setEnableTagMode,
     idSort,
@@ -108,6 +109,7 @@ export function ChannelsPrimaryButtons() {
         <Button
           onClick={() => {
             setCurrentRow(null)
+            setCurrentProvider(null)
             setOpen('create-channel')
           }}
           size='sm'

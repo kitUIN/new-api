@@ -70,7 +70,8 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const channel = row.original
-  const { setOpen, setCurrentRow, upstream } = useChannels()
+  const { setOpen, setCurrentRow, setCurrentProvider, upstream } =
+    useChannels()
   const queryClient = useQueryClient()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
@@ -80,6 +81,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isMultiKey = isMultiKeyChannel(channel)
 
   const handleEdit = () => {
+    setCurrentProvider(null)
     setCurrentRow(channel)
     setOpen('update-channel')
   }

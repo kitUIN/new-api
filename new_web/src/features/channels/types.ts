@@ -34,8 +34,20 @@ export const channelInfoSchema = z.object({
 
 export type ChannelInfo = z.infer<typeof channelInfoSchema>
 
+export const channelProviderSummarySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  base_url: z.string(),
+  status: z.number(),
+  balance: z.number().optional(),
+  balance_updated_time: z.number().optional(),
+  settings: z.string().optional(),
+})
+
 export const channelSchema = z.object({
   id: z.number(),
+  provider_id: z.number().default(0),
+  provider: channelProviderSummarySchema.optional(),
   type: z.number(),
   key: z.string(),
   openai_organization: z.string().nullish(),
@@ -102,6 +114,12 @@ export type ProviderRow = {
 }
 
 export type ChannelRow = Channel | ProviderRow
+
+export type ChannelProvider = z.infer<typeof channelProviderSummarySchema> & {
+  created_time?: number
+  updated_time?: number
+  remark?: string
+}
 
 // ============================================================================
 // Channel Settings Types
@@ -292,6 +310,17 @@ export interface QueryInstancesResponse {
   data?: QueryInstance[]
 }
 
+export interface ChannelProvidersResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items: ChannelProvider[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
 // ============================================================================
 // Multi-Key Management Types
 // ============================================================================
@@ -421,6 +450,7 @@ export interface TagOperationParams {
 // ============================================================================
 
 export interface ChannelFormData {
+  provider_id?: number
   name: string
   type: number
   base_url: string
@@ -502,5 +532,5 @@ export interface AddChannelRequest {
   mode: 'single' | 'batch' | 'multi_to_single'
   multi_key_mode?: 'random' | 'polling'
   batch_add_set_key_prefix_2_name?: boolean
-  channel: Partial<Channel>
+  channel: Partial<Channel> & { provider_id?: number }
 }

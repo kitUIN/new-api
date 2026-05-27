@@ -22,7 +22,12 @@ import {
   ERROR_MESSAGES,
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
-import type { BalanceQueryConfig, Channel, GroupQueryConfig } from '../types'
+import type {
+  BalanceQueryConfig,
+  Channel,
+  GroupQueryConfig,
+  ProviderRow,
+} from '../types'
 
 // ============================================================================
 // Form Validation Schema
@@ -207,6 +212,7 @@ function addRequiredIssue(
 export const channelFormSchema = z
   .object({
     name: z.string().min(1, ERROR_MESSAGES.REQUIRED_NAME),
+    provider_id: z.number().optional(),
     type: z.number().min(0, ERROR_MESSAGES.REQUIRED_TYPE),
     base_url: z.string().optional(),
     key: z.string(),
@@ -411,6 +417,7 @@ export type ChannelFormValues = z.infer<typeof channelFormSchema>
 
 export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   name: '',
+  provider_id: 0,
   type: 1,
   base_url: '',
   key: '',
@@ -758,6 +765,7 @@ export function transformChannelToFormDefaults(
 
   return {
     name: channel.name || '',
+    provider_id: channel.provider_id || 0,
     type: channel.type,
     base_url: channel.base_url || '',
     key: '', // Never populate key from backend for security
@@ -801,6 +809,21 @@ export function transformChannelToFormDefaults(
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     ...balanceQueryDefaults,
     ...groupQueryDefaults,
+  }
+}
+
+export function transformProviderToCreateDefaults(
+  provider: ProviderRow
+): ChannelFormValues {
+  const sourceChannel = provider.children?.[0]
+
+  return {
+    ...CHANNEL_FORM_DEFAULT_VALUES,
+    provider_id: provider.provider_id,
+    type: sourceChannel?.type || CHANNEL_FORM_DEFAULT_VALUES.type,
+    base_url: provider.base_url || sourceChannel?.base_url || '',
+    group: parseGroups(provider.group || sourceChannel?.group || 'default'),
+    models: sourceChannel?.models || CHANNEL_FORM_DEFAULT_VALUES.models,
   }
 }
 
@@ -944,6 +967,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
   const mode = formData.multi_key_mode || 'single'
 
   const channel: Partial<Channel> = {
+    provider_id: formData.provider_id || 0,
     name: formData.name,
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,
@@ -993,6 +1017,7 @@ export function transformFormDataToUpdatePayload(
 ): Partial<Channel> {
   const payload: Partial<Channel> = {
     id: channelId,
+    provider_id: formData.provider_id || 0,
     name: formData.name,
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,

@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronRight,
   ListOrdered,
+  Plus,
   Settings2,
   Shuffle,
 } from 'lucide-react'
@@ -690,7 +691,8 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
 
 function ProviderActionsCell({ provider }: { provider: ProviderRow }) {
   const { t } = useTranslation()
-  const { setCurrentProvider, setOpen } = useChannels()
+  const { setCurrentProvider, setCurrentRow, setOpen } = useChannels()
+  const canCreateUnderProvider = provider.provider_id > 0
 
   return (
     <div className='flex items-center justify-end gap-1'>
@@ -703,6 +705,27 @@ function ProviderActionsCell({ provider }: { provider: ProviderRow }) {
         copyable={false}
       />
       <TooltipProvider delay={100}>
+        {canCreateUnderProvider && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  aria-label={t('Create Channel')}
+                  onClick={() => {
+                    setCurrentProvider(provider)
+                    setCurrentRow(null)
+                    setOpen('create-channel')
+                  }}
+                />
+              }
+            >
+              <Plus className='size-4' />
+            </TooltipTrigger>
+            <TooltipContent>{t('Create Channel')}</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={

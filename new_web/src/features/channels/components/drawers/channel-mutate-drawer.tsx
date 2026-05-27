@@ -111,6 +111,7 @@ import {
   getBalanceQueryInstances,
   getChannel,
   getChannelKey,
+  getChannelProviders,
   getGroups,
   getGroupQueryInstances,
   getPrefillGroups,
@@ -133,6 +134,7 @@ import {
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
+  transformProviderToCreateDefaults,
   type ChannelFormValues,
   deduplicateKeys,
   getChannelTypeIcon,
@@ -286,7 +288,7 @@ export function ChannelMutateDrawer({
 }: ChannelMutateDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { setOpen } = useChannels()
+  const { setOpen, currentProvider } = useChannels()
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
@@ -348,6 +350,12 @@ export function ChannelMutateDrawer({
   const { data: groupQueryInstancesData } = useQuery({
     queryKey: ['channel_group_query_instances'],
     queryFn: getGroupQueryInstances,
+    enabled: open,
+  })
+
+  const { data: providersData } = useQuery({
+    queryKey: ['channel_providers', 'channel_form'],
+    queryFn: () => getChannelProviders({ page_size: 1000 }),
     enabled: open,
   })
 
@@ -492,6 +500,46 @@ export function ChannelMutateDrawer({
     }
     return options
   }, [currentType, t])
+
+  const providerOptions = useMemo(() => {
+    const providers = providersData?.data?.items || []
+    const options = providers.map((provider) => ({
+      value: String(provider.id),
+      label: provider.name
+        ? `${provider.name} (${provider.base_url})`
+        : provider.base_url,
+    }))
+
+    const selectedProviderId = Number(form.getValues('provider_id')) || 0
+    if (
+      selectedProviderId > 0 &&
+      !options.some((option) => Number(option.value) === selectedProviderId)
+    ) {
+      const provider = channelData?.data?.provider || currentProvider
+      options.push({
+        value: String(selectedProviderId),
+        label: provider?.name
+          ? `${provider.name} (${provider.base_url})`
+          : `#${selectedProviderId}`,
+      })
+    }
+
+    return options
+  }, [channelData?.data?.provider, currentProvider, form, providersData])
+
+  const providerBaseUrlMap = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const provider of providersData?.data?.items || []) {
+      map.set(provider.id, provider.base_url)
+    }
+    if (currentProvider?.provider_id) {
+      map.set(currentProvider.provider_id, currentProvider.base_url)
+    }
+    if (channelData?.data?.provider?.id) {
+      map.set(channelData.data.provider.id, channelData.data.provider.base_url)
+    }
+    return map
+  }, [channelData?.data?.provider, currentProvider, providersData])
 
   // Extract redirect models from model_mapping (target values)
   const redirectModelList = useMemo(
@@ -688,17 +736,25 @@ export function ChannelMutateDrawer({
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
     } else if (!isEditing) {
-      form.reset(CHANNEL_FORM_DEFAULT_VALUES)
-      setAdvancedSettingsOpen(false)
+      const defaults = currentProvider
+        ? transformProviderToCreateDefaults(currentProvider)
+        : CHANNEL_FORM_DEFAULT_VALUES
+      form.reset(defaults)
+      setAdvancedSettingsOpen(
+        currentProvider
+          ? readAdvancedSettingsPreference() ||
+              hasAdvancedSettingsValues(defaults)
+          : false
+      )
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
     }
-  }, [isEditing, channelData, form])
+  }, [isEditing, channelData, form, currentProvider])
 
   // Handle type change - set default values for specific types
   useEffect(() => {
-    if (isEditing) return // Don't auto-set defaults when editing
+    if (isEditing || currentProvider) return // Don't auto-set defaults when editing or creating under a provider
 
     // Type 45 (VolcEngine) - set default base_url
     if (currentType === 45) {
@@ -715,7 +771,7 @@ export function ChannelMutateDrawer({
         form.setValue('other', 'v2.1')
       }
     }
-  }, [currentType, isEditing, form])
+  }, [currentType, isEditing, currentProvider, form])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -1281,6 +1337,48 @@ export function ChannelMutateDrawer({
                         )}
                       />
                     </div>
+
+                    {(isEditing || currentProvider) && (
+                      <FormField
+                        control={form.control}
+                        name='provider_id'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Provider')}</FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={providerOptions}
+                                value={
+                                  field.value ? String(field.value) : ''
+                                }
+                                onValueChange={(value) => {
+                                  const providerId = Number(value) || 0
+                                  field.onChange(providerId)
+
+                                  const providerBaseUrl =
+                                    providerBaseUrlMap.get(providerId)
+                                  if (providerBaseUrl) {
+                                    form.setValue('base_url', providerBaseUrl, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                }}
+                                placeholder={t('Select provider')}
+                                searchPlaceholder={t('Search provider...')}
+                                emptyText={t('No provider found.')}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Move this channel under another provider and use that provider base URL.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}
