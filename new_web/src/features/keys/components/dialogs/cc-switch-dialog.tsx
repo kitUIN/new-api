@@ -32,11 +32,15 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { generateAccessToken } from '@/features/profile/api'
+import { useAuthStore } from '@/stores/auth-store'
+
+const USAGE_SCRIPT =
+  'KHsKICByZXF1ZXN0OiB7CiAgICB1cmw6ICJ7e2Jhc2VVcmx9fS9hcGkvdXNlci9zZWxmIiwKICAgIG1ldGhvZDogIkdFVCIsCiAgICBoZWFkZXJzOiB7CiAgICAgICJDb250ZW50LVR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIsCiAgICAgICJBdXRob3JpemF0aW9uIjogIkJlYXJlciB7e2FjY2Vzc1Rva2VufX0iLAogICAgICAiTmV3LUFwaS1Vc2VyIjogInt7dXNlcklkfX0iCiAgICB9LAogIH0sCiAgZXh0cmFjdG9yOiBmdW5jdGlvbiAocmVzcG9uc2UpIHsKICAgIGlmIChyZXNwb25zZS5zdWNjZXNzICYmIHJlc3BvbnNlLmRhdGEpIHsKICAgICAgcmV0dXJuIHsKICAgICAgICBwbGFuTmFtZTogcmVzcG9uc2UuZGF0YS5ncm91cCB8fCAi6buY6K6k5aWX6aSQIiwKICAgICAgICByZW1haW5pbmc6IHJlc3BvbnNlLmRhdGEucXVvdGEgLyA1MDAwMDAsCiAgICAgICAgdXNlZDogcmVzcG9uc2UuZGF0YS51c2VkX3F1b3RhIC8gNTAwMDAwLAogICAgICAgIHRvdGFsOiAocmVzcG9uc2UuZGF0YS5xdW90YSArIHJlc3BvbnNlLmRhdGEudXNlZF9xdW90YSkgLyA1MDAwMDAsCiAgICAgICAgdW5pdDogIlVTRCIsCiAgICAgIH07CiAgICB9CiAgICByZXR1cm4gewogICAgICBpc1ZhbGlkOiBmYWxzZSwKICAgICAgaW52YWxpZE1lc3NhZ2U6IHJlc3BvbnNlLm1lc3NhZ2UgfHwgIuafpeivouWksei0pSIKICAgIH07CiAgfSwKfSk'
 
 const APP_CONFIGS = {
   claude: {
     label: 'Claude',
-    defaultName: 'My Claude',
     modelFields: [
       { key: 'model', labelKey: 'Primary Model', required: true },
       { key: 'haikuModel', labelKey: 'Haiku Model', required: false },
@@ -46,12 +50,10 @@ const APP_CONFIGS = {
   },
   codex: {
     label: 'Codex',
-    defaultName: 'My Codex',
     modelFields: [{ key: 'model', labelKey: 'Primary Model', required: true }],
   },
   gemini: {
     label: 'Gemini',
-    defaultName: 'My Gemini',
     modelFields: [{ key: 'model', labelKey: 'Primary Model', required: true }],
   },
 } as const
@@ -75,7 +77,9 @@ function buildCCSwitchURL(
   app: string,
   name: string,
   models: Record<string, string>,
-  apiKey: string
+  apiKey: string,
+  accessToken: string,
+  userId: number
 ): string {
   const serverAddress = getServerAddress()
   const endpoint = app === 'codex' ? serverAddress + '/v1' : serverAddress
@@ -90,20 +94,36 @@ function buildCCSwitchURL(
   }
   params.set('homepage', serverAddress)
   params.set('enabled', 'true')
+  params.set('usageEnabled', 'true')
+  params.set('usageApiKey', apiKey)
+  params.set('usageAccessToken', accessToken)
+  params.set('usageBaseUrl', serverAddress)
+  params.set('usageUserId', String(userId))
+  params.set('usageScript', USAGE_SCRIPT)
   return `ccswitch://v1/import?${params.toString()}`
+}
+
+function buildDefaultName(apiKeyName?: string): string {
+  const trimmedName = apiKeyName?.trim()
+  return `大猫猫站-${trimmedName || 'API Key'}`
 }
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   tokenKey: string
+  tokenName?: string
 }
 
 export function CCSwitchDialog(props: Props) {
   const { t } = useTranslation()
+  const userId = useAuthStore((state) => state.auth.user?.id)
   const [app, setApp] = useState<AppType>('claude')
-  const [name, setName] = useState<string>(APP_CONFIGS.claude.defaultName)
+  const [name, setName] = useState<string>(() =>
+    buildDefaultName(props.tokenName)
+  )
   const [models, setModels] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { data: modelsData } = useQuery({
     queryKey: ['user-models-ccswitch'],
@@ -124,20 +144,19 @@ export function CCSwitchDialog(props: Props) {
 
       setApp('claude')
 
-      setName(APP_CONFIGS.claude.defaultName)
+      setName(buildDefaultName(props.tokenName))
     }
-  }, [props.open])
+  }, [props.open, props.tokenName])
 
   const currentConfig = APP_CONFIGS[app]
 
   const handleAppChange = (val: string) => {
     const appVal = val as AppType
     setApp(appVal)
-    setName(APP_CONFIGS[appVal].defaultName)
     setModels({})
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!models.model) {
       toast.warning(t('Please select a primary model'))
       return
@@ -145,9 +164,34 @@ export function CCSwitchDialog(props: Props) {
     const key = props.tokenKey.startsWith('sk-')
       ? props.tokenKey
       : `sk-${props.tokenKey}`
-    const url = buildCCSwitchURL(app, name, models, key)
-    window.open(url, '_blank')
-    props.onOpenChange(false)
+    if (!userId) {
+      toast.error(t('Failed to load profile'))
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await generateAccessToken()
+      if (!response.success || !response.data) {
+        toast.error(response.message || t('Failed to generate token'))
+        return
+      }
+
+      const url = buildCCSwitchURL(
+        app,
+        name,
+        models,
+        key,
+        response.data,
+        userId
+      )
+      window.open(url, '_blank')
+      props.onOpenChange(false)
+    } catch {
+      toast.error(t('Failed to generate token'))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -187,7 +231,7 @@ export function CCSwitchDialog(props: Props) {
               options={[]}
               value={name}
               onValueChange={setName}
-              placeholder={currentConfig.defaultName}
+              placeholder={buildDefaultName(props.tokenName)}
               emptyText=''
             />
           </div>
@@ -217,7 +261,9 @@ export function CCSwitchDialog(props: Props) {
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSubmit}>{t('Open CC Switch')}</Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? t('Generating...') : t('Open CC Switch')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
