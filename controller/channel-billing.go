@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -371,10 +372,12 @@ const (
 	balanceQueryDefaultIntervalSecond = 300
 	channelLowBalanceNotifyThreshold  = 3.0
 	channelLowBalanceNotifyCooldown   = 2 * time.Hour
+	dailyProviderBalanceNotifyMaxRows = 30
 )
 
 var channelBalanceQueryTaskOnce sync.Once
 var channelLowBalanceNotifyStore sync.Map
+var providerLowBalanceNotifyStore sync.Map
 
 type balanceQueryExecution struct {
 	Channel  *model.Channel
@@ -595,6 +598,29 @@ func shouldSendChannelLowBalanceNotify(channelId int, now time.Time) bool {
 	return true
 }
 
+func shouldSendProviderLowBalanceNotify(providerId int, now time.Time) bool {
+	key := fmt.Sprintf("provider_low_balance_notify:%d", providerId)
+	if common.RedisEnabled {
+		if _, err := common.RedisGet(key); err == nil {
+			return false
+		}
+		if err := common.RedisSet(key, "1", channelLowBalanceNotifyCooldown); err == nil {
+			return true
+		} else {
+			common.SysLog(fmt.Sprintf("failed to set provider low balance notify redis key: provider_id=%d, error=%v", providerId, err))
+		}
+	}
+
+	nowUnix := now.Unix()
+	if value, ok := providerLowBalanceNotifyStore.Load(key); ok {
+		if lastSentAt, ok := value.(int64); ok && nowUnix-lastSentAt < int64(channelLowBalanceNotifyCooldown.Seconds()) {
+			return false
+		}
+	}
+	providerLowBalanceNotifyStore.Store(key, nowUnix)
+	return true
+}
+
 func channelQQServiceURL(path string) string {
 	return strings.TrimRight(common.QQCallbackAddress, "/") + path
 }
@@ -646,6 +672,42 @@ func sendChannelLowBalanceNotify(channel *model.Channel, balance float64) {
 		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			common.SysLog(fmt.Sprintf("failed to send channel low balance notify: channel_id=%d, status=%d", channel.Id, resp.StatusCode))
+		}
+	}()
+}
+
+func sendQQAdminMessage(message string, logPrefix string) {
+	if strings.TrimSpace(message) == "" || common.QQCallbackAddress == "" || common.QQCallbackAccessToken == "" || common.QQAdminNumber == "" {
+		return
+	}
+	go func() {
+		payload, err := common.Marshal(channelLowBalanceNotifyPayload{
+			QQ:      common.QQAdminNumber,
+			AdminQQ: common.QQAdminNumber,
+			To:      common.QQAdminNumber,
+			Message: message,
+			Content: message,
+		})
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to marshal %s payload: %v", logPrefix, err))
+			return
+		}
+		req, err := http.NewRequest(http.MethodPost, channelQQServiceURL("/api/nachoai/send_message"), bytes.NewReader(payload))
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to create %s request: %v", logPrefix, err))
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		setChannelQQServiceAuthHeader(req)
+		client := http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to send %s: %v", logPrefix, err))
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			common.SysLog(fmt.Sprintf("failed to send %s: status=%d", logPrefix, resp.StatusCode))
 		}
 	}()
 }
@@ -1193,13 +1255,207 @@ func updateConfiguredChannelsBalanceDue() error {
 		if !shouldRunProviderBalanceQuery(provider, now) {
 			continue
 		}
+		settings := provider.GetOtherSettings()
+		oldResult := cloneBalanceQueryResult(settings.BalanceQuery.LastResult)
 		balance, err := updateProviderBalance(provider)
+		updated, getErr := model.GetChannelProviderByID(provider.Id)
+		if getErr != nil {
+			common.SysLog(fmt.Sprintf("failed to reload provider after scheduled balance query: provider_id=%d, error=%v", provider.Id, getErr))
+			time.Sleep(common.RequestInterval)
+			continue
+		}
+		newSettings := updated.GetOtherSettings()
+		newResult := cloneBalanceQueryResult(newSettings.BalanceQuery.LastResult)
+		if err == nil && isProviderBalanceLowChanged(oldResult, newResult) {
+			sendProviderLowBalanceChangedNotify(providerBalanceLowBalanceChange{
+				ProviderID: provider.Id,
+				Name:       provider.Name,
+				OldBalance: oldResult.Remaining,
+				NewBalance: newResult.Remaining,
+				PlanName:   balanceQueryDisplayPlanName(newResult),
+				Unit:       balanceQueryDisplayUnit(newResult),
+			})
+		}
 		if err == nil && balance <= 0 {
 			disableProviderChannelsForBalance(provider.Id)
 		}
 		time.Sleep(common.RequestInterval)
 	}
 	return nil
+}
+
+type providerBalanceLowBalanceChange struct {
+	ProviderID int
+	Name       string
+	OldBalance float64
+	NewBalance float64
+	PlanName   string
+	Unit       string
+}
+
+type providerBalanceDailyReport struct {
+	ProviderID int
+	Name       string
+	Result     *dto.BalanceQueryResult
+	LastError  string
+	QueryError error
+}
+
+func cloneBalanceQueryResult(result *dto.BalanceQueryResult) *dto.BalanceQueryResult {
+	if result == nil {
+		return nil
+	}
+	copied := *result
+	return &copied
+}
+
+func balanceQueryFloatChanged(oldValue, newValue float64) bool {
+	return math.Abs(oldValue-newValue) >= 0.000001
+}
+
+func isProviderBalanceLowChanged(oldResult, newResult *dto.BalanceQueryResult) bool {
+	return oldResult != nil &&
+		newResult != nil &&
+		newResult.IsValid &&
+		newResult.Remaining < channelLowBalanceNotifyThreshold &&
+		balanceQueryFloatChanged(oldResult.Remaining, newResult.Remaining)
+}
+
+func sendProviderLowBalanceChangedNotify(change providerBalanceLowBalanceChange) {
+	if !shouldSendProviderLowBalanceNotify(change.ProviderID, time.Now()) {
+		return
+	}
+	message := fmt.Sprintf(
+		"供应商余额低于 %.2f USD 且金额发生变化：供应商ID %d，%s（%s），余额 %.4f -> %.4f %s",
+		channelLowBalanceNotifyThreshold,
+		change.ProviderID,
+		change.Name,
+		change.PlanName,
+		change.OldBalance,
+		change.NewBalance,
+		change.Unit,
+	)
+	sendQQAdminMessage(message, "provider low balance notify")
+}
+
+func balanceQueryDisplayUnit(result *dto.BalanceQueryResult) string {
+	unit := strings.TrimSpace(result.Unit)
+	if unit == "" {
+		unit = "USD"
+	}
+	return unit
+}
+
+func balanceQueryDisplayPlanName(result *dto.BalanceQueryResult) string {
+	plan := strings.TrimSpace(result.PlanName)
+	if plan == "" {
+		plan = "默认套餐"
+	}
+	return plan
+}
+
+func formatProviderBalanceDailyReport(report providerBalanceDailyReport) string {
+	if report.Result == nil {
+		message := strings.TrimSpace(report.LastError)
+		if message == "" && report.QueryError != nil {
+			message = report.QueryError.Error()
+		}
+		if message == "" {
+			message = "无结果"
+		}
+		return "失败：" + message
+	}
+	if !report.Result.IsValid {
+		message := strings.TrimSpace(report.Result.InvalidMessage)
+		if message == "" {
+			message = strings.TrimSpace(report.LastError)
+		}
+		if message == "" && report.QueryError != nil {
+			message = report.QueryError.Error()
+		}
+		if message == "" {
+			message = "结果无效"
+		}
+		return "失败：" + message
+	}
+	return fmt.Sprintf(
+		"%s 剩余 %.4f %s，已用 %.4f，总量 %.4f",
+		balanceQueryDisplayPlanName(report.Result),
+		report.Result.Remaining,
+		balanceQueryDisplayUnit(report.Result),
+		report.Result.Used,
+		report.Result.Total,
+	)
+}
+
+func buildProviderBalanceDailySummary(reports []providerBalanceDailyReport) string {
+	if len(reports) == 0 {
+		return ""
+	}
+	lines := []string{
+		fmt.Sprintf("每日供应商余额查询结果：%s", time.Now().Format("2006-01-02")),
+		fmt.Sprintf("共查询 %d 个开启余额查询的供应商：", len(reports)),
+	}
+	for i, report := range reports {
+		if i >= dailyProviderBalanceNotifyMaxRows {
+			lines = append(lines, fmt.Sprintf("... 还有 %d 个结果未展示", len(reports)-i))
+			break
+		}
+		lines = append(lines, fmt.Sprintf(
+			"%d. 供应商ID %d，%s：%s",
+			i+1,
+			report.ProviderID,
+			report.Name,
+			formatProviderBalanceDailyReport(report),
+		))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func updateConfiguredProviderBalancesDaily() error {
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		return err
+	}
+	reports := make([]providerBalanceDailyReport, 0)
+	for _, provider := range providers {
+		if provider == nil || provider.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		settings := provider.GetOtherSettings()
+		if !settings.BalanceQuery.Enabled {
+			continue
+		}
+		_, err := updateProviderBalance(provider)
+		updated, getErr := model.GetChannelProviderByID(provider.Id)
+		if getErr != nil {
+			common.SysLog(fmt.Sprintf("failed to reload provider after daily balance query: provider_id=%d, error=%v", provider.Id, getErr))
+			time.Sleep(common.RequestInterval)
+			continue
+		}
+		newSettings := updated.GetOtherSettings()
+		newResult := cloneBalanceQueryResult(newSettings.BalanceQuery.LastResult)
+		reports = append(reports, providerBalanceDailyReport{
+			ProviderID: provider.Id,
+			Name:       provider.Name,
+			Result:     newResult,
+			LastError:  newSettings.BalanceQuery.LastError,
+			QueryError: err,
+		})
+		if err == nil && updated.Balance <= 0 {
+			disableProviderChannelsForBalance(provider.Id)
+		}
+		time.Sleep(common.RequestInterval)
+	}
+	if message := buildProviderBalanceDailySummary(reports); message != "" {
+		sendQQAdminMessage(message, "daily provider balance summary")
+	}
+	return nil
+}
+
+func durationUntilNextMidnight(now time.Time) time.Duration {
+	next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	return next.Sub(now)
 }
 
 func updateConfiguredChannelsBalanceDueLegacy() error {
@@ -1379,6 +1635,18 @@ func StartChannelBalanceQueryTask() {
 				if err := updateConfiguredChannelsBalanceDue(); err != nil {
 					common.SysLog("channel balance query task failed: " + err.Error())
 				}
+			}
+		}()
+		go func() {
+			common.SysLog("daily provider balance query task started")
+			for {
+				timer := time.NewTimer(durationUntilNextMidnight(time.Now()))
+				<-timer.C
+				common.SysLog("daily provider balance query started")
+				if err := updateConfiguredProviderBalancesDaily(); err != nil {
+					common.SysLog("daily provider balance query failed: " + err.Error())
+				}
+				common.SysLog("daily provider balance query done")
 			}
 		}()
 	})
