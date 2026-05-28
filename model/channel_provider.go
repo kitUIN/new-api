@@ -435,7 +435,7 @@ func DeleteChannelProvider(id int) error {
 	return DB.Delete(&ChannelProvider{}, id).Error
 }
 
-func BuildChannelProviderTrees(channels []*Channel, offset int, limit int) ([]*ChannelProviderTree, int64) {
+func BuildChannelProviderTrees(channels []*Channel, offset int, limit int, idSort bool) ([]*ChannelProviderTree, int64) {
 	AttachChannelProviderSummaries(channels)
 	treeMap := make(map[int]*ChannelProviderTree)
 	order := make([]int, 0)
@@ -531,6 +531,9 @@ func BuildChannelProviderTrees(channels []*Channel, offset int, limit int) ([]*C
 	}
 
 	sort.SliceStable(order, func(i, j int) bool {
+		if idSort {
+			return order[i] > order[j]
+		}
 		left := treeMap[order[i]]
 		right := treeMap[order[j]]
 		if left.EnabledCount != right.EnabledCount {

@@ -157,7 +157,7 @@ func GetAllChannels(c *gin.Context) {
 		for _, channel := range channelData {
 			typeCounts[int64(channel.Type)]++
 		}
-		items, providerTotal := model.BuildChannelProviderTrees(channelData, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		items, providerTotal := model.BuildChannelProviderTrees(channelData, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), idSort)
 		common.ApiSuccess(c, gin.H{
 			"items":       items,
 			"total":       providerTotal,
@@ -359,7 +359,7 @@ func SearchChannels(c *gin.Context) {
 		if pageSize <= 0 {
 			pageSize = 20
 		}
-		items, providerTotal := model.BuildChannelProviderTrees(channelData, (page-1)*pageSize, pageSize)
+		items, providerTotal := model.BuildChannelProviderTrees(channelData, (page-1)*pageSize, pageSize, idSort)
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
