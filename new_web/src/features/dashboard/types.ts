@@ -27,7 +27,20 @@ export interface QuotaDataItem {
   user_id?: number
   username?: string
   model_name?: string
+  group?: string
   created_at: number
+  token_used?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  count?: number
+  quota?: number
+}
+
+export interface GroupQuotaDataItem {
+  group?: string
+  model_name?: string
   token_used?: number
   prompt_tokens?: number
   completion_tokens?: number

@@ -379,6 +379,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 				userId,
 				username,
 				params.ModelName,
+				params.Group,
 				params.Quota,
 				common.GetTimestamp(),
 				params.PromptTokens+params.CompletionTokens+params.CacheTokens+params.CacheCreationTokens,
