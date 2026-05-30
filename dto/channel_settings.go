@@ -67,6 +67,7 @@ type BalanceQuery struct {
 	Request         BalanceQueryRequestConfig   `json:"request,omitempty"`
 	Extractor       BalanceQueryExtractorConfig `json:"extractor,omitempty"`
 	LastResult      *BalanceQueryResult         `json:"last_result,omitempty"`
+	LastDailyResult *BalanceQueryResult         `json:"last_daily_result,omitempty"`
 	LastCheckTime   int64                       `json:"last_check_time,omitempty"`
 	LastError       string                      `json:"last_error,omitempty"`
 }

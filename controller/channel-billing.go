@@ -1294,11 +1294,13 @@ type providerBalanceLowBalanceChange struct {
 }
 
 type providerBalanceDailyReport struct {
-	ProviderID int
-	Name       string
-	Result     *dto.BalanceQueryResult
-	LastError  string
-	QueryError error
+	ProviderID   int
+	Name         string
+	Result       *dto.BalanceQueryResult
+	DailyUsed    float64
+	HasDailyUsed bool
+	LastError    string
+	QueryError   error
 }
 
 func cloneBalanceQueryResult(result *dto.BalanceQueryResult) *dto.BalanceQueryResult {
@@ -1307,6 +1309,23 @@ func cloneBalanceQueryResult(result *dto.BalanceQueryResult) *dto.BalanceQueryRe
 	}
 	copied := *result
 	return &copied
+}
+
+func calculateBalanceQueryDailyUsed(previousDailyResult, currentResult *dto.BalanceQueryResult) (float64, bool) {
+	if currentResult == nil || !currentResult.IsValid {
+		return 0, false
+	}
+	if previousDailyResult == nil || !previousDailyResult.IsValid {
+		return 0, false
+	}
+	dailyUsed := currentResult.Used - previousDailyResult.Used
+	if dailyUsed < 0 {
+		dailyUsed = currentResult.Used
+	}
+	if dailyUsed < 0 {
+		dailyUsed = 0
+	}
+	return dailyUsed, true
 }
 
 func balanceQueryFloatChanged(oldValue, newValue float64) bool {
@@ -1378,13 +1397,18 @@ func formatProviderBalanceDailyReport(report providerBalanceDailyReport) string 
 		}
 		return "失败：" + message
 	}
+	dailyUsedText := "暂无基准"
+	if report.HasDailyUsed {
+		dailyUsedText = fmt.Sprintf("%.4f", report.DailyUsed)
+	}
 	return fmt.Sprintf(
-		"%s 剩余 %.4f %s，已用 %.4f，总量 %.4f",
+		"%s 剩余 %.4f %s，已用 %.4f，总量 %.4f，当天使用量 %s",
 		balanceQueryDisplayPlanName(report.Result),
 		report.Result.Remaining,
 		balanceQueryDisplayUnit(report.Result),
 		report.Result.Used,
 		report.Result.Total,
+		dailyUsedText,
 	)
 }
 
@@ -1426,6 +1450,7 @@ func updateConfiguredProviderBalancesDaily() error {
 		if !settings.BalanceQuery.Enabled {
 			continue
 		}
+		previousDailyResult := cloneBalanceQueryResult(settings.BalanceQuery.LastDailyResult)
 		_, err := updateProviderBalance(provider)
 		updated, getErr := model.GetChannelProviderByID(provider.Id)
 		if getErr != nil {
@@ -1435,12 +1460,25 @@ func updateConfiguredProviderBalancesDaily() error {
 		}
 		newSettings := updated.GetOtherSettings()
 		newResult := cloneBalanceQueryResult(newSettings.BalanceQuery.LastResult)
+		dailyUsed, hasDailyUsed := calculateBalanceQueryDailyUsed(previousDailyResult, newResult)
+		if err == nil && newResult != nil && newResult.IsValid {
+			newSettings.BalanceQuery.LastDailyResult = cloneBalanceQueryResult(newResult)
+			updated.SetOtherSettings(newSettings)
+			if updateErr := model.DB.Model(&model.ChannelProvider{}).Where("id = ?", updated.Id).Updates(map[string]interface{}{
+				"settings":     updated.Settings,
+				"updated_time": common.GetTimestamp(),
+			}).Error; updateErr != nil {
+				common.SysLog(fmt.Sprintf("failed to persist provider daily balance snapshot: provider_id=%d, error=%v", provider.Id, updateErr))
+			}
+		}
 		reports = append(reports, providerBalanceDailyReport{
-			ProviderID: provider.Id,
-			Name:       provider.Name,
-			Result:     newResult,
-			LastError:  newSettings.BalanceQuery.LastError,
-			QueryError: err,
+			ProviderID:   provider.Id,
+			Name:         provider.Name,
+			Result:       newResult,
+			DailyUsed:    dailyUsed,
+			HasDailyUsed: hasDailyUsed,
+			LastError:    newSettings.BalanceQuery.LastError,
+			QueryError:   err,
 		})
 		if err == nil && updated.Balance <= 0 {
 			disableProviderChannelsForBalance(provider.Id)
