@@ -448,6 +448,9 @@ func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dt
 		if strings.TrimSpace(config.Extractor.RemainingPath) == "" {
 			config.Extractor.RemainingPath = "remaining,quota.remaining,balance"
 		}
+		if strings.TrimSpace(config.Extractor.TotalPath) == "" {
+			config.Extractor.TotalPath = "total_recharged"
+		}
 		if strings.TrimSpace(config.Extractor.UnitPath) == "" {
 			config.Extractor.UnitPath = "unit,quota.unit"
 		}
@@ -802,11 +805,19 @@ func extractBalanceQueryResult(body []byte, extractor dto.BalanceQueryExtractorC
 		result.InvalidMessage = "余额查询响应缺少剩余额度字段"
 		return result
 	}
+	hasUsed := false
 	if used, ok := getBalanceQueryNumber(body, extractor.UsedPath, divisor); ok {
 		result.Used = used
+		hasUsed = true
 	}
 	if total, ok := getBalanceQueryNumber(body, extractor.TotalPath, divisor); ok {
 		result.Total = total
+		if !hasUsed {
+			result.Used = result.Total - result.Remaining
+			if result.Used < 0 {
+				result.Used = 0
+			}
+		}
 	} else {
 		result.Total = result.Remaining + result.Used
 	}

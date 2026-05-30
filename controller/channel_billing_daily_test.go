@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -57,5 +58,23 @@ func TestFormatProviderBalanceDailyReportIncludesDailyUsed(t *testing.T) {
 	})
 	if !strings.Contains(message, "当天使用量 暂无基准") {
 		t.Fatalf("expected missing baseline text in message, got %q", message)
+	}
+}
+
+func TestSub2APIBalanceTemplateUsesTotalRecharged(t *testing.T) {
+	config := buildBalanceQueryConfig(nil, dto.BalanceQuery{Template: balanceQueryTemplateSub2API})
+	if config.Extractor.TotalPath != "total_recharged" {
+		t.Fatalf("expected total_recharged total path, got %q", config.Extractor.TotalPath)
+	}
+
+	result := extractBalanceQueryResult([]byte(`{"is_active":true,"remaining":37.0063,"total_recharged":60,"unit":"USD"}`), config.Extractor)
+	if !result.IsValid {
+		t.Fatalf("expected valid result, got %q", result.InvalidMessage)
+	}
+	if result.Total != 60 {
+		t.Fatalf("expected total 60, got %f", result.Total)
+	}
+	if math.Abs(result.Used-22.9937) > 0.000001 {
+		t.Fatalf("expected used 22.9937, got %f", result.Used)
 	}
 }
