@@ -79,8 +79,8 @@ export function Drawing() {
     () => new URLSearchParams(location.searchStr),
     [location.searchStr]
   )
-  const urlSessionId = urlParams.get('session')
-  const urlMessageId = urlParams.get('message')
+  const urlSessionId = parseRouterSearchString(urlParams.get('session'))
+  const urlMessageId = parseRouterSearchString(urlParams.get('message'))
 
   const sessionsState = useDrawingSessions()
   const messagesState = useDrawingMessages(sessionsState.activeSessionId)
@@ -283,13 +283,13 @@ export function Drawing() {
     newDraftRef.current = true
     urlMessageTargetRef.current = ''
     sessionsState.setActiveSessionId(null)
-    messagesState.setCurrentMessage(null)
+    messagesState.resetMessages()
     setTitleDraft(nextDefaultTitle)
     setTitleDraftEdited(false)
     setTitleEditing(false)
     void navigate({ to: '/drawing', search: {}, replace: true })
   }, [
-    messagesState.setCurrentMessage,
+    messagesState.resetMessages,
     navigate,
     nextDefaultTitle,
     sessionsState.setActiveSessionId,
@@ -378,7 +378,7 @@ export function Drawing() {
       newDraftRef.current = true
       urlMessageTargetRef.current = ''
       sessionsState.setActiveSessionId(null)
-      messagesState.setCurrentMessage(null)
+      messagesState.resetMessages()
       void navigate({ to: '/drawing', search: {}, replace: true })
     }
     await sessionsState.removeSession(deleteTarget.session_id)
@@ -551,4 +551,18 @@ async function resolveReferenceImages(
   return extractDrawingResultImages(data?.result_data)
     .map(getDrawingImageSource)
     .filter(Boolean)
+}
+
+function parseRouterSearchString(value: string | null) {
+  if (!value) return null
+
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (typeof parsed === 'string') return parsed
+    if (typeof parsed === 'number') return String(parsed)
+  } catch {
+    /* search params may also arrive as plain strings */
+  }
+
+  return value
 }

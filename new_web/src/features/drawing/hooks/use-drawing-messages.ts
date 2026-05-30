@@ -48,6 +48,13 @@ export function useDrawingMessages(activeSessionId: string | null) {
     })
   }, [])
 
+  const resetMessages = useCallback(() => {
+    requestIdRef.current += 1
+    setCurrentMessage(null)
+    setPageInfo(EMPTY_PAGE_INFO)
+    setLoading(false)
+  }, [])
+
   const loadMessage = useCallback(
     async (
       direction: 'latest' | 'current' | 'prev' | 'next' = 'latest',
@@ -143,6 +150,6 @@ export function useDrawingMessages(activeSessionId: string | null) {
     loadNextMessage,
     addOptimisticMessage,
     updateMessageByTaskId,
-    setCurrentMessage,
+    resetMessages,
   }
 }

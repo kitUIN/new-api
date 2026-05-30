@@ -78,16 +78,36 @@ export async function getDrawingMessage(
   direction: 'latest' | 'current' | 'prev' | 'next',
   currentId?: number | string
 ): Promise<DrawingMessagePage | null> {
+  const normalizedCurrentId = normalizeDrawingMessageId(currentId)
+  const hasCurrentId = Boolean(normalizedCurrentId)
+  const requestDirection = hasCurrentId ? direction : 'latest'
   const res = await api.get<ApiEnvelope<DrawingMessagePage>>(
     DRAWING_API.sessionMessage(sessionId),
     {
       params: {
-        direction,
-        ...(currentId ? { current_id: currentId } : {}),
+        direction: requestDirection,
+        ...(normalizedCurrentId ? { current_id: normalizedCurrentId } : {}),
       },
     }
   )
   return res.data.success ? res.data.data : null
+}
+
+function normalizeDrawingMessageId(value?: number | string) {
+  if (value === undefined || value === null) return ''
+  let normalized = String(value).trim()
+  if (!normalized) return ''
+
+  try {
+    const parsed = JSON.parse(normalized) as unknown
+    if (typeof parsed === 'string' || typeof parsed === 'number') {
+      normalized = String(parsed).trim()
+    }
+  } catch {
+    /* keep the original value */
+  }
+
+  return /^\d+$/.test(normalized) ? normalized : ''
 }
 
 export async function getDrawingMessageImages(
