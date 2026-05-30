@@ -20,6 +20,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { getUserModels } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ComboboxInput } from '@/components/ui/combobox-input'
@@ -32,11 +33,11 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { generateAccessToken } from '@/features/profile/api'
-import { useAuthStore } from '@/stores/auth-store'
+import { getUserProfile } from '@/features/profile/api'
 
 const USAGE_SCRIPT =
   'KHsKICByZXF1ZXN0OiB7CiAgICB1cmw6ICJ7e2Jhc2VVcmx9fS9hcGkvdXNlci9zZWxmIiwKICAgIG1ldGhvZDogIkdFVCIsCiAgICBoZWFkZXJzOiB7CiAgICAgICJDb250ZW50LVR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIsCiAgICAgICJBdXRob3JpemF0aW9uIjogIkJlYXJlciB7e2FjY2Vzc1Rva2VufX0iLAogICAgICAiTmV3LUFwaS1Vc2VyIjogInt7dXNlcklkfX0iCiAgICB9LAogIH0sCiAgZXh0cmFjdG9yOiBmdW5jdGlvbiAocmVzcG9uc2UpIHsKICAgIGlmIChyZXNwb25zZS5zdWNjZXNzICYmIHJlc3BvbnNlLmRhdGEpIHsKICAgICAgcmV0dXJuIHsKICAgICAgICBwbGFuTmFtZTogcmVzcG9uc2UuZGF0YS5ncm91cCB8fCAi6buY6K6k5aWX6aSQIiwKICAgICAgICByZW1haW5pbmc6IHJlc3BvbnNlLmRhdGEucXVvdGEgLyA1MDAwMDAsCiAgICAgICAgdXNlZDogcmVzcG9uc2UuZGF0YS51c2VkX3F1b3RhIC8gNTAwMDAwLAogICAgICAgIHRvdGFsOiAocmVzcG9uc2UuZGF0YS5xdW90YSArIHJlc3BvbnNlLmRhdGEudXNlZF9xdW90YSkgLyA1MDAwMDAsCiAgICAgICAgdW5pdDogIlVTRCIsCiAgICAgIH07CiAgICB9CiAgICByZXR1cm4gewogICAgICBpc1ZhbGlkOiBmYWxzZSwKICAgICAgaW52YWxpZE1lc3NhZ2U6IHJlc3BvbnNlLm1lc3NhZ2UgfHwgIuafpeivouWksei0pSIKICAgIH07CiAgfSwKfSk'
+const USAGE_AUTO_INTERVAL_MINUTES = 30
 
 const APP_CONFIGS = {
   claude: {
@@ -100,6 +101,7 @@ function buildCCSwitchURL(
   params.set('usageBaseUrl', serverAddress)
   params.set('usageUserId', String(userId))
   params.set('usageScript', USAGE_SCRIPT)
+  params.set('usageAutoInterval', String(USAGE_AUTO_INTERVAL_MINUTES))
   return `ccswitch://v1/import?${params.toString()}`
 }
 
@@ -171,24 +173,23 @@ export function CCSwitchDialog(props: Props) {
 
     setIsSubmitting(true)
     try {
-      const response = await generateAccessToken()
+      const response = await getUserProfile()
       if (!response.success || !response.data) {
-        toast.error(response.message || t('Failed to generate token'))
+        toast.error(response.message || t('Failed to load profile'))
         return
       }
 
-      const url = buildCCSwitchURL(
-        app,
-        name,
-        models,
-        key,
-        response.data,
-        userId
-      )
+      const accessToken = response.data.access_token
+      if (!accessToken) {
+        toast.error(t('No token found.'))
+        return
+      }
+
+      const url = buildCCSwitchURL(app, name, models, key, accessToken, userId)
       window.open(url, '_blank')
       props.onOpenChange(false)
     } catch {
-      toast.error(t('Failed to generate token'))
+      toast.error(t('Failed to load profile'))
     } finally {
       setIsSubmitting(false)
     }
@@ -198,7 +199,7 @@ export function CCSwitchDialog(props: Props) {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>{t('Import to CC Switch')}</DialogTitle>
+          <DialogTitle>{t('CC Switch one-click import')}</DialogTitle>
         </DialogHeader>
 
         <div className='space-y-4'>
@@ -262,7 +263,7 @@ export function CCSwitchDialog(props: Props) {
             {t('Cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? t('Generating...') : t('Open CC Switch')}
+            {isSubmitting ? t('Loading...') : t('CC Switch one-click import')}
           </Button>
         </DialogFooter>
       </DialogContent>

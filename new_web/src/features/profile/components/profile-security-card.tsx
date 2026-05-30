@@ -34,6 +34,7 @@ import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
 interface ProfileSecurityCardProps {
   profile: UserProfile | null
   loading: boolean
+  onProfileUpdate?: () => void | Promise<void>
 }
 
 type DialogKey = 'password' | 'token' | 'delete'
@@ -41,6 +42,7 @@ type DialogKey = 'password' | 'token' | 'delete'
 export function ProfileSecurityCard({
   profile,
   loading,
+  onProfileUpdate,
 }: ProfileSecurityCardProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
@@ -140,6 +142,8 @@ export function ProfileSecurityCard({
         onOpenChange={(open) =>
           open ? dialogs.open('token') : dialogs.close('token')
         }
+        accessToken={profile.access_token}
+        onTokenRegenerated={onProfileUpdate}
       />
 
       <DeleteAccountDialog

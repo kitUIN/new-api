@@ -285,7 +285,7 @@ export function DataTableRowActions<TData>({
               setOpen('cc-switch')
             }}
           >
-            {t('CC Switch')}
+            {t('CC Switch one-click import')}
             <DropdownMenuShortcut>
               <ArrowRightLeft size={16} />
             </DropdownMenuShortcut>

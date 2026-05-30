@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -26,10 +26,14 @@ import { generateAccessToken } from '../api'
 // Access Token Hook
 // ============================================================================
 
-export function useAccessToken() {
-  const [token, setToken] = useState<string>('')
+export function useAccessToken(initialToken = '') {
+  const [token, setToken] = useState<string>(initialToken)
   const [generating, setGenerating] = useState(false)
   const { copyToClipboard } = useCopyToClipboard({ notify: false })
+
+  useEffect(() => {
+    setToken(initialToken)
+  }, [initialToken])
 
   // Generate new access token
   const generate = useCallback(async (): Promise<boolean> => {

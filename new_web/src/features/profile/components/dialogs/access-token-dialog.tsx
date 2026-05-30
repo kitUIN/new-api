@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -40,21 +39,25 @@ import { useAccessToken } from '../../hooks'
 interface AccessTokenDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  accessToken?: string
+  onTokenRegenerated?: () => void | Promise<void>
 }
 
 export function AccessTokenDialog({
   open,
   onOpenChange,
+  accessToken = '',
+  onTokenRegenerated,
 }: AccessTokenDialogProps) {
   const { t } = useTranslation()
-  const { token, generating, generate } = useAccessToken()
+  const { token, generating, generate } = useAccessToken(accessToken)
 
-  // Auto-generate token when dialog opens if no token exists
-  useEffect(() => {
-    if (open && !token) {
-      generate()
+  const handleRegenerate = async () => {
+    const regenerated = await generate()
+    if (regenerated) {
+      await onTokenRegenerated?.()
     }
-  }, [open, token, generate])
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,7 +81,7 @@ export function AccessTokenDialog({
                 value={token}
                 readOnly
                 className='font-mono text-xs'
-                placeholder={t('Click "Generate" to create a token')}
+                placeholder={t('No token found.')}
               />
               <CopyButton
                 value={token}
@@ -105,7 +108,7 @@ export function AccessTokenDialog({
           </Button>
           <Button
             type='button'
-            onClick={generate}
+            onClick={handleRegenerate}
             disabled={generating}
             className='gap-2'
           >
