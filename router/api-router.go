@@ -82,6 +82,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.PUT("/self", controller.UpdateSelf)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
+				selfRoute.GET("/token/self", controller.GetAccessToken)
 				selfRoute.GET("/token", controller.GenerateAccessToken)
 				selfRoute.GET("/passkey", controller.PasskeyStatus)
 				selfRoute.POST("/passkey/register/begin", controller.PasskeyRegisterBegin)

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,14 @@ export function AccessTokenDialog({
   onTokenRegenerated,
 }: AccessTokenDialogProps) {
   const { t } = useTranslation()
-  const { token, generating, generate } = useAccessToken(accessToken)
+  const { token, loading, generating, load, generate } =
+    useAccessToken(accessToken)
+
+  useEffect(() => {
+    if (open) {
+      void load()
+    }
+  }, [load, open])
 
   const handleRegenerate = async () => {
     const regenerated = await generate()
@@ -81,7 +89,7 @@ export function AccessTokenDialog({
                 value={token}
                 readOnly
                 className='font-mono text-xs'
-                placeholder={t('No token found.')}
+                placeholder={loading ? t('Loading...') : t('No token found.')}
               />
               <CopyButton
                 value={token}
@@ -109,7 +117,7 @@ export function AccessTokenDialog({
           <Button
             type='button'
             onClick={handleRegenerate}
-            disabled={generating}
+            disabled={loading || generating}
             className='gap-2'
           >
             {generating ? (

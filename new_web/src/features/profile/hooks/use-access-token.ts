@@ -20,7 +20,7 @@ import { useState, useCallback, useEffect } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { generateAccessToken } from '../api'
+import { generateAccessToken, getAccessToken } from '../api'
 
 // ============================================================================
 // Access Token Hook
@@ -28,12 +28,36 @@ import { generateAccessToken } from '../api'
 
 export function useAccessToken(initialToken = '') {
   const [token, setToken] = useState<string>(initialToken)
+  const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const { copyToClipboard } = useCopyToClipboard({ notify: false })
 
   useEffect(() => {
     setToken(initialToken)
   }, [initialToken])
+
+  // Load existing access token without regenerating it
+  const load = useCallback(async (): Promise<boolean> => {
+    try {
+      setLoading(true)
+      const response = await getAccessToken()
+
+      if (response.success) {
+        setToken(response.data || '')
+        return true
+      }
+
+      toast.error(response.message || i18next.t('Failed to load profile'))
+      return false
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to load token:', error)
+      toast.error(i18next.t('Failed to load profile'))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   // Generate new access token
   const generate = useCallback(async (): Promise<boolean> => {
@@ -62,7 +86,9 @@ export function useAccessToken(initialToken = '') {
 
   return {
     token,
+    loading,
     generating,
+    load,
     generate,
   }
 }

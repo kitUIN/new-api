@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { getUserProfile } from '@/features/profile/api'
+import { getAccessToken } from '@/features/profile/api'
 
 const USAGE_SCRIPT =
   'KHsKICByZXF1ZXN0OiB7CiAgICB1cmw6ICJ7e2Jhc2VVcmx9fS9hcGkvdXNlci9zZWxmIiwKICAgIG1ldGhvZDogIkdFVCIsCiAgICBoZWFkZXJzOiB7CiAgICAgICJDb250ZW50LVR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIsCiAgICAgICJBdXRob3JpemF0aW9uIjogIkJlYXJlciB7e2FjY2Vzc1Rva2VufX0iLAogICAgICAiTmV3LUFwaS1Vc2VyIjogInt7dXNlcklkfX0iCiAgICB9LAogIH0sCiAgZXh0cmFjdG9yOiBmdW5jdGlvbiAocmVzcG9uc2UpIHsKICAgIGlmIChyZXNwb25zZS5zdWNjZXNzICYmIHJlc3BvbnNlLmRhdGEpIHsKICAgICAgcmV0dXJuIHsKICAgICAgICBwbGFuTmFtZTogcmVzcG9uc2UuZGF0YS5ncm91cCB8fCAi6buY6K6k5aWX6aSQIiwKICAgICAgICByZW1haW5pbmc6IHJlc3BvbnNlLmRhdGEucXVvdGEgLyA1MDAwMDAsCiAgICAgICAgdXNlZDogcmVzcG9uc2UuZGF0YS51c2VkX3F1b3RhIC8gNTAwMDAwLAogICAgICAgIHRvdGFsOiAocmVzcG9uc2UuZGF0YS5xdW90YSArIHJlc3BvbnNlLmRhdGEudXNlZF9xdW90YSkgLyA1MDAwMDAsCiAgICAgICAgdW5pdDogIlVTRCIsCiAgICAgIH07CiAgICB9CiAgICByZXR1cm4gewogICAgICBpc1ZhbGlkOiBmYWxzZSwKICAgICAgaW52YWxpZE1lc3NhZ2U6IHJlc3BvbnNlLm1lc3NhZ2UgfHwgIuafpeivouWksei0pSIKICAgIH07CiAgfSwKfSk'
@@ -173,15 +173,10 @@ export function CCSwitchDialog(props: Props) {
 
     setIsSubmitting(true)
     try {
-      const response = await getUserProfile()
-      if (!response.success || !response.data) {
-        toast.error(response.message || t('Failed to load profile'))
-        return
-      }
-
-      const accessToken = response.data.access_token
+      const response = await getAccessToken()
+      const accessToken = response.data
       if (!accessToken) {
-        toast.error(t('No token found.'))
+        toast.error(response.message || t('No token found.'))
         return
       }
 
