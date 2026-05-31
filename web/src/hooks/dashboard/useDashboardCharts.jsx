@@ -470,10 +470,8 @@ export const useDashboardCharts = (
           const cacheReadTokens = aggregated?.cacheReadTokens || 0;
           const cacheWriteTokens = aggregated?.cacheWriteTokens || 0;
           const modelTokenSum =
-            promptTokens +
-            cacheReadTokens +
-            completionTokens +
-            cacheWriteTokens;
+            aggregated?.tokenUsed ||
+            promptTokens + completionTokens + cacheWriteTokens;
 
           newLineData.push({
             Time: time,

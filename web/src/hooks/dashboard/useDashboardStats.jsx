@@ -45,12 +45,8 @@ export const useDashboardStats = (
   t,
 ) => {
   const cacheHitRate =
-    consumePromptTokens + consumeCacheReadTokens > 0
-      ? Math.round(
-          (consumeCacheReadTokens /
-            (consumePromptTokens + consumeCacheReadTokens)) *
-            100,
-        )
+    consumePromptTokens > 0
+      ? Math.round((consumeCacheReadTokens / consumePromptTokens) * 100)
       : 0;
   const consumeTokensValue = isNaN(consumeTokens)
     ? '0'

@@ -274,9 +274,8 @@ export const processRawData = (
     const cacheReadTokens = Number(item.cache_read_tokens || 0);
     const cacheWriteTokens = Number(item.cache_write_tokens || 0);
     const rawTokenUsed = Number(item.token_used || 0);
-    const breakdownTotal =
-      promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens;
-    const tokenUsed = rawTokenUsed || breakdownTotal;
+    const breakdownTotal = promptTokens + completionTokens + cacheWriteTokens;
+    const tokenUsed = breakdownTotal || rawTokenUsed;
     if (breakdownTotal === 0 && rawTokenUsed > 0) {
       promptTokens = rawTokenUsed;
     }
@@ -383,9 +382,8 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
     const cacheReadTokens = Number(item.cache_read_tokens || 0);
     const cacheWriteTokens = Number(item.cache_write_tokens || 0);
     const rawTokenUsed = Number(item.token_used || 0);
-    const breakdownTotal =
-      promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens;
-    const tokenUsed = rawTokenUsed || breakdownTotal;
+    const breakdownTotal = promptTokens + completionTokens + cacheWriteTokens;
+    const tokenUsed = breakdownTotal || rawTokenUsed;
     if (breakdownTotal === 0 && rawTokenUsed > 0) {
       promptTokens = rawTokenUsed;
     }
