@@ -285,92 +285,28 @@ type RecordConsumeLogParams struct {
 	RelayInfo           *relaycommon.RelayInfo `json:"-"`
 }
 
-func consumeLogRequiresTokenUsage(params RecordConsumeLogParams) bool {
-	if params.Other == nil {
-		return false
-	}
-	if v, ok := params.Other["is_task"].(bool); ok && v {
-		return false
-	}
-	if v, ok := params.Other["violation_fee"].(bool); ok && v {
-		return false
-	}
-	_, hasRequestPath := params.Other["request_path"]
-	_, hasAdminInfo := params.Other["admin_info"]
-	return hasRequestPath || hasAdminInfo
-}
-
-func zeroTokenErrorFields(params RecordConsumeLogParams) []string {
-	if !consumeLogRequiresTokenUsage(params) {
-		return nil
-	}
-	if isClientGoneStreamConsume(params) {
-		return nil
-	}
-	fields := make([]string, 0, 2)
-	if params.PromptTokens <= 0 {
-		fields = append(fields, "prompt_tokens")
-	}
-	if params.CompletionTokens <= 0 {
-		fields = append(fields, "completion_tokens")
-	}
-	return fields
-}
-
-func consumeLogType(params RecordConsumeLogParams) int {
-	if len(zeroTokenErrorFields(params)) > 0 {
-		return LogTypeError
-	}
-	return LogTypeConsume
-}
-
-func isClientGoneStreamConsume(params RecordConsumeLogParams) bool {
-	if !params.IsStream || params.Other == nil {
-		return false
-	}
-	switch streamStatus := params.Other["stream_status"].(type) {
-	case map[string]interface{}:
-		return stringFromLogOther(streamStatus, "end_reason") == string(relaycommon.StreamEndReasonClientGone)
-	case map[string]string:
-		return strings.TrimSpace(streamStatus["end_reason"]) == string(relaycommon.StreamEndReasonClientGone)
-	default:
-		return false
-	}
-}
-
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
-	logType := consumeLogType(params)
 	if params.RelayInfo != nil {
 		RecordRelayPerfMetric(c, params.RelayInfo, PerfMetricSample{
 			ModelName:        params.ModelName,
 			Group:            params.Group,
-			Success:          logType != LogTypeError,
+			Success:          true,
 			CompletionTokens: int64(params.CompletionTokens),
 		})
 	}
 
-	if logType == LogTypeConsume && !common.LogConsumeEnabled {
+	if !common.LogConsumeEnabled {
 		return
 	}
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	if errorFields := zeroTokenErrorFields(params); logType == LogTypeError && len(errorFields) > 0 {
-		if params.Other == nil {
-			params.Other = make(map[string]interface{})
-		}
-		params.Other["zero_token_error"] = true
-		params.Other["zero_token_error_fields"] = errorFields
-		if params.Content == "" {
-			params.Content = "输入或输出 token 为 0"
-		}
-	}
 	otherStr := common.MapToJsonStr(params.Other)
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
-		Type:             logType,
+		Type:             LogTypeConsume,
 		Content:          params.Content,
 		PromptTokens:     params.PromptTokens,
 		CompletionTokens: params.CompletionTokens,
@@ -390,7 +326,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
-	if logType == LogTypeConsume && common.DataExportEnabled {
+	if common.DataExportEnabled {
 		gopool.Go(func() {
 			LogQuotaData(
 				userId,
