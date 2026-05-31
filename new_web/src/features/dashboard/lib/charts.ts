@@ -566,12 +566,12 @@ export function processChartData(
         mark: {
           content: [
             {
-              key: (datum: Record<string, unknown>) => datum?.Model,
+              key: () => tt('Total tokens'),
               value: (datum: Record<string, unknown>) =>
                 formatInt(Number(datum?.Tokens) || 0),
             },
             {
-              key: () => tt('Input (uncached)'),
+              key: () => tt('Total input'),
               value: (datum: Record<string, unknown>) =>
                 formatInt(Number(datum?.PromptTokens) || 0),
             },
@@ -581,9 +581,12 @@ export function processChartData(
                 formatInt(Number(datum?.CacheReadTokens) || 0),
             },
             {
-              key: () => tt('Output (uncached)'),
+              key: () => tt('Total output'),
               value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.CompletionTokens) || 0),
+                formatInt(
+                  (Number(datum?.CompletionTokens) || 0) +
+                    (Number(datum?.CacheWriteTokens) || 0)
+                ),
             },
             {
               key: () => tt('Output (cached)'),
@@ -629,12 +632,12 @@ export function processChartData(
         mark: {
           content: [
             {
-              key: (datum: Record<string, unknown>) => datum?.Model,
+              key: () => tt('Total tokens'),
               value: (datum: Record<string, unknown>) =>
                 formatInt(Number(datum?.Tokens) || 0),
             },
             {
-              key: () => tt('Input (uncached)'),
+              key: () => tt('Total input'),
               value: (datum: Record<string, unknown>) =>
                 formatInt(Number(datum?.PromptTokens) || 0),
             },
@@ -644,9 +647,12 @@ export function processChartData(
                 formatInt(Number(datum?.CacheReadTokens) || 0),
             },
             {
-              key: () => tt('Output (uncached)'),
+              key: () => tt('Total output'),
               value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.CompletionTokens) || 0),
+                formatInt(
+                  (Number(datum?.CompletionTokens) || 0) +
+                    (Number(datum?.CacheWriteTokens) || 0)
+                ),
             },
             {
               key: () => tt('Output (cached)'),

@@ -4088,6 +4088,8 @@
     "Total Quota": "Общая квота",
     "Total requests allowed per period. 0 = unlimited.": "Общее количество запросов, разрешенных за период. 0 = без ограничений.",
     "Total requests made": "Всего сделанных запросов",
+    "Total input": "Всего ввода",
+    "Total output": "Всего вывода",
     "Total tokens": "Всего токенов",
     "Total Tokens": "Всего токенов",
     "Total Usage": "Общее использование",

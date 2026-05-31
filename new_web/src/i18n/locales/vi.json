@@ -4088,6 +4088,8 @@
     "Total Quota": "Tổng hạn mức",
     "Total requests allowed per period. 0 = unlimited.": "Tổng số yêu cầu được phép mỗi kỳ. 0 = không giới hạn.",
     "Total requests made": "Tổng lượt yêu cầu",
+    "Total input": "Tổng đầu vào",
+    "Total output": "Tổng đầu ra",
     "Total tokens": "Tổng số token",
     "Total Tokens": "Tổng số token",
     "Total Usage": "Tổng Mức Sử dụng",

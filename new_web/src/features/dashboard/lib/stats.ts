@@ -22,6 +22,7 @@ export interface DashboardStats {
   totalQuota: number
   totalCount: number
   totalTokens: number
+  totalPromptTokens: number
   totalCacheTokens: number
 }
 
@@ -31,9 +32,8 @@ export function getQuotaDataTokenBreakdown(item: QuotaDataItem) {
   const cacheReadTokens = Number(item.cache_read_tokens) || 0
   const cacheWriteTokens = Number(item.cache_write_tokens) || 0
   const rawTokenUsed = Number(item.token_used) || 0
-  const breakdownTotal =
-    promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens
-  const tokenUsed = rawTokenUsed || breakdownTotal
+  const breakdownTotal = promptTokens + completionTokens + cacheWriteTokens
+  const tokenUsed = breakdownTotal || rawTokenUsed
 
   if (breakdownTotal === 0 && rawTokenUsed > 0) {
     promptTokens = rawTokenUsed
@@ -69,14 +69,21 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
   return data.reduce(
     (acc, item) => {
       const tokens = getQuotaDataTokenBreakdown(item)
-      const cacheTokens = tokens.cacheReadTokens + tokens.cacheWriteTokens
+      const cacheTokens = tokens.cacheReadTokens
       return {
         totalQuota: acc.totalQuota + (Number(item.quota) || 0),
         totalCount: acc.totalCount + (Number(item.count) || 0),
         totalTokens: acc.totalTokens + tokens.tokenUsed,
+        totalPromptTokens: acc.totalPromptTokens + tokens.promptTokens,
         totalCacheTokens: acc.totalCacheTokens + cacheTokens,
       }
     },
-    { totalQuota: 0, totalCount: 0, totalTokens: 0, totalCacheTokens: 0 }
+    {
+      totalQuota: 0,
+      totalCount: 0,
+      totalTokens: 0,
+      totalPromptTokens: 0,
+      totalCacheTokens: 0,
+    }
   )
 }

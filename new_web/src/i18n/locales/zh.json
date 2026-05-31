@@ -4093,6 +4093,8 @@
     "Total Quota": "总额度",
     "Total requests allowed per period. 0 = unlimited.": "每周期允许的总请求数。0 = 无限制。",
     "Total requests made": "总请求数",
+    "Total input": "总输入",
+    "Total output": "总输出",
     "Total tokens": "总 Token",
     "Total Tokens": "总 Token 数",
     "Total Usage": "总用量",

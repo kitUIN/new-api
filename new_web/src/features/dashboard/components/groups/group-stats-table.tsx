@@ -101,11 +101,9 @@ function normalizeModel(model?: string) {
 function getTokenTotal(item: GroupQuotaDataItem) {
   const promptTokens = Number(item.prompt_tokens) || 0
   const completionTokens = Number(item.completion_tokens) || 0
-  const cacheReadTokens = Number(item.cache_read_tokens) || 0
   const cacheWriteTokens = Number(item.cache_write_tokens) || 0
-  const breakdownTotal =
-    promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens
-  return Number(item.token_used) || breakdownTotal
+  const breakdownTotal = promptTokens + completionTokens + cacheWriteTokens
+  return breakdownTotal || Number(item.token_used) || 0
 }
 
 function emptyModelStats(model: string): GroupModelStats {

@@ -4088,6 +4088,8 @@
     "Total Quota": "合計クォータ",
     "Total requests allowed per period. 0 = unlimited.": "期間ごとに許可されるリクエストの総数。0 = 無制限。",
     "Total requests made": "合計リクエスト数",
+    "Total input": "合計入力",
+    "Total output": "合計出力",
     "Total tokens": "合計トークン",
     "Total Tokens": "合計トークン",
     "Total Usage": "総使用量",

@@ -101,8 +101,8 @@ export function LogStatCards(props: LogStatCardsProps) {
   }
 
   const cacheRatioDisplay =
-    stats && stats.totalTokens > 0
-      ? formatPercent((stats.totalCacheTokens / stats.totalTokens) * 100)
+    stats && stats.totalPromptTokens > 0
+      ? formatPercent((stats.totalCacheTokens / stats.totalPromptTokens) * 100)
       : formatPercent(0)
 
   const items = statCardsConfig.map((config) => ({
