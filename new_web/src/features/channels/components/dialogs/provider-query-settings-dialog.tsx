@@ -51,6 +51,8 @@ import {
   BALANCE_QUERY_NEWAPI_TEMPLATE,
   BALANCE_QUERY_SUB2API_TEMPLATE,
   GROUP_QUERY_NEWAPI_TEMPLATE,
+  getBalanceQueryTemplateKey,
+  normalizeBalanceQueryTemplate,
 } from '../../lib/channel-form'
 import type {
   BalanceQueryConfig,
@@ -139,8 +141,10 @@ function normalizeIntervalSeconds(value: number) {
 function defaultState(provider: ProviderRow | null): FormState {
   const settings = parseSettings(provider?.settings)
   const b = settings.balance_query || {}
+  const bTemplateName = normalizeBalanceQueryTemplate(b.template)
+  const bTemplateKey = getBalanceQueryTemplateKey(bTemplateName)
   const bTemplate =
-    b.template === 'sub2api'
+    bTemplateKey === 'sub2api'
       ? BALANCE_QUERY_SUB2API_TEMPLATE
       : BALANCE_QUERY_NEWAPI_TEMPLATE
   const g = settings.group_query || {}
@@ -148,7 +152,7 @@ function defaultState(provider: ProviderRow | null): FormState {
 
   return {
     balance_enabled: b.enabled === true,
-    balance_template: b.template || 'newapi',
+    balance_template: bTemplateName,
     balance_interval_seconds: b.interval_seconds || 300,
     balance_source_channel_id:
       b.source_channel_id || provider?.children?.[0]?.id || 0,
@@ -236,13 +240,14 @@ export function ProviderQuerySettingsDialog(props: Props) {
 
   const applyBalanceTemplate = (templateKey: string | null) => {
     if (!templateKey) return
+    const normalizedTemplateKey = normalizeBalanceQueryTemplate(templateKey)
     const tpl =
-      templateKey === 'sub2api'
+      getBalanceQueryTemplateKey(normalizedTemplateKey) === 'sub2api'
         ? BALANCE_QUERY_SUB2API_TEMPLATE
         : BALANCE_QUERY_NEWAPI_TEMPLATE
     setForm((prev) => ({
       ...prev,
-      balance_template: templateKey,
+      balance_template: normalizedTemplateKey,
       balance_request_url: tpl.request.url,
       balance_request_method: tpl.request.method,
       balance_request_headers: JSON.stringify(tpl.request.headers, null, 2),
@@ -267,7 +272,7 @@ export function ProviderQuerySettingsDialog(props: Props) {
       balance_query: {
         ...previous.balance_query,
         enabled: form.balance_enabled,
-        template: form.balance_template,
+        template: normalizeBalanceQueryTemplate(form.balance_template),
         interval_seconds: normalizeIntervalSeconds(
           Number(form.balance_interval_seconds)
         ),

@@ -418,11 +418,20 @@ func getBalanceQueryIntervalSeconds(config dto.BalanceQuery) int {
 	return *config.IntervalSeconds
 }
 
-func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dto.BalanceQuery {
-	template := strings.ToLower(strings.TrimSpace(config.Template))
-	if template == "" {
-		template = balanceQueryTemplateNewAPI
+func normalizeBalanceQueryTemplate(template string) string {
+	normalized := strings.ToLower(strings.TrimSpace(template))
+	switch normalized {
+	case "", "newapi", "new_api", "new-api":
+		return balanceQueryTemplateNewAPI
+	case "sub2api", "sub2_api", "sub2-api", "subapi", "sub_api", "sub-api":
+		return balanceQueryTemplateSub2API
+	default:
+		return normalized
 	}
+}
+
+func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dto.BalanceQuery {
+	template := normalizeBalanceQueryTemplate(config.Template)
 	switch template {
 	case balanceQueryTemplateNewAPI:
 		config.Template = balanceQueryTemplateNewAPI

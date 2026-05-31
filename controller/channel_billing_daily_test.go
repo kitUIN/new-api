@@ -78,3 +78,24 @@ func TestSub2APIBalanceTemplateUsesTotalRecharged(t *testing.T) {
 		t.Fatalf("expected used 22.9937, got %f", result.Used)
 	}
 }
+
+func TestSubAPIBalanceTemplateAliasUsesTotalRecharged(t *testing.T) {
+	config := buildBalanceQueryConfig(nil, dto.BalanceQuery{Template: "sub_api"})
+	if config.Template != balanceQueryTemplateSub2API {
+		t.Fatalf("expected sub_api alias to normalize to sub2api, got %q", config.Template)
+	}
+	if config.Extractor.TotalPath != "total_recharged" {
+		t.Fatalf("expected total_recharged total path, got %q", config.Extractor.TotalPath)
+	}
+
+	result := extractBalanceQueryResult([]byte(`{"is_active":true,"remaining":37.0063,"total_recharged":60,"unit":"USD"}`), config.Extractor)
+	if !result.IsValid {
+		t.Fatalf("expected valid result, got %q", result.InvalidMessage)
+	}
+	if result.Total != 60 {
+		t.Fatalf("expected total 60, got %f", result.Total)
+	}
+	if math.Abs(result.Used-22.9937) > 0.000001 {
+		t.Fatalf("expected used 22.9937, got %f", result.Used)
+	}
+}

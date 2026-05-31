@@ -453,14 +453,19 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
     typeof balanceResult.remaining === 'number'
       ? balanceResult.remaining
       : balance
+  const queriedUsed =
+    typeof balanceResult?.used === 'number'
+      ? balanceResult.used
+      : typeof balanceResult?.total === 'number' &&
+          typeof balanceResult?.remaining === 'number'
+        ? Math.max(balanceResult.total - balanceResult.remaining, 0)
+        : 0
 
   const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
   const remainingDisplay = withSuffix(formatBalance(displayedBalance))
-  const queriedUsedDisplay = withSuffix(
-    formatQuotaValue(balanceResult?.used || 0)
-  )
+  const queriedUsedDisplay = withSuffix(formatBalance(queriedUsed))
   const queriedTotalDisplay = withSuffix(
-    formatQuotaValue(balanceResult?.total || 0)
+    formatBalance(balanceResult?.total ?? 0)
   )
 
   if (!isProvider) {

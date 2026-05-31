@@ -71,7 +71,7 @@ export const BALANCE_QUERY_SUB2API_TEMPLATE = {
     plan_name_path: '',
     remaining_path: 'remaining,quota.remaining,balance',
     used_path: '',
-    total_path: '',
+    total_path: 'total_recharged',
     unit_path: 'unit,quota.unit',
     unit: 'USD',
     divisor: 1,
@@ -86,6 +86,46 @@ export const BALANCE_QUERY_TEMPLATES = {
   newapi: BALANCE_QUERY_NEWAPI_TEMPLATE,
   sub2api: BALANCE_QUERY_SUB2API_TEMPLATE,
 } as const
+
+export type BalanceQueryTemplateKey = keyof typeof BALANCE_QUERY_TEMPLATES
+
+export function normalizeBalanceQueryTemplate(
+  template: string | null | undefined
+): string {
+  const normalized = String(template || '')
+    .trim()
+    .toLowerCase()
+
+  if (
+    normalized === '' ||
+    normalized === 'newapi' ||
+    normalized === 'new_api' ||
+    normalized === 'new-api'
+  ) {
+    return 'newapi'
+  }
+
+  if (
+    normalized === 'sub2api' ||
+    normalized === 'sub2_api' ||
+    normalized === 'sub2-api' ||
+    normalized === 'subapi' ||
+    normalized === 'sub_api' ||
+    normalized === 'sub-api'
+  ) {
+    return 'sub2api'
+  }
+
+  return normalized
+}
+
+export function getBalanceQueryTemplateKey(
+  template: string | null | undefined
+): BalanceQueryTemplateKey {
+  return normalizeBalanceQueryTemplate(template) === 'sub2api'
+    ? 'sub2api'
+    : 'newapi'
+}
 
 export const GROUP_QUERY_NEWAPI_TEMPLATE = {
   request: {
@@ -569,16 +609,15 @@ function normalizeSourceChannelId(value: unknown): number {
 function getBalanceQueryFormDefaults(
   balanceQuery: BalanceQueryConfig | undefined
 ) {
-  const template =
-    BALANCE_QUERY_TEMPLATES[
-      balanceQuery?.template as keyof typeof BALANCE_QUERY_TEMPLATES
-    ] || BALANCE_QUERY_NEWAPI_TEMPLATE
+  const templateName = normalizeBalanceQueryTemplate(balanceQuery?.template)
+  const templateKey = getBalanceQueryTemplateKey(templateName)
+  const template = BALANCE_QUERY_TEMPLATES[templateKey]
   const request = balanceQuery?.request || {}
   const extractor = balanceQuery?.extractor || {}
 
   return {
     balance_query_enabled: balanceQuery?.enabled === true,
-    balance_query_template: balanceQuery?.template || 'newapi',
+    balance_query_template: templateName,
     balance_query_interval_seconds: normalizeInterval(
       balanceQuery?.interval_seconds
     ),
