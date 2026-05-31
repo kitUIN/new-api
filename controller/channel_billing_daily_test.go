@@ -63,11 +63,17 @@ func TestFormatProviderBalanceDailyReportIncludesDailyUsed(t *testing.T) {
 
 func TestSub2APIBalanceTemplateUsesTotalRecharged(t *testing.T) {
 	config := buildBalanceQueryConfig(nil, dto.BalanceQuery{Template: balanceQueryTemplateSub2API})
-	if config.Extractor.TotalPath != "total_recharged" {
-		t.Fatalf("expected total_recharged total path, got %q", config.Extractor.TotalPath)
+	if config.Request.URL != "{{baseUrl}}/api/v1/auth/me?timezone=Asia%2FShanghai" {
+		t.Fatalf("expected sub2api auth/me url, got %q", config.Request.URL)
+	}
+	if config.Extractor.RemainingPath != "data.balance" {
+		t.Fatalf("expected data.balance remaining path, got %q", config.Extractor.RemainingPath)
+	}
+	if config.Extractor.TotalPath != "data.total_recharged" {
+		t.Fatalf("expected data.total_recharged total path, got %q", config.Extractor.TotalPath)
 	}
 
-	result := extractBalanceQueryResult([]byte(`{"is_active":true,"remaining":37.0063,"total_recharged":60,"unit":"USD"}`), config.Extractor)
+	result := extractBalanceQueryResult([]byte(`{"code":0,"message":"success","data":{"balance":37.0063,"total_recharged":60}}`), config.Extractor)
 	if !result.IsValid {
 		t.Fatalf("expected valid result, got %q", result.InvalidMessage)
 	}
@@ -84,11 +90,11 @@ func TestSubAPIBalanceTemplateAliasUsesTotalRecharged(t *testing.T) {
 	if config.Template != balanceQueryTemplateSub2API {
 		t.Fatalf("expected sub_api alias to normalize to sub2api, got %q", config.Template)
 	}
-	if config.Extractor.TotalPath != "total_recharged" {
-		t.Fatalf("expected total_recharged total path, got %q", config.Extractor.TotalPath)
+	if config.Extractor.TotalPath != "data.total_recharged" {
+		t.Fatalf("expected data.total_recharged total path, got %q", config.Extractor.TotalPath)
 	}
 
-	result := extractBalanceQueryResult([]byte(`{"is_active":true,"remaining":37.0063,"total_recharged":60,"unit":"USD"}`), config.Extractor)
+	result := extractBalanceQueryResult([]byte(`{"code":0,"message":"success","data":{"balance":37.0063,"total_recharged":60}}`), config.Extractor)
 	if !result.IsValid {
 		t.Fatalf("expected valid result, got %q", result.InvalidMessage)
 	}

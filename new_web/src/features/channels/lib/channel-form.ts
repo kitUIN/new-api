@@ -61,7 +61,7 @@ export const BALANCE_QUERY_NEWAPI_TEMPLATE = {
 
 export const BALANCE_QUERY_SUB2API_TEMPLATE = {
   request: {
-    url: '{{baseUrl}}/v1/usage',
+    url: '{{baseUrl}}/api/v1/auth/me?timezone=Asia%2FShanghai',
     method: 'GET',
     headers: {
       Authorization: 'Bearer {{apiKey}}',
@@ -69,16 +69,16 @@ export const BALANCE_QUERY_SUB2API_TEMPLATE = {
   },
   extractor: {
     plan_name_path: '',
-    remaining_path: 'remaining,quota.remaining,balance',
+    remaining_path: 'data.balance',
     used_path: '',
-    total_path: 'total_recharged',
-    unit_path: 'unit,quota.unit',
+    total_path: 'data.total_recharged',
+    unit_path: '',
     unit: 'USD',
     divisor: 1,
-    success_path: 'is_active,isValid',
-    success_value: 'true',
-    success_optional: true,
-    message_path: 'message,error',
+    success_path: 'code',
+    success_value: '0',
+    success_optional: false,
+    message_path: 'message',
   },
 } as const
 

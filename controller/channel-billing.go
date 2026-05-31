@@ -443,7 +443,7 @@ func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dt
 
 	if template == balanceQueryTemplateSub2API {
 		if strings.TrimSpace(config.Request.URL) == "" {
-			config.Request.URL = "{{baseUrl}}/v1/usage"
+			config.Request.URL = "{{baseUrl}}/api/v1/auth/me?timezone=Asia%2FShanghai"
 		}
 		if strings.TrimSpace(config.Request.Method) == "" {
 			config.Request.Method = "GET"
@@ -455,13 +455,13 @@ func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dt
 			config.Request.Headers["Authorization"] = "Bearer {{apiKey}}"
 		}
 		if strings.TrimSpace(config.Extractor.RemainingPath) == "" {
-			config.Extractor.RemainingPath = "remaining,quota.remaining,balance"
+			config.Extractor.RemainingPath = "data.balance"
 		}
 		if strings.TrimSpace(config.Extractor.TotalPath) == "" {
-			config.Extractor.TotalPath = "total_recharged"
+			config.Extractor.TotalPath = "data.total_recharged"
 		}
 		if strings.TrimSpace(config.Extractor.UnitPath) == "" {
-			config.Extractor.UnitPath = "unit,quota.unit"
+			config.Extractor.UnitPath = ""
 		}
 		if strings.TrimSpace(config.Extractor.Unit) == "" {
 			config.Extractor.Unit = "USD"
@@ -470,12 +470,12 @@ func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dt
 			config.Extractor.Divisor = 1
 		}
 		if strings.TrimSpace(config.Extractor.SuccessPath) == "" {
-			config.Extractor.SuccessPath = "is_active,isValid"
+			config.Extractor.SuccessPath = "code"
 		}
 		if strings.TrimSpace(config.Extractor.SuccessValue) == "" {
-			config.Extractor.SuccessValue = "true"
+			config.Extractor.SuccessValue = "0"
 		}
-		config.Extractor.SuccessOptional = true
+		config.Extractor.SuccessOptional = false
 		_ = channel
 		return config
 	}
