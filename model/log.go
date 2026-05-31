@@ -304,6 +304,9 @@ func zeroTokenErrorFields(params RecordConsumeLogParams) []string {
 	if !consumeLogRequiresTokenUsage(params) {
 		return nil
 	}
+	if isClientGoneStreamConsume(params) {
+		return nil
+	}
 	fields := make([]string, 0, 2)
 	if params.PromptTokens <= 0 {
 		fields = append(fields, "prompt_tokens")
@@ -319,6 +322,20 @@ func consumeLogType(params RecordConsumeLogParams) int {
 		return LogTypeError
 	}
 	return LogTypeConsume
+}
+
+func isClientGoneStreamConsume(params RecordConsumeLogParams) bool {
+	if !params.IsStream || params.Other == nil {
+		return false
+	}
+	switch streamStatus := params.Other["stream_status"].(type) {
+	case map[string]interface{}:
+		return stringFromLogOther(streamStatus, "end_reason") == string(relaycommon.StreamEndReasonClientGone)
+	case map[string]string:
+		return strings.TrimSpace(streamStatus["end_reason"]) == string(relaycommon.StreamEndReasonClientGone)
+	default:
+		return false
+	}
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -338,7 +355,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	if errorFields := zeroTokenErrorFields(params); len(errorFields) > 0 {
+	if errorFields := zeroTokenErrorFields(params); logType == LogTypeError && len(errorFields) > 0 {
 		if params.Other == nil {
 			params.Other = make(map[string]interface{})
 		}

@@ -81,6 +81,33 @@ func TestRecordConsumeLogDoesNotMarkNonTokenBillingAsError(t *testing.T) {
 	require.Equal(t, LogTypeConsume, log.Type)
 }
 
+func TestRecordConsumeLogTreatsClientGoneStreamAsConsume(t *testing.T) {
+	truncateTables(t)
+
+	RecordConsumeLog(newLogTestContext(), 1, RecordConsumeLogParams{
+		ChannelId:        10,
+		PromptTokens:     8,
+		CompletionTokens: 0,
+		ModelName:        "gpt-test",
+		Content:          "client interrupted stream",
+		IsStream:         true,
+		Other: map[string]interface{}{
+			"request_path": "/v1/chat/completions",
+			"stream_status": map[string]interface{}{
+				"status":     "error",
+				"end_reason": "client_gone",
+				"end_error":  "context canceled",
+			},
+		},
+	})
+
+	var log Log
+	require.NoError(t, LOG_DB.First(&log).Error)
+	require.Equal(t, LogTypeConsume, log.Type)
+	require.NotContains(t, log.Other, "zero_token_error")
+	require.Contains(t, log.Other, "client_gone")
+}
+
 func TestFormatUserLogsHidesErrorDetails(t *testing.T) {
 	logs := []*Log{
 		{
