@@ -137,6 +137,7 @@ func InitOptionMap() {
 	common.OptionMap["QQCallbackAccessToken"] = ""
 	common.OptionMap["QQNumber"] = ""
 	common.OptionMap["QQAdminNumber"] = ""
+	common.OptionMap["QQFriendLink"] = common.QQFriendLink
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
@@ -484,6 +485,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QQNumber = value
 	case "QQAdminNumber":
 		common.QQAdminNumber = value
+	case "QQFriendLink":
+		common.QQFriendLink = value
 	case "TelegramBotToken":
 		common.TelegramBotToken = value
 	case "TelegramBotName":

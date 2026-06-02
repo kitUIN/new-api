@@ -76,6 +76,7 @@ const oauthSchema = z.object({
   QQCallbackAccessToken: z.string().optional(),
   QQNumber: z.string().optional(),
   QQAdminNumber: z.string().optional(),
+  QQFriendLink: z.string().optional(),
 })
 
 const oauthTabContentClassName =
@@ -119,6 +120,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     QQCallbackAccessToken: defaultValues.QQCallbackAccessToken ?? '',
     QQNumber: defaultValues.QQNumber ?? '',
     QQAdminNumber: defaultValues.QQAdminNumber ?? '',
+    QQFriendLink: defaultValues.QQFriendLink ?? '',
   }
 
   const form = useForm<OAuthFormValues>({
@@ -860,6 +862,27 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                       <FormControl>
                         <Input autoComplete='off' {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQFriendLink'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('QQ Friend Link')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('https://qm.qq.com/q/iEXjxDoSrK')}
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Used by the QQ binding dialog to open the add-friend link.')}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

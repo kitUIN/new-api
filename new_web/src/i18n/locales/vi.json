@@ -4530,6 +4530,20 @@
     "QQ Number": "Số QQ",
     "QQ Service Address": "Địa chỉ dịch vụ QQ",
     "Sensitive information is not returned by the server": "Thông tin nhạy cảm không được máy chủ trả về",
-    "https://qq-service.example.com": "https://qq-service.example.com"
+    "https://qq-service.example.com": "https://qq-service.example.com",
+    "Add QQ friend": "Thêm bạn QQ",
+    "Add the QQ account below and send the binding command.": "Thêm tài khoản QQ bên dưới và gửi lệnh liên kết.",
+    "Bind QQ Account": "Liên kết tài khoản QQ",
+    "Binding failed": "Liên kết thất bại",
+    "Copy binding command": "Sao chép lệnh liên kết",
+    "Enter the QQ verification code": "Nhập mã xác minh QQ",
+    "Failed to create QQ binding session": "Không thể tạo phiên liên kết QQ",
+    "QQ account bound successfully": "Liên kết tài khoản QQ thành công",
+    "QQ returned verification code": "Mã xác minh QQ trả về",
+    "Send this command": "Gửi lệnh này",
+    "Open QQ friend link": "Mở liên kết bạn QQ",
+    "QQ Friend Link": "Liên kết bạn QQ",
+    "Used by the QQ binding dialog to open the add-friend link.": "Được dùng trong hộp thoại liên kết QQ để mở liên kết thêm bạn.",
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
   }
 }

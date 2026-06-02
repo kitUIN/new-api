@@ -4624,6 +4624,20 @@
     "QQ Number": "QQ 号",
     "QQ Service Address": "QQ 服务地址",
     "Sensitive information is not returned by the server": "敏感信息不会由服务端返回",
-    "https://qq-service.example.com": "https://qq-service.example.com"
+    "https://qq-service.example.com": "https://qq-service.example.com",
+    "Add QQ friend": "添加 QQ 好友",
+    "Add the QQ account below and send the binding command.": "添加下方 QQ 账号并发送绑定命令。",
+    "Bind QQ Account": "绑定 QQ 账户",
+    "Binding failed": "绑定失败",
+    "Copy binding command": "复制绑定命令",
+    "Enter the QQ verification code": "输入 QQ 验证码",
+    "Failed to create QQ binding session": "创建 QQ 绑定会话失败",
+    "QQ account bound successfully": "QQ 账户绑定成功",
+    "QQ returned verification code": "QQ 返回的消息验证码",
+    "Send this command": "发送以下命令",
+    "Open QQ friend link": "打开 QQ 好友链接",
+    "QQ Friend Link": "QQ 好友链接",
+    "Used by the QQ binding dialog to open the add-friend link.": "用于 QQ 绑定对话框打开加好友链接。",
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
   }
 }

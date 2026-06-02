@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { FaQq } from 'react-icons/fa'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
 import { toast } from 'sonner'
 import { IconDiscord } from '@/assets/brand-icons'
@@ -36,12 +37,15 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
+  createQQBindingSession,
   getSelfOAuthBindings,
   unbindCustomOAuth,
   type CustomOAuthBinding,
+  type QQBindingSession,
 } from '../../api'
 import type { UserProfile, BindingItem } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
+import { QQBindDialog } from '../dialogs/qq-bind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
 import { WeChatBindDialog } from '../dialogs/wechat-bind-dialog'
 
@@ -54,7 +58,7 @@ interface AccountBindingsTabProps {
   onUpdate: () => void
 }
 
-type DialogKey = 'email' | 'wechat' | 'telegram'
+type DialogKey = 'email' | 'wechat' | 'telegram' | 'qq'
 
 export function AccountBindingsTab({
   profile,
@@ -67,6 +71,9 @@ export function AccountBindingsTab({
   const [unbindTarget, setUnbindTarget] = useState<CustomOAuthBinding | null>(
     null
   )
+  const [qqSession, setQQSession] = useState<QQBindingSession | null>(null)
+  const [qqFriendLink, setQQFriendLink] = useState('')
+  const [creatingQQSession, setCreatingQQSession] = useState(false)
   const [unbinding, setUnbinding] = useState(false)
 
   const customProviders = status?.custom_oauth_providers as
@@ -116,6 +123,34 @@ export function AccountBindingsTab({
   const handleBindCustomOAuth = (provider: { id: string; name: string }) => {
     const redirectUrl = `${window.location.origin}/oauth/${provider.id}?bind=true`
     window.location.href = `/api/oauth/${provider.id}?redirect=${encodeURIComponent(redirectUrl)}`
+  }
+
+  const handleStartQQBind = async () => {
+    setCreatingQQSession(true)
+    try {
+      const res = await createQQBindingSession()
+      if (res.success) {
+        setQQSession({
+          qq_number:
+            res.data?.qq_number ||
+            (status?.qq_number as string | undefined) ||
+            '',
+          command: res.data?.command || `/nachoai b ${profile?.id ?? ''}`,
+        })
+        setQQFriendLink((status?.qq_friend_link as string | undefined) || '')
+        dialogs.open('qq')
+      } else {
+        toast.error(res.message || t('Failed to create QQ binding session'))
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to create QQ binding session')
+      )
+    } finally {
+      setCreatingQQSession(false)
+    }
   }
 
   useEffect(() => {
@@ -170,6 +205,16 @@ export function AccountBindingsTab({
         ),
         isEnabled: status?.wechat_login || false,
         onBind: () => dialogs.open('wechat'),
+      },
+      {
+        id: 'qq',
+        label: t('QQ'),
+        icon: FaQq,
+        value: profile.qq_id,
+        isBound: Boolean(profile.qq_id),
+        isEnabled: status?.qq_login || false,
+        isLoading: creatingQQSession,
+        onBind: handleStartQQBind,
       },
       {
         id: 'github',
@@ -257,7 +302,7 @@ export function AccountBindingsTab({
       },
     ].filter((binding) => binding.isEnabled)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, status, t])
+  }, [profile, status, t, creatingQQSession])
 
   if (!profile || loading) return null
 
@@ -294,13 +339,20 @@ export function AccountBindingsTab({
               size='sm'
               className='h-7 shrink-0 px-2.5 text-xs'
               onClick={binding.onBind}
-              disabled={binding.isBound && binding.id !== 'email'}
+              disabled={
+                binding.isLoading ||
+                (binding.isBound &&
+                  binding.id !== 'email' &&
+                  binding.id !== 'qq')
+              }
             >
-              {binding.isBound
-                ? binding.id === 'email'
-                  ? t('Change')
-                  : t('Bound')
-                : t('Bind')}
+              {binding.isLoading
+                ? t('Loading...')
+                : binding.isBound
+                  ? binding.id === 'email' || binding.id === 'qq'
+                    ? t('Change')
+                    : t('Bound')
+                  : t('Bind')}
             </Button>
           </div>
         ))}
@@ -406,6 +458,18 @@ export function AccountBindingsTab({
         onOpenChange={(open) =>
           open ? dialogs.open('wechat') : dialogs.close('wechat')
         }
+        onSuccess={onUpdate}
+      />
+
+      {/* QQ Bind Dialog */}
+      <QQBindDialog
+        open={dialogs.isOpen('qq')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('qq') : dialogs.close('qq')
+        }
+        session={qqSession}
+        friendLink={qqFriendLink}
+        userId={profile.id}
         onSuccess={onUpdate}
       />
 

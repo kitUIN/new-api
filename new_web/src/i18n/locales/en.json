@@ -4624,6 +4624,20 @@
     "QQ Number": "QQ Number",
     "QQ Service Address": "QQ Service Address",
     "Sensitive information is not returned by the server": "Sensitive information is not returned by the server",
-    "https://qq-service.example.com": "https://qq-service.example.com"
+    "https://qq-service.example.com": "https://qq-service.example.com",
+    "Add QQ friend": "Add QQ friend",
+    "Add the QQ account below and send the binding command.": "Add the QQ account below and send the binding command.",
+    "Bind QQ Account": "Bind QQ Account",
+    "Binding failed": "Binding failed",
+    "Copy binding command": "Copy binding command",
+    "Enter the QQ verification code": "Enter the QQ verification code",
+    "Failed to create QQ binding session": "Failed to create QQ binding session",
+    "QQ account bound successfully": "QQ account bound successfully",
+    "QQ returned verification code": "QQ returned verification code",
+    "Send this command": "Send this command",
+    "Open QQ friend link": "Open QQ friend link",
+    "QQ Friend Link": "QQ Friend Link",
+    "Used by the QQ binding dialog to open the add-friend link.": "Used by the QQ binding dialog to open the add-friend link.",
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
   }
 }

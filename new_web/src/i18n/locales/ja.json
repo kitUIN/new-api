@@ -4530,6 +4530,20 @@
     "QQ Number": "QQ番号",
     "QQ Service Address": "QQサービスアドレス",
     "Sensitive information is not returned by the server": "機密情報はサーバーから返されません",
-    "https://qq-service.example.com": "https://qq-service.example.com"
+    "https://qq-service.example.com": "https://qq-service.example.com",
+    "Add QQ friend": "QQ友達を追加",
+    "Add the QQ account below and send the binding command.": "下記のQQアカウントを追加し、連携コマンドを送信してください。",
+    "Bind QQ Account": "QQアカウントを連携",
+    "Binding failed": "連携に失敗しました",
+    "Copy binding command": "連携コマンドをコピー",
+    "Enter the QQ verification code": "QQ認証コードを入力",
+    "Failed to create QQ binding session": "QQ連携セッションの作成に失敗しました",
+    "QQ account bound successfully": "QQアカウントを連携しました",
+    "QQ returned verification code": "QQが返した認証コード",
+    "Send this command": "このコマンドを送信",
+    "Open QQ friend link": "QQ友達リンクを開く",
+    "QQ Friend Link": "QQ友達リンク",
+    "Used by the QQ binding dialog to open the add-friend link.": "QQ連携ダイアログで友達追加リンクを開くために使用されます。",
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
   }
 }

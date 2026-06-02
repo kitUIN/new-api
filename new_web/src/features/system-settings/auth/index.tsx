@@ -61,6 +61,7 @@ const defaultAuthSettings: AuthSettings = {
   QQCallbackAccessToken: '',
   QQNumber: '',
   QQAdminNumber: '',
+  QQFriendLink: 'https://qm.qq.com/q/iEXjxDoSrK',
   TurnstileCheckEnabled: false,
   TurnstileSiteKey: '',
   TurnstileSecretKey: '',

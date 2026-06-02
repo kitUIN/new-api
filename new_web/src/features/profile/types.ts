@@ -71,6 +71,8 @@ export interface UserProfile {
   setting?: string
   /** WeChat ID (OAuth) */
   wechat_id?: string
+  /** QQ ID */
+  qq_id?: string
   /** GitHub ID (OAuth) */
   github_id?: string
   /** Discord ID (OAuth) */
@@ -164,6 +166,7 @@ export interface BindingItem {
   value?: string
   isBound: boolean
   isEnabled: boolean
+  isLoading?: boolean
   onBind: () => void
 }
 

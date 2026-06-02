@@ -69,6 +69,7 @@ func GetStatus(c *gin.Context) {
 		"qq_login":                    common.QQAuthEnabled,
 		"qq_number":                   common.QQNumber,
 		"qq_admin_number":             common.QQAdminNumber,
+		"qq_friend_link":              common.QQFriendLink,
 		"server_address":              system_setting.ServerAddress,
 		"turnstile_check":             common.TurnstileCheckEnabled,
 		"turnstile_site_key":          common.TurnstileSiteKey,

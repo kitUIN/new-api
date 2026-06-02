@@ -4530,6 +4530,20 @@
     "QQ Number": "Номер QQ",
     "QQ Service Address": "Адрес сервиса QQ",
     "Sensitive information is not returned by the server": "Конфиденциальная информация не возвращается сервером",
-    "https://qq-service.example.com": "https://qq-service.example.com"
+    "https://qq-service.example.com": "https://qq-service.example.com",
+    "Add QQ friend": "Добавьте QQ в друзья",
+    "Add the QQ account below and send the binding command.": "Добавьте указанный ниже аккаунт QQ и отправьте команду привязки.",
+    "Bind QQ Account": "Привязать аккаунт QQ",
+    "Binding failed": "Привязка не удалась",
+    "Copy binding command": "Скопировать команду привязки",
+    "Enter the QQ verification code": "Введите код подтверждения QQ",
+    "Failed to create QQ binding session": "Не удалось создать сессию привязки QQ",
+    "QQ account bound successfully": "Аккаунт QQ успешно привязан",
+    "QQ returned verification code": "Код подтверждения, вернутый QQ",
+    "Send this command": "Отправьте эту команду",
+    "Open QQ friend link": "Открыть ссылку друга QQ",
+    "QQ Friend Link": "Ссылка друга QQ",
+    "Used by the QQ binding dialog to open the add-friend link.": "Используется в диалоге привязки QQ для открытия ссылки добавления в друзья.",
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
   }
 }

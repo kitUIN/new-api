@@ -108,6 +108,7 @@ export type AuthSettings = {
   QQCallbackAccessToken: string
   QQNumber: string
   QQAdminNumber: string
+  QQFriendLink: string
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string

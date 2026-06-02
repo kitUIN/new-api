@@ -4530,6 +4530,20 @@
     "QQ Number": "Numéro QQ",
     "QQ Service Address": "Adresse du service QQ",
     "Sensitive information is not returned by the server": "Les informations sensibles ne sont pas renvoyées par le serveur",
-    "https://qq-service.example.com": "https://qq-service.example.com"
+    "https://qq-service.example.com": "https://qq-service.example.com",
+    "Add QQ friend": "Ajouter un ami QQ",
+    "Add the QQ account below and send the binding command.": "Ajoutez le compte QQ ci-dessous et envoyez la commande de liaison.",
+    "Bind QQ Account": "Lier un compte QQ",
+    "Binding failed": "Échec de la liaison",
+    "Copy binding command": "Copier la commande de liaison",
+    "Enter the QQ verification code": "Saisissez le code de vérification QQ",
+    "Failed to create QQ binding session": "Échec de la création de la session de liaison QQ",
+    "QQ account bound successfully": "Compte QQ lié avec succès",
+    "QQ returned verification code": "Code de vérification renvoyé par QQ",
+    "Send this command": "Envoyer cette commande",
+    "Open QQ friend link": "Ouvrir le lien d’ami QQ",
+    "QQ Friend Link": "Lien d’ami QQ",
+    "Used by the QQ binding dialog to open the add-friend link.": "Utilisé par la boîte de dialogue de liaison QQ pour ouvrir le lien d’ajout d’ami.",
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
   }
 }

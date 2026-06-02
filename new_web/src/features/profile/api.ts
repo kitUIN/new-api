@@ -136,6 +136,29 @@ export async function bindWeChat(code: string): Promise<ApiResponse> {
   return res.data
 }
 
+export type QQBindingSession = {
+  qq_number?: string
+  command?: string
+}
+
+/**
+ * Create QQ binding session
+ */
+export async function createQQBindingSession(): Promise<
+  ApiResponse<QQBindingSession>
+> {
+  const res = await api.post('/api/oauth/qq/create')
+  return res.data
+}
+
+/**
+ * Bind QQ account
+ */
+export async function bindQQ(code: string): Promise<ApiResponse> {
+  const res = await api.post('/api/oauth/qq/bind', { code })
+  return res.data
+}
+
 // ============================================================================
 // Custom OAuth Binding APIs
 // ============================================================================
