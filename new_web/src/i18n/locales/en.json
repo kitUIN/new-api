@@ -4615,6 +4615,15 @@
     "Used path": "已用额度路径",
     "Value divisor": "数值除数",
     "When enabled, background checks query upstream groups and cache the result.": "启用后，后台会查询上游可用分组并缓存结果。",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Admin QQ": "Admin QQ",
+    "Allow users to bind QQ accounts": "Allow users to bind QQ accounts",
+    "Enable QQ Account Binding": "Enable QQ Account Binding",
+    "QQ": "QQ",
+    "QQ Callback Access Token": "QQ Callback Access Token",
+    "QQ Number": "QQ Number",
+    "QQ Service Address": "QQ Service Address",
+    "Sensitive information is not returned by the server": "Sensitive information is not returned by the server",
+    "https://qq-service.example.com": "https://qq-service.example.com"
   }
 }

@@ -103,6 +103,11 @@ export type AuthSettings = {
   WeChatServerAddress: string
   WeChatServerToken: string
   WeChatAccountQRCodeImageURL: string
+  QQAuthEnabled: boolean
+  QQCallbackAddress: string
+  QQCallbackAccessToken: string
+  QQNumber: string
+  QQAdminNumber: string
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string

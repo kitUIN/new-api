@@ -71,6 +71,11 @@ const oauthSchema = z.object({
   WeChatServerAddress: z.string().optional(),
   WeChatServerToken: z.string().optional(),
   WeChatAccountQRCodeImageURL: z.string().optional(),
+  QQAuthEnabled: z.boolean(),
+  QQCallbackAddress: z.string().optional(),
+  QQCallbackAccessToken: z.string().optional(),
+  QQNumber: z.string().optional(),
+  QQAdminNumber: z.string().optional(),
 })
 
 const oauthTabContentClassName =
@@ -110,6 +115,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     WeChatServerToken: defaultValues.WeChatServerToken ?? '',
     WeChatAccountQRCodeImageURL:
       defaultValues.WeChatAccountQRCodeImageURL ?? '',
+    QQCallbackAddress: defaultValues.QQCallbackAddress ?? '',
+    QQCallbackAccessToken: defaultValues.QQCallbackAccessToken ?? '',
+    QQNumber: defaultValues.QQNumber ?? '',
+    QQAdminNumber: defaultValues.QQAdminNumber ?? '',
   }
 
   const form = useForm<OAuthFormValues>({
@@ -194,8 +203,15 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
       return
     }
 
-    // Save all changed fields
-    for (const [key, value] of updates) {
+    const orderedUpdates = [...updates].sort(([leftKey], [rightKey]) => {
+      if (leftKey === 'QQAuthEnabled') return 1
+      if (rightKey === 'QQAuthEnabled') return -1
+      return 0
+    })
+
+    // Save all changed fields. QQAuthEnabled is submitted last because the
+    // backend validates the QQ service fields before allowing it to be enabled.
+    for (const [key, value] of orderedUpdates) {
       await updateOption.mutateAsync({ key, value: value ?? '' })
     }
 
@@ -269,13 +285,14 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-6'>
+              <TabsList className='grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-7'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
                 <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
+                <TabsTrigger value='qq'>{t('QQ')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value='github' className={oauthTabContentClassName}>
@@ -752,6 +769,96 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           autoComplete='off'
                           {...field}
                         />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='qq' className={oauthTabContentClassName}>
+                <FormField
+                  control={form.control}
+                  name='QQAuthEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable QQ Account Binding')}</FormLabel>
+                        <FormDescription>
+                          {t('Allow users to bind QQ accounts')}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQCallbackAddress'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('QQ Service Address')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('https://qq-service.example.com')}
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQCallbackAccessToken'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('QQ Callback Access Token')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t(
+                            'Sensitive information is not returned by the server'
+                          )}
+                          autoComplete='new-password'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQNumber'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('QQ Number')}</FormLabel>
+                      <FormControl>
+                        <Input autoComplete='off' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQAdminNumber'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Admin QQ')}</FormLabel>
+                      <FormControl>
+                        <Input autoComplete='off' {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

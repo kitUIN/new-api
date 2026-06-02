@@ -4521,6 +4521,15 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Admin QQ": "QQ quản trị viên",
+    "Allow users to bind QQ accounts": "Cho phép người dùng liên kết tài khoản QQ",
+    "Enable QQ Account Binding": "Bật liên kết tài khoản QQ",
+    "QQ": "QQ",
+    "QQ Callback Access Token": "Mã truy cập callback QQ",
+    "QQ Number": "Số QQ",
+    "QQ Service Address": "Địa chỉ dịch vụ QQ",
+    "Sensitive information is not returned by the server": "Thông tin nhạy cảm không được máy chủ trả về",
+    "https://qq-service.example.com": "https://qq-service.example.com"
   }
 }

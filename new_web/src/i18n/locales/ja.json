@@ -4521,6 +4521,15 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Admin QQ": "管理者QQ",
+    "Allow users to bind QQ accounts": "ユーザーにQQアカウントの連携を許可",
+    "Enable QQ Account Binding": "QQアカウント連携を有効化",
+    "QQ": "QQ",
+    "QQ Callback Access Token": "QQコールバックアクセストークン",
+    "QQ Number": "QQ番号",
+    "QQ Service Address": "QQサービスアドレス",
+    "Sensitive information is not returned by the server": "機密情報はサーバーから返されません",
+    "https://qq-service.example.com": "https://qq-service.example.com"
   }
 }
