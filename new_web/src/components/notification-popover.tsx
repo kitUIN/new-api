@@ -184,7 +184,7 @@ function NoticeContent({
 
   return (
     <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
-      <Markdown>{notice}</Markdown>
+      <Markdown breaks>{notice}</Markdown>
     </ScrollArea>
   )
 }
@@ -238,12 +238,12 @@ function AnnouncementsContent({
                   <AnnouncementDot type={item.type} />
                   <div className='flex min-w-0 flex-1 flex-col gap-2'>
                     <div className='text-sm'>
-                      <Markdown>{item.content || ''}</Markdown>
+                      <Markdown breaks>{item.content || ''}</Markdown>
                     </div>
 
                     {item.extra ? (
                       <div className='text-muted-foreground text-xs'>
-                        <Markdown>{item.extra}</Markdown>
+                        <Markdown breaks>{item.extra}</Markdown>
                       </div>
                     ) : null}
 

@@ -53,6 +53,13 @@ import { BalancePopover } from './balance-popover'
 type AspectRatio = (typeof DRAWING_ASPECT_RATIOS)[number]['value']
 type Resolution = (typeof DRAWING_RESOLUTIONS)[number]['value']
 
+const DRAWING_ASPECT_RATIO_STORAGE_KEY = 'drawing:aspect-ratio'
+const DRAWING_RESOLUTION_STORAGE_KEY = 'drawing:resolution'
+const DRAWING_ASPECT_RATIO_VALUES = DRAWING_ASPECT_RATIOS.map(
+  (item) => item.value
+)
+const DRAWING_RESOLUTION_VALUES = DRAWING_RESOLUTIONS.map((item) => item.value)
+
 type DrawingInputBarProps = {
   balanceInfo: DrawingBalanceInfo
   disabled: boolean
@@ -65,8 +72,20 @@ type DrawingInputBarProps = {
 export function DrawingInputBar(props: DrawingInputBarProps) {
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1')
-  const [resolution, setResolution] = useState<Resolution>('1K')
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>(() =>
+    getStoredDrawingPreference(
+      DRAWING_ASPECT_RATIO_STORAGE_KEY,
+      DRAWING_ASPECT_RATIO_VALUES,
+      '1:1'
+    )
+  )
+  const [resolution, setResolution] = useState<Resolution>(() =>
+    getStoredDrawingPreference(
+      DRAWING_RESOLUTION_STORAGE_KEY,
+      DRAWING_RESOLUTION_VALUES,
+      '1K'
+    )
+  )
   const [images, setImages] = useState<string[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -212,9 +231,15 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
 
           <Select
             value={aspectRatio}
-            onValueChange={(value) =>
-              value && setAspectRatio(value as AspectRatio)
-            }
+            onValueChange={(value) => {
+              const nextValue = getValidDrawingPreference(
+                value,
+                DRAWING_ASPECT_RATIO_VALUES
+              )
+              if (!nextValue) return
+              setAspectRatio(nextValue)
+              saveDrawingPreference(DRAWING_ASPECT_RATIO_STORAGE_KEY, nextValue)
+            }}
           >
             <SelectTrigger size='sm'>
               <SelectValue />
@@ -230,9 +255,15 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
 
           <Select
             value={resolution}
-            onValueChange={(value) =>
-              value && setResolution(value as Resolution)
-            }
+            onValueChange={(value) => {
+              const nextValue = getValidDrawingPreference(
+                value,
+                DRAWING_RESOLUTION_VALUES
+              )
+              if (!nextValue) return
+              setResolution(nextValue)
+              saveDrawingPreference(DRAWING_RESOLUTION_STORAGE_KEY, nextValue)
+            }}
           >
             <SelectTrigger size='sm'>
               <SelectValue />
@@ -289,4 +320,37 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
       </AlertDialog>
     </div>
   )
+}
+
+function getStoredDrawingPreference<T extends string>(
+  storageKey: string,
+  values: readonly T[],
+  fallback: T
+): T {
+  if (typeof window === 'undefined') return fallback
+
+  try {
+    const value = window.localStorage.getItem(storageKey)
+    return getValidDrawingPreference(value, values) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+function getValidDrawingPreference<T extends string>(
+  value: string | null,
+  values: readonly T[]
+): T | null {
+  if (!value) return null
+  return values.includes(value as T) ? (value as T) : null
+}
+
+function saveDrawingPreference(storageKey: string, value: string) {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(storageKey, value)
+  } catch {
+    /* Ignore unavailable localStorage. */
+  }
 }
