@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { getDrawingMessageImages } from '../api'
-import { extractDrawingResultImages } from '../lib/images'
+import { extractDrawingResultImages, parseDrawingImages } from '../lib/images'
 import type { DrawingImageResult, DrawingMessage } from '../types'
 import { DrawingImageCard } from './drawing-image-card'
 
@@ -53,6 +53,9 @@ export function DrawingCanvas(props: DrawingCanvasProps) {
   const [imageCache, setImageCache] = useState<
     Record<number, DrawingImageResult[]>
   >({})
+  const [inputImageCache, setInputImageCache] = useState<
+    Record<number, string[]>
+  >({})
   const [imageLoading, setImageLoading] = useState(false)
   const fetchedRef = useRef(new Set<number>())
   const message = props.messages[0] || null
@@ -62,6 +65,7 @@ export function DrawingCanvas(props: DrawingCanvasProps) {
   useEffect(() => {
     fetchedRef.current = new Set()
     setImageCache({})
+    setInputImageCache({})
   }, [props.activeSessionId])
 
   useEffect(() => {
@@ -75,6 +79,10 @@ export function DrawingCanvas(props: DrawingCanvasProps) {
         setImageCache((prev) => ({
           ...prev,
           [message.id]: extractDrawingResultImages(data?.result_data),
+        }))
+        setInputImageCache((prev) => ({
+          ...prev,
+          [message.id]: parseDrawingImages(data?.image_urls),
         }))
       })
       .catch(() => undefined)
@@ -99,6 +107,8 @@ export function DrawingCanvas(props: DrawingCanvasProps) {
 
   const resultImages =
     imageCache[message.id] || extractDrawingResultImages(message.result_data)
+  const inputImages =
+    inputImageCache[message.id] || parseDrawingImages(message.image_urls)
 
   return (
     <div className='flex h-full min-h-0 flex-col'>
@@ -172,6 +182,7 @@ export function DrawingCanvas(props: DrawingCanvasProps) {
                 {resultImages.map((image, index) => (
                   <DrawingImageCard
                     image={image}
+                    inputImages={inputImages}
                     key={`${message.id}-${index}`}
                   />
                 ))}

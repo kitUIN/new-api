@@ -456,6 +456,15 @@ export const STATIC_I18N_KEYS = [
   'No models available in this category',
   'Copied: {{model}}',
 
+  // Drawing page dynamic labels
+  'Square',
+  '9:16 Portrait',
+  '16:9 Landscape',
+  '3:4 Portrait',
+  '4:3 Landscape',
+  'Model pricing not found',
+  'Unavailable',
+
   // Grok settings
   'Grok Settings',
   'Enable violation deduction',

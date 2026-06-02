@@ -97,7 +97,7 @@ export function useDrawingSubmit(options: UseDrawingSubmitOptions) {
         model: payload.model,
         size: payload.size,
         quality: payload.quality,
-        image_urls: null,
+        image_urls: payload.images,
         status: 'pending',
         created_at: Math.floor(Date.now() / 1000),
         optimistic: true,

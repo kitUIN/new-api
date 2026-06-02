@@ -258,6 +258,7 @@ func buildDrawingMessageMeta(m *model.DrawingMessage) gin.H {
 		"quality":     m.Quality,
 		"status":      m.Status,
 		"fail_reason": m.FailReason,
+		"image_urls":  m.ImageUrls,
 		"created_at":  m.CreatedAt,
 	}
 }

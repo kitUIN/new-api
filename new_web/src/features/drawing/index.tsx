@@ -92,8 +92,8 @@ export function Drawing() {
 
   const currentMessage = messagesState.currentMessage
   const nextDefaultTitle = useMemo(
-    () => getNextDrawingSessionTitle(sessionsState.sessions),
-    [sessionsState.sessions]
+    () => getNextDrawingSessionTitle(sessionsState.sessions, t('New Session')),
+    [sessionsState.sessions, t]
   )
 
   const pricingQuery = useQuery({

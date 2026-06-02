@@ -19,14 +19,26 @@ For commercial licensing, please contact support@quantumnous.com
 import { DRAWING_SESSION_TITLE_PREFIX } from '../constants'
 import type { DrawingSession } from '../types'
 
-export function getNextDrawingSessionTitle(sessions: DrawingSession[]): string {
+export function getNextDrawingSessionTitle(
+  sessions: DrawingSession[],
+  titlePrefix = DRAWING_SESSION_TITLE_PREFIX
+): string {
+  const normalizedPrefix = titlePrefix.endsWith(' ')
+    ? titlePrefix
+    : `${titlePrefix} `
+  const titlePrefixes = Array.from(
+    new Set([normalizedPrefix, DRAWING_SESSION_TITLE_PREFIX])
+  )
   const usedIndexes = new Set<number>()
 
   for (const session of sessions) {
     const title = String(session.title || '').trim()
-    if (!title.startsWith(DRAWING_SESSION_TITLE_PREFIX)) continue
+    const matchedPrefix = titlePrefixes.find((prefix) =>
+      title.startsWith(prefix.trimEnd())
+    )
+    if (!matchedPrefix) continue
 
-    const suffix = title.slice(DRAWING_SESSION_TITLE_PREFIX.length)
+    const suffix = title.slice(matchedPrefix.trimEnd().length).trim()
     if (!/^\d+$/.test(suffix)) continue
 
     const index = Number(suffix)
@@ -37,7 +49,7 @@ export function getNextDrawingSessionTitle(sessions: DrawingSession[]): string {
 
   for (let index = 1; ; index += 1) {
     if (!usedIndexes.has(index)) {
-      return `${DRAWING_SESSION_TITLE_PREFIX}${index}`
+      return `${normalizedPrefix}${index}`
     }
   }
 }

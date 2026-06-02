@@ -48,12 +48,7 @@ export function extractDrawingResultImages(
 }
 
 export function getDrawingImageSource(image: DrawingImageResult): string {
-  const url = image.url || image.b64_json || ''
-  if (!url) return ''
-  if (url.startsWith('/')) return url
-  if (url.startsWith('data:')) return url
-  if (/^https?:\/\//i.test(url)) return url
-  return `data:image/png;base64,${url}`
+  return normalizeDrawingImageSource(image.url || image.b64_json || '')
 }
 
 export function mergeDrawingImages(
@@ -84,4 +79,13 @@ function isImageResult(value: unknown): value is DrawingImageResult {
   if (!value || typeof value !== 'object') return false
   const item = value as Record<string, unknown>
   return typeof item.url === 'string' || typeof item.b64_json === 'string'
+}
+
+function normalizeDrawingImageSource(value: string): string {
+  const source = value.trim()
+  if (!source) return ''
+  if (source.startsWith('/')) return source
+  if (source.startsWith('data:')) return source
+  if (/^https?:\/\//i.test(source)) return source
+  return `data:image/png;base64,${source}`
 }
