@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getUserModels } from '@/lib/api'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { ComboboxInput } from '@/components/ui/combobox-input'
 import {
@@ -61,17 +62,69 @@ const APP_CONFIGS = {
 
 type AppType = keyof typeof APP_CONFIGS
 
-function getServerAddress(): string {
+function normalizeBaseUrl(url?: string): string {
+  return (url || '').trim().replace(/\/+$/, '')
+}
+
+function getServerAddress(status?: Record<string, unknown> | null): string {
+  const statusAddress =
+    typeof status?.server_address === 'string'
+      ? status.server_address
+      : typeof (status?.data as Record<string, unknown> | undefined)
+            ?.server_address === 'string'
+        ? ((status?.data as Record<string, unknown>).server_address as string)
+        : ''
+  if (statusAddress) return normalizeBaseUrl(statusAddress)
+
   try {
     const raw = localStorage.getItem('status')
     if (raw) {
       const status = JSON.parse(raw)
-      if (status.server_address) return status.server_address
+      if (status.server_address) return normalizeBaseUrl(status.server_address)
     }
   } catch {
     /* empty */
   }
-  return window.location.origin
+  return normalizeBaseUrl(window.location.origin)
+}
+
+function getApiInfoBaseUrls(status?: Record<string, unknown> | null) {
+  const directApiInfo = status?.api_info
+  const nestedApiInfo = (status?.data as Record<string, unknown> | undefined)
+    ?.api_info
+  const apiInfo = Array.isArray(directApiInfo)
+    ? directApiInfo
+    : Array.isArray(nestedApiInfo)
+      ? nestedApiInfo
+      : []
+
+  return apiInfo
+    .map((item) => {
+      const apiInfoItem = item as Record<string, unknown>
+      const url =
+        typeof apiInfoItem.url === 'string'
+          ? normalizeBaseUrl(apiInfoItem.url)
+          : ''
+      const route =
+        typeof apiInfoItem.route === 'string' ? apiInfoItem.route.trim() : ''
+      const description =
+        typeof apiInfoItem.description === 'string'
+          ? apiInfoItem.description.trim()
+          : ''
+      return {
+        value: url,
+        label: [route, description].filter(Boolean).join(' - ') || url,
+        isDefault: Boolean(apiInfoItem.is_default),
+      }
+    })
+    .filter((item) => item.value)
+}
+
+function getDefaultBaseUrl(status?: Record<string, unknown> | null): string {
+  return (
+    getApiInfoBaseUrls(status).find((item) => item.isDefault)?.value ||
+    getServerAddress(status)
+  )
 }
 
 function buildCCSwitchURL(
@@ -80,9 +133,10 @@ function buildCCSwitchURL(
   models: Record<string, string>,
   apiKey: string,
   accessToken: string,
-  userId: number
+  userId: number,
+  baseUrl: string
 ): string {
-  const serverAddress = getServerAddress()
+  const serverAddress = normalizeBaseUrl(baseUrl) || getServerAddress()
   const endpoint = app === 'codex' ? serverAddress + '/v1' : serverAddress
   const params = new URLSearchParams()
   params.set('resource', 'provider')
@@ -120,11 +174,13 @@ interface Props {
 export function CCSwitchDialog(props: Props) {
   const { t } = useTranslation()
   const userId = useAuthStore((state) => state.auth.user?.id)
+  const { status } = useStatus()
   const [app, setApp] = useState<AppType>('claude')
   const [name, setName] = useState<string>(() =>
     buildDefaultName(props.tokenName)
   )
   const [models, setModels] = useState<Record<string, string>>({})
+  const [baseUrl, setBaseUrl] = useState<string>(() => getDefaultBaseUrl())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { data: modelsData } = useQuery({
@@ -139,6 +195,26 @@ export function CCSwitchDialog(props: Props) {
     return items.map((m) => ({ value: m, label: m }))
   }, [modelsData?.data])
 
+  const baseUrlOptions = useMemo(() => {
+    const serverAddress = getServerAddress(status)
+    const options = [
+      {
+        value: serverAddress,
+        label: `${t('Current domain')} (${serverAddress})`,
+      },
+      ...getApiInfoBaseUrls(status).map((item) => ({
+        value: item.value,
+        label: `${item.label} (${item.value})`,
+      })),
+    ]
+    const seen = new Set<string>()
+    return options.filter((item) => {
+      if (!item.value || seen.has(item.value)) return false
+      seen.add(item.value)
+      return true
+    })
+  }, [status, t])
+
   useEffect(() => {
     if (props.open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -147,8 +223,10 @@ export function CCSwitchDialog(props: Props) {
       setApp('claude')
 
       setName(buildDefaultName(props.tokenName))
+
+      setBaseUrl(getDefaultBaseUrl(status))
     }
-  }, [props.open, props.tokenName])
+  }, [props.open, props.tokenName, status])
 
   const currentConfig = APP_CONFIGS[app]
 
@@ -180,7 +258,15 @@ export function CCSwitchDialog(props: Props) {
         return
       }
 
-      const url = buildCCSwitchURL(app, name, models, key, accessToken, userId)
+      const url = buildCCSwitchURL(
+        app,
+        name,
+        models,
+        key,
+        accessToken,
+        userId,
+        baseUrl
+      )
       window.open(url, '_blank')
       props.onOpenChange(false)
     } catch {
@@ -219,6 +305,17 @@ export function CCSwitchDialog(props: Props) {
                 </div>
               ))}
             </RadioGroup>
+          </div>
+
+          <div className='space-y-2'>
+            <Label>{t('Base URL')}</Label>
+            <ComboboxInput
+              options={baseUrlOptions}
+              value={baseUrl}
+              onValueChange={setBaseUrl}
+              placeholder={t('Base URL')}
+              emptyText='No data'
+            />
           </div>
 
           <div className='space-y-2'>

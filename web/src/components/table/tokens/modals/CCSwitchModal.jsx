@@ -63,8 +63,42 @@ function getServerAddress() {
   return window.location.origin;
 }
 
-function buildCCSwitchURL(app, name, models, apiKey) {
-  const serverAddress = getServerAddress();
+function normalizeBaseUrl(url) {
+  return (url || '').trim().replace(/\/+$/, '');
+}
+
+function getApiInfoBaseUrls() {
+  try {
+    const raw = localStorage.getItem('status');
+    if (!raw) return [];
+    const status = JSON.parse(raw);
+    const apiInfo = Array.isArray(status.api_info)
+      ? status.api_info
+      : Array.isArray(status.data?.api_info)
+        ? status.data.api_info
+        : [];
+    return apiInfo
+      .map((item) => ({
+        label: [item.route, item.description].filter(Boolean).join(' - '),
+        value: normalizeBaseUrl(item.url),
+        isDefault: Boolean(item.is_default),
+      }))
+      .filter((item) => item.value);
+  } catch (_) {
+    return [];
+  }
+}
+
+function getDefaultBaseUrl() {
+  return (
+    getApiInfoBaseUrls().find((item) => item.isDefault)?.value ||
+    normalizeBaseUrl(getServerAddress())
+  );
+}
+
+function buildCCSwitchURL(app, name, models, apiKey, baseUrl) {
+  const serverAddress =
+    normalizeBaseUrl(baseUrl) || normalizeBaseUrl(getServerAddress());
   const endpoint = app === 'codex' ? serverAddress + '/v1' : serverAddress;
   const params = new URLSearchParams();
   params.set('resource', 'provider');
@@ -90,14 +124,35 @@ export default function CCSwitchModal({
   const [app, setApp] = useState('claude');
   const [name, setName] = useState(APP_CONFIGS.claude.defaultName);
   const [models, setModels] = useState({});
+  const [baseUrl, setBaseUrl] = useState(getDefaultBaseUrl());
 
   const currentConfig = APP_CONFIGS[app];
+  const baseUrlOptions = useMemo(() => {
+    const serverAddress = normalizeBaseUrl(getServerAddress());
+    const options = [
+      {
+        label: serverAddress,
+        value: serverAddress,
+      },
+      ...getApiInfoBaseUrls().map((item) => ({
+        label: item.label ? `${item.label} (${item.value})` : item.value,
+        value: item.value,
+      })),
+    ];
+    const seen = new Set();
+    return options.filter((item) => {
+      if (!item.value || seen.has(item.value)) return false;
+      seen.add(item.value);
+      return true;
+    });
+  }, [t, visible]);
 
   useEffect(() => {
     if (visible) {
       setModels({});
       setApp('claude');
       setName(APP_CONFIGS.claude.defaultName);
+      setBaseUrl(getDefaultBaseUrl());
     }
   }, [visible]);
 
@@ -116,7 +171,7 @@ export default function CCSwitchModal({
       Toast.warning(t('请选择主模型'));
       return;
     }
-    const url = buildCCSwitchURL(app, name, models, 'sk-' + tokenKey);
+    const url = buildCCSwitchURL(app, name, models, 'sk-' + tokenKey, baseUrl);
     window.open(url, '_blank');
     onClose();
   };
@@ -156,6 +211,20 @@ export default function CCSwitchModal({
               </Radio>
             ))}
           </RadioGroup>
+        </div>
+
+        <div>
+          <div style={fieldLabelStyle}>{t('API地址')}</div>
+          <Select
+            placeholder={t('请选择API地址')}
+            optionList={baseUrlOptions}
+            value={baseUrl || undefined}
+            onChange={setBaseUrl}
+            filter={selectFilter}
+            style={{ width: '100%' }}
+            searchable
+            emptyContent={t('暂无数据')}
+          />
         </div>
 
         <div>

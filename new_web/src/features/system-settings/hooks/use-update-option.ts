@@ -38,6 +38,8 @@ const STATUS_RELATED_KEYS = [
   'general_setting.custom_currency_exchange_rate',
   'QQAuthEnabled',
   'QQFriendLink',
+  'console_setting.api_info',
+  'console_setting.api_info_enabled',
 ]
 
 export function useUpdateOption() {

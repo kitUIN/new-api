@@ -57,6 +57,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     description: '',
     route: '',
     color: 'blue',
+    is_default: false,
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -93,8 +94,10 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     if (success) {
       showSuccess('API信息已更新');
       if (refresh) refresh();
+      return true;
     } else {
       showError(message);
+      return false;
     }
   };
 
@@ -102,7 +105,12 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     try {
       setLoading(true);
       const apiInfoJson = JSON.stringify(apiInfoList);
-      await updateOption('console_setting.api_info', apiInfoJson);
+      const success = await updateOption(
+        'console_setting.api_info',
+        apiInfoJson,
+      );
+      if (!success) return;
+      syncStatusApiInfo(apiInfoList);
       setHasChanges(false);
     } catch (error) {
       console.error('API信息更新失败', error);
@@ -119,6 +127,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       description: '',
       route: '',
       color: 'blue',
+      is_default: false,
     });
     setShowApiModal(true);
   };
@@ -130,6 +139,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       description: api.description,
       route: api.route,
       color: api.color,
+      is_default: Boolean(api.is_default),
     });
     setShowApiModal(true);
   };
@@ -162,7 +172,11 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       let newList;
       if (editingApi) {
         newList = apiInfoList.map((api) =>
-          api.id === editingApi.id ? { ...api, ...apiForm } : api,
+          api.id === editingApi.id
+            ? { ...api, ...apiForm }
+            : apiForm.is_default
+              ? { ...api, is_default: false }
+              : api,
         );
       } else {
         const newId = Math.max(...apiInfoList.map((api) => api.id), 0) + 1;
@@ -170,7 +184,12 @@ const SettingsAPIInfo = ({ options, refresh }) => {
           id: newId,
           ...apiForm,
         };
-        newList = [...apiInfoList, newApi];
+        newList = [
+          ...apiInfoList.map((api) =>
+            apiForm.is_default ? { ...api, is_default: false } : api,
+          ),
+          newApi,
+        ];
       }
 
       setApiInfoList(newList);
@@ -196,7 +215,15 @@ const SettingsAPIInfo = ({ options, refresh }) => {
 
     try {
       const parsed = JSON.parse(apiInfoStr);
-      setApiInfoList(Array.isArray(parsed) ? parsed : []);
+      setApiInfoList(
+        Array.isArray(parsed)
+          ? parsed.map((item, idx) => ({
+              ...item,
+              id: item.id || idx + 1,
+              is_default: Boolean(item.is_default),
+            }))
+          : [],
+      );
     } catch (error) {
       console.error('解析API信息失败:', error);
       setApiInfoList([]);
@@ -238,6 +265,29 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     }
   };
 
+  const syncStatusApiInfo = (list) => {
+    try {
+      const raw = localStorage.getItem('status');
+      if (!raw) return;
+      const status = JSON.parse(raw);
+      status.api_info = list;
+      if (status.data) {
+        status.data.api_info = list;
+      }
+      localStorage.setItem('status', JSON.stringify(status));
+    } catch (_) {}
+  };
+
+  const handleDefaultChange = (id, checked) => {
+    setApiInfoList((prev) =>
+      prev.map((api) => ({
+        ...api,
+        is_default: checked && api.id === id,
+      })),
+    );
+    setHasChanges(true);
+  };
+
   const columns = [
     {
       title: 'ID',
@@ -267,6 +317,16 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       title: t('颜色'),
       dataIndex: 'color',
       render: (color) => <Avatar size='extra-extra-small' color={color} />,
+    },
+    {
+      title: t('默认'),
+      dataIndex: 'is_default',
+      render: (_, record) => (
+        <Switch
+          checked={Boolean(record.is_default)}
+          onChange={(checked) => handleDefaultChange(record.id, checked)}
+        />
+      ),
     },
     {
       title: t('操作'),

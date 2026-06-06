@@ -81,6 +81,7 @@ type ApiInfo = {
   route: string
   description: string
   color: string
+  is_default?: boolean
 }
 
 type ApiInfoSectionProps = {
@@ -146,6 +147,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
           parsed.map((item, idx) => ({
             ...item,
             id: item.id || idx + 1,
+            is_default: Boolean(item.is_default),
           }))
         )
       }
@@ -235,13 +237,18 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     if (editingApiInfo) {
       setApiInfoList((prev) =>
         prev.map((item) =>
-          item.id === editingApiInfo.id ? { ...item, ...values } : item
+          item.id === editingApiInfo.id
+            ? { ...item, ...values, is_default: item.is_default }
+            : item
         )
       )
       toast.success(t('API info updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...apiInfoList.map((item) => item.id), 0) + 1
-      setApiInfoList((prev) => [...prev, { id: newId, ...values }])
+      setApiInfoList((prev) => [
+        ...prev,
+        { id: newId, ...values, is_default: false },
+      ])
       toast.success(t('API info added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
@@ -270,6 +277,16 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     setSelectedIds((prev) =>
       checked ? [...prev, id] : prev.filter((item) => item !== id)
     )
+  }
+
+  const handleDefaultChange = (id: number, checked: boolean) => {
+    setApiInfoList((prev) =>
+      prev.map((item) => ({
+        ...item,
+        is_default: checked && item.id === id,
+      }))
+    )
+    setHasChanges(true)
   }
 
   const getColorClass = (color: string) => getBgColorClass(color)
@@ -328,13 +345,14 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                 <TableHead>{t('Route')}</TableHead>
                 <TableHead>{t('Description')}</TableHead>
                 <TableHead>{t('Color')}</TableHead>
+                <TableHead>{t('Default')}</TableHead>
                 <TableHead className='w-32'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {apiInfoList.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
+                  <TableCell colSpan={7} className='h-24 text-center'>
                     {t('No API Domains yet. Click "Add API" to create one.')}
                   </TableCell>
                 </TableRow>
@@ -381,6 +399,14 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                           {apiInfo.color}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={Boolean(apiInfo.is_default)}
+                        onCheckedChange={(checked) =>
+                          handleDefaultChange(apiInfo.id, checked as boolean)
+                        }
+                      />
                     </TableCell>
                     <TableCell>
                       <div className='flex gap-2'>

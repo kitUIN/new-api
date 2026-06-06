@@ -88,6 +88,7 @@ func validateApiInfo(apiInfoStr string) error {
 		return fmt.Errorf("API信息数量不能超过50个")
 	}
 
+	defaultCount := 0
 	for i, apiInfo := range apiInfoList {
 		urlStr, ok := apiInfo["url"].(string)
 		if !ok || urlStr == "" {
@@ -124,12 +125,25 @@ func validateApiInfo(apiInfoStr string) error {
 			return fmt.Errorf("第%d个API信息的颜色值不合法", i+1)
 		}
 
+		if isDefault, exists := apiInfo["is_default"]; exists {
+			defaultValue, ok := isDefault.(bool)
+			if !ok {
+				return fmt.Errorf("第%d个API信息的默认标记必须为布尔值", i+1)
+			}
+			if defaultValue {
+				defaultCount++
+			}
+		}
+
 		if err := checkDangerousContent(description, i+1, "API信息"); err != nil {
 			return err
 		}
 		if err := checkDangerousContent(route, i+1, "API信息"); err != nil {
 			return err
 		}
+	}
+	if defaultCount > 1 {
+		return fmt.Errorf("只能设置一个默认API地址")
 	}
 	return nil
 }
