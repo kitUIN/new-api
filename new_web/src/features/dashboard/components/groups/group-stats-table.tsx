@@ -28,7 +28,6 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuotaWithCurrency } from '@/lib/currency'
-import { getRollingDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -42,6 +41,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getGroupQuotaData } from '@/features/dashboard/api'
 import { TIME_RANGE_PRESETS } from '@/features/dashboard/constants'
+import { getPresetDateRange } from '@/features/dashboard/lib'
 import type { GroupQuotaDataItem } from '@/features/dashboard/types'
 
 interface GroupModelStats {
@@ -264,7 +264,7 @@ export function GroupStatsTable() {
   const [selectedRange, setSelectedRange] = useState(7)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [timeRange, setTimeRange] = useState(() => {
-    const { start, end } = getRollingDateRange(7)
+    const { start, end } = getPresetDateRange(7)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -273,7 +273,7 @@ export function GroupStatsTable() {
 
   const handleRangeChange = useCallback((days: number) => {
     setSelectedRange(days)
-    const { start, end } = getRollingDateRange(days)
+    const { start, end } = getPresetDateRange(days)
     setTimeRange({
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
