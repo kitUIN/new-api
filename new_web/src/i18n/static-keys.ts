@@ -432,6 +432,18 @@ export const STATIC_I18N_KEYS = [
   'Drawing task records',
   'Task Logs',
   'System task records',
+
+  // Usage log relay timing
+  'Relay Timing',
+  'Request Received',
+  'Upstream Started',
+  'Upstream Headers',
+  'Upstream Ended',
+  'New API Prep',
+  'Upstream Total',
+  'First Response',
+  'Upstream to First Response',
+  'Prep',
   'Personal Center Area',
   'User personal functions',
   'Wallet Management',

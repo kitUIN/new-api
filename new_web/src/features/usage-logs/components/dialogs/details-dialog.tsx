@@ -29,9 +29,11 @@ import {
   ShieldCheck,
   UserCog,
   Info,
+  Timer,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import dayjs from '@/lib/dayjs'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -133,6 +135,114 @@ function DetailSection(props: {
 function formatRatio(ratio: number | undefined): string {
   if (ratio == null) return '-'
   return ratio.toFixed(4)
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatDurationMs(value: unknown): string {
+  const ms = toFiniteNumber(value)
+  if (ms == null) return '-'
+  return `${Math.round(ms)}ms`
+}
+
+function formatRelayTimestamp(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') return '-'
+  const normalized = value.replace(/\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})$/, '.$1$2')
+  const parsed = dayjs(normalized)
+  if (!parsed.isValid()) return value
+  return parsed.format('YYYY-MM-DD HH:mm:ss.SSS')
+}
+
+function RelayTimingSection(props: { other: LogOtherData | null }) {
+  const { t } = useTranslation()
+  const other = props.other
+  if (!other) return null
+
+  const timestampRows = [
+    {
+      label: t('Request Received'),
+      value: other.request_start_at,
+    },
+    {
+      label: t('Upstream Started'),
+      value: other.upstream_request_start_at,
+    },
+    {
+      label: t('Upstream Headers'),
+      value: other.upstream_response_header_at,
+    },
+    {
+      label: t('Upstream Ended'),
+      value: other.upstream_request_end_at,
+    },
+  ].filter((row) => !!row.value)
+
+  const durationRows = [
+    {
+      label: t('New API Prep'),
+      value: other.pre_upstream_ms,
+    },
+    {
+      label: t('Upstream Headers'),
+      value: other.upstream_header_ms,
+    },
+    {
+      label: t('Upstream Total'),
+      value: other.upstream_total_ms,
+    },
+    {
+      label: t('First Response'),
+      value: other.first_response_ms,
+    },
+    {
+      label: t('Upstream to First Response'),
+      value: other.upstream_to_first_response_ms,
+    },
+    {
+      label: t('Total'),
+      value: other.total_ms,
+    },
+  ].filter((row) => toFiniteNumber(row.value) != null)
+
+  if (timestampRows.length === 0 && durationRows.length === 0) return null
+
+  return (
+    <DetailSection
+      icon={<Timer className='size-3.5' aria-hidden='true' />}
+      label={t('Relay Timing')}
+    >
+      {timestampRows.length > 0 && (
+        <div className='space-y-1'>
+          {timestampRows.map((row) => (
+            <DetailRow
+              key={row.label}
+              label={row.label}
+              value={formatRelayTimestamp(row.value)}
+              mono
+            />
+          ))}
+        </div>
+      )}
+      {timestampRows.length > 0 && durationRows.length > 0 && (
+        <div className='border-border/60 border-t pt-1' />
+      )}
+      {durationRows.length > 0 && (
+        <div className='space-y-1'>
+          {durationRows.map((row) => (
+            <DetailRow
+              key={row.label}
+              label={row.label}
+              value={formatDurationMs(row.value)}
+              mono
+            />
+          ))}
+        </div>
+      )}
+    </DetailSection>
+  )
 }
 
 function BillingBreakdown(props: {
@@ -618,6 +728,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               )}
             </div>
+
+            <RelayTimingSection other={other} />
 
             {/* Request conversion (admin only, not for refund) */}
             {showConversion && (

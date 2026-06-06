@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"runtime/debug"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +24,7 @@ func RequestId() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		id := common.GetTimeString() + _bp + common.GetRandomString(8)
 		c.Set(common.RequestIdKey, id)
+		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, id)
 		c.Request = c.Request.WithContext(ctx)
 		c.Header(common.RequestIdKey, id)

@@ -331,8 +331,7 @@ function buildCostDetail(
     const cacheWriteAmount =
       (cacheWriteBreakdown.legacyTokens / 1_000_000) *
         (cacheWriteUnitPrice ?? 0) +
-      (cacheWriteBreakdown.tokens5m / 1_000_000) *
-        (cacheWriteUnitPrice ?? 0) +
+      (cacheWriteBreakdown.tokens5m / 1_000_000) * (cacheWriteUnitPrice ?? 0) +
       (cacheWriteBreakdown.tokens1h / 1_000_000) *
         (cacheWriteUnitPrice1h ?? cacheWriteUnitPrice ?? 0)
 
@@ -1366,9 +1365,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               {costDetail.crossedTier === true && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Tier changed after completion')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {t('Yes')}
-                  </span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>{t('Yes')}</span>
                 </div>
               )}
               {costDetail.beforeGroupQuota != null && (

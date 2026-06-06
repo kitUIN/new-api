@@ -143,6 +143,16 @@ export interface LogOtherData {
   audio_ratio?: number
   audio_completion_ratio?: number
   frt?: number
+  request_start_at?: string
+  upstream_request_start_at?: string
+  upstream_response_header_at?: string
+  upstream_request_end_at?: string
+  pre_upstream_ms?: number
+  upstream_header_ms?: number
+  upstream_total_ms?: number
+  first_response_ms?: number
+  upstream_to_first_response_ms?: number
+  total_ms?: number
   // Tiered (expression-based) billing fields, set by backend when
   // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
   // expression and matched_tier is the label of the tier that fired.

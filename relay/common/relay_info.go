@@ -94,7 +94,12 @@ type RelayInfo struct {
 	TokenUnlimited    bool
 	StartTime         time.Time
 	FirstResponseTime time.Time
-	isFirstResponse   bool
+	// Upstream timing records the relay boundary so logs can separate local
+	// processing time from upstream latency without adding database columns.
+	UpstreamRequestStartTime   time.Time
+	UpstreamResponseHeaderTime time.Time
+	UpstreamRequestEndTime     time.Time
+	isFirstResponse            bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -659,6 +664,31 @@ func (info *RelayInfo) SetFirstResponseTime() {
 		info.FirstResponseTime = time.Now()
 		info.isFirstResponse = false
 	}
+}
+
+func (info *RelayInfo) MarkUpstreamRequestStart() {
+	if info == nil {
+		return
+	}
+	info.UpstreamRequestStartTime = time.Now()
+	info.UpstreamResponseHeaderTime = time.Time{}
+	info.UpstreamRequestEndTime = time.Time{}
+}
+
+func (info *RelayInfo) MarkUpstreamResponseHeader() {
+	if info == nil || !info.UpstreamResponseHeaderTime.IsZero() {
+		return
+	}
+	now := time.Now()
+	info.UpstreamResponseHeaderTime = now
+	info.UpstreamRequestEndTime = now
+}
+
+func (info *RelayInfo) MarkUpstreamRequestEnd() {
+	if info == nil || !info.UpstreamRequestEndTime.IsZero() {
+		return
+	}
+	info.UpstreamRequestEndTime = time.Now()
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

@@ -518,14 +518,18 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	c.Set("upstream_request_headers", req.Header.Clone())
 
+	info.MarkUpstreamRequestStart()
 	resp, err := client.Do(req)
 	if err != nil {
+		info.MarkUpstreamRequestEnd()
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		info.MarkUpstreamRequestEnd()
 		return nil, errors.New("resp is nil")
 	}
+	info.MarkUpstreamResponseHeader()
 
 	if !info.IsStream {
 		var buf bytes.Buffer

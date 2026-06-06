@@ -3,10 +3,12 @@ package service
 import (
 	"encoding/base64"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -29,6 +31,63 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 			path = path[:idx]
 		}
 		other["request_path"] = path
+	}
+}
+
+func formatRelayTiming(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339Nano)
+}
+
+func addRelayTimingMs(other map[string]interface{}, key string, start time.Time, end time.Time) {
+	if other == nil || start.IsZero() || end.IsZero() || end.Before(start) {
+		return
+	}
+	other[key] = end.Sub(start).Milliseconds()
+}
+
+func AppendRelayTimingInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	requestStart := relayInfo.StartTime
+	upstreamStart := relayInfo.UpstreamRequestStartTime
+	upstreamHeader := relayInfo.UpstreamResponseHeaderTime
+	upstreamEnd := relayInfo.UpstreamRequestEndTime
+
+	if !requestStart.IsZero() {
+		other["request_start_at"] = formatRelayTiming(requestStart)
+	}
+	if !upstreamStart.IsZero() {
+		other["upstream_request_start_at"] = formatRelayTiming(upstreamStart)
+	}
+	if !upstreamHeader.IsZero() {
+		other["upstream_response_header_at"] = formatRelayTiming(upstreamHeader)
+	}
+	if !upstreamEnd.IsZero() {
+		other["upstream_request_end_at"] = formatRelayTiming(upstreamEnd)
+	}
+
+	addRelayTimingMs(other, "pre_upstream_ms", requestStart, upstreamStart)
+	addRelayTimingMs(other, "upstream_header_ms", upstreamStart, upstreamHeader)
+	addRelayTimingMs(other, "upstream_total_ms", upstreamStart, upstreamEnd)
+	if relayInfo.HasSendResponse() {
+		addRelayTimingMs(other, "first_response_ms", requestStart, relayInfo.FirstResponseTime)
+		addRelayTimingMs(other, "upstream_to_first_response_ms", upstreamStart, relayInfo.FirstResponseTime)
+	}
+	if !requestStart.IsZero() {
+		addRelayTimingMs(other, "total_ms", requestStart, time.Now())
+	}
+
+	requestID := ""
+	if ctx != nil {
+		requestID = ctx.GetString(common.RequestIdKey)
+		logger.LogInfo(ctx, "relay timing: request_id="+requestID+
+			" request_start_at="+formatRelayTiming(requestStart)+
+			" upstream_request_start_at="+formatRelayTiming(upstreamStart)+
+			" upstream_response_header_at="+formatRelayTiming(upstreamHeader))
 	}
 }
 
@@ -78,6 +137,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	AppendRelayTimingInfo(ctx, relayInfo, other)
 	return other
 }
 
@@ -275,5 +335,6 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
 	appendRequestPath(nil, relayInfo, other)
+	AppendRelayTimingInfo(nil, relayInfo, other)
 	return other
 }
