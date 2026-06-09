@@ -67,6 +67,7 @@ type GroupFormValues = {
   AutoGroups: string
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
+  UpstreamGroupRatioBindings: string
 }
 
 type GroupRatioFormProps = {
@@ -141,6 +142,9 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
+              upstreamGroupRatioBindings={form.watch(
+                'UpstreamGroupRatioBindings'
+              )}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
               }
@@ -288,6 +292,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='UpstreamGroupRatioBindings'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Upstream group ratio bindings')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={8} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON map defining upstream-controlled group ratios and offsets.'
                     )}
                   </FormDescription>
                   <FormMessage />

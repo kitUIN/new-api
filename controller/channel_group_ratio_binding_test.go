@@ -1,0 +1,136 @@
+package controller
+
+import (
+	"math"
+	"testing"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/stretchr/testify/require"
+)
+
+func TestApplyUpstreamGroupRatioBindingsToMap(t *testing.T) {
+	result := map[string]dto.GroupQueryItem{
+		"up-default": {Desc: "Default", Ratio: 1.2},
+		"up-vip":     {Desc: "VIP", Ratio: 0.8},
+	}
+	current := map[string]float64{
+		"default": 1,
+		"vip":     1,
+		"locked":  0.75,
+	}
+	bindings := map[string]ratio_setting.UpstreamGroupRatioBinding{
+		"default": {
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:      10,
+			UpstreamGroup: "up-default",
+			Offset:        0.01,
+		},
+		"vip": {
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceProvider,
+			SourceID:      20,
+			UpstreamGroup: "up-vip",
+			Offset:        -0.05,
+		},
+		"locked": {
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:      10,
+			UpstreamGroup: "up-vip",
+			Offset:        -2,
+		},
+		"missing-local": {
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:      10,
+			UpstreamGroup: "up-default",
+		},
+	}
+
+	next, changed := applyUpstreamGroupRatioBindingsToMap(
+		ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+		10,
+		result,
+		bindings,
+		current,
+	)
+
+	require.True(t, changed)
+	require.Equal(t, 1.21, next["default"])
+	require.Equal(t, 1.0, next["vip"])
+	require.Equal(t, 0.0, next["locked"])
+	require.NotContains(t, next, "missing-local")
+}
+
+func TestApplyUpstreamGroupRatioBindingsToMapProvider(t *testing.T) {
+	next, changed := applyUpstreamGroupRatioBindingsToMap(
+		ratio_setting.UpstreamGroupRatioBindingSourceProvider,
+		20,
+		map[string]dto.GroupQueryItem{"up-vip": {Ratio: 0.8}},
+		map[string]ratio_setting.UpstreamGroupRatioBinding{
+			"vip": {
+				SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceProvider,
+				SourceID:      20,
+				UpstreamGroup: "up-vip",
+				Offset:        -0.05,
+			},
+		},
+		map[string]float64{"vip": 1},
+	)
+
+	require.True(t, changed)
+	require.Equal(t, 0.75, next["vip"])
+}
+
+func TestApplyUpstreamGroupRatioBindingsToMapSkipsNoopsAndInvalid(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   map[string]dto.GroupQueryItem
+		binding  ratio_setting.UpstreamGroupRatioBinding
+		current  map[string]float64
+		expected map[string]float64
+		changed  bool
+	}{
+		{
+			name:    "same ratio",
+			result:  map[string]dto.GroupQueryItem{"up": {Ratio: 1}},
+			binding: ratio_setting.UpstreamGroupRatioBinding{SourceType: "channel", SourceID: 1, UpstreamGroup: "up"},
+			current: map[string]float64{"default": 1},
+			changed: false,
+		},
+		{
+			name:    "source mismatch",
+			result:  map[string]dto.GroupQueryItem{"up": {Ratio: 2}},
+			binding: ratio_setting.UpstreamGroupRatioBinding{SourceType: "channel", SourceID: 2, UpstreamGroup: "up"},
+			current: map[string]float64{"default": 1},
+			changed: false,
+		},
+		{
+			name:    "upstream group missing",
+			result:  map[string]dto.GroupQueryItem{"other": {Ratio: 2}},
+			binding: ratio_setting.UpstreamGroupRatioBinding{SourceType: "channel", SourceID: 1, UpstreamGroup: "up"},
+			current: map[string]float64{"default": 1},
+			changed: false,
+		},
+		{
+			name:    "invalid ratio",
+			result:  map[string]dto.GroupQueryItem{"up": {Ratio: math.Inf(1)}},
+			binding: ratio_setting.UpstreamGroupRatioBinding{SourceType: "channel", SourceID: 1, UpstreamGroup: "up"},
+			current: map[string]float64{"default": 1},
+			changed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			next, changed := applyUpstreamGroupRatioBindingsToMap(
+				ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+				1,
+				tt.result,
+				map[string]ratio_setting.UpstreamGroupRatioBinding{"default": tt.binding},
+				tt.current,
+			)
+
+			require.Equal(t, tt.changed, changed)
+			require.Equal(t, tt.current, next)
+		})
+	}
+}

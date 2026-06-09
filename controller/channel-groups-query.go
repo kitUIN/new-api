@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"reflect"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -24,6 +26,7 @@ import (
 const (
 	groupQueryDefaultIntervalSecond = 300
 	groupQueryNotifyMaxChanges      = 12
+	groupRatioSyncEpsilon           = 1e-9
 )
 
 var channelGroupQueryTaskOnce sync.Once
@@ -47,6 +50,18 @@ type groupQueryDebugInfo struct {
 	Body      string            `json:"body,omitempty"`
 	Response  string            `json:"response,omitempty"`
 	Error     string            `json:"error,omitempty"`
+}
+
+type groupQuerySourceItem struct {
+	SourceType      string                        `json:"source_type"`
+	ID              int                           `json:"id"`
+	Name            string                        `json:"name"`
+	Type            int                           `json:"type,omitempty"`
+	Template        string                        `json:"template,omitempty"`
+	IntervalSeconds int                           `json:"interval_seconds"`
+	LastCheckTime   int64                         `json:"last_check_time"`
+	LastError       string                        `json:"last_error,omitempty"`
+	LastResult      map[string]dto.GroupQueryItem `json:"last_result,omitempty"`
 }
 
 func getGroupQueryIntervalSeconds(config dto.GroupQuery) int {
@@ -231,6 +246,132 @@ func extractGroupQueryResult(body []byte, extractor dto.GroupQueryExtractorConfi
 	return result, nil
 }
 
+func groupRatioSyncNearlyEqual(a, b float64) bool {
+	if a > b {
+		return a-b < groupRatioSyncEpsilon
+	}
+	return b-a < groupRatioSyncEpsilon
+}
+
+func calculateBoundGroupRatio(upstreamRatio float64, offset float64) (float64, bool) {
+	if math.IsNaN(upstreamRatio) || math.IsInf(upstreamRatio, 0) || math.IsNaN(offset) || math.IsInf(offset, 0) {
+		return 0, false
+	}
+	result := upstreamRatio + offset
+	if result < 0 {
+		result = 0
+	}
+	return result, true
+}
+
+func applyUpstreamGroupRatioBindingsToMap(
+	sourceType string,
+	sourceID int,
+	result map[string]dto.GroupQueryItem,
+	bindings map[string]ratio_setting.UpstreamGroupRatioBinding,
+	currentRatios map[string]float64,
+) (map[string]float64, bool) {
+	nextRatios := make(map[string]float64, len(currentRatios))
+	for group, ratio := range currentRatios {
+		nextRatios[group] = ratio
+	}
+
+	changed := false
+	for localGroup, binding := range bindings {
+		if binding.SourceType != sourceType || binding.SourceID != sourceID {
+			continue
+		}
+		currentRatio, exists := currentRatios[localGroup]
+		if !exists {
+			common.SysLog(fmt.Sprintf("skip upstream group ratio sync: local_group=%s source_type=%s source_id=%d reason=local group missing", localGroup, sourceType, sourceID))
+			continue
+		}
+		item, ok := result[binding.UpstreamGroup]
+		if !ok {
+			common.SysLog(fmt.Sprintf("skip upstream group ratio sync: local_group=%s source_type=%s source_id=%d upstream_group=%s reason=upstream group missing", localGroup, sourceType, sourceID, binding.UpstreamGroup))
+			continue
+		}
+		nextRatio, ok := calculateBoundGroupRatio(item.Ratio, binding.Offset)
+		if !ok {
+			common.SysLog(fmt.Sprintf("skip upstream group ratio sync: local_group=%s source_type=%s source_id=%d upstream_group=%s reason=invalid ratio", localGroup, sourceType, sourceID, binding.UpstreamGroup))
+			continue
+		}
+		if groupRatioSyncNearlyEqual(currentRatio, nextRatio) {
+			continue
+		}
+		nextRatios[localGroup] = nextRatio
+		changed = true
+	}
+	return nextRatios, changed
+}
+
+func syncUpstreamGroupRatioBindings(sourceType string, sourceID int, result map[string]dto.GroupQueryItem) {
+	if sourceID <= 0 || len(result) == 0 {
+		return
+	}
+
+	bindings := ratio_setting.GetUpstreamGroupRatioBindingsCopy()
+	if len(bindings) == 0 {
+		return
+	}
+
+	nextRatios, changed := applyUpstreamGroupRatioBindingsToMap(
+		sourceType,
+		sourceID,
+		result,
+		bindings,
+		ratio_setting.GetGroupRatioCopy(),
+	)
+
+	if !changed {
+		return
+	}
+
+	data, err := common.Marshal(nextRatios)
+	if err != nil {
+		common.SysLog("failed to marshal synced group ratios: " + err.Error())
+		return
+	}
+	if err := model.UpdateOption("GroupRatio", string(data)); err != nil {
+		common.SysLog("failed to persist synced group ratios: " + err.Error())
+	}
+}
+
+func syncUpstreamGroupRatioBindingsFromLastResults() error {
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		return err
+	}
+	for _, provider := range providers {
+		settings := provider.GetOtherSettings()
+		if !settings.GroupQuery.Enabled || len(settings.GroupQuery.LastResult) == 0 {
+			continue
+		}
+		syncUpstreamGroupRatioBindings(
+			ratio_setting.UpstreamGroupRatioBindingSourceProvider,
+			provider.Id,
+			settings.GroupQuery.LastResult,
+		)
+	}
+
+	channels, err := model.GetAllChannels(0, 0, true, true)
+	if err != nil {
+		return err
+	}
+	for _, channel := range channels {
+		settings := channel.GetOtherSettings()
+		if !settings.GroupQuery.Enabled || len(settings.GroupQuery.LastResult) == 0 {
+			continue
+		}
+		syncUpstreamGroupRatioBindings(
+			ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			channel.Id,
+			settings.GroupQuery.LastResult,
+		)
+	}
+	return nil
+}
+
 func persistGroupQueryResult(channel *model.Channel, settings dto.ChannelOtherSettings, result map[string]dto.GroupQueryItem, queryErr error) {
 	settings.GroupQuery.LastCheckTime = common.GetTimestamp()
 	if queryErr != nil {
@@ -244,6 +385,9 @@ func persistGroupQueryResult(channel *model.Channel, settings dto.ChannelOtherSe
 		"settings": channel.OtherSettings,
 	}).Error; updateErr != nil {
 		common.SysLog(fmt.Sprintf("failed to persist group query result: channel_id=%d, error=%v", channel.Id, updateErr))
+	}
+	if queryErr == nil {
+		syncUpstreamGroupRatioBindings(ratio_setting.UpstreamGroupRatioBindingSourceChannel, channel.Id, result)
 	}
 }
 
@@ -261,6 +405,9 @@ func persistProviderGroupQueryResult(provider *model.ChannelProvider, settings d
 		"updated_time": common.GetTimestamp(),
 	}).Error; updateErr != nil {
 		common.SysLog(fmt.Sprintf("failed to persist provider group query result: provider_id=%d, error=%v", provider.Id, updateErr))
+	}
+	if queryErr == nil {
+		syncUpstreamGroupRatioBindings(ratio_setting.UpstreamGroupRatioBindingSourceProvider, provider.Id, result)
 	}
 }
 
@@ -791,6 +938,62 @@ func GetChannelGroupQueryInstances(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    instances,
+	})
+}
+
+func GetChannelGroupQuerySources(c *gin.Context) {
+	channels, err := model.GetAllChannels(0, 0, true, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	providers, _, err := model.ListChannelProviders(0, 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	sources := make([]groupQuerySourceItem, 0)
+	for _, provider := range providers {
+		settings := provider.GetOtherSettings()
+		config := settings.GroupQuery
+		if !config.Enabled {
+			continue
+		}
+		sources = append(sources, groupQuerySourceItem{
+			SourceType:      ratio_setting.UpstreamGroupRatioBindingSourceProvider,
+			ID:              provider.Id,
+			Name:            provider.Name,
+			Template:        config.Template,
+			IntervalSeconds: getGroupQueryIntervalSeconds(config),
+			LastCheckTime:   config.LastCheckTime,
+			LastError:       config.LastError,
+			LastResult:      config.LastResult,
+		})
+	}
+	for _, channel := range channels {
+		settings := channel.GetOtherSettings()
+		config := settings.GroupQuery
+		if !config.Enabled || config.SourceChannelID > 0 {
+			continue
+		}
+		sources = append(sources, groupQuerySourceItem{
+			SourceType:      ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			ID:              channel.Id,
+			Name:            channel.Name,
+			Type:            channel.Type,
+			Template:        config.Template,
+			IntervalSeconds: getGroupQueryIntervalSeconds(config),
+			LastCheckTime:   config.LastCheckTime,
+			LastError:       config.LastError,
+			LastResult:      config.LastResult,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    sources,
 	})
 }
 

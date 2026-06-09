@@ -180,6 +180,7 @@ export type ModelSettings = {
   AutoGroups: string
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
+  'group_ratio_setting.upstream_group_ratio_bindings': string
   'channel_affinity_setting.enabled': boolean
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.max_entries': number
@@ -223,6 +224,7 @@ export type BillingSettings = {
   AutoGroups: string
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
+  'group_ratio_setting.upstream_group_ratio_bindings': string
   PayAddress: string
   EpayId: string
   EpayKey: string
@@ -394,4 +396,36 @@ export type UpstreamRatiosResponse = {
     differences: DifferencesMap
     test_results: TestResult[]
   }
+}
+
+export type UpstreamGroupRatioBindingSourceType = 'channel' | 'provider'
+
+export type UpstreamGroupRatioBinding = {
+  source_type: UpstreamGroupRatioBindingSourceType
+  source_id: number
+  upstream_group: string
+  offset?: number
+}
+
+export type GroupQueryItem = {
+  desc: string
+  ratio: number
+}
+
+export type GroupQuerySource = {
+  source_type: UpstreamGroupRatioBindingSourceType
+  id: number
+  name: string
+  type?: number
+  template?: string
+  interval_seconds: number
+  last_check_time: number
+  last_error?: string
+  last_result?: Record<string, GroupQueryItem> | null
+}
+
+export type GroupQuerySourcesResponse = {
+  success: boolean
+  message: string
+  data: GroupQuerySource[]
 }

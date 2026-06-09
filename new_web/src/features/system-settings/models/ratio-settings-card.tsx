@@ -193,6 +193,15 @@ const groupSchema = z.object({
       })
     }
   }),
+  UpstreamGroupRatioBindings: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
 })
 
 type ModelFormValues = z.infer<typeof modelSchema>
@@ -235,6 +244,29 @@ function normalizeBillingModeForExpressions(
   })
 
   return changed ? JSON.stringify(modeMap) : billingMode
+}
+
+function preserveBoundGroupRatios(
+  nextGroupRatio: string,
+  currentGroupRatio: string,
+  bindings: string
+): string {
+  try {
+    const ratioMap = JSON.parse(nextGroupRatio || '{}') as Record<string, number>
+    const bindingMap = JSON.parse(bindings || '{}') as Record<string, unknown>
+    const currentMap = JSON.parse(currentGroupRatio || '{}') as Record<
+      string,
+      number
+    >
+    Object.keys(bindingMap).forEach((group) => {
+      if (Object.prototype.hasOwnProperty.call(currentMap, group)) {
+        ratioMap[group] = currentMap[group]
+      }
+    })
+    return JSON.stringify(ratioMap)
+  } catch {
+    return nextGroupRatio
+  }
 }
 
 type RatioSettingsCardProps = {
@@ -299,6 +331,9 @@ export function RatioSettingsCard({
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
     ),
+    UpstreamGroupRatioBindings: normalizeJsonString(
+      groupDefaults.UpstreamGroupRatioBindings
+    ),
   })
 
   const modelForm = useForm<ModelFormValues>({
@@ -333,6 +368,9 @@ export function RatioSettingsCard({
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      UpstreamGroupRatioBindings: formatJsonForTextarea(
+        groupDefaults.UpstreamGroupRatioBindings
       ),
     },
   })
@@ -382,6 +420,9 @@ export function RatioSettingsCard({
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      UpstreamGroupRatioBindings: normalizeJsonString(
+        groupDefaults.UpstreamGroupRatioBindings
+      ),
     }
 
     groupForm.reset({
@@ -393,6 +434,9 @@ export function RatioSettingsCard({
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      UpstreamGroupRatioBindings: formatJsonForTextarea(
+        groupDefaults.UpstreamGroupRatioBindings
       ),
     })
   }, [groupDefaults, groupForm])
@@ -443,8 +487,15 @@ export function RatioSettingsCard({
 
   const saveGroupRatios = useCallback(
     async (values: GroupFormValues) => {
+      const normalizedBindings = normalizeJsonString(
+        values.UpstreamGroupRatioBindings
+      )
       const normalized = {
-        GroupRatio: normalizeJsonString(values.GroupRatio),
+        GroupRatio: preserveBoundGroupRatios(
+          normalizeJsonString(values.GroupRatio),
+          groupNormalizedDefaults.current.GroupRatio,
+          normalizedBindings
+        ),
         TopupGroupRatio: normalizeJsonString(values.TopupGroupRatio),
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
@@ -453,12 +504,15 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
+        UpstreamGroupRatioBindings: normalizedBindings,
       }
 
       // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)
       const apiKeyMap: Record<string, string> = {
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
+        UpstreamGroupRatioBindings:
+          'group_ratio_setting.upstream_group_ratio_bindings',
       }
 
       const updates = (

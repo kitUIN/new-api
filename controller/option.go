@@ -215,6 +215,24 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+		lockedValue, lockErr := ratio_setting.ApplyGroupRatioBindingLocksToJSONString(option.Value.(string))
+		if lockErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": lockErr.Error(),
+			})
+			return
+		}
+		option.Value = lockedValue
+	case "group_ratio_setting.upstream_group_ratio_bindings":
+		err = ratio_setting.CheckUpstreamGroupRatioBindings(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
 		if err != nil {
@@ -319,6 +337,11 @@ func UpdateOption(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if option.Key == "group_ratio_setting.upstream_group_ratio_bindings" {
+		if err := syncUpstreamGroupRatioBindingsFromLastResults(); err != nil {
+			common.SysLog("failed to sync upstream group ratio bindings after option update: " + err.Error())
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

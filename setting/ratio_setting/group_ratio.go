@@ -1,8 +1,9 @@
 package ratio_setting
 
 import (
-	"encoding/json"
 	"errors"
+	"math"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -25,6 +26,20 @@ var defaultGroupGroupRatio = map[string]map[string]float64{
 
 var groupGroupRatioMap = types.NewRWMap[string, map[string]float64]()
 
+const (
+	UpstreamGroupRatioBindingSourceChannel  = "channel"
+	UpstreamGroupRatioBindingSourceProvider = "provider"
+)
+
+type UpstreamGroupRatioBinding struct {
+	SourceType    string  `json:"source_type"`
+	SourceID      int     `json:"source_id"`
+	UpstreamGroup string  `json:"upstream_group"`
+	Offset        float64 `json:"offset,omitempty"`
+}
+
+var upstreamGroupRatioBindingMap = types.NewRWMap[string, UpstreamGroupRatioBinding]()
+
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 	"vip": {
 		"append_1":   "vip_special_group_1",
@@ -33,9 +48,10 @@ var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 }
 
 type GroupRatioSetting struct {
-	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`
-	GroupGroupRatio         *types.RWMap[string, map[string]float64] `json:"group_group_ratio"`
-	GroupSpecialUsableGroup *types.RWMap[string, map[string]string]  `json:"group_special_usable_group"`
+	GroupRatio                 *types.RWMap[string, float64]                   `json:"group_ratio"`
+	GroupGroupRatio            *types.RWMap[string, map[string]float64]        `json:"group_group_ratio"`
+	GroupSpecialUsableGroup    *types.RWMap[string, map[string]string]         `json:"group_special_usable_group"`
+	UpstreamGroupRatioBindings *types.RWMap[string, UpstreamGroupRatioBinding] `json:"upstream_group_ratio_bindings"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -48,9 +64,10 @@ func init() {
 	groupGroupRatioMap.AddAll(defaultGroupGroupRatio)
 
 	groupRatioSetting = GroupRatioSetting{
-		GroupSpecialUsableGroup: groupSpecialUsableGroup,
-		GroupRatio:              groupRatioMap,
-		GroupGroupRatio:         groupGroupRatioMap,
+		GroupSpecialUsableGroup:    groupSpecialUsableGroup,
+		GroupRatio:                 groupRatioMap,
+		GroupGroupRatio:            groupGroupRatioMap,
+		UpstreamGroupRatioBindings: upstreamGroupRatioBindingMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -60,6 +77,9 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 	if groupRatioSetting.GroupSpecialUsableGroup == nil {
 		groupRatioSetting.GroupSpecialUsableGroup = types.NewRWMap[string, map[string]string]()
 		groupRatioSetting.GroupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
+	}
+	if groupRatioSetting.UpstreamGroupRatioBindings == nil {
+		groupRatioSetting.UpstreamGroupRatioBindings = upstreamGroupRatioBindingMap
 	}
 	return &groupRatioSetting
 }
@@ -110,9 +130,21 @@ func UpdateGroupGroupRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonString(groupGroupRatioMap, jsonStr)
 }
 
+func GetUpstreamGroupRatioBindingsCopy() map[string]UpstreamGroupRatioBinding {
+	return upstreamGroupRatioBindingMap.ReadAll()
+}
+
+func UpstreamGroupRatioBindings2JSONString() string {
+	return upstreamGroupRatioBindingMap.MarshalJSONString()
+}
+
+func UpdateUpstreamGroupRatioBindingsByJSONString(jsonStr string) error {
+	return types.LoadFromJsonString(upstreamGroupRatioBindingMap, jsonStr)
+}
+
 func CheckGroupRatio(jsonStr string) error {
 	checkGroupRatio := make(map[string]float64)
-	err := json.Unmarshal([]byte(jsonStr), &checkGroupRatio)
+	err := common.Unmarshal([]byte(jsonStr), &checkGroupRatio)
 	if err != nil {
 		return err
 	}
@@ -122,4 +154,51 @@ func CheckGroupRatio(jsonStr string) error {
 		}
 	}
 	return nil
+}
+
+func CheckUpstreamGroupRatioBindings(jsonStr string) error {
+	bindings := make(map[string]UpstreamGroupRatioBinding)
+	if err := common.Unmarshal([]byte(jsonStr), &bindings); err != nil {
+		return err
+	}
+	for group, binding := range bindings {
+		if strings.TrimSpace(group) == "" {
+			return errors.New("bound group name cannot be empty")
+		}
+		switch binding.SourceType {
+		case UpstreamGroupRatioBindingSourceChannel, UpstreamGroupRatioBindingSourceProvider:
+		default:
+			return errors.New("invalid upstream group ratio binding source type: " + group)
+		}
+		if binding.SourceID <= 0 {
+			return errors.New("upstream group ratio binding source id must be greater than 0: " + group)
+		}
+		if strings.TrimSpace(binding.UpstreamGroup) == "" {
+			return errors.New("upstream group ratio binding upstream group cannot be empty: " + group)
+		}
+		if math.IsNaN(binding.Offset) || math.IsInf(binding.Offset, 0) {
+			return errors.New("upstream group ratio binding offset must be finite: " + group)
+		}
+	}
+	return nil
+}
+
+func ApplyGroupRatioBindingLocksToJSONString(jsonStr string) (string, error) {
+	nextGroupRatio := make(map[string]float64)
+	if err := common.Unmarshal([]byte(jsonStr), &nextGroupRatio); err != nil {
+		return "", err
+	}
+
+	currentGroupRatio := GetGroupRatioCopy()
+	for group := range GetUpstreamGroupRatioBindingsCopy() {
+		if ratio, ok := currentGroupRatio[group]; ok {
+			nextGroupRatio[group] = ratio
+		}
+	}
+
+	bytes, err := common.Marshal(nextGroupRatio)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
 }

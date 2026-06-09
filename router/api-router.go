@@ -239,6 +239,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/update_groups", controller.UpdateAllChannelsGroups)
 			channelRoute.GET("/update_groups/:id", controller.UpdateChannelGroups)
 			channelRoute.GET("/group_query_instances", controller.GetChannelGroupQueryInstances)
+			channelRoute.GET("/group_query_sources", controller.GetChannelGroupQuerySources)
 			channelRoute.POST("/", controller.AddChannel)
 			channelRoute.PUT("/", controller.UpdateChannel)
 			channelRoute.DELETE("/disabled", controller.DeleteDisabledChannel)

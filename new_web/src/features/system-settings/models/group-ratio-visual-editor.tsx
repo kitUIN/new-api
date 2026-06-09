@@ -17,8 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo, useEffect, useCallback, memo } from 'react'
-import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  Pencil,
+  Plus,
+  Trash2,
+  GripVertical,
+  ChevronDown,
+  Link2,
+  Unlink,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -44,6 +54,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -51,6 +69,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { getGroupQuerySources } from '../api'
+import type {
+  GroupQuerySource,
+  UpstreamGroupRatioBinding,
+} from '../types'
 import { safeJsonParse } from '../utils/json-parser'
 
 type GroupRatioVisualEditorProps = {
@@ -59,6 +82,7 @@ type GroupRatioVisualEditorProps = {
   userUsableGroups: string
   groupGroupRatio: string
   autoGroups: string
+  upstreamGroupRatioBindings: string
   onChange: (field: string, value: string) => void
 }
 
@@ -80,6 +104,8 @@ type GroupOverride = {
   ratio: number
 }
 
+type BindingSourceKey = `${'channel' | 'provider'}:${number}`
+
 const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
 const sectionHeaderClassName = 'border-b bg-muted/20'
@@ -93,6 +119,43 @@ function createGroupPricingId() {
 function normalizeRatio(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 1
+}
+
+function normalizeOffset(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getSourceKey(sourceType: 'channel' | 'provider', sourceId: number) {
+  return `${sourceType}:${sourceId}` as BindingSourceKey
+}
+
+function parseSourceKey(value: string) {
+  const [sourceType, rawID] = value.split(':')
+  const sourceID = Number(rawID)
+  if (
+    (sourceType !== 'channel' && sourceType !== 'provider') ||
+    !Number.isFinite(sourceID)
+  ) {
+    return null
+  }
+  return { sourceType, sourceID }
+}
+
+function getSourceLabel(source: GroupQuerySource | undefined): string {
+  if (!source) return ''
+  const prefix = source.source_type === 'provider' ? 'Provider' : 'Channel'
+  return `${prefix} #${source.id} ${source.name}`
+}
+
+function calculateFinalRatio(
+  source: GroupQuerySource | undefined,
+  binding: UpstreamGroupRatioBinding | undefined
+) {
+  if (!source || !binding) return null
+  const upstream = source.last_result?.[binding.upstream_group]?.ratio
+  if (!Number.isFinite(Number(upstream))) return null
+  return Math.max(0, Number(upstream) + normalizeOffset(binding.offset))
 }
 
 function buildGroupPricingRows(
@@ -170,6 +233,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   userUsableGroups,
   groupGroupRatio,
   autoGroups,
+  upstreamGroupRatioBindings,
   onChange,
 }: GroupRatioVisualEditorProps) {
   const { t } = useTranslation()
@@ -413,6 +477,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       <GroupPricingTable
         groupRatio={groupRatio}
         userUsableGroups={userUsableGroups}
+        upstreamGroupRatioBindings={upstreamGroupRatioBindings}
         onChange={onChange}
       />
 
@@ -753,18 +818,52 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
+  upstreamGroupRatioBindings: string
   onChange: (field: string, value: string) => void
 }
 
 function GroupPricingTable({
   groupRatio,
   userUsableGroups,
+  upstreamGroupRatioBindings,
   onChange,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
+  const [bindingDialogRow, setBindingDialogRow] =
+    useState<GroupPricingRow | null>(null)
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
     buildGroupPricingRows(groupRatio, userUsableGroups)
   )
+
+  const bindings = useMemo(
+    () =>
+      safeJsonParse<Record<string, UpstreamGroupRatioBinding>>(
+        upstreamGroupRatioBindings,
+        {
+          fallback: {},
+          context: 'upstream group ratio bindings',
+        }
+      ),
+    [upstreamGroupRatioBindings]
+  )
+
+  const { data: sourcesData, isLoading: sourcesLoading } = useQuery({
+    queryKey: ['group-query-sources'],
+    queryFn: getGroupQuerySources,
+  })
+
+  const sources = useMemo(
+    () => sourcesData?.data ?? [],
+    [sourcesData?.data]
+  )
+
+  const sourceMap = useMemo(() => {
+    const map = new Map<BindingSourceKey, GroupQuerySource>()
+    for (const source of sources) {
+      map.set(getSourceKey(source.source_type, source.id), source)
+    }
+    return map
+  }, [sources])
 
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
@@ -787,6 +886,40 @@ function GroupPricingTable({
       onChange('UserUsableGroups', serialized.UserUsableGroups)
     },
     [onChange]
+  )
+
+  const emitBindings = useCallback(
+    (nextBindings: Record<string, UpstreamGroupRatioBinding>) => {
+      onChange(
+        'UpstreamGroupRatioBindings',
+        JSON.stringify(nextBindings, null, 2)
+      )
+    },
+    [onChange]
+  )
+
+  const saveBinding = useCallback(
+    (groupName: string, binding: UpstreamGroupRatioBinding) => {
+      const name = groupName.trim()
+      if (!name) return
+      emitBindings({
+        ...bindings,
+        [name]: binding,
+      })
+      setBindingDialogRow(null)
+    },
+    [bindings, emitBindings]
+  )
+
+  const removeBinding = useCallback(
+    (groupName: string) => {
+      const name = groupName.trim()
+      if (!name || !bindings[name]) return
+      const next = { ...bindings }
+      delete next[name]
+      emitBindings(next)
+    },
+    [bindings, emitBindings]
   )
 
   const updateRow = useCallback(
@@ -871,6 +1004,9 @@ function GroupPricingTable({
                     {t('User selectable')}
                   </TableHead>
                   <TableHead className='min-w-56'>{t('Description')}</TableHead>
+                  <TableHead className='min-w-72'>
+                    {t('Upstream binding')}
+                  </TableHead>
                   <TableHead className='w-16 text-right'>
                     {t('Actions')}
                   </TableHead>
@@ -880,83 +1016,159 @@ function GroupPricingTable({
                 {rows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className='text-muted-foreground h-20 text-center text-sm'
                     >
                       {t('No groups yet. Add a group to get started.')}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map((row) => (
-                    <TableRow key={row._id}>
-                      <TableCell>
-                        <Input
-                          value={row.name}
-                          onChange={(event) =>
-                            updateRow(row._id, 'name', event.target.value)
-                          }
-                          aria-invalid={duplicateNames.includes(
-                            row.name.trim()
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type='number'
-                          min={0}
-                          step={0.1}
-                          value={String(row.ratio)}
-                          onChange={(event) =>
-                            updateRow(
-                              row._id,
-                              'ratio',
-                              normalizeRatio(event.target.value)
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className='flex justify-center'>
-                          <Checkbox
-                            checked={row.selectable}
-                            onCheckedChange={(checked) =>
-                              updateRow(row._id, 'selectable', checked === true)
-                            }
-                            aria-label={t('User selectable')}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {row.selectable ? (
+                  rows.map((row) => {
+                    const groupName = row.name.trim()
+                    const binding = bindings[groupName]
+                    const source = binding
+                      ? sourceMap.get(
+                          getSourceKey(binding.source_type, binding.source_id)
+                        )
+                      : undefined
+                    const finalRatio = calculateFinalRatio(source, binding)
+
+                    return (
+                      <TableRow key={row._id}>
+                        <TableCell>
                           <Input
-                            value={row.description}
-                            placeholder={t('Group description')}
+                            value={row.name}
+                            onChange={(event) =>
+                              updateRow(row._id, 'name', event.target.value)
+                            }
+                            aria-invalid={duplicateNames.includes(
+                              row.name.trim()
+                            )}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={0.1}
+                            value={String(row.ratio)}
+                            disabled={!!binding}
                             onChange={(event) =>
                               updateRow(
                                 row._id,
-                                'description',
-                                event.target.value
+                                'ratio',
+                                normalizeRatio(event.target.value)
                               )
                             }
                           />
-                        ) : (
-                          <span className='text-muted-foreground px-3 text-sm'>
-                            -
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => removeRow(row._id)}
-                          aria-label={t('Delete')}
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                        <TableCell>
+                          <div className='flex justify-center'>
+                            <Checkbox
+                              checked={row.selectable}
+                              onCheckedChange={(checked) =>
+                                updateRow(
+                                  row._id,
+                                  'selectable',
+                                  checked === true
+                                )
+                              }
+                              aria-label={t('User selectable')}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {row.selectable ? (
+                            <Input
+                              value={row.description}
+                              placeholder={t('Group description')}
+                              onChange={(event) =>
+                                updateRow(
+                                  row._id,
+                                  'description',
+                                  event.target.value
+                                )
+                              }
+                            />
+                          ) : (
+                            <span className='text-muted-foreground px-3 text-sm'>
+                              -
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {binding ? (
+                            <div className='flex items-start justify-between gap-2'>
+                              <div className='min-w-0 space-y-1'>
+                                <div className='flex flex-wrap items-center gap-1.5'>
+                                  <Badge variant='secondary'>
+                                    {t('Bound')}
+                                  </Badge>
+                                  <span className='text-muted-foreground text-xs'>
+                                    {getSourceLabel(source) ||
+                                      `${binding.source_type} #${binding.source_id}`}
+                                  </span>
+                                </div>
+                                <p className='truncate text-xs'>
+                                  {binding.upstream_group}
+                                  <span className='text-muted-foreground'>
+                                    {' '}
+                                    {t('offset')} {normalizeOffset(
+                                      binding.offset
+                                    )}
+                                  </span>
+                                  {finalRatio !== null && (
+                                    <span className='text-muted-foreground'>
+                                      {' '}
+                                      {t('final')} {finalRatio}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                              <div className='flex shrink-0 gap-1'>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => setBindingDialogRow(row)}
+                                  aria-label={t('Edit binding')}
+                                >
+                                  <Link2 className='h-4 w-4' />
+                                </Button>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => removeBinding(groupName)}
+                                  aria-label={t('Unbind')}
+                                >
+                                  <Unlink className='h-4 w-4' />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => setBindingDialogRow(row)}
+                              disabled={!groupName}
+                            >
+                              <Link2 className='mr-2 h-4 w-4' />
+                              {t('Bind')}
+                            </Button>
+                          )}
+                        </TableCell>
+                        <TableCell className='text-right'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => removeRow(row._id)}
+                            aria-label={t('Delete')}
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
@@ -971,7 +1183,230 @@ function GroupPricingTable({
           )}
         </div>
       </CardContent>
+
+      <GroupBindingDialog
+        open={bindingDialogRow !== null}
+        onOpenChange={(open) => {
+          if (!open) setBindingDialogRow(null)
+        }}
+        row={bindingDialogRow}
+        binding={
+          bindingDialogRow
+            ? bindings[bindingDialogRow.name.trim()]
+            : undefined
+        }
+        sources={sources}
+        isLoading={sourcesLoading}
+        onSave={saveBinding}
+      />
     </Card>
+  )
+}
+
+type GroupBindingDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  row: GroupPricingRow | null
+  binding?: UpstreamGroupRatioBinding
+  sources: GroupQuerySource[]
+  isLoading: boolean
+  onSave: (groupName: string, binding: UpstreamGroupRatioBinding) => void
+}
+
+function GroupBindingDialog({
+  open,
+  onOpenChange,
+  row,
+  binding,
+  sources,
+  isLoading,
+  onSave,
+}: GroupBindingDialogProps) {
+  const { t } = useTranslation()
+  const [sourceKey, setSourceKey] = useState('')
+  const [upstreamGroup, setUpstreamGroup] = useState('')
+  const [offset, setOffset] = useState('0')
+
+  const sourcesWithGroups = useMemo(
+    () =>
+      sources.filter(
+        (source) => Object.keys(source.last_result || {}).length > 0
+      ),
+    [sources]
+  )
+
+  const selectedSource = useMemo(
+    () =>
+      sourcesWithGroups.find(
+        (source) => getSourceKey(source.source_type, source.id) === sourceKey
+      ),
+    [sourceKey, sourcesWithGroups]
+  )
+
+  const upstreamGroups = useMemo(
+    () => Object.keys(selectedSource?.last_result || {}),
+    [selectedSource]
+  )
+
+  useEffect(() => {
+    if (!open) {
+      setSourceKey('')
+      setUpstreamGroup('')
+      setOffset('0')
+      return
+    }
+
+    if (binding) {
+      setSourceKey(getSourceKey(binding.source_type, binding.source_id))
+      setUpstreamGroup(binding.upstream_group)
+      setOffset(String(normalizeOffset(binding.offset)))
+      return
+    }
+
+    const firstSource = sourcesWithGroups[0]
+    setSourceKey(
+      firstSource ? getSourceKey(firstSource.source_type, firstSource.id) : ''
+    )
+    setUpstreamGroup(
+      firstSource ? Object.keys(firstSource.last_result || {})[0] || '' : ''
+    )
+    setOffset('0')
+  }, [binding, open, sourcesWithGroups])
+
+  useEffect(() => {
+    if (!open || !selectedSource || !sourceKey) return
+    if (upstreamGroup && upstreamGroups.includes(upstreamGroup)) return
+    setUpstreamGroup(upstreamGroups[0] || '')
+  }, [open, selectedSource, sourceKey, upstreamGroup, upstreamGroups])
+
+  const handleSave = () => {
+    if (!row) return
+    const parsedSource = parseSourceKey(sourceKey)
+    if (!parsedSource || !upstreamGroup.trim()) return
+    onSave(row.name, {
+      source_type: parsedSource.sourceType,
+      source_id: parsedSource.sourceID,
+      upstream_group: upstreamGroup.trim(),
+      offset: normalizeOffset(offset),
+    })
+  }
+
+  const selectedItem = selectedSource?.last_result?.[upstreamGroup]
+  const finalRatio =
+    selectedItem && Number.isFinite(Number(selectedItem.ratio))
+      ? Math.max(0, Number(selectedItem.ratio) + normalizeOffset(offset))
+      : null
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('Bind upstream group ratio')}</DialogTitle>
+          <DialogDescription>
+            {row
+              ? t('Control "{{group}}" with an upstream group ratio.', {
+                  group: row.name,
+                })
+              : t('Control this group with an upstream group ratio.')}
+          </DialogDescription>
+        </DialogHeader>
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('Source')}</Label>
+            <Select
+              items={sourcesWithGroups.map((source) => ({
+                value: getSourceKey(source.source_type, source.id),
+                label: getSourceLabel(source),
+              }))}
+              value={sourceKey}
+              onValueChange={(value) => {
+                if (value === null) return
+                setSourceKey(value)
+              }}
+              disabled={isLoading || sourcesWithGroups.length === 0}
+            >
+              <SelectTrigger className='w-full'>
+                <SelectValue placeholder={t('Select source')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {sourcesWithGroups.map((source) => (
+                    <SelectItem
+                      key={getSourceKey(source.source_type, source.id)}
+                      value={getSourceKey(source.source_type, source.id)}
+                    >
+                      {getSourceLabel(source)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className='space-y-2'>
+            <Label>{t('Upstream group')}</Label>
+            <Select
+              items={upstreamGroups.map((group) => ({
+                value: group,
+                label: group,
+              }))}
+              value={upstreamGroup}
+              onValueChange={(value) => {
+                if (value !== null) setUpstreamGroup(value)
+              }}
+              disabled={!selectedSource || upstreamGroups.length === 0}
+            >
+              <SelectTrigger className='w-full'>
+                <SelectValue placeholder={t('Select upstream group')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {upstreamGroups.map((group) => (
+                    <SelectItem key={group} value={group}>
+                      {group}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className='space-y-2'>
+            <Label>{t('Offset')}</Label>
+            <Input
+              type='number'
+              step={0.01}
+              value={offset}
+              onChange={(event) => setOffset(event.target.value)}
+              placeholder='0'
+            />
+          </div>
+
+          {selectedItem && (
+            <div className='text-muted-foreground rounded-md border px-3 py-2 text-sm'>
+              {t('Upstream ratio')}: {selectedItem.ratio}
+              {finalRatio !== null && (
+                <>
+                  {' '}
+                  {t('Final ratio')}: {finalRatio}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!parseSourceKey(sourceKey) || !upstreamGroup.trim()}
+          >
+            {t('Save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
