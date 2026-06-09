@@ -82,6 +82,7 @@ const SystemSetting = () => {
     QQCallbackAccessToken: '',
     QQNumber: '',
     QQAdminNumber: '',
+    QQNotificationGroup: '',
     TurnstileCheckEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
@@ -493,6 +494,12 @@ const SystemSetting = () => {
       options.push({
         key: 'QQAdminNumber',
         value: inputs.QQAdminNumber,
+      });
+    }
+    if (originInputs['QQNotificationGroup'] !== inputs.QQNotificationGroup) {
+      options.push({
+        key: 'QQNotificationGroup',
+        value: inputs.QQNotificationGroup,
       });
     }
 
@@ -1659,6 +1666,12 @@ const SystemSetting = () => {
                       <Form.Input
                         field='QQAdminNumber'
                         label={t('管理员QQ')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='QQNotificationGroup'
+                        label={t('通知群')}
                       />
                     </Col>
                   </Row>

@@ -72,3 +72,45 @@ func TestCheckGroupRatioRejectsNegative(t *testing.T) {
 	require.Error(t, CheckGroupRatio(`{"default":-0.1}`))
 	require.NoError(t, CheckGroupRatio(`{"default":0}`))
 }
+
+func TestCompareGroupRatioChanges(t *testing.T) {
+	changes := CompareGroupRatioChanges(
+		map[string]float64{
+			"default": 1,
+			"old":     0.5,
+			"vip":     0.8,
+		},
+		map[string]float64{
+			"default": 1,
+			"new":     1.2,
+			"vip":     0.9,
+		},
+	)
+
+	require.Equal(t, []GroupRatioChange{
+		{Type: GroupRatioChangeAdded, Group: "new", NewRatio: 1.2},
+		{Type: GroupRatioChangeDeleted, Group: "old", OldRatio: 0.5},
+		{Type: GroupRatioChangeUpdated, Group: "vip", OldRatio: 0.8, NewRatio: 0.9},
+	}, changes)
+	require.Equal(t, []string{
+		"+ new: 倍率 1.2",
+		"- old: 原倍率 0.5",
+		"* vip: 0.8 -> 0.9",
+	}, FormatGroupRatioChangeLines(changes))
+}
+
+func TestCompareGroupRatioChangesIgnoresEqualMaps(t *testing.T) {
+	changes := CompareGroupRatioChanges(
+		map[string]float64{
+			"default": 1,
+			"vip":     0.8,
+		},
+		map[string]float64{
+			"vip":     0.8,
+			"default": 1,
+		},
+	)
+
+	require.Empty(t, changes)
+	require.Empty(t, FormatGroupRatioChangeMessage(changes))
+}

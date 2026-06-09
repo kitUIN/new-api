@@ -3455,6 +3455,7 @@
     "通知方式": "Способ уведомления",
     "通知标题": "Заголовок уведомления",
     "通知类型 (quota_exceed: 额度预警)": "Тип уведомления (quota_exceed: предупреждение о превышении квоты)",
+    "通知群": "Группа уведомлений",
     "通知邮箱": "Email для уведомлений",
     "通知配置": "Конфигурация уведомлений",
     "通过分组可以实现不同用户等级的差异化定价，例如 VIP 用户享受更低的 API 调用费用。": "Groups enable differentiated pricing for different user tiers. For example, VIP users can enjoy lower API costs.",

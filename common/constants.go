@@ -99,6 +99,7 @@ var QQCallbackAddress = ""
 var QQCallbackAccessToken = ""
 var QQNumber = ""
 var QQAdminNumber = ""
+var QQNotificationGroup = ""
 var QQFriendLink = "https://qm.qq.com/q/iEXjxDoSrK"
 
 var TurnstileSiteKey = ""

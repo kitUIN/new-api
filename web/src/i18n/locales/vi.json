@@ -3903,6 +3903,7 @@
     "通知方式": "Phương thức thông báo",
     "通知标题": "Tiêu đề thông báo",
     "通知类型 (quota_exceed: 额度预警)": "Loại thông báo (quota_exceed: cảnh báo hạn ngạch)",
+    "通知群": "Nhóm thông báo",
     "通知邮箱": "Email thông báo",
     "通知配置": "Cấu hình thông báo",
     "通过": "Thông qua",

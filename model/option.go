@@ -3,6 +3,7 @@ package model
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,6 +21,8 @@ type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
 }
+
+var groupRatioOptionUpdateMutex sync.Mutex
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -137,6 +140,7 @@ func InitOptionMap() {
 	common.OptionMap["QQCallbackAccessToken"] = ""
 	common.OptionMap["QQNumber"] = ""
 	common.OptionMap["QQAdminNumber"] = ""
+	common.OptionMap["QQNotificationGroup"] = common.QQNotificationGroup
 	common.OptionMap["QQFriendLink"] = common.QQFriendLink
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
@@ -215,6 +219,10 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "GroupRatio" {
+		return updateGroupRatioOption(value)
+	}
+
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -228,6 +236,29 @@ func UpdateOption(key string, value string) error {
 	DB.Save(&option)
 	// Update OptionMap
 	return updateOptionMap(key, value)
+}
+
+func updateGroupRatioOption(value string) error {
+	groupRatioOptionUpdateMutex.Lock()
+	defer groupRatioOptionUpdateMutex.Unlock()
+
+	previousRatios := ratio_setting.GetGroupRatioCopy()
+
+	option := Option{
+		Key: "GroupRatio",
+	}
+	DB.FirstOrCreate(&option, Option{Key: "GroupRatio"})
+	option.Value = value
+	DB.Save(&option)
+
+	if err := updateOptionMap("GroupRatio", value); err != nil {
+		return err
+	}
+
+	changes := ratio_setting.CompareGroupRatioChanges(previousRatios, ratio_setting.GetGroupRatioCopy())
+	message := ratio_setting.FormatGroupRatioChangeMessage(changes)
+	common.SendQQNotificationGroupMessage(message, "group ratio change notify")
+	return nil
 }
 
 func updateOptionMap(key string, value string) (err error) {
@@ -485,6 +516,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QQNumber = value
 	case "QQAdminNumber":
 		common.QQAdminNumber = value
+	case "QQNotificationGroup":
+		common.QQNotificationGroup = value
 	case "QQFriendLink":
 		common.QQFriendLink = value
 	case "TelegramBotToken":
