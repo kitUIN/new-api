@@ -82,6 +82,7 @@ interface StatusInfo {
   discord_oauth?: boolean
   oidc_enabled?: boolean
   wechat_login?: boolean
+  qq_login?: boolean
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
   custom_oauth_providers?: Array<{
@@ -125,6 +126,13 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     label: 'WeChat',
     icon: <MessageCircle className='h-4 w-4' />,
     statusKey: 'wechat_login',
+  },
+  {
+    key: 'qq',
+    field: 'qq_id',
+    label: 'QQ',
+    icon: <MessageCircle className='h-4 w-4' />,
+    statusKey: 'qq_login',
   },
   {
     key: 'oidc_id',

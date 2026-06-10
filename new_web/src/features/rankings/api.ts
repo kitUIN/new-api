@@ -31,3 +31,10 @@ export async function getRankings(
   const res = await api.get('/api/rankings', { params: { period } })
   return res.data
 }
+
+export async function updateRankingPrivacy(
+  isPublic: boolean
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.put('/api/rankings/privacy', { public: isPublic })
+  return res.data
+}

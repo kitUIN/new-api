@@ -38,6 +38,7 @@ export const userSchema = z.object({
   github_id: z.string().optional(),
   oidc_id: z.string().optional(),
   wechat_id: z.string().optional(),
+  qq_id: z.string().optional(),
   telegram_id: z.string().optional(),
   email: z.string().optional(),
   quota: z.number(),
@@ -106,6 +107,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  qq_id?: string // Only used when updating user
 }
 
 export type ManageUserAction =

@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { updateRankingPrivacy } from './api'
 import {
   GroupsRankingSection,
   ModelsSection,
@@ -43,6 +46,7 @@ export function Rankings() {
   const { t } = useTranslation()
   const search = useSearch({ from: '/rankings/' })
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const period: RankingPeriod = VALID_PERIODS.includes(
     search.period as RankingPeriod
@@ -52,6 +56,15 @@ export function Rankings() {
 
   const rankingsQuery = useRankings(period)
   const snapshot = rankingsQuery.data?.data
+  const rankingPrivacyMutation = useMutation({
+    mutationFn: updateRankingPrivacy,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rankings'] })
+    },
+    onError: () => {
+      toast.error(t('Failed to update settings'))
+    },
+  })
 
   const handlePeriodChange = (next: RankingPeriod) => {
     navigate({
@@ -102,6 +115,8 @@ export function Rankings() {
               <UsersRankingSection
                 rows={snapshot.users}
                 self={snapshot.self_user}
+                onPrivacyChange={(next) => rankingPrivacyMutation.mutate(next)}
+                isPrivacyUpdating={rankingPrivacyMutation.isPending}
               />
 
               <GroupsRankingSection rows={snapshot.groups} />

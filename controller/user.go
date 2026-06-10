@@ -559,12 +559,24 @@ func GetUserModels(c *gin.Context) {
 }
 
 func UpdateUser(c *gin.Context) {
+	var requestData map[string]json.RawMessage
+	err := common.DecodeJson(c.Request.Body, &requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	requestBody, err := common.Marshal(requestData)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
+	err = common.Unmarshal(requestBody, &updatedUser)
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	_, qqProvided := requestData["qq_id"]
 	if updatedUser.Password == "" {
 		updatedUser.Password = "$I_LOVE_U" // make Validator happy :)
 	}
@@ -585,6 +597,15 @@ func UpdateUser(c *gin.Context) {
 	if myRole <= updatedUser.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
+	}
+	if qqProvided {
+		updatedUser.QQId = strings.TrimSpace(updatedUser.QQId)
+		if updatedUser.QQId != "" && updatedUser.QQId != originUser.QQId && model.IsQQIdAlreadyTaken(updatedUser.QQId) {
+			common.ApiError(c, errors.New("该 QQ 账号已被绑定"))
+			return
+		}
+	} else {
+		updatedUser.QQId = originUser.QQId
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be

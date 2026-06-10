@@ -23,8 +23,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import {
+  getQQAvatarUrl,
+  getUserAvatarFallback,
+  getUserAvatarStyle,
+} from '@/lib/avatar'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -126,6 +132,16 @@ export function UsersMutateDrawer({
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
+  const watchedQQId = form.watch('qq_id') || ''
+  const watchedAvatarName =
+    form.watch('display_name') ||
+    form.watch('username') ||
+    currentRow?.display_name ||
+    currentRow?.username ||
+    ''
+  const qqAvatarUrl = getQQAvatarUrl(watchedQQId)
+  const qqAvatarFallback = getUserAvatarFallback(watchedAvatarName)
+  const qqAvatarFallbackStyle = getUserAvatarStyle(watchedAvatarName)
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
@@ -417,17 +433,46 @@ export function UsersMutateDrawer({
                 </SideDrawerSection>
               )}
 
-              {/* Binding Information (Read-only) */}
+              {/* Binding Information */}
               {isUpdate && (
                 <SideDrawerSection>
                   <h3 className='text-sm font-medium'>
                     {t('Binding Information')}
                   </h3>
-                  <p className='text-muted-foreground text-xs'>
-                    {t(
-                      'Third-party account bindings (read-only, managed by user in profile settings)'
+
+                  <FormField
+                    control={form.control}
+                    name='qq_id'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('QQ Number')}</FormLabel>
+                        <div className='flex items-center gap-3'>
+                          <Avatar className='size-10'>
+                            {qqAvatarUrl && (
+                              <AvatarImage
+                                src={qqAvatarUrl}
+                                alt={watchedAvatarName || t('QQ')}
+                              />
+                            )}
+                            <AvatarFallback
+                              className='text-sm font-semibold text-white'
+                              style={qqAvatarFallbackStyle}
+                            >
+                              {qqAvatarFallback}
+                            </AvatarFallback>
+                          </Avatar>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder={t('QQ Number')}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </p>
+                  />
 
                   <div className='flex flex-col gap-3'>
                     {BINDING_FIELDS.map(({ key, label }) => (

@@ -43,3 +43,9 @@ export function getUserAvatarStyle(name: string): UserAvatarStyle {
 export function getUserAvatarFallback(name: string): string {
   return name.trim().charAt(0).toUpperCase() || '?'
 }
+
+export function getQQAvatarUrl(qqId?: string | null): string | undefined {
+  const qq = String(qqId ?? '').trim()
+  if (!qq) return undefined
+  return `http://q1.qlogo.cn/g?b=qq&nk=${encodeURIComponent(qq)}&s=100`
+}

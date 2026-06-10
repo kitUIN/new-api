@@ -77,7 +77,9 @@ export type UserRanking = {
   rank: number
   user_id: number
   display_name: string
+  avatar_url?: string
   total_tokens: number
+  ranking_public?: boolean
 }
 
 export type GroupRanking = {

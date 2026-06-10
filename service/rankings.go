@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -61,10 +62,12 @@ type RankedVendor struct {
 }
 
 type RankedUser struct {
-	Rank        int    `json:"rank"`
-	UserID      int    `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	TotalTokens int64  `json:"total_tokens"`
+	Rank          int    `json:"rank"`
+	UserID        int    `json:"user_id"`
+	DisplayName   string `json:"display_name"`
+	AvatarURL     string `json:"avatar_url,omitempty"`
+	TotalTokens   int64  `json:"total_tokens"`
+	RankingPublic bool   `json:"ranking_public,omitempty"`
 }
 
 type RankedGroup struct {
@@ -146,6 +149,12 @@ type rankingModelMeta struct {
 	vendorIcon string
 }
 
+type rankingUserProfile struct {
+	displayName   string
+	avatarURL     string
+	rankingPublic bool
+}
+
 type vendorAggregate struct {
 	name           string
 	icon           string
@@ -173,7 +182,7 @@ func GetRankingsSnapshot(period string, userID int) (*RankingsResponse, error) {
 	item, ok := rankingCache[cacheKey]
 	if ok && now.Before(item.expiresAt) {
 		rankingCacheMu.Unlock()
-		return withRankingSelfUser(item.data, config, userID)
+		return withRankingUserPresentation(item.data, config, userID)
 	}
 	rankingCacheMu.Unlock()
 
@@ -189,7 +198,7 @@ func GetRankingsSnapshot(period string, userID int) (*RankingsResponse, error) {
 	}
 	rankingCacheMu.Unlock()
 
-	return withRankingSelfUser(data, config, userID)
+	return withRankingUserPresentation(data, config, userID)
 }
 
 func rankingConfig(period string, now time.Time) (rankingPeriodConfig, error) {
@@ -277,20 +286,27 @@ func buildRankingsSnapshot(config rankingPeriodConfig) (*RankingsResponse, error
 	}, nil
 }
 
-func withRankingSelfUser(data *RankingsResponse, config rankingPeriodConfig, userID int) (*RankingsResponse, error) {
-	if userID <= 0 {
-		return data, nil
-	}
-	self, err := buildRankedSelfUser(userID, config)
-	if err != nil {
-		return nil, err
-	}
+func withRankingUserPresentation(data *RankingsResponse, config rankingPeriodConfig, userID int) (*RankingsResponse, error) {
 	clone := *data
-	clone.SelfUser = &self
+	userIDs := rankingUserIDs(clone.Users, userID)
+	profiles := buildRankingUserProfiles(userIDs)
+
+	clone.Users = make([]RankedUser, 0, len(data.Users))
+	for _, row := range data.Users {
+		clone.Users = append(clone.Users, rankingUserRow(row.Rank, row.UserID, row.TotalTokens, profiles[row.UserID], false))
+	}
+
+	if userID > 0 {
+		self, err := buildRankedSelfUser(userID, config, profiles[userID])
+		if err != nil {
+			return nil, err
+		}
+		clone.SelfUser = &self
+	}
 	return &clone, nil
 }
 
-func buildRankedSelfUser(userID int, config rankingPeriodConfig) (RankedUser, error) {
+func buildRankedSelfUser(userID int, config rankingPeriodConfig, profile rankingUserProfile) (RankedUser, error) {
 	total, err := model.GetRankingUserTotal(userID, config.startTime, config.endTime)
 	if err != nil {
 		return RankedUser{}, err
@@ -299,12 +315,7 @@ func buildRankedSelfUser(userID int, config rankingPeriodConfig) (RankedUser, er
 	if err != nil {
 		return RankedUser{}, err
 	}
-	return RankedUser{
-		Rank:        rank,
-		UserID:      userID,
-		DisplayName: rankingUserDisplayName(userID),
-		TotalTokens: total.TotalTokens,
-	}, nil
+	return rankingUserRow(rank, userID, total.TotalTokens, profile, true), nil
 }
 
 func previousRankingTimeRange(config rankingPeriodConfig) (int64, int64) {
@@ -375,12 +386,7 @@ func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, prev
 func buildRankedUsers(totals []model.RankingUserTotal) []RankedUser {
 	rows := make([]RankedUser, 0, len(totals))
 	for idx, item := range totals {
-		rows = append(rows, RankedUser{
-			Rank:        idx + 1,
-			UserID:      item.UserID,
-			DisplayName: rankingUserDisplayName(item.UserID),
-			TotalTokens: item.TotalTokens,
-		})
+		rows = append(rows, rankingUserRow(idx+1, item.UserID, item.TotalTokens, rankingUserProfile{}, false))
 	}
 	return rows
 }
@@ -674,6 +680,89 @@ func rankingTokenMap(totals []model.RankingQuotaTotal) map[string]int64 {
 
 func rankingUserDisplayName(userID int) string {
 	return fmt.Sprintf("用户%d", userID)
+}
+
+func rankingAnonymousDisplayName(rank int) string {
+	if rank > 0 {
+		return fmt.Sprintf("匿名用户%d", rank)
+	}
+	return "匿名用户"
+}
+
+func rankingUserRow(rank int, userID int, totalTokens int64, profile rankingUserProfile, forcePublic bool) RankedUser {
+	isPublic := forcePublic || profile.rankingPublic
+	displayName := rankingAnonymousDisplayName(rank)
+	avatarURL := ""
+	if isPublic {
+		displayName = strings.TrimSpace(profile.displayName)
+		if displayName == "" {
+			displayName = rankingUserDisplayName(userID)
+		}
+		avatarURL = profile.avatarURL
+	}
+	return RankedUser{
+		Rank:          rank,
+		UserID:        userID,
+		DisplayName:   displayName,
+		AvatarURL:     avatarURL,
+		TotalTokens:   totalTokens,
+		RankingPublic: profile.rankingPublic,
+	}
+}
+
+func rankingUserIDs(rows []RankedUser, selfUserID int) []int {
+	seen := make(map[int]struct{}, len(rows)+1)
+	ids := make([]int, 0, len(rows)+1)
+	for _, row := range rows {
+		if row.UserID <= 0 {
+			continue
+		}
+		if _, ok := seen[row.UserID]; ok {
+			continue
+		}
+		seen[row.UserID] = struct{}{}
+		ids = append(ids, row.UserID)
+	}
+	if selfUserID > 0 {
+		if _, ok := seen[selfUserID]; !ok {
+			ids = append(ids, selfUserID)
+		}
+	}
+	return ids
+}
+
+func buildRankingUserProfiles(userIDs []int) map[int]rankingUserProfile {
+	profiles := make(map[int]rankingUserProfile, len(userIDs))
+	if len(userIDs) == 0 {
+		return profiles
+	}
+
+	var users []model.User
+	if err := model.DB.Select("id, username, display_name, qq_id, setting").Where("id IN ?", userIDs).Find(&users).Error; err != nil {
+		return profiles
+	}
+
+	for _, user := range users {
+		displayName := strings.TrimSpace(user.DisplayName)
+		if displayName == "" {
+			displayName = strings.TrimSpace(user.Username)
+		}
+		setting := user.GetSetting()
+		profiles[user.Id] = rankingUserProfile{
+			displayName:   displayName,
+			avatarURL:     rankingQQAvatarURL(user.QQId),
+			rankingPublic: setting.RankingPublic,
+		}
+	}
+	return profiles
+}
+
+func rankingQQAvatarURL(qqID string) string {
+	qq := strings.TrimSpace(qqID)
+	if qq == "" {
+		return ""
+	}
+	return fmt.Sprintf("http://q1.qlogo.cn/g?b=qq&nk=%s&s=100", url.QueryEscape(qq))
 }
 
 func normalizeRankingServiceGroup(group string) string {
