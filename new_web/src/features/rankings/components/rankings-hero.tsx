@@ -22,10 +22,11 @@ import type { RankingPeriod } from '../types'
 
 const PERIODS: { id: RankingPeriod; labelKey: string }[] = [
   { id: 'today', labelKey: 'Today' },
-  { id: 'week', labelKey: 'Week' },
-  { id: 'month', labelKey: 'Month' },
-  { id: 'year', labelKey: 'Year' },
-  { id: 'all', labelKey: 'All-time' },
+  { id: 'yesterday', labelKey: 'Yesterday' },
+  { id: 'week', labelKey: 'This Week' },
+  { id: 'month', labelKey: 'This Month' },
+  { id: 'year', labelKey: 'This Year' },
+  { id: 'all', labelKey: 'All' },
 ]
 
 type RankingsHeroProps = {

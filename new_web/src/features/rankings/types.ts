@@ -22,7 +22,13 @@ For commercial licensing, please contact support@quantumnous.com
 //
 // Shape of the real data shown on the /rankings page.
 
-export type RankingPeriod = 'today' | 'week' | 'month' | 'year' | 'all'
+export type RankingPeriod =
+  | 'today'
+  | 'yesterday'
+  | 'week'
+  | 'month'
+  | 'year'
+  | 'all'
 
 export type RankingCategoryId =
   | 'all'
@@ -65,6 +71,24 @@ export type VendorRanking = {
   models_count: number
   /** Top model from this vendor in the period. */
   top_model: string
+}
+
+export type UserRanking = {
+  rank: number
+  user_id: number
+  display_name: string
+  total_tokens: number
+}
+
+export type GroupRanking = {
+  rank: number
+  group: string
+  initial: string
+  ratio: number
+  total_tokens: number
+  success_rate: number
+  avg_latency_ms: number
+  avg_tps: number
 }
 
 export type RankingMover = {
@@ -135,4 +159,10 @@ export type RankingsSnapshot = {
   models_history: ModelHistorySeries
   /** 100%-stacked area history of token share by vendor over the period. */
   vendor_share_history: VendorShareSeries
+  /** Top users by token usage. */
+  users: UserRanking[]
+  /** Logged-in user's own rank, when available. */
+  self_user?: UserRanking
+  /** Top groups by token usage. */
+  groups: GroupRanking[]
 }

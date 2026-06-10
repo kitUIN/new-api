@@ -22,15 +22,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import {
-  MarketShareSection,
+  GroupsRankingSection,
   ModelsSection,
-  PulseSection,
   RankingsHero,
+  UsersRankingSection,
 } from './components'
 import { useRankings } from './hooks/use-rankings'
 import type { RankingPeriod } from './types'
 
-const VALID_PERIODS: RankingPeriod[] = ['today', 'week', 'month', 'year', 'all']
+const VALID_PERIODS: RankingPeriod[] = [
+  'today',
+  'yesterday',
+  'week',
+  'month',
+  'year',
+  'all',
+]
 
 export function Rankings() {
   const { t } = useTranslation()
@@ -92,16 +99,12 @@ export function Rankings() {
                 period={period}
               />
 
-              <MarketShareSection
-                history={snapshot.vendor_share_history}
-                rows={snapshot.vendors}
-                period={period}
+              <UsersRankingSection
+                rows={snapshot.users}
+                self={snapshot.self_user}
               />
 
-              <PulseSection
-                movers={snapshot.top_movers}
-                droppers={snapshot.top_droppers}
-              />
+              <GroupsRankingSection rows={snapshot.groups} />
             </>
           )}
         </PageTransition>

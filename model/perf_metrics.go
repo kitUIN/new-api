@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -53,6 +54,14 @@ type PerfModelSummary struct {
 
 type PerfMetricsSummary struct {
 	Models []PerfModelSummary `json:"models"`
+}
+
+type RankingGroupPerfStat struct {
+	Group        string  `json:"group"`
+	RequestCount int64   `json:"request_count"`
+	SuccessRate  float64 `json:"success_rate"`
+	AvgLatencyMs float64 `json:"avg_latency_ms"`
+	AvgTps       float64 `json:"avg_tps"`
 }
 
 type PerformanceSeriesPoint struct {
@@ -424,6 +433,72 @@ func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 	}
 
 	return PerfMetricsSummary{Models: models}, nil
+}
+
+func GetRankingGroupPerfStats(startTime int64, endTime int64) ([]RankingGroupPerfStat, error) {
+	aggregates := make(map[string]perfAccumulator)
+	if LOG_DB != nil {
+		var rows []perfMetricAggregateRow
+		groupExpr := fmt.Sprintf("COALESCE(NULLIF(%s, ''), 'default')", perfMetricGroupCol())
+		query := LOG_DB.Model(&PerfMetricBucket{}).
+			Select(groupExpr + ` AS group_name,
+				SUM(request_count) AS request_count,
+				SUM(success_count) AS success_count,
+				SUM(total_latency_ms) AS total_latency_ms,
+				SUM(total_ttft_ms) AS total_ttft_ms,
+				SUM(ttft_count) AS ttft_count,
+				SUM(completion_tokens) AS completion_tokens,
+				SUM(total_tps_latency_ms) AS total_tps_latency_ms`).
+			Group(groupExpr)
+		if startTime > 0 {
+			query = query.Where("bucket_start >= ?", startTime)
+		}
+		if endTime > 0 {
+			query = query.Where("bucket_start <= ?", endTime)
+		}
+		if err := query.Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			groupName := normalizeRankingGroupName(row.Group)
+			existing := aggregates[groupName]
+			existing.add(accumulatorFromRow(row))
+			aggregates[groupName] = existing
+		}
+	}
+
+	for key, acc := range snapshotPendingPerfMetrics() {
+		if startTime > 0 && key.bucketStart < startTime {
+			continue
+		}
+		if endTime > 0 && key.bucketStart > endTime {
+			continue
+		}
+		groupName := normalizeRankingGroupName(key.group)
+		existing := aggregates[groupName]
+		existing.add(acc)
+		aggregates[groupName] = existing
+	}
+
+	groups := make([]string, 0, len(aggregates))
+	for group := range aggregates {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	stats := make([]RankingGroupPerfStat, 0, len(groups))
+	for _, group := range groups {
+		acc := aggregates[group]
+		avgLatencyMs, _, successRate, avgTps := acc.summary()
+		stats = append(stats, RankingGroupPerfStat{
+			Group:        group,
+			RequestCount: acc.requestCount,
+			SuccessRate:  successRate,
+			AvgLatencyMs: avgLatencyMs,
+			AvgTps:       avgTps,
+		})
+	}
+	return stats, nil
 }
 
 func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, error) {
