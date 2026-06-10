@@ -28,7 +28,11 @@ import {
   SquarePen,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import {
+  getQQAvatarUrl,
+  getUserAvatarFallback,
+  getUserAvatarStyle,
+} from '@/lib/avatar'
 import {
   formatBillingCurrencyFromUSD,
   getCurrencyDisplay,
@@ -39,7 +43,7 @@ import {
   formatTimestampToDate,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Tooltip,
   TooltipContent,
@@ -828,6 +832,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const log = row.original
 
           if (!log.username) return null
+          const qqAvatarUrl = sensitiveVisible
+            ? getQQAvatarUrl((log as { qq_id?: string }).qq_id)
+            : undefined
 
           return (
             <button
@@ -840,6 +847,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               }}
             >
               <Avatar className='ring-border/60 size-6 ring-1'>
+                {qqAvatarUrl && (
+                  <AvatarImage src={qqAvatarUrl} alt={log.username} />
+                )}
                 <AvatarFallback
                   className={cn(
                     'text-[11px] font-semibold',

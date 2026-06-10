@@ -35,6 +35,7 @@ type Log struct {
 	IsStream         bool   `json:"is_stream"`
 	ChannelId        int    `json:"channel" gorm:"index"`
 	ChannelName      string `json:"channel_name" gorm:"->"`
+	QQId             string `json:"qq_id,omitempty" gorm:"-"`
 	TokenId          int    `json:"token_id" gorm:"default:0;index"`
 	Group            string `json:"group" gorm:"index"`
 	Ip               string `json:"ip" gorm:"index;default:''"`
@@ -494,6 +495,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			logs[i].ChannelName = channelMap[logs[i].ChannelId]
 		}
 	}
+	if err = fillLogQQIds(logs); err != nil {
+		return logs, total, err
+	}
 
 	return logs, total, err
 }
@@ -541,8 +545,39 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		return nil, 0, errors.New("查询日志失败")
 	}
 
+	if err = fillLogQQIds(logs); err != nil {
+		return nil, 0, err
+	}
 	formatUserLogs(logs, startIdx)
 	return logs, total, err
+}
+
+func fillLogQQIds(logs []*Log) error {
+	userIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.UserId > 0 {
+			userIds.Add(log.UserId)
+		}
+	}
+	if userIds.Len() == 0 {
+		return nil
+	}
+
+	var users []struct {
+		Id   int    `gorm:"column:id"`
+		QQId string `gorm:"column:qq_id"`
+	}
+	if err := DB.Model(&User{}).Select("id, qq_id").Where("id IN ?", userIds.Items()).Find(&users).Error; err != nil {
+		return err
+	}
+	qqByUserID := make(map[int]string, len(users))
+	for _, user := range users {
+		qqByUserID[user.Id] = user.QQId
+	}
+	for _, log := range logs {
+		log.QQId = qqByUserID[log.UserId]
+	}
+	return nil
 }
 
 type Stat struct {

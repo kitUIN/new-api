@@ -21,10 +21,14 @@ import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import {
+  getQQAvatarUrl,
+  getUserAvatarFallback,
+  getUserAvatarStyle,
+} from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
@@ -131,6 +135,9 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           useUsageLogsContext()
         const log = row.original
         const displayName = log.username || String(log.user_id || '?')
+        const qqAvatarUrl = sensitiveVisible
+          ? getQQAvatarUrl(log.qq_id)
+          : undefined
 
         return (
           <button
@@ -143,6 +150,9 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             }}
           >
             <Avatar className='ring-border/60 size-6 ring-1'>
+              {qqAvatarUrl && (
+                <AvatarImage src={qqAvatarUrl} alt={displayName} />
+              )}
               <AvatarFallback
                 className={cn(
                   'text-[11px] font-semibold',

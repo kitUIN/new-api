@@ -60,6 +60,7 @@ func (user *User) ToBaseUser() *UserBase {
 		Quota:    user.Quota,
 		Status:   user.Status,
 		Username: user.Username,
+		QQId:     user.QQId,
 		Setting:  user.Setting,
 		Email:    user.Email,
 	}
