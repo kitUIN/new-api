@@ -68,7 +68,7 @@ export function UsersRankingSection(props: UsersRankingSectionProps) {
             }}
           >
             <ToggleGroupItem value='tokens'>Token</ToggleGroupItem>
-            <ToggleGroupItem value='quota'>{t('Quota')}</ToggleGroupItem>
+            <ToggleGroupItem value='quota'>{t('Usage amount')}</ToggleGroupItem>
           </ToggleGroup>
         </div>
       </header>
@@ -127,7 +127,7 @@ function UserRankingRow(props: {
     props.metric === 'quota'
       ? formatQuota(props.row.total_quota)
       : formatTokens(props.row.total_tokens)
-  const usageLabel = props.metric === 'quota' ? t('Quota') : 'Token'
+  const usageLabel = props.metric === 'quota' ? t('Usage amount') : 'Token'
 
   return (
     <RowElement
@@ -228,8 +228,8 @@ function getUserRankStyle(rank: number): UserRankStyle {
       avatarTextClass: 'text-sm',
       rankClass: 'text-sm font-bold text-orange-700 dark:text-orange-300',
       nameClass: 'text-sm font-semibold text-orange-700 dark:text-orange-300',
-      usageClass: 'text-sm text-orange-700 dark:text-orange-300',
-      metricBadgeClass: 'h-5 px-2 text-[10px]',
+      usageClass: 'text-[15px] text-orange-700 dark:text-orange-300',
+      metricBadgeClass: 'h-[22px] px-2 text-xs',
     }
   }
 

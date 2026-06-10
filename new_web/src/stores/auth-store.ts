@@ -42,6 +42,7 @@ export interface AuthUser {
   github_id?: string
   oidc_id?: string
   wechat_id?: string
+  qq_id?: string
   telegram_id?: string
   linux_do_id?: string
   setting?: Record<string, unknown> | string
