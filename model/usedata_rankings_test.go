@@ -32,6 +32,14 @@ func TestRankingUserTotalsAndSelfRank(t *testing.T) {
 	require.Equal(t, 3, totals[2].UserID)
 	require.EqualValues(t, 500, totals[2].TotalTokens)
 
+	quotaTotals, err := GetRankingUserTotalsByMetric(base-1, base+1, 5, RankingUserMetricQuota)
+	require.NoError(t, err)
+	require.Len(t, quotaTotals, 4)
+	require.Equal(t, 2, quotaTotals[0].UserID)
+	require.EqualValues(t, 1300, quotaTotals[0].TotalQuota)
+	require.Equal(t, 1, quotaTotals[1].UserID)
+	require.EqualValues(t, 1200, quotaTotals[1].TotalQuota)
+
 	self, err := GetRankingUserTotal(2, base-1, base+1)
 	require.NoError(t, err)
 	require.EqualValues(t, 700, self.TotalTokens)
@@ -39,6 +47,9 @@ func TestRankingUserTotalsAndSelfRank(t *testing.T) {
 	rank, err := GetRankingUserRank(2, self.TotalTokens, base-1, base+1)
 	require.NoError(t, err)
 	require.Equal(t, 2, rank)
+	quotaRank, err := GetRankingUserRankByMetric(2, self.TotalQuota, base-1, base+1, RankingUserMetricQuota)
+	require.NoError(t, err)
+	require.Equal(t, 1, quotaRank)
 
 	empty, err := GetRankingUserTotal(99, base-1, base+1)
 	require.NoError(t, err)

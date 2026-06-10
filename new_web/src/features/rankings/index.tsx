@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +32,7 @@ import {
   UsersRankingSection,
 } from './components'
 import { useRankings } from './hooks/use-rankings'
-import type { RankingPeriod } from './types'
+import type { RankingPeriod, UserRankingMetric } from './types'
 
 const VALID_PERIODS: RankingPeriod[] = [
   'today',
@@ -41,6 +42,7 @@ const VALID_PERIODS: RankingPeriod[] = [
   'year',
   'all',
 ]
+const VALID_USER_METRICS: UserRankingMetric[] = ['tokens', 'quota']
 
 export function Rankings() {
   const { t } = useTranslation()
@@ -53,8 +55,15 @@ export function Rankings() {
   )
     ? (search.period as RankingPeriod)
     : 'week'
+  const initialUserMetric: UserRankingMetric = VALID_USER_METRICS.includes(
+    search.user_metric as UserRankingMetric
+  )
+    ? (search.user_metric as UserRankingMetric)
+    : 'tokens'
+  const [userMetric, setUserMetric] =
+    useState<UserRankingMetric>(initialUserMetric)
 
-  const rankingsQuery = useRankings(period)
+  const rankingsQuery = useRankings(period, userMetric)
   const snapshot = rankingsQuery.data?.data
   const rankingPrivacyMutation = useMutation({
     mutationFn: updateRankingPrivacy,
@@ -71,6 +80,10 @@ export function Rankings() {
       to: '/rankings',
       search: (prev) => ({ ...prev, period: next }),
     })
+  }
+
+  const handleUserMetricChange = (next: UserRankingMetric) => {
+    setUserMetric(next)
   }
 
   return (
@@ -115,6 +128,8 @@ export function Rankings() {
               <UsersRankingSection
                 rows={snapshot.users}
                 self={snapshot.self_user}
+                metric={userMetric}
+                onMetricChange={handleUserMetricChange}
                 onPrivacyChange={(next) => rankingPrivacyMutation.mutate(next)}
                 isPrivacyUpdating={rankingPrivacyMutation.isPending}
               />

@@ -19,16 +19,20 @@ For commercial licensing, please contact support@quantumnous.com
 import { UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { formatTokens } from '../lib/format'
-import type { UserRanking } from '../types'
+import type { UserRanking, UserRankingMetric } from '../types'
 
 type UsersRankingSectionProps = {
   rows: UserRanking[]
   self?: UserRanking
+  metric: UserRankingMetric
+  onMetricChange: (metric: UserRankingMetric) => void
   onPrivacyChange?: (isPublic: boolean) => void
   isPrivacyUpdating?: boolean
 }
@@ -39,13 +43,34 @@ export function UsersRankingSection(props: UsersRankingSectionProps) {
   return (
     <section className='bg-card overflow-hidden rounded-lg border'>
       <header className='border-b px-5 py-4'>
-        <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
-          <UserRound className='text-primary size-4' />
-          {t('User Ranking')}
-        </h2>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          {t('Users ranked by token usage')}
-        </p>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div>
+            <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
+              <UserRound className='text-primary size-4' />
+              {t('User Ranking')}
+            </h2>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              {props.metric === 'quota'
+                ? t('Users ranked by quota usage')
+                : t('Users ranked by token usage')}
+            </p>
+          </div>
+          <ToggleGroup
+            value={[props.metric]}
+            variant='outline'
+            size='sm'
+            aria-label={t('User Ranking')}
+            onValueChange={(next) => {
+              const metric = next[0]
+              if (metric === 'tokens' || metric === 'quota') {
+                props.onMetricChange(metric)
+              }
+            }}
+          >
+            <ToggleGroupItem value='tokens'>Token</ToggleGroupItem>
+            <ToggleGroupItem value='quota'>{t('Quota')}</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </header>
 
       {props.rows.length === 0 ? (
@@ -55,7 +80,7 @@ export function UsersRankingSection(props: UsersRankingSectionProps) {
       ) : (
         <ul className='divide-border divide-y'>
           {props.rows.map((row) => (
-            <UserRankingRow key={row.user_id} row={row} />
+            <UserRankingRow key={row.user_id} row={row} metric={props.metric} />
           ))}
         </ul>
       )}
@@ -79,14 +104,18 @@ export function UsersRankingSection(props: UsersRankingSectionProps) {
               />
             </label>
           </div>
-          <UserRankingRow row={props.self} pinned />
+          <UserRankingRow row={props.self} metric={props.metric} pinned />
         </div>
       )}
     </section>
   )
 }
 
-function UserRankingRow(props: { row: UserRanking; pinned?: boolean }) {
+function UserRankingRow(props: {
+  row: UserRanking
+  metric: UserRankingMetric
+  pinned?: boolean
+}) {
   const { t } = useTranslation()
   const isRanked = props.row.rank > 0
   const RowElement = props.pinned ? 'div' : 'li'
@@ -94,6 +123,11 @@ function UserRankingRow(props: { row: UserRanking; pinned?: boolean }) {
   const avatarName = props.row.display_name || String(props.row.user_id)
   const avatarFallback = getUserAvatarFallback(avatarName)
   const avatarFallbackStyle = getUserAvatarStyle(avatarName)
+  const usageText =
+    props.metric === 'quota'
+      ? formatQuota(props.row.total_quota)
+      : formatTokens(props.row.total_tokens)
+  const usageLabel = props.metric === 'quota' ? t('Quota') : 'Token'
 
   return (
     <RowElement
@@ -146,10 +180,10 @@ function UserRankingRow(props: { row: UserRanking; pinned?: boolean }) {
             rankStyle.usageClass
           )}
         >
-          {formatTokens(props.row.total_tokens)}
+          {usageText}
         </div>
-        <Badge variant='secondary' className={rankStyle.tokenBadgeClass}>
-          {t('tokens')}
+        <Badge variant='secondary' className={rankStyle.metricBadgeClass}>
+          {usageLabel}
         </Badge>
       </div>
     </RowElement>
@@ -162,7 +196,7 @@ type UserRankStyle = {
   rankClass: string
   nameClass: string
   usageClass: string
-  tokenBadgeClass?: string
+  metricBadgeClass?: string
 }
 
 function getUserRankStyle(rank: number): UserRankStyle {
@@ -173,7 +207,7 @@ function getUserRankStyle(rank: number): UserRankStyle {
       rankClass: 'text-lg font-extrabold text-amber-700 dark:text-amber-300',
       nameClass: 'text-base font-semibold text-amber-700 dark:text-amber-300',
       usageClass: 'text-base text-amber-700 dark:text-amber-300',
-      tokenBadgeClass: 'h-6 px-2.5 text-xs',
+      metricBadgeClass: 'h-6 px-2.5 text-xs',
     }
   }
 
@@ -184,7 +218,7 @@ function getUserRankStyle(rank: number): UserRankStyle {
       rankClass: 'text-base font-bold text-slate-700 dark:text-slate-300',
       nameClass: 'text-[15px] font-semibold text-slate-700 dark:text-slate-300',
       usageClass: 'text-[15px] text-slate-700 dark:text-slate-300',
-      tokenBadgeClass: 'h-[22px] px-2 text-[11px]',
+      metricBadgeClass: 'h-[22px] px-2 text-[11px]',
     }
   }
 
@@ -195,7 +229,7 @@ function getUserRankStyle(rank: number): UserRankStyle {
       rankClass: 'text-sm font-bold text-orange-700 dark:text-orange-300',
       nameClass: 'text-sm font-semibold text-orange-700 dark:text-orange-300',
       usageClass: 'text-sm text-orange-700 dark:text-orange-300',
-      tokenBadgeClass: 'h-5 px-2 text-[10px]',
+      metricBadgeClass: 'h-5 px-2 text-[10px]',
     }
   }
 

@@ -31,6 +31,11 @@ type RankingGroupTotal struct {
 	TotalQuota  int64  `json:"total_quota" gorm:"column:total_quota"`
 }
 
+const (
+	RankingUserMetricTokens = "tokens"
+	RankingUserMetricQuota  = "quota"
+)
+
 func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal, error) {
 	var rows []RankingQuotaTotal
 	query := DB.Table("quota_data").
@@ -62,9 +67,16 @@ func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([
 }
 
 func GetRankingUserTotals(startTime int64, endTime int64, limit int) ([]RankingUserTotal, error) {
+	return GetRankingUserTotalsByMetric(startTime, endTime, limit, RankingUserMetricTokens)
+}
+
+func GetRankingUserTotalsByMetric(startTime int64, endTime int64, limit int, metric string) ([]RankingUserTotal, error) {
+	metric = normalizeRankingUserMetric(metric)
+	metricColumn := rankingUserMetricColumn(metric)
 	var rows []RankingUserTotal
 	query := rankingUserTotalsQuery(startTime, endTime).
-		Order("total_tokens DESC").
+		Having(rankingUserMetricHaving(metric)).
+		Order(metricColumn + " DESC").
 		Order("user_id ASC")
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -89,13 +101,20 @@ func GetRankingUserTotal(userID int, startTime int64, endTime int64) (RankingUse
 }
 
 func GetRankingUserRank(userID int, totalTokens int64, startTime int64, endTime int64) (int, error) {
-	if userID <= 0 || totalTokens <= 0 {
+	return GetRankingUserRankByMetric(userID, totalTokens, startTime, endTime, RankingUserMetricTokens)
+}
+
+func GetRankingUserRankByMetric(userID int, totalMetric int64, startTime int64, endTime int64, metric string) (int, error) {
+	if userID <= 0 || totalMetric <= 0 {
 		return 0, nil
 	}
-	subQuery := rankingUserTotalsQuery(startTime, endTime)
+	metric = normalizeRankingUserMetric(metric)
+	metricColumn := rankingUserMetricColumn(metric)
+	subQuery := rankingUserTotalsQuery(startTime, endTime).
+		Having(rankingUserMetricHaving(metric))
 	var count int64
 	err := DB.Table("(?) AS ranked", subQuery).
-		Where("ranked.total_tokens > ? OR (ranked.total_tokens = ? AND ranked.user_id < ?)", totalTokens, totalTokens, userID).
+		Where(fmt.Sprintf("ranked.%s > ? OR (ranked.%s = ? AND ranked.user_id < ?)", metricColumn, metricColumn), totalMetric, totalMetric, userID).
 		Count(&count).Error
 	if err != nil {
 		return 0, err
@@ -127,9 +146,31 @@ func rankingUserTotalsQuery(startTime int64, endTime int64) *gorm.DB {
 	query := DB.Table("quota_data").
 		Select("user_id, sum(token_used) as total_tokens, sum(quota) as total_quota").
 		Where("user_id > 0").
-		Group("user_id").
-		Having("sum(token_used) > 0")
+		Group("user_id")
 	return applyRankingQuotaTimeRange(query, startTime, endTime)
+}
+
+func normalizeRankingUserMetric(metric string) string {
+	switch metric {
+	case RankingUserMetricQuota:
+		return RankingUserMetricQuota
+	default:
+		return RankingUserMetricTokens
+	}
+}
+
+func rankingUserMetricColumn(metric string) string {
+	if normalizeRankingUserMetric(metric) == RankingUserMetricQuota {
+		return "total_quota"
+	}
+	return "total_tokens"
+}
+
+func rankingUserMetricHaving(metric string) string {
+	if normalizeRankingUserMetric(metric) == RankingUserMetricQuota {
+		return "sum(quota) > 0"
+	}
+	return "sum(token_used) > 0"
 }
 
 func rankingBucketExpr(bucketSize int64) string {

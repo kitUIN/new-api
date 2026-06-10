@@ -15,7 +15,11 @@ type updateRankingPrivacyRequest struct {
 }
 
 func GetRankings(c *gin.Context) {
-	result, err := service.GetRankingsSnapshot(c.DefaultQuery("period", "week"), c.GetInt("id"))
+	result, err := service.GetRankingsSnapshot(
+		c.DefaultQuery("period", "week"),
+		c.GetInt("id"),
+		c.DefaultQuery("user_metric", string(service.RankingUserMetricTokens)),
+	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,

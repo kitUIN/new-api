@@ -26,6 +26,13 @@ const (
 	rankingDefaultGroup     = "default"
 )
 
+type RankingUserMetric string
+
+const (
+	RankingUserMetricTokens RankingUserMetric = model.RankingUserMetricTokens
+	RankingUserMetricQuota  RankingUserMetric = model.RankingUserMetricQuota
+)
+
 type RankingsResponse struct {
 	Models             []RankedModel      `json:"models"`
 	Vendors            []RankedVendor     `json:"vendors"`
@@ -67,6 +74,7 @@ type RankedUser struct {
 	DisplayName   string `json:"display_name"`
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	TotalTokens   int64  `json:"total_tokens"`
+	TotalQuota    int64  `json:"total_quota"`
 	RankingPublic bool   `json:"ranking_public,omitempty"`
 }
 
@@ -170,23 +178,24 @@ var (
 	rankingCache   = map[string]rankingCacheItem{}
 )
 
-func GetRankingsSnapshot(period string, userID int) (*RankingsResponse, error) {
+func GetRankingsSnapshot(period string, userID int, userMetric string) (*RankingsResponse, error) {
 	config, err := rankingConfig(period, time.Now())
 	if err != nil {
 		return nil, err
 	}
+	metric := NormalizeRankingUserMetric(userMetric)
 
 	now := time.Now()
-	cacheKey := rankingCacheKey(config)
+	cacheKey := rankingCacheKey(config, metric)
 	rankingCacheMu.Lock()
 	item, ok := rankingCache[cacheKey]
 	if ok && now.Before(item.expiresAt) {
 		rankingCacheMu.Unlock()
-		return withRankingUserPresentation(item.data, config, userID)
+		return withRankingUserPresentation(item.data, config, userID, metric)
 	}
 	rankingCacheMu.Unlock()
 
-	data, err := buildRankingsSnapshot(config)
+	data, err := buildRankingsSnapshot(config, metric)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +207,16 @@ func GetRankingsSnapshot(period string, userID int) (*RankingsResponse, error) {
 	}
 	rankingCacheMu.Unlock()
 
-	return withRankingUserPresentation(data, config, userID)
+	return withRankingUserPresentation(data, config, userID, metric)
+}
+
+func NormalizeRankingUserMetric(metric string) RankingUserMetric {
+	switch strings.ToLower(strings.TrimSpace(metric)) {
+	case string(RankingUserMetricQuota):
+		return RankingUserMetricQuota
+	default:
+		return RankingUserMetricTokens
+	}
 }
 
 func rankingConfig(period string, now time.Time) (rankingPeriodConfig, error) {
@@ -228,11 +246,11 @@ func rankingConfig(period string, now time.Time) (rankingPeriodConfig, error) {
 	}
 }
 
-func rankingCacheKey(config rankingPeriodConfig) string {
-	return fmt.Sprintf("%s:%d", config.id, config.startTime)
+func rankingCacheKey(config rankingPeriodConfig, userMetric RankingUserMetric) string {
+	return fmt.Sprintf("%s:%d:%s", config.id, config.startTime, userMetric)
 }
 
-func buildRankingsSnapshot(config rankingPeriodConfig) (*RankingsResponse, error) {
+func buildRankingsSnapshot(config rankingPeriodConfig, userMetric RankingUserMetric) (*RankingsResponse, error) {
 	currentTotals, err := model.GetRankingQuotaTotals(config.startTime, config.endTime)
 	if err != nil {
 		return nil, err
@@ -241,7 +259,7 @@ func buildRankingsSnapshot(config rankingPeriodConfig) (*RankingsResponse, error
 	if err != nil {
 		return nil, err
 	}
-	userTotals, err := model.GetRankingUserTotals(config.startTime, config.endTime, rankingUserLimit)
+	userTotals, err := model.GetRankingUserTotalsByMetric(config.startTime, config.endTime, rankingUserLimit, string(userMetric))
 	if err != nil {
 		return nil, err
 	}
@@ -286,18 +304,18 @@ func buildRankingsSnapshot(config rankingPeriodConfig) (*RankingsResponse, error
 	}, nil
 }
 
-func withRankingUserPresentation(data *RankingsResponse, config rankingPeriodConfig, userID int) (*RankingsResponse, error) {
+func withRankingUserPresentation(data *RankingsResponse, config rankingPeriodConfig, userID int, userMetric RankingUserMetric) (*RankingsResponse, error) {
 	clone := *data
 	userIDs := rankingUserIDs(clone.Users, userID)
 	profiles := buildRankingUserProfiles(userIDs)
 
 	clone.Users = make([]RankedUser, 0, len(data.Users))
 	for _, row := range data.Users {
-		clone.Users = append(clone.Users, rankingUserRow(row.Rank, row.UserID, row.TotalTokens, profiles[row.UserID], false))
+		clone.Users = append(clone.Users, rankingUserRow(row.Rank, row.UserID, row.TotalTokens, row.TotalQuota, profiles[row.UserID], false))
 	}
 
 	if userID > 0 {
-		self, err := buildRankedSelfUser(userID, config, profiles[userID])
+		self, err := buildRankedSelfUser(userID, config, profiles[userID], userMetric)
 		if err != nil {
 			return nil, err
 		}
@@ -306,16 +324,20 @@ func withRankingUserPresentation(data *RankingsResponse, config rankingPeriodCon
 	return &clone, nil
 }
 
-func buildRankedSelfUser(userID int, config rankingPeriodConfig, profile rankingUserProfile) (RankedUser, error) {
+func buildRankedSelfUser(userID int, config rankingPeriodConfig, profile rankingUserProfile, userMetric RankingUserMetric) (RankedUser, error) {
 	total, err := model.GetRankingUserTotal(userID, config.startTime, config.endTime)
 	if err != nil {
 		return RankedUser{}, err
 	}
-	rank, err := model.GetRankingUserRank(userID, total.TotalTokens, config.startTime, config.endTime)
+	rankTotal := total.TotalTokens
+	if userMetric == RankingUserMetricQuota {
+		rankTotal = total.TotalQuota
+	}
+	rank, err := model.GetRankingUserRankByMetric(userID, rankTotal, config.startTime, config.endTime, string(userMetric))
 	if err != nil {
 		return RankedUser{}, err
 	}
-	return rankingUserRow(rank, userID, total.TotalTokens, profile, true), nil
+	return rankingUserRow(rank, userID, total.TotalTokens, total.TotalQuota, profile, true), nil
 }
 
 func previousRankingTimeRange(config rankingPeriodConfig) (int64, int64) {
@@ -386,7 +408,7 @@ func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, prev
 func buildRankedUsers(totals []model.RankingUserTotal) []RankedUser {
 	rows := make([]RankedUser, 0, len(totals))
 	for idx, item := range totals {
-		rows = append(rows, rankingUserRow(idx+1, item.UserID, item.TotalTokens, rankingUserProfile{}, false))
+		rows = append(rows, rankingUserRow(idx+1, item.UserID, item.TotalTokens, item.TotalQuota, rankingUserProfile{}, false))
 	}
 	return rows
 }
@@ -689,7 +711,7 @@ func rankingAnonymousDisplayName(rank int) string {
 	return "匿名用户"
 }
 
-func rankingUserRow(rank int, userID int, totalTokens int64, profile rankingUserProfile, forcePublic bool) RankedUser {
+func rankingUserRow(rank int, userID int, totalTokens int64, totalQuota int64, profile rankingUserProfile, forcePublic bool) RankedUser {
 	isPublic := forcePublic || profile.rankingPublic
 	displayName := rankingAnonymousDisplayName(rank)
 	avatarURL := ""
@@ -706,6 +728,7 @@ func rankingUserRow(rank int, userID int, totalTokens int64, profile rankingUser
 		DisplayName:   displayName,
 		AvatarURL:     avatarURL,
 		TotalTokens:   totalTokens,
+		TotalQuota:    totalQuota,
 		RankingPublic: profile.rankingPublic,
 	}
 }

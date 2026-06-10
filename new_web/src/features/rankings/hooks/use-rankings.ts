@@ -16,14 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRankings } from '../api'
-import type { RankingPeriod } from '../types'
+import type { RankingPeriod, UserRankingMetric } from '../types'
 
-export function useRankings(period: RankingPeriod) {
+export function useRankings(
+  period: RankingPeriod,
+  userMetric: UserRankingMetric
+) {
   return useQuery({
-    queryKey: ['rankings', period],
-    queryFn: () => getRankings(period),
+    queryKey: ['rankings', period, userMetric],
+    queryFn: () => getRankings(period, userMetric),
+    placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
   })
 }

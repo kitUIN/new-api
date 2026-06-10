@@ -44,6 +44,8 @@ export type RankingCategoryId =
   | 'productivity'
   | 'multimodal'
 
+export type UserRankingMetric = 'tokens' | 'quota'
+
 export type ModelRanking = {
   rank: number
   /** Previous rank in the same period; undefined means "new". */
@@ -79,6 +81,7 @@ export type UserRanking = {
   display_name: string
   avatar_url?: string
   total_tokens: number
+  total_quota: number
   ranking_public?: boolean
 }
 
