@@ -83,10 +83,10 @@ export type UserRanking = {
 export type GroupRanking = {
   rank: number
   group: string
-  initial: string
   ratio: number
   total_tokens: number
   success_rate: number
+  avg_ttft_ms: number
   avg_latency_ms: number
   avg_tps: number
 }

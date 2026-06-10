@@ -89,6 +89,7 @@ func TestRankingGroupPerfStatsIncludesFlushedAndPending(t *testing.T) {
 		Group:            "vip",
 		Success:          true,
 		LatencyMs:        2000,
+		TTFTMs:           300,
 		CompletionTokens: 100,
 		TPSLatencyMs:     2000,
 	})
@@ -106,6 +107,7 @@ func TestRankingGroupPerfStatsIncludesFlushedAndPending(t *testing.T) {
 		Group:            "vip",
 		Success:          true,
 		LatencyMs:        1000,
+		TTFTMs:           500,
 		CompletionTokens: 50,
 		TPSLatencyMs:     1000,
 	})
@@ -116,6 +118,7 @@ func TestRankingGroupPerfStatsIncludesFlushedAndPending(t *testing.T) {
 	require.Equal(t, "vip", stats[0].Group)
 	require.EqualValues(t, 3, stats[0].RequestCount)
 	require.Equal(t, 66.67, stats[0].SuccessRate)
+	require.Equal(t, 400.0, stats[0].AvgTTFTMs)
 	require.Equal(t, 1500.0, stats[0].AvgLatencyMs)
 	require.Equal(t, 50.0, stats[0].AvgTps)
 }

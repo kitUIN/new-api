@@ -60,6 +60,7 @@ type RankingGroupPerfStat struct {
 	Group        string  `json:"group"`
 	RequestCount int64   `json:"request_count"`
 	SuccessRate  float64 `json:"success_rate"`
+	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
 	AvgLatencyMs float64 `json:"avg_latency_ms"`
 	AvgTps       float64 `json:"avg_tps"`
 }
@@ -489,11 +490,12 @@ func GetRankingGroupPerfStats(startTime int64, endTime int64) ([]RankingGroupPer
 	stats := make([]RankingGroupPerfStat, 0, len(groups))
 	for _, group := range groups {
 		acc := aggregates[group]
-		avgLatencyMs, _, successRate, avgTps := acc.summary()
+		avgLatencyMs, avgTTFTMs, successRate, avgTps := acc.summary()
 		stats = append(stats, RankingGroupPerfStat{
 			Group:        group,
 			RequestCount: acc.requestCount,
 			SuccessRate:  successRate,
+			AvgTTFTMs:    avgTTFTMs,
 			AvgLatencyMs: avgLatencyMs,
 			AvgTps:       avgTps,
 		})

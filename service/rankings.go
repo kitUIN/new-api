@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -71,10 +70,10 @@ type RankedUser struct {
 type RankedGroup struct {
 	Rank         int     `json:"rank"`
 	Group        string  `json:"group"`
-	Initial      string  `json:"initial"`
 	Ratio        float64 `json:"ratio"`
 	TotalTokens  int64   `json:"total_tokens"`
 	SuccessRate  float64 `json:"success_rate"`
+	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
 	AvgLatencyMs float64 `json:"avg_latency_ms"`
 	AvgTps       float64 `json:"avg_tps"`
 }
@@ -404,10 +403,10 @@ func buildRankedGroups(totals []model.RankingGroupTotal, perfStats []model.Ranki
 		rows = append(rows, RankedGroup{
 			Rank:         idx + 1,
 			Group:        groupName,
-			Initial:      rankingGroupInitial(groupName),
 			Ratio:        ratio,
 			TotalTokens:  item.TotalTokens,
 			SuccessRate:  perf.SuccessRate,
+			AvgTTFTMs:    perf.AvgTTFTMs,
 			AvgLatencyMs: perf.AvgLatencyMs,
 			AvgTps:       perf.AvgTps,
 		})
@@ -675,17 +674,6 @@ func rankingTokenMap(totals []model.RankingQuotaTotal) map[string]int64 {
 
 func rankingUserDisplayName(userID int) string {
 	return fmt.Sprintf("用户%d", userID)
-}
-
-func rankingGroupInitial(group string) string {
-	group = normalizeRankingServiceGroup(group)
-	for _, r := range group {
-		if r <= unicode.MaxASCII {
-			return strings.ToUpper(string(r))
-		}
-		return string(r)
-	}
-	return "D"
 }
 
 func normalizeRankingServiceGroup(group string) string {

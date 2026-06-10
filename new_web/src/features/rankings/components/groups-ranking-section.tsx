@@ -57,6 +57,7 @@ export function GroupsRankingSection(props: GroupsRankingSectionProps) {
 
 function GroupRankingRow(props: { row: GroupRanking }) {
   const { t } = useTranslation()
+  const groupInitial = getGroupInitial(props.row.group)
 
   return (
     <div className='grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 px-5 py-4 lg:grid-cols-[auto_auto_minmax(0,1fr)_repeat(5,minmax(88px,auto))]'>
@@ -64,7 +65,7 @@ function GroupRankingRow(props: { row: GroupRanking }) {
         {props.row.rank}.
       </span>
       <span className='bg-primary/10 text-primary inline-flex size-9 shrink-0 items-center justify-center rounded-full font-mono text-sm font-semibold'>
-        {props.row.initial}
+        {groupInitial}
       </span>
       <div className='min-w-0'>
         <div className='text-foreground truncate font-mono text-sm font-semibold'>
@@ -83,7 +84,7 @@ function GroupRankingRow(props: { row: GroupRanking }) {
         label={t('Success rate')}
         value={formatPercent(props.row.success_rate)}
       />
-      <Metric label={t('Initial')} value={props.row.initial} />
+      <Metric label={t('TTFT')} value={formatLatency(props.row.avg_ttft_ms)} />
       <Metric
         label={t('Avg Latency')}
         value={formatLatency(props.row.avg_latency_ms)}
@@ -124,4 +125,11 @@ function formatTps(value: number): string {
 function formatRatio(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '1x'
   return `${Number(value.toFixed(3)).toString()}x`
+}
+
+function getGroupInitial(group: string): string {
+  const trimmed = group.trim()
+  if (!trimmed) return 'D'
+  const first = Array.from(trimmed)[0] ?? 'D'
+  return /^[a-z]$/i.test(first) ? first.toUpperCase() : first
 }
