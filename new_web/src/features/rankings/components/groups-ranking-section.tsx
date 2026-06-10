@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gauge, Layers3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { formatTokens } from '../lib/format'
 import type { GroupRanking } from '../types'
 
@@ -31,8 +31,7 @@ export function GroupsRankingSection(props: GroupsRankingSectionProps) {
   return (
     <section className='bg-card overflow-hidden rounded-lg border'>
       <header className='border-b px-5 py-4'>
-        <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
-          <Layers3 className='text-primary size-4' />
+        <h2 className='text-foreground text-base font-semibold'>
           {t('Group Ranking')}
         </h2>
         <p className='text-muted-foreground mt-1 text-sm'>
@@ -57,22 +56,23 @@ export function GroupsRankingSection(props: GroupsRankingSectionProps) {
 
 function GroupRankingRow(props: { row: GroupRanking }) {
   const { t } = useTranslation()
-  const groupInitial = getGroupInitial(props.row.group)
+  const rankClass = getGroupRankNumberClass(props.row.rank)
 
   return (
-    <div className='grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 px-5 py-4 lg:grid-cols-[auto_auto_minmax(0,1fr)_repeat(5,minmax(88px,auto))]'>
-      <span className='text-muted-foreground/80 w-8 shrink-0 text-right font-mono text-xs tabular-nums'>
+    <div className='grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-5 py-4 lg:grid-cols-[auto_minmax(0,1fr)_repeat(5,minmax(88px,auto))]'>
+      <span
+        className={cn(
+          'w-8 shrink-0 text-right font-mono tabular-nums',
+          rankClass
+        )}
+      >
         {props.row.rank}.
-      </span>
-      <span className='bg-primary/10 text-primary inline-flex size-9 shrink-0 items-center justify-center rounded-full font-mono text-sm font-semibold'>
-        {groupInitial}
       </span>
       <div className='min-w-0'>
         <div className='text-foreground truncate font-mono text-sm font-semibold'>
           {props.row.group}
         </div>
-        <div className='text-muted-foreground/80 mt-0.5 flex items-center gap-1 text-xs'>
-          <Gauge className='size-3' />
+        <div className='text-muted-foreground/80 mt-0.5 text-xs'>
           {t('Group multiplier')} {formatRatio(props.row.ratio)}
         </div>
       </div>
@@ -127,9 +127,18 @@ function formatRatio(value: number): string {
   return `${Number(value.toFixed(3)).toString()}x`
 }
 
-function getGroupInitial(group: string): string {
-  const trimmed = group.trim()
-  if (!trimmed) return 'D'
-  const first = Array.from(trimmed)[0] ?? 'D'
-  return /^[a-z]$/i.test(first) ? first.toUpperCase() : first
+function getGroupRankNumberClass(rank: number): string {
+  if (rank === 1) {
+    return 'text-lg font-extrabold text-amber-700 dark:text-amber-300'
+  }
+
+  if (rank === 2) {
+    return 'text-base font-bold text-slate-700 dark:text-slate-300'
+  }
+
+  if (rank === 3) {
+    return 'text-sm font-bold text-orange-700 dark:text-orange-300'
+  }
+
+  return 'text-muted-foreground/80 text-xs'
 }
