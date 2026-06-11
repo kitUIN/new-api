@@ -4,6 +4,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,5 +34,59 @@ func TestParseChannelTestStream(t *testing.T) {
 				t.Fatalf("parseChannelTestStream() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCalculateChannelTestQuotaAppliesGroupRatio(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+	}
+	priceData := types.PriceData{
+		ModelRatio:      2,
+		CompletionRatio: 3,
+		GroupRatioInfo: types.GroupRatioInfo{
+			GroupRatio: 0.5,
+		},
+	}
+
+	got := calculateChannelTestQuota(usage, priceData)
+	if got != 250 {
+		t.Fatalf("calculateChannelTestQuota() = %d, want 250", got)
+	}
+}
+
+func TestCalculateChannelTestQuotaAppliesGroupRatioForFixedPrice(t *testing.T) {
+	priceData := types.PriceData{
+		UsePrice:   true,
+		ModelPrice: 0.01,
+		GroupRatioInfo: types.GroupRatioInfo{
+			GroupRatio: 2,
+		},
+	}
+
+	got := calculateChannelTestQuota(&dto.Usage{TotalTokens: 1}, priceData)
+	want := int(0.01 * common.QuotaPerUnit * 2)
+	if got != want {
+		t.Fatalf("calculateChannelTestQuota() = %d, want %d", got, want)
+	}
+}
+
+func TestCalculateChannelTestQuotaZeroGroupRatioIsFree(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     1,
+		CompletionTokens: 0,
+	}
+	priceData := types.PriceData{
+		ModelRatio:      1,
+		CompletionRatio: 1,
+		GroupRatioInfo: types.GroupRatioInfo{
+			GroupRatio: 0,
+		},
+	}
+
+	got := calculateChannelTestQuota(usage, priceData)
+	if got != 0 {
+		t.Fatalf("calculateChannelTestQuota() = %d, want 0", got)
 	}
 }

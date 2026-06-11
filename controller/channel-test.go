@@ -497,16 +497,7 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
-	quota := 0
-	if !priceData.UsePrice {
-		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
-		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
-		if priceData.ModelRatio != 0 && quota <= 0 {
-			quota = 1
-		}
-	} else {
-		quota = int(priceData.ModelPrice * common.QuotaPerUnit)
-	}
+	quota := calculateChannelTestQuota(usage, priceData)
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
@@ -531,6 +522,23 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 		localErr:    nil,
 		newAPIError: nil,
 	}
+}
+
+func calculateChannelTestQuota(usage *dto.Usage, priceData types.PriceData) int {
+	if usage == nil {
+		return 0
+	}
+	groupRatio := priceData.GroupRatioInfo.GroupRatio
+	if !priceData.UsePrice {
+		quota := usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
+		ratio := priceData.ModelRatio * groupRatio
+		quota = int(math.Round(float64(quota) * ratio))
+		if ratio != 0 && quota <= 0 {
+			quota = 1
+		}
+		return quota
+	}
+	return int(math.Round(priceData.ModelPrice * common.QuotaPerUnit * groupRatio))
 }
 
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
