@@ -73,6 +73,7 @@ import { getGroupQuerySources } from '../api'
 import type {
   GroupQuerySource,
   UpstreamGroupRatioBinding,
+  UpstreamGroupRatioBindingSourceType,
 } from '../types'
 import { safeJsonParse } from '../utils/json-parser'
 
@@ -130,7 +131,10 @@ function getSourceKey(sourceType: 'channel' | 'provider', sourceId: number) {
   return `${sourceType}:${sourceId}` as BindingSourceKey
 }
 
-function parseSourceKey(value: string) {
+function parseSourceKey(value: string): {
+  sourceType: UpstreamGroupRatioBindingSourceType
+  sourceID: number
+} | null {
   const [sourceType, rawID] = value.split(':')
   const sourceID = Number(rawID)
   if (
@@ -994,17 +998,17 @@ function GroupPricingTable({
       </CardHeader>
       <CardContent>
         <div className='space-y-3'>
-          <div className='overflow-hidden rounded-md border'>
-            <Table>
+          <div className='rounded-md border'>
+            <Table className='min-w-[920px] table-fixed'>
               <TableHeader>
                 <TableRow>
-                  <TableHead className='min-w-40'>{t('Group name')}</TableHead>
-                  <TableHead className='w-28'>{t('Ratio')}</TableHead>
-                  <TableHead className='w-28 text-center'>
+                  <TableHead className='w-44'>{t('Group name')}</TableHead>
+                  <TableHead className='w-32'>{t('Ratio')}</TableHead>
+                  <TableHead className='w-32 text-center'>
                     {t('User selectable')}
                   </TableHead>
-                  <TableHead className='min-w-56'>{t('Description')}</TableHead>
-                  <TableHead className='min-w-72'>
+                  <TableHead className='w-60'>{t('Description')}</TableHead>
+                  <TableHead className='w-80'>
                     {t('Upstream binding')}
                   </TableHead>
                   <TableHead className='w-16 text-right'>
@@ -1035,7 +1039,7 @@ function GroupPricingTable({
 
                     return (
                       <TableRow key={row._id}>
-                        <TableCell>
+                        <TableCell className='w-44'>
                           <Input
                             value={row.name}
                             onChange={(event) =>
@@ -1046,8 +1050,9 @@ function GroupPricingTable({
                             )}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className='w-32'>
                           <Input
+                            className='min-w-28'
                             type='number'
                             min={0}
                             step={0.1}
@@ -1062,7 +1067,7 @@ function GroupPricingTable({
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className='w-32'>
                           <div className='flex justify-center'>
                             <Checkbox
                               checked={row.selectable}
@@ -1077,7 +1082,7 @@ function GroupPricingTable({
                             />
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className='w-60'>
                           {row.selectable ? (
                             <Input
                               value={row.description}
@@ -1096,7 +1101,7 @@ function GroupPricingTable({
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className='w-80'>
                           {binding ? (
                             <div className='flex items-start justify-between gap-2'>
                               <div className='min-w-0 space-y-1'>

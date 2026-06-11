@@ -192,6 +192,7 @@ export function ModelMutateDrawer({
       DefaultUseAutoGroup: false,
       CreateCacheRatio: '',
       'group_ratio_setting.group_special_usable_group': '{}',
+      'group_ratio_setting.upstream_group_ratio_bindings': '{}',
       'grok.violation_deduction_enabled': false,
       'grok.violation_deduction_amount': 0,
       'channel_affinity_setting.enabled': false,
