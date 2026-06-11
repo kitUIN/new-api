@@ -25,6 +25,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -57,6 +58,10 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 }
 
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithGroup(channel, testModel, endpointType, isStream, "")
+}
+
+func testChannelWithGroup(channel *model.Channel, testModel string, endpointType string, isStream bool, testGroup string) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
@@ -157,7 +162,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	c.Set("channel", channel.Type)
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(1, false)
+	if testGroup != "" {
+		group = testGroup
+	}
 	c.Set("group", group)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, group)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {
@@ -791,30 +800,69 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testAllChannels(notify bool) error {
-
+func beginChannelTestRun() error {
 	testAllChannelsLock.Lock()
+	defer testAllChannelsLock.Unlock()
 	if testAllChannelsRunning {
-		testAllChannelsLock.Unlock()
 		return errors.New("测试已在运行中")
 	}
 	testAllChannelsRunning = true
+	return nil
+}
+
+func finishChannelTestRun() {
+	testAllChannelsLock.Lock()
+	testAllChannelsRunning = false
 	testAllChannelsLock.Unlock()
+}
+
+func evaluateChannelTestResult(channel *model.Channel, result testResult, milliseconds int64, wasChannelEnabled bool) {
+	shouldBanChannel := false
+	newAPIError := result.newAPIError
+	usingKey := ""
+	if result.context != nil {
+		usingKey = common.GetContextKeyString(result.context, constant.ContextKeyChannelKey)
+	}
+	if newAPIError != nil {
+		shouldBanChannel = service.ShouldDisableChannel(result.newAPIError)
+	}
+
+	disableThreshold := int64(common.ChannelDisableThreshold * 1000)
+	if disableThreshold == 0 {
+		disableThreshold = 10000000
+	}
+	if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
+		if milliseconds > disableThreshold {
+			err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+			newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+			shouldBanChannel = true
+		}
+	}
+
+	if wasChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
+		processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, usingKey, channel.GetAutoBan()), newAPIError)
+	}
+
+	if !wasChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
+		service.EnableChannel(channel.Id, usingKey, channel.Name)
+	}
+
+	channel.UpdateResponseTime(milliseconds)
+}
+
+func testAllChannels(notify bool) error {
+
+	if err := beginChannelTestRun(); err != nil {
+		return err
+	}
 	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
 	if getChannelErr != nil {
+		finishChannelTestRun()
 		return getChannelErr
-	}
-	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
-	if disableThreshold == 0 {
-		disableThreshold = 10000000 // a impossible value
 	}
 	gopool.Go(func() {
 		// 使用 defer 确保无论如何都会重置运行状态，防止死锁
-		defer func() {
-			testAllChannelsLock.Lock()
-			testAllChannelsRunning = false
-			testAllChannelsLock.Unlock()
-		}()
+		defer finishChannelTestRun()
 
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
@@ -826,38 +874,62 @@ func testAllChannels(notify bool) error {
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 
-			shouldBanChannel := false
-			newAPIError := result.newAPIError
-			// request error disables the channel
-			if newAPIError != nil {
-				shouldBanChannel = service.ShouldDisableChannel(result.newAPIError)
-			}
-
-			// 当错误检查通过，才检查响应时间
-			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
-				if milliseconds > disableThreshold {
-					err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-					newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-					shouldBanChannel = true
-				}
-			}
-
-			// disable channel
-			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
-			}
-
-			// enable channel
-			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
-			}
-
-			channel.UpdateResponseTime(milliseconds)
+			evaluateChannelTestResult(channel, result, milliseconds, isChannelEnabled)
 			time.Sleep(common.RequestInterval)
 		}
 
 		if notify {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
+		}
+	})
+	return nil
+}
+
+func testIdleEnabledGroups(interval time.Duration) error {
+	if err := beginChannelTestRun(); err != nil {
+		return err
+	}
+	groupChannels, err := model.GetEnabledGroupChannels()
+	if err != nil {
+		finishChannelTestRun()
+		return err
+	}
+	gopool.Go(func() {
+		defer finishChannelTestRun()
+
+		group2channels := make(map[string][]model.Channel)
+		selectableGroups := setting.GetUserUsableGroupsCopy()
+		for i := range groupChannels {
+			item := groupChannels[i]
+			if item.Group == "" {
+				continue
+			}
+			if _, ok := selectableGroups[item.Group]; !ok {
+				continue
+			}
+			group2channels[item.Group] = append(group2channels[item.Group], item.Channel)
+		}
+
+		for group, channels := range group2channels {
+			now := time.Now()
+			if last, ok := service.GetGroupLastUserRequest(group); ok && now.Sub(last) < interval {
+				common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: user request within %.0f minutes", group, interval.Minutes()))
+				continue
+			}
+			common.SysLog(fmt.Sprintf("automatically testing enabled channels for idle group %s", group))
+			for i := range channels {
+				channel := &channels[i]
+				if channel.Status == common.ChannelStatusManuallyDisabled {
+					continue
+				}
+				isChannelEnabled := channel.Status == common.ChannelStatusEnabled
+				tik := time.Now()
+				result := testChannelWithGroup(channel, "", "", false, group)
+				tok := time.Now()
+				milliseconds := tok.Sub(tik).Milliseconds()
+				evaluateChannelTestResult(channel, result, milliseconds, isChannelEnabled)
+				time.Sleep(common.RequestInterval)
+			}
 		}
 	})
 	return nil
@@ -890,10 +962,11 @@ func AutomaticallyTestChannels() {
 			}
 			for {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
-				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+				interval := time.Duration(int(math.Round(frequency))) * time.Minute
+				time.Sleep(interval)
 				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
-				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
+				common.SysLog("automatically testing idle enabled groups")
+				_ = testIdleEnabledGroups(interval)
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break

@@ -159,11 +159,23 @@ func Distribute() func(c *gin.Context) {
 			common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		}
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		recordRelayGroupUserRequest(c, channel)
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func recordRelayGroupUserRequest(c *gin.Context, channel *model.Channel) {
+	if channel == nil {
+		return
+	}
+	group := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if group == "" {
+		group = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	service.RecordGroupUserRequest(group, time.Now())
 }
 
 // getModelFromRequest 从请求中读取模型信息

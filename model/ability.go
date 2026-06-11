@@ -28,6 +28,11 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+type EnabledGroupChannel struct {
+	Group   string `json:"group"`
+	Channel Channel
+}
+
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
@@ -36,6 +41,68 @@ func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error
 	return abilities, err
+}
+
+func GetEnabledGroupChannels() ([]EnabledGroupChannel, error) {
+	var rows []struct {
+		Group     string
+		ChannelId int
+	}
+	err := DB.Model(&Ability{}).
+		Select(commonGroupCol+" as "+commonGroupCol+", channel_id").
+		Where("enabled = ?", true).
+		Group(commonGroupCol + ", channel_id").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []EnabledGroupChannel{}, nil
+	}
+
+	channelIDs := make([]int, 0, len(rows))
+	seenChannelIDs := make(map[int]struct{})
+	for _, row := range rows {
+		if row.ChannelId <= 0 {
+			continue
+		}
+		if _, ok := seenChannelIDs[row.ChannelId]; ok {
+			continue
+		}
+		seenChannelIDs[row.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, row.ChannelId)
+	}
+	if len(channelIDs) == 0 {
+		return []EnabledGroupChannel{}, nil
+	}
+
+	var channels []Channel
+	if err := DB.Where("id IN ? AND status = ?", channelIDs, common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelByID := make(map[int]Channel, len(channels))
+	for _, channel := range channels {
+		channelByID[channel.Id] = channel
+	}
+
+	result := make([]EnabledGroupChannel, 0, len(rows))
+	seenGroupChannels := make(map[string]struct{})
+	for _, row := range rows {
+		channel, ok := channelByID[row.ChannelId]
+		if !ok {
+			continue
+		}
+		key := row.Group + "|" + fmt.Sprintf("%d", row.ChannelId)
+		if _, ok := seenGroupChannels[key]; ok {
+			continue
+		}
+		seenGroupChannels[key] = struct{}{}
+		result = append(result, EnabledGroupChannel{
+			Group:   row.Group,
+			Channel: channel,
+		})
+	}
+	return result, nil
 }
 
 func GetGroupEnabledModels(group string) []string {

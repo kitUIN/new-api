@@ -265,7 +265,9 @@ export function MonitoringSettingsSection({
                   <SettingsSwitchContent>
                     <FormLabel>{t('Scheduled channel tests')}</FormLabel>
                     <FormDescription>
-                      {t('Automatically probe all channels in the background')}
+                      {t(
+                        'Only probe enabled groups with no real requests in the last interval'
+                      )}
                     </FormDescription>
                   </SettingsSwitchContent>
                   <FormControl>
@@ -304,7 +306,9 @@ export function MonitoringSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('How frequently the system tests all channels')}
+                    {t(
+                      'Groups are tested after this many minutes if they stayed idle'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
