@@ -76,6 +76,7 @@ const oauthSchema = z.object({
   QQCallbackAccessToken: z.string().optional(),
   QQNumber: z.string().optional(),
   QQAdminNumber: z.string().optional(),
+  QQNotificationGroup: z.string().optional(),
   QQFriendLink: z.string().optional(),
 })
 
@@ -120,6 +121,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     QQCallbackAccessToken: defaultValues.QQCallbackAccessToken ?? '',
     QQNumber: defaultValues.QQNumber ?? '',
     QQAdminNumber: defaultValues.QQAdminNumber ?? '',
+    QQNotificationGroup: defaultValues.QQNotificationGroup ?? '',
     QQFriendLink: defaultValues.QQFriendLink ?? '',
   }
 
@@ -859,6 +861,20 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Admin QQ')}</FormLabel>
+                      <FormControl>
+                        <Input autoComplete='off' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQNotificationGroup'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Notification Group')}</FormLabel>
                       <FormControl>
                         <Input autoComplete='off' {...field} />
                       </FormControl>

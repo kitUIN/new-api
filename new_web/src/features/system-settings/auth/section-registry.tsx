@@ -78,6 +78,7 @@ const AUTH_SECTIONS = [
           QQCallbackAccessToken: settings.QQCallbackAccessToken,
           QQNumber: settings.QQNumber,
           QQAdminNumber: settings.QQAdminNumber,
+          QQNotificationGroup: settings.QQNotificationGroup,
           QQFriendLink: settings.QQFriendLink,
         }}
       />

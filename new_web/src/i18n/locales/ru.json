@@ -4552,6 +4552,7 @@
     "Open QQ friend link": "Открыть ссылку друга QQ",
     "QQ Friend Link": "Ссылка друга QQ",
     "Used by the QQ binding dialog to open the add-friend link.": "Используется в диалоге привязки QQ для открытия ссылки добавления в друзья.",
-    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK"
+    "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK",
+    "Notification Group": "Группа уведомлений"
   }
 }
