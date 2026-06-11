@@ -102,6 +102,11 @@ func setupLogin(user *model.User, c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	now := common.GetTimestamp()
+	user.AccessedTime = now
+	if err := model.UpdateUserAccessedTime(user.Id, now); err != nil {
+		common.SysLog(fmt.Sprintf("failed to update user accessed time for user %d: %s", user.Id, err.Error()))
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,

@@ -365,12 +365,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Invite Info'), mobileHidden: true },
     },
     {
-      accessorKey: 'created_at',
+      accessorKey: 'created_time',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created At')} />
       ),
       cell: ({ row }) => {
-        const ts = row.getValue('created_at') as number | undefined
+        const ts = row.getValue('created_time') as number | undefined
         return (
           <span className='text-muted-foreground text-sm'>
             {ts ? formatTimestamp(ts) : '-'}
@@ -380,12 +380,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Created At'), mobileHidden: true },
     },
     {
-      accessorKey: 'last_login_at',
+      accessorKey: 'accessed_time',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Last Login')} />
       ),
       cell: ({ row }) => {
-        const ts = row.getValue('last_login_at') as number | undefined
+        const ts = row.getValue('accessed_time') as number | undefined
         return (
           <span className='text-muted-foreground text-sm'>
             {ts ? formatTimestamp(ts) : '-'}

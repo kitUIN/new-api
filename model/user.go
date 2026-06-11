@@ -40,6 +40,8 @@ type User struct {
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	CreatedTime      int64          `json:"created_time" gorm:"bigint;default:0"`
+	AccessedTime     int64          `json:"accessed_time" gorm:"bigint;default:0"`
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -387,6 +389,9 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	if user.CreatedTime == 0 {
+		user.CreatedTime = common.GetTimestamp()
+	}
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -446,6 +451,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	if user.CreatedTime == 0 {
+		user.CreatedTime = common.GetTimestamp()
+	}
 	user.AffCode = common.GetRandomString(4)
 
 	// 初始化用户设置
@@ -509,6 +517,13 @@ func (user *User) Update(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+func UpdateUserAccessedTime(id int, accessedTime int64) error {
+	if id == 0 {
+		return errors.New("id 为空！")
+	}
+	return DB.Model(&User{}).Where("id = ?", id).Update("accessed_time", accessedTime).Error
 }
 
 func (user *User) Edit(updatePassword bool) error {

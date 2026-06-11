@@ -53,9 +53,8 @@ export const userSchema = z.object({
   linux_do_id: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
-  created_at: z.number().optional(),
-  updated_at: z.number().optional(),
-  last_login_at: z.number().optional(),
+  created_time: z.number().optional(),
+  accessed_time: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
 })
