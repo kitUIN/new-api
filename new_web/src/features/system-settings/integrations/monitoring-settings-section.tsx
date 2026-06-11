@@ -66,6 +66,7 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      auto_test_channel_skip_groups: z.string(),
     }),
   })
   .superRefine((values, ctx) => {
@@ -110,6 +111,7 @@ type MonitoringSettingsSectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.auto_test_channel_skip_groups': string
   }
 }
 
@@ -127,6 +129,7 @@ type NormalizedMonitoringValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.auto_test_channel_skip_groups': string
 }
 
 const buildFormDefaults = (
@@ -146,6 +149,8 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    auto_test_channel_skip_groups:
+      defaults['monitor_setting.auto_test_channel_skip_groups'] ?? '',
   },
 })
 
@@ -169,6 +174,10 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.auto_test_channel_skip_groups':
+    normalizeLineEndings(
+      defaults['monitor_setting.auto_test_channel_skip_groups'] ?? ''
+    ),
 })
 
 const normalizeFormValues = (
@@ -191,6 +200,9 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.auto_test_channel_skip_groups': normalizeLineEndings(
+    values.monitor_setting.auto_test_channel_skip_groups
+  ),
 })
 
 export function MonitoringSettingsSection({
@@ -308,6 +320,33 @@ export function MonitoringSettingsSection({
                   <FormDescription>
                     {t(
                       'Groups are tested after this many minutes if they stayed idle'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.auto_test_channel_skip_groups'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Skip groups for scheduled tests')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder={t('e.g. default, vip')}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      rows={2}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Scheduled automatic tests skip these groups. Separate multiple groups with commas or new lines.'
                     )}
                   </FormDescription>
                   <FormMessage />

@@ -44,6 +44,7 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.auto_test_channel_skip_groups': '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -160,6 +161,23 @@ export default function SettingsMonitoring(props) {
                       ...inputs,
                       'monitor_setting.auto_test_channel_minutes':
                         parseInt(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.TextArea
+                  label={t('自动测试跳过分组')}
+                  placeholder={t('例如：default, vip')}
+                  extraText={t(
+                    '定时自动测试会跳过这些分组，多个分组可用逗号或换行分隔',
+                  )}
+                  field={'monitor_setting.auto_test_channel_skip_groups'}
+                  autosize={{ minRows: 1, maxRows: 4 }}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_channel_skip_groups': value,
                     })
                   }
                 />

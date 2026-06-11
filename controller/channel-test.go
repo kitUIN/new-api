@@ -930,6 +930,10 @@ func testIdleEnabledGroups(interval time.Duration) error {
 		}
 
 		for group, channels := range group2channels {
+			if operation_setting.ShouldSkipAutoTestChannelGroup(group) {
+				common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: group is configured to be skipped", group))
+				continue
+			}
 			now := time.Now()
 			if last, ok := service.GetGroupLastUserRequest(group); ok && now.Sub(last) < interval {
 				common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: user request within %.0f minutes", group, interval.Minutes()))
