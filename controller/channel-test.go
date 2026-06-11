@@ -79,8 +79,21 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	return testChannelWithGroup(channel, testModel, endpointType, isStream, "")
 }
 
-func testChannelWithGroup(channel *model.Channel, testModel string, endpointType string, isStream bool, testGroup string) testResult {
+func testChannelWithGroup(channel *model.Channel, testModel string, endpointType string, isStream bool, testGroup string) (result testResult) {
 	tik := time.Now()
+	var perfRelayInfo *relaycommon.RelayInfo
+	var perfCompletionTokens int64
+	defer func() {
+		if perfRelayInfo == nil {
+			return
+		}
+		model.RecordChannelTestPerfMetric(result.context, perfRelayInfo, model.PerfMetricSample{
+			ModelName:        perfRelayInfo.OriginModelName,
+			Group:            perfRelayInfo.UsingGroup,
+			Success:          result.localErr == nil && result.newAPIError == nil,
+			CompletionTokens: perfCompletionTokens,
+		})
+	}()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,
@@ -259,6 +272,7 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 
 	info.IsChannelTest = true
 	info.InitChannelMeta(c)
+	perfRelayInfo = info
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
@@ -479,8 +493,8 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 			newAPIError: types.NewOpenAIError(usageErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
-	result := w.Result()
-	respBody, err := readTestResponseBody(result.Body, effectiveStream)
+	httpResult := w.Result()
+	respBody, err := readTestResponseBody(httpResult.Body, effectiveStream)
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -496,6 +510,7 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 		}
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
+	perfCompletionTokens = int64(usage.CompletionTokens)
 
 	quota := calculateChannelTestQuota(usage, priceData)
 	tok := time.Now()

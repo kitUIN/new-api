@@ -4692,6 +4692,8 @@
     "Group health access token": "Group health access token",
     "Allow direct access with /group-health?access_token=your-token. Leave blank to require login only.": "Allow direct access with /group-health?access_token=your-token. Leave blank to require login only.",
     "Enter access token": "Enter access token",
-    "10 minutes": "10 minutes"
+    "10 minutes": "10 minutes",
+    "Auto refresh is on": "Auto refresh is on",
+    "Auto refresh is off": "Auto refresh is off"
   }
 }

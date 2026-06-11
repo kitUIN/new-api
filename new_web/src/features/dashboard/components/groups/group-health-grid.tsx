@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Activity, Gauge, HeartPulse, RefreshCw, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import dayjs from '@/lib/dayjs'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Empty,
   EmptyDescription,
@@ -49,7 +50,9 @@ import type {
 } from '@/features/performance-metrics/types'
 
 const HEALTH_WINDOW_HOURS = 24
+const HEALTH_BAR_WINDOW_HOURS = 6
 const HEALTH_INTERVAL_MINUTES = 10
+const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
 
 function statusDotClassName(status: PerfGroupHealthStatus): string {
   switch (status) {
@@ -73,7 +76,10 @@ function statusTextClassName(rate: number, requestCount: number): string {
 
 function formatRatio(ratio: number): string {
   if (!Number.isFinite(ratio)) return 'x1'
-  return `x${ratio.toFixed(ratio % 1 === 0 ? 0 : 3).replace(/0+$/, '').replace(/\.$/, '')}`
+  return `x${ratio
+    .toFixed(ratio % 1 === 0 ? 0 : 3)
+    .replace(/0+$/, '')
+    .replace(/\.$/, '')}`
 }
 
 function formatWindow(bucket: PerfGroupHealthBucket): string {
@@ -84,6 +90,7 @@ function formatWindow(bucket: PerfGroupHealthBucket): string {
 
 export function GroupHealthGrid() {
   const { t } = useTranslation()
+  const [autoRefresh, setAutoRefresh] = useState(false)
   const healthQuery = useQuery({
     queryKey: [
       'perf-group-health',
@@ -92,6 +99,7 @@ export function GroupHealthGrid() {
     ],
     queryFn: () =>
       getPerfGroupHealth(HEALTH_WINDOW_HOURS, HEALTH_INTERVAL_MINUTES),
+    refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -102,27 +110,48 @@ export function GroupHealthGrid() {
   )
 
   if (healthQuery.isLoading) {
-    return <GroupHealthSkeleton />
+    return (
+      <div className='flex flex-col gap-3'>
+        <GroupHealthToolbar
+          autoRefresh={autoRefresh}
+          isFetching={healthQuery.isFetching}
+          onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
+        />
+        <GroupHealthSkeleton />
+      </div>
+    )
   }
 
   if (!groups.length) {
     return (
-      <Empty className='min-h-72 border'>
-        <EmptyHeader>
-          <EmptyMedia variant='icon'>
-            <HeartPulse />
-          </EmptyMedia>
-          <EmptyTitle>{t('No group health data')}</EmptyTitle>
-          <EmptyDescription>
-            {t('Enable performance metrics to collect group health data.')}
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <div className='flex flex-col gap-3'>
+        <GroupHealthToolbar
+          autoRefresh={autoRefresh}
+          isFetching={healthQuery.isFetching}
+          onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
+        />
+        <Empty className='min-h-72 border'>
+          <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <HeartPulse />
+            </EmptyMedia>
+            <EmptyTitle>{t('No group health data')}</EmptyTitle>
+            <EmptyDescription>
+              {t('Enable performance metrics to collect group health data.')}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
     )
   }
 
   return (
     <div className='flex flex-col gap-3'>
+      <GroupHealthToolbar
+        autoRefresh={autoRefresh}
+        isFetching={healthQuery.isFetching}
+        onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
+      />
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3'>
         {groups.map((group) => (
           <GroupHealthCard key={group.group} group={group} />
@@ -133,10 +162,52 @@ export function GroupHealthGrid() {
   )
 }
 
+function GroupHealthToolbar(props: {
+  autoRefresh: boolean
+  isFetching: boolean
+  onToggleAutoRefresh: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='flex justify-end'>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type='button'
+              variant={props.autoRefresh ? 'default' : 'outline'}
+              size='sm'
+              onClick={props.onToggleAutoRefresh}
+              aria-pressed={props.autoRefresh}
+            >
+              <RefreshCw
+                data-icon='inline-start'
+                className={cn(props.isFetching && 'animate-spin')}
+                aria-hidden='true'
+              />
+              {t('Auto refresh')} (1m)
+            </Button>
+          }
+        />
+        <TooltipContent>
+          {props.autoRefresh
+            ? t('Auto refresh is on')
+            : t('Auto refresh is off')}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
 function GroupHealthCard(props: { group: PerfGroupHealth }) {
   const { t } = useTranslation()
   const group = props.group
   const hasSamples = group.request_count > 0
+  const visibleBucketCount = Math.ceil(
+    (HEALTH_BAR_WINDOW_HOURS * 60) / HEALTH_INTERVAL_MINUTES
+  )
+  const visibleBuckets = group.buckets.slice(-visibleBucketCount)
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
@@ -189,10 +260,12 @@ function GroupHealthCard(props: { group: PerfGroupHealth }) {
         <div
           className='grid gap-px'
           style={{
-            gridTemplateColumns: `repeat(${group.buckets.length}, minmax(0, 1fr))`,
+            gridTemplateColumns: visibleBuckets.length
+              ? `repeat(${visibleBuckets.length}, minmax(0, 1fr))`
+              : undefined,
           }}
         >
-          {group.buckets.map((bucket) => (
+          {visibleBuckets.map((bucket) => (
             <BucketDot key={bucket.ts} bucket={bucket} />
           ))}
         </div>
@@ -230,7 +303,7 @@ function BucketDot(props: { bucket: PerfGroupHealthBucket }) {
           <button
             type='button'
             className={cn(
-              'h-3 min-w-0 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'focus-visible:ring-ring h-3 min-w-0 rounded-full focus-visible:ring-2 focus-visible:outline-none',
               statusDotClassName(bucket.status)
             )}
             aria-label={formatWindow(bucket)}
@@ -240,12 +313,14 @@ function BucketDot(props: { bucket: PerfGroupHealthBucket }) {
       <TooltipContent side='top' className='flex-col items-start font-mono'>
         <div className='font-medium'>{formatWindow(bucket)}</div>
         <div>
-          {t('Success rate')}: {bucket.request_count > 0
+          {t('Success rate')}:{' '}
+          {bucket.request_count > 0
             ? formatUptimePct(bucket.success_rate)
             : '—'}
         </div>
         <div>
-          {t('Average first-token latency')}: {formatLatency(bucket.avg_ttft_ms)}
+          {t('Average first-token latency')}:{' '}
+          {formatLatency(bucket.avg_ttft_ms)}
         </div>
         <div>
           {t('Average latency')}: {formatLatency(bucket.avg_latency_ms)}

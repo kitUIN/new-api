@@ -4569,6 +4569,8 @@
     "Excellent >= 99%": "Excellent >= 99%",
     "Warning 95%-99%": "Warning 95%-99%",
     "Error < 95%": "Error < 95%",
-    "10 minutes": "10 minutes"
+    "10 minutes": "10 minutes",
+    "Auto refresh is on": "Auto refresh is on",
+    "Auto refresh is off": "Auto refresh is off"
   }
 }

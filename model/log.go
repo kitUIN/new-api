@@ -350,6 +350,17 @@ func RecordRelayPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInfo, sam
 	if relayInfo == nil || relayInfo.IsPlayground || relayInfo.IsChannelTest || relayInfo.TaskRelayInfo != nil {
 		return
 	}
+	recordRelayPerfMetric(c, relayInfo, sample)
+}
+
+func RecordChannelTestPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInfo, sample PerfMetricSample) {
+	if relayInfo == nil || relayInfo.IsPlayground || relayInfo.TaskRelayInfo != nil {
+		return
+	}
+	recordRelayPerfMetric(c, relayInfo, sample)
+}
+
+func recordRelayPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInfo, sample PerfMetricSample) {
 	if strings.TrimSpace(sample.ModelName) == "" {
 		sample.ModelName = relayInfo.OriginModelName
 	}

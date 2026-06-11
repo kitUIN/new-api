@@ -4692,6 +4692,8 @@
     "Group health access token": "分组健康访问令牌",
     "Allow direct access with /group-health?access_token=your-token. Leave blank to require login only.": "允许通过 /group-health?access_token=your-token 直接访问。留空则仅允许登录访问。",
     "Enter access token": "输入访问令牌",
-    "10 minutes": "10 分钟"
+    "10 minutes": "10 分钟",
+    "Auto refresh is on": "自动刷新已开启",
+    "Auto refresh is off": "自动刷新已关闭"
   }
 }

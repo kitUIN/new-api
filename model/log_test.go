@@ -2,7 +2,10 @@ package model
 
 import (
 	"testing"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,4 +43,41 @@ func TestFormatUserLogsFallsBackToStatusCodeInContent(t *testing.T) {
 
 	require.Equal(t, "status_code=429", logs[0].Content)
 	require.Equal(t, "{}", logs[0].Other)
+}
+
+func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+
+	start := time.Now().Add(-500 * time.Millisecond)
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName:   "channel-test-model",
+		UsingGroup:        "default",
+		StartTime:         start,
+		FirstResponseTime: start.Add(100 * time.Millisecond),
+		IsChannelTest:     true,
+	}
+
+	RecordRelayPerfMetric(nil, relayInfo, PerfMetricSample{Success: true})
+	summary, err := GetPerfGroupHealthSummary(1, 10)
+	require.NoError(t, err)
+	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 0, defaultGroup.RequestCount)
+
+	RecordChannelTestPerfMetric(nil, relayInfo, PerfMetricSample{
+		Success:          true,
+		CompletionTokens: 10,
+	})
+	summary, err = GetPerfGroupHealthSummary(1, 10)
+	require.NoError(t, err)
+	defaultGroup = requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 1, defaultGroup.RequestCount)
+	require.Equal(t, 100.0, defaultGroup.SuccessRate)
+	require.Greater(t, defaultGroup.AvgLatencyMs, 0.0)
+	require.Equal(t, 100.0, defaultGroup.AvgTTFTMs)
 }
