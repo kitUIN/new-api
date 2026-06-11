@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
 )
@@ -298,6 +299,55 @@ func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {
 	require.Equal(t, 100.0, defaultGroup.SuccessRate)
 	bucket := requirePerfGroupHealthBucket(t, defaultGroup.Buckets, base)
 	require.Equal(t, "ok", bucket.Status)
+}
+
+func TestGetPerfGroupHealthSummaryOnlyIncludesEnabledGroups(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"disabled":1}`))
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default group"}`))
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+
+	base := time.Now().Unix()
+	base = base - base%600
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        base + 10,
+		ModelName:        "enabled-group-health",
+		Group:            "default",
+		Success:          true,
+		LatencyMs:        1200,
+		TTFTMs:           250,
+		CompletionTokens: 24,
+		TPSLatencyMs:     1200,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        base + 20,
+		ModelName:        "disabled-group-health",
+		Group:            "disabled",
+		Success:          true,
+		LatencyMs:        800,
+		TTFTMs:           180,
+		CompletionTokens: 32,
+		TPSLatencyMs:     800,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	requirePerfGroupHealth(t, summary.Groups, "default")
+	for _, group := range summary.Groups {
+		require.NotEqual(t, "disabled", group.Group)
+	}
 }
 
 func TestGetGroupProviderCounts(t *testing.T) {

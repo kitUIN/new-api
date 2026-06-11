@@ -4686,6 +4686,12 @@
     "Excellent >= 99%": "Excellent >= 99%",
     "Warning 95%-99%": "Warning 95%-99%",
     "Error < 95%": "Error < 95%",
+    "Top navigation entry for group monitoring.": "Top navigation entry for group monitoring.",
+    "Require login to view group health": "Require login to view group health",
+    "Visitors must authenticate before accessing the group health page unless they provide the configured access token.": "Visitors must authenticate before accessing the group health page unless they provide the configured access token.",
+    "Group health access token": "Group health access token",
+    "Allow direct access with /group-health?access_token=your-token. Leave blank to require login only.": "Allow direct access with /group-health?access_token=your-token. Leave blank to require login only.",
+    "Enter access token": "Enter access token",
     "10 minutes": "10 minutes"
   }
 }

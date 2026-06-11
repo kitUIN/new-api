@@ -18,15 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getStatus } from '@/lib/api'
 
-export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
+export type ModuleAccess = {
+  enabled: boolean
+  requireAuth: boolean
+  accessToken?: string
+}
 
-export type HeaderNavModule = 'rankings' | 'pricing'
+export type HeaderNavModule = 'rankings' | 'pricing' | 'groupHealth'
 
 export type HeaderNavModules = {
   home: boolean
   console: boolean
   pricing: ModuleAccess
   rankings: ModuleAccess
+  groupHealth: ModuleAccess
   docs: boolean
   about: boolean
   [key: string]: boolean | ModuleAccess
@@ -37,6 +42,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   console: true,
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
+  groupHealth: { enabled: true, requireAuth: true, accessToken: '' },
   docs: true,
   about: true,
 }
@@ -44,6 +50,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
   pricing: DEFAULT_HEADER_NAV_MODULES.pricing,
   rankings: DEFAULT_HEADER_NAV_MODULES.rankings,
+  groupHealth: DEFAULT_HEADER_NAV_MODULES.groupHealth,
 }
 
 function cloneHeaderNavDefaults(): HeaderNavModules {
@@ -51,6 +58,7 @@ function cloneHeaderNavDefaults(): HeaderNavModules {
     ...DEFAULT_HEADER_NAV_MODULES,
     pricing: { ...DEFAULT_HEADER_NAV_MODULES.pricing },
     rankings: { ...DEFAULT_HEADER_NAV_MODULES.rankings },
+    groupHealth: { ...DEFAULT_HEADER_NAV_MODULES.groupHealth },
   }
 }
 
@@ -88,6 +96,10 @@ function parseAccess(raw: unknown, fallback: ModuleAccess): ModuleAccess {
     return {
       enabled: parseHeaderNavBoolean(r.enabled, fallback.enabled),
       requireAuth: parseHeaderNavBoolean(r.requireAuth, fallback.requireAuth),
+      accessToken:
+        typeof r.accessToken === 'string'
+          ? r.accessToken.trim()
+          : fallback.accessToken,
     }
   }
   return { ...fallback }
@@ -116,6 +128,10 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
     }
     if (key === 'rankings') {
       result.rankings = parseAccess(value, result.rankings)
+      return
+    }
+    if (key === 'groupHealth') {
+      result.groupHealth = parseAccess(value, result.groupHealth)
       return
     }
 

@@ -34,6 +34,12 @@ const DASHBOARD_SECTIONS = [
     build: () => null,
   },
   {
+    id: 'group-health',
+    titleKey: 'Group Health',
+    adminOnly: true,
+    build: () => null,
+  },
+  {
     id: 'users',
     titleKey: 'User Analytics',
     adminOnly: true,
@@ -42,12 +48,6 @@ const DASHBOARD_SECTIONS = [
   {
     id: 'groups',
     titleKey: 'Group Analytics',
-    adminOnly: true,
-    build: () => null,
-  },
-  {
-    id: 'group-health',
-    titleKey: 'Group Health',
     adminOnly: true,
     build: () => null,
   },

@@ -85,6 +85,17 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
+  // Group Health
+  const groupHealth = modules?.groupHealth
+  if (groupHealth && typeof groupHealth === 'object' && groupHealth.enabled) {
+    const requiresAuth = groupHealth.requireAuth && !isAuthed
+    links.push({
+      title: t('Group Health'),
+      href: '/group-health',
+      requiresAuth,
+    })
+  }
+
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {

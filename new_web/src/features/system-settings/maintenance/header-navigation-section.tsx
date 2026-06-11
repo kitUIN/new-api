@@ -26,9 +26,11 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import {
   SettingsControlChildren,
@@ -53,11 +55,22 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
+  groupHealthEnabled: z.boolean(),
+  groupHealthRequireAuth: z.boolean(),
+  groupHealthAccessToken: z.string().optional(),
   docs: z.boolean(),
   about: z.boolean(),
 })
 
 type HeaderNavFormValues = z.infer<typeof headerNavSchema>
+type HeaderNavBooleanField = Exclude<
+  keyof HeaderNavFormValues,
+  'groupHealthAccessToken'
+>
+type HeaderNavAccessTokenField = Extract<
+  keyof HeaderNavFormValues,
+  'groupHealthAccessToken'
+>
 
 type HeaderNavigationSectionProps = {
   config: HeaderNavModulesConfig
@@ -87,6 +100,17 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
+  groupHealthEnabled:
+    config.groupHealth?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.groupHealth.enabled
+      : Boolean(config.groupHealth.enabled),
+  groupHealthRequireAuth:
+    config.groupHealth?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.groupHealth.requireAuth
+      : Boolean(config.groupHealth.requireAuth),
+  groupHealthAccessToken:
+    config.groupHealth?.accessToken ??
+    HEADER_NAV_DEFAULT.groupHealth.accessToken,
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -129,6 +153,12 @@ export function HeaderNavigationSection({
         enabled: values.rankingsEnabled,
         requireAuth: values.rankingsRequireAuth,
       },
+      groupHealth: {
+        ...(config.groupHealth ?? HEADER_NAV_DEFAULT.groupHealth),
+        enabled: values.groupHealthEnabled,
+        requireAuth: values.groupHealthRequireAuth,
+        accessToken: values.groupHealthAccessToken?.trim() ?? '',
+      },
     }
 
     const serialized = serializeHeaderNavModules(payload)
@@ -147,7 +177,7 @@ export function HeaderNavigationSection({
   }
 
   const simpleModules: Array<{
-    key: keyof HeaderNavFormValues
+    key: HeaderNavBooleanField
     title: string
     description: string
   }> = [
@@ -174,13 +204,20 @@ export function HeaderNavigationSection({
   ]
 
   const accessModules: Array<{
-    enabledKey: keyof HeaderNavFormValues
-    requireAuthKey: keyof HeaderNavFormValues
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    enabledKey: HeaderNavBooleanField
+    requireAuthKey: HeaderNavBooleanField
+    requireAuthDependsOn:
+      | 'pricingEnabled'
+      | 'rankingsEnabled'
+      | 'groupHealthEnabled'
+    accessTokenKey?: HeaderNavAccessTokenField
     title: string
     description: string
     requireAuthTitle: string
     requireAuthDescription: string
+    accessTokenTitle?: string
+    accessTokenDescription?: string
+    accessTokenPlaceholder?: string
   }> = [
     {
       enabledKey: 'pricingEnabled',
@@ -203,6 +240,23 @@ export function HeaderNavigationSection({
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the rankings page.'
       ),
+    },
+    {
+      enabledKey: 'groupHealthEnabled',
+      requireAuthKey: 'groupHealthRequireAuth',
+      requireAuthDependsOn: 'groupHealthEnabled',
+      accessTokenKey: 'groupHealthAccessToken',
+      title: t('Group Health'),
+      description: t('Top navigation entry for group monitoring.'),
+      requireAuthTitle: t('Require login to view group health'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the group health page unless they provide the configured access token.'
+      ),
+      accessTokenTitle: t('Group health access token'),
+      accessTokenDescription: t(
+        'Allow direct access with /group-health?access_token=your-token. Leave blank to require login only.'
+      ),
+      accessTokenPlaceholder: t('Enter access token'),
     },
   ]
 
@@ -289,6 +343,39 @@ export function HeaderNavigationSection({
                     </SettingsControlChildren>
                   )}
                 />
+
+                {module.accessTokenKey ? (
+                  <FormField
+                    control={form.control}
+                    name={module.accessTokenKey}
+                    render={({ field }) => (
+                      <SettingsControlChildren>
+                        <FormItem>
+                          <FormLabel>{module.accessTokenTitle}</FormLabel>
+                          <FormControl>
+                            <Input
+                              autoComplete='off'
+                              type='password'
+                              placeholder={module.accessTokenPlaceholder}
+                              {...field}
+                              value={(field.value as string | undefined) ?? ''}
+                              onChange={(event) =>
+                                field.onChange(event.target.value)
+                              }
+                              disabled={
+                                !form.watch(module.requireAuthDependsOn)
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {module.accessTokenDescription}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      </SettingsControlChildren>
+                    )}
+                  />
+                ) : null}
               </SettingsControlGroup>
             ))}
           </div>

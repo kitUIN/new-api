@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 )
@@ -492,6 +493,15 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}
 
 	groups := make(map[string]*groupedAccumulator)
+	enabledGroups := setting.GetUserUsableGroupsCopy()
+	isEnabledGroup := func(groupName string) bool {
+		groupName = strings.TrimSpace(groupName)
+		if groupName == "" {
+			groupName = "default"
+		}
+		_, ok := enabledGroups[groupName]
+		return ok
+	}
 	ensureGroup := func(groupName string) *groupedAccumulator {
 		groupName = strings.TrimSpace(groupName)
 		if groupName == "" {
@@ -506,6 +516,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}
 
 	for groupName := range ratio_setting.GetGroupRatioCopy() {
+		if !isEnabledGroup(groupName) {
+			continue
+		}
 		ensureGroup(groupName)
 	}
 
@@ -553,6 +566,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if bucketTs < startBucket || bucketTs >= endExclusive {
 			continue
 		}
+		if !isEnabledGroup(row.Group) {
+			continue
+		}
 		group := ensureGroup(row.Group)
 		acc := accumulatorFromRow(row)
 		group.total.add(acc)
@@ -569,6 +585,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		return PerfGroupHealthSummary{}, err
 	}
 	for groupName := range providerCounts {
+		if !isEnabledGroup(groupName) {
+			continue
+		}
 		ensureGroup(groupName)
 	}
 
