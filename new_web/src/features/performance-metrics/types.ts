@@ -58,3 +58,41 @@ export type PerfSummaryAllData = {
     models: PerfModelSummary[]
   }
 }
+
+export type PerfGroupHealthStatus = 'empty' | 'ok' | 'warning' | 'error'
+
+export type PerfGroupHealthBucket = {
+  ts: number
+  end_ts: number
+  request_count: number
+  success_count: number
+  success_rate: number
+  avg_ttft_ms: number
+  avg_latency_ms: number
+  avg_tps: number
+  status: PerfGroupHealthStatus
+}
+
+export type PerfGroupHealth = {
+  group: string
+  ratio: number
+  provider_count: number
+  request_count: number
+  success_rate: number
+  avg_ttft_ms: number
+  avg_latency_ms: number
+  avg_tps: number
+  buckets: PerfGroupHealthBucket[]
+}
+
+export type PerfGroupHealthData = {
+  success: boolean
+  message?: string
+  data: {
+    window_hours: number
+    interval_minutes: number
+    bucket_count: number
+    series_schema?: string
+    groups: PerfGroupHealth[]
+  }
+}

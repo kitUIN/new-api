@@ -45,6 +45,8 @@ func PerfMetricsBucketSeconds(bucketTime string) int64 {
 		return 60
 	case "5min":
 		return 300
+	case "10min":
+		return 600
 	case "hour":
 		return 3600
 	default:
@@ -54,7 +56,7 @@ func PerfMetricsBucketSeconds(bucketTime string) int64 {
 
 func PerfMetricsBucketName(bucketTime string) string {
 	switch bucketTime {
-	case "minute", "5min", "hour":
+	case "minute", "5min", "10min", "hour":
 		return bucketTime
 	default:
 		return "hour"

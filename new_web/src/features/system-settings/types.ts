@@ -312,7 +312,7 @@ export type OperationsSettings = {
   'performance_setting.monitor_disk_threshold': number
   'perf_metrics_setting.enabled': boolean
   'perf_metrics_setting.flush_interval': number
-  'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
+  'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min' | '10min'
   'perf_metrics_setting.retention_days': number
 }
 

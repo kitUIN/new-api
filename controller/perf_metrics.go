@@ -10,10 +10,12 @@ import (
 )
 
 const (
-	defaultPerfMetricsHours = 24
-	defaultPerfMetricsLimit = 200
-	maxPerfMetricsHours     = 168
-	maxPerfMetricsLimit     = 500
+	defaultPerfMetricsHours                = 24
+	defaultPerfMetricsLimit                = 200
+	maxPerfMetricsHours                    = 168
+	maxPerfMetricsLimit                    = 500
+	defaultPerfMetricsGroupIntervalMinutes = 10
+	maxPerfMetricsGroupIntervalMinutes     = 60
 )
 
 func GetPerfMetricsSummary(c *gin.Context) {
@@ -21,6 +23,19 @@ func GetPerfMetricsSummary(c *gin.Context) {
 	limit := getPerfMetricsLimit(c)
 
 	summary, err := model.GetPerfMetricsSummary(hours, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, summary)
+}
+
+func GetPerfGroupHealthSummary(c *gin.Context) {
+	hours := getPerfMetricsHours(c)
+	intervalMinutes := getPerfMetricsGroupIntervalMinutes(c)
+
+	summary, err := model.GetPerfGroupHealthSummary(hours, intervalMinutes)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -66,4 +81,15 @@ func getPerfMetricsLimit(c *gin.Context) int {
 		return maxPerfMetricsLimit
 	}
 	return limit
+}
+
+func getPerfMetricsGroupIntervalMinutes(c *gin.Context) int {
+	intervalMinutes, err := strconv.Atoi(c.DefaultQuery("interval_minutes", strconv.Itoa(defaultPerfMetricsGroupIntervalMinutes)))
+	if err != nil || intervalMinutes <= 0 {
+		return defaultPerfMetricsGroupIntervalMinutes
+	}
+	if intervalMinutes > maxPerfMetricsGroupIntervalMinutes {
+		return maxPerfMetricsGroupIntervalMinutes
+	}
+	return intervalMinutes
 }

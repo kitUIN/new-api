@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -195,6 +196,126 @@ func TestGetPerformanceMetricsIncludesPendingSamples(t *testing.T) {
 	require.Equal(t, base, metrics.Groups[0].Series[0].Ts)
 }
 
+func TestGetPerfGroupHealthSummaryAggregatesGroupsAndTenMinuteBuckets(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0}`))
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+
+	base := time.Now().Unix()
+	base = base - base%600
+	previousBase := base - 600
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        previousBase + 10,
+		ModelName:        "model-a",
+		Group:            "default",
+		Success:          true,
+		LatencyMs:        1000,
+		TTFTMs:           200,
+		CompletionTokens: 50,
+		TPSLatencyMs:     1000,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: previousBase + 20,
+		ModelName: "model-b",
+		Group:     "default",
+		Success:   false,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        base + 10,
+		ModelName:        "model-c",
+		Group:            "vip",
+		Success:          true,
+		LatencyMs:        2000,
+		TTFTMs:           400,
+		CompletionTokens: 80,
+		TPSLatencyMs:     2000,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	require.Equal(t, 24, summary.WindowHours)
+	require.Equal(t, 10, summary.IntervalMinutes)
+	require.Equal(t, 144, summary.BucketCount)
+
+	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.Equal(t, 1.0, defaultGroup.Ratio)
+	require.EqualValues(t, 2, defaultGroup.RequestCount)
+	require.Equal(t, 50.0, defaultGroup.SuccessRate)
+	require.Equal(t, 1000.0, defaultGroup.AvgLatencyMs)
+	require.Equal(t, 200.0, defaultGroup.AvgTTFTMs)
+	require.Equal(t, 50.0, defaultGroup.AvgTps)
+	require.Len(t, defaultGroup.Buckets, 144)
+	defaultBucket := requirePerfGroupHealthBucket(t, defaultGroup.Buckets, previousBase)
+	require.EqualValues(t, 2, defaultBucket.RequestCount)
+	require.EqualValues(t, 1, defaultBucket.SuccessCount)
+	require.Equal(t, 50.0, defaultBucket.SuccessRate)
+	require.Equal(t, "error", defaultBucket.Status)
+
+	vipGroup := requirePerfGroupHealth(t, summary.Groups, "vip")
+	require.Equal(t, 0.0, vipGroup.Ratio)
+	require.EqualValues(t, 1, vipGroup.RequestCount)
+	require.Equal(t, 100.0, vipGroup.SuccessRate)
+	vipBucket := requirePerfGroupHealthBucket(t, vipGroup.Buckets, base)
+	require.Equal(t, "ok", vipBucket.Status)
+}
+
+func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "5min",
+		FlushInterval: 5,
+	})
+
+	base := time.Now().Unix()
+	base = base - base%600
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        base + 300,
+		ModelName:        "pending-group-health",
+		Group:            "default",
+		Success:          true,
+		LatencyMs:        1200,
+		TTFTMs:           250,
+		CompletionTokens: 24,
+		TPSLatencyMs:     1200,
+	})
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 1, defaultGroup.RequestCount)
+	require.Equal(t, 100.0, defaultGroup.SuccessRate)
+	bucket := requirePerfGroupHealthBucket(t, defaultGroup.Buckets, base)
+	require.Equal(t, "ok", bucket.Status)
+}
+
+func TestGetGroupProviderCounts(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create([]Channel{
+		{Id: 1, ProviderID: 10, Status: common.ChannelStatusEnabled, Group: "default,vip"},
+		{Id: 2, ProviderID: 10, Status: common.ChannelStatusEnabled, Group: "default"},
+		{Id: 3, ProviderID: 0, Status: common.ChannelStatusEnabled, Group: "default"},
+		{Id: 4, ProviderID: 11, Status: common.ChannelStatusManuallyDisabled, Group: "default"},
+	}).Error)
+
+	counts, err := GetGroupProviderCounts()
+	require.NoError(t, err)
+	require.Equal(t, 2, counts["default"])
+	require.Equal(t, 1, counts["vip"])
+}
+
 func TestStartPerfMetricsFlushLoopFlushesPendingSamples(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
@@ -299,4 +420,26 @@ func TestCleanupPerfMetricsDeletesExpiredBuckets(t *testing.T) {
 	require.Zero(t, count)
 	require.NoError(t, LOG_DB.Model(&PerfMetricBucket{}).Where("model_name = ?", "new-model").Count(&count).Error)
 	require.EqualValues(t, 1, count)
+}
+
+func requirePerfGroupHealth(t *testing.T, groups []PerfGroupHealth, groupName string) PerfGroupHealth {
+	t.Helper()
+	for _, group := range groups {
+		if group.Group == groupName {
+			return group
+		}
+	}
+	t.Fatalf("group %q not found", groupName)
+	return PerfGroupHealth{}
+}
+
+func requirePerfGroupHealthBucket(t *testing.T, buckets []PerfGroupHealthBucket, ts int64) PerfGroupHealthBucket {
+	t.Helper()
+	for _, bucket := range buckets {
+		if bucket.Ts == ts {
+			return bucket
+		}
+	}
+	t.Fatalf("bucket %d not found", ts)
+	return PerfGroupHealthBucket{}
 }

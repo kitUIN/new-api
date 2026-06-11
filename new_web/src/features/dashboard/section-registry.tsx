@@ -45,11 +45,17 @@ const DASHBOARD_SECTIONS = [
     adminOnly: true,
     build: () => null,
   },
+  {
+    id: 'group-health',
+    titleKey: 'Group Health',
+    adminOnly: true,
+    build: () => null,
+  },
 ] as const
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
 
-const ADMIN_ONLY_SECTIONS = new Set<string>(['users', 'groups'])
+const ADMIN_ONLY_SECTIONS = new Set<string>(['users', 'groups', 'group-health'])
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,

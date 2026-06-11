@@ -4672,6 +4672,17 @@
     "QQ Friend Link": "QQ 好友链接",
     "Used by the QQ binding dialog to open the add-friend link.": "用于 QQ 绑定对话框打开加好友链接。",
     "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK",
-    "Notification Group": "通知群"
+    "Notification Group": "通知群",
+    "Group Health": "分组健康",
+    "24h success rate": "24 小时成功率",
+    "{{count}} providers": "{{count}} 供应商",
+    "Average first-token latency": "平均首字延迟",
+    "Average token/s": "平均 token/s",
+    "No group health data": "暂无分组健康数据",
+    "Enable performance metrics to collect group health data.": "启用性能指标后即可收集分组健康数据。",
+    "Excellent >= 99%": "优秀 >= 99%",
+    "Warning 95%-99%": "警告 95%-99%",
+    "Error < 95%": "错误 < 95%",
+    "10 minutes": "10 分钟"
   }
 }

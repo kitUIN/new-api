@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 )
 
@@ -54,6 +55,38 @@ type PerfModelSummary struct {
 
 type PerfMetricsSummary struct {
 	Models []PerfModelSummary `json:"models"`
+}
+
+type PerfGroupHealthBucket struct {
+	Ts           int64   `json:"ts"`
+	EndTs        int64   `json:"end_ts"`
+	RequestCount int64   `json:"request_count"`
+	SuccessCount int64   `json:"success_count"`
+	SuccessRate  float64 `json:"success_rate"`
+	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
+	AvgLatencyMs float64 `json:"avg_latency_ms"`
+	AvgTps       float64 `json:"avg_tps"`
+	Status       string  `json:"status"`
+}
+
+type PerfGroupHealth struct {
+	Group         string                  `json:"group"`
+	Ratio         float64                 `json:"ratio"`
+	ProviderCount int                     `json:"provider_count"`
+	RequestCount  int64                   `json:"request_count"`
+	SuccessRate   float64                 `json:"success_rate"`
+	AvgTTFTMs     float64                 `json:"avg_ttft_ms"`
+	AvgLatencyMs  float64                 `json:"avg_latency_ms"`
+	AvgTps        float64                 `json:"avg_tps"`
+	Buckets       []PerfGroupHealthBucket `json:"buckets"`
+}
+
+type PerfGroupHealthSummary struct {
+	WindowHours     int               `json:"window_hours"`
+	IntervalMinutes int               `json:"interval_minutes"`
+	BucketCount     int               `json:"bucket_count"`
+	SeriesSchema    string            `json:"series_schema,omitempty"`
+	Groups          []PerfGroupHealth `json:"groups"`
 }
 
 type RankingGroupPerfStat struct {
@@ -436,6 +469,210 @@ func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 	return PerfMetricsSummary{Models: models}, nil
 }
 
+func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthSummary, error) {
+	if hours <= 0 {
+		hours = 24
+	}
+	if intervalMinutes <= 0 {
+		intervalMinutes = 10
+	}
+	intervalSeconds := int64(intervalMinutes * 60)
+	bucketCount := hours * 60 / intervalMinutes
+	if bucketCount <= 0 {
+		bucketCount = 1
+	}
+	now := time.Now().Unix()
+	endBucketStart := now - now%intervalSeconds
+	startBucket := endBucketStart - int64(bucketCount-1)*intervalSeconds
+	endExclusive := endBucketStart + intervalSeconds
+
+	type groupedAccumulator struct {
+		total  perfAccumulator
+		series map[int64]*perfAccumulator
+	}
+
+	groups := make(map[string]*groupedAccumulator)
+	ensureGroup := func(groupName string) *groupedAccumulator {
+		groupName = strings.TrimSpace(groupName)
+		if groupName == "" {
+			groupName = "default"
+		}
+		group := groups[groupName]
+		if group == nil {
+			group = &groupedAccumulator{series: make(map[int64]*perfAccumulator)}
+			groups[groupName] = group
+		}
+		return group
+	}
+
+	for groupName := range ratio_setting.GetGroupRatioCopy() {
+		ensureGroup(groupName)
+	}
+
+	var rows []perfMetricAggregateRow
+	groupCol := perfMetricGroupCol()
+	err := LOG_DB.Model(&PerfMetricBucket{}).
+		Select(`bucket_start,
+			bucket_seconds,
+			`+groupCol+` AS group_name,
+			SUM(request_count) AS request_count,
+			SUM(success_count) AS success_count,
+			SUM(total_latency_ms) AS total_latency_ms,
+			SUM(total_ttft_ms) AS total_ttft_ms,
+			SUM(ttft_count) AS ttft_count,
+			SUM(completion_tokens) AS completion_tokens,
+			SUM(total_tps_latency_ms) AS total_tps_latency_ms`).
+		Where("bucket_start >= ?", startBucket).
+		Where("bucket_start < ?", endExclusive).
+		Group("bucket_start, bucket_seconds, " + groupCol).
+		Order("bucket_start ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return PerfGroupHealthSummary{}, err
+	}
+	for key, acc := range snapshotPendingPerfMetrics() {
+		if key.bucketStart < startBucket || key.bucketStart >= endExclusive {
+			continue
+		}
+		rows = append(rows, perfMetricAggregateRow{
+			Group:             key.group,
+			BucketStart:       key.bucketStart,
+			BucketSeconds:     key.bucketSeconds,
+			RequestCount:      acc.requestCount,
+			SuccessCount:      acc.successCount,
+			TotalLatencyMs:    acc.totalLatencyMs,
+			TotalTTFTMs:       acc.totalTTFTMs,
+			TTFTCount:         acc.ttftCount,
+			CompletionTokens:  acc.completionTokens,
+			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
+		})
+	}
+
+	for _, row := range rows {
+		bucketTs := row.BucketStart - row.BucketStart%intervalSeconds
+		if bucketTs < startBucket || bucketTs >= endExclusive {
+			continue
+		}
+		group := ensureGroup(row.Group)
+		acc := accumulatorFromRow(row)
+		group.total.add(acc)
+		bucket := group.series[bucketTs]
+		if bucket == nil {
+			bucket = &perfAccumulator{}
+			group.series[bucketTs] = bucket
+		}
+		bucket.add(acc)
+	}
+
+	providerCounts, err := GetGroupProviderCounts()
+	if err != nil {
+		return PerfGroupHealthSummary{}, err
+	}
+	for groupName := range providerCounts {
+		ensureGroup(groupName)
+	}
+
+	ratios := ratio_setting.GetGroupRatioCopy()
+	groupNames := make([]string, 0, len(groups))
+	for groupName := range groups {
+		groupNames = append(groupNames, groupName)
+	}
+	sort.Strings(groupNames)
+
+	resultGroups := make([]PerfGroupHealth, 0, len(groupNames))
+	for _, groupName := range groupNames {
+		group := groups[groupName]
+		avgLatencyMs, avgTTFTMs, successRate, avgTps := group.total.summary()
+		ratio, ok := ratios[groupName]
+		if !ok {
+			ratio = 1
+		}
+
+		buckets := make([]PerfGroupHealthBucket, 0, bucketCount)
+		for i := 0; i < bucketCount; i++ {
+			bucketTs := startBucket + int64(i)*intervalSeconds
+			acc := group.series[bucketTs]
+			if acc == nil {
+				buckets = append(buckets, PerfGroupHealthBucket{
+					Ts:     bucketTs,
+					EndTs:  bucketTs + intervalSeconds,
+					Status: "empty",
+				})
+				continue
+			}
+			bucketLatencyMs, bucketTTFTMs, bucketSuccessRate, bucketTps := acc.summary()
+			buckets = append(buckets, PerfGroupHealthBucket{
+				Ts:           bucketTs,
+				EndTs:        bucketTs + intervalSeconds,
+				RequestCount: acc.requestCount,
+				SuccessCount: acc.successCount,
+				SuccessRate:  bucketSuccessRate,
+				AvgTTFTMs:    bucketTTFTMs,
+				AvgLatencyMs: bucketLatencyMs,
+				AvgTps:       bucketTps,
+				Status:       perfGroupHealthStatus(acc.requestCount, bucketSuccessRate),
+			})
+		}
+
+		resultGroups = append(resultGroups, PerfGroupHealth{
+			Group:         groupName,
+			Ratio:         ratio,
+			ProviderCount: providerCounts[groupName],
+			RequestCount:  group.total.requestCount,
+			SuccessRate:   successRate,
+			AvgTTFTMs:     avgTTFTMs,
+			AvgLatencyMs:  avgLatencyMs,
+			AvgTps:        avgTps,
+			Buckets:       buckets,
+		})
+	}
+
+	return PerfGroupHealthSummary{
+		WindowHours:     hours,
+		IntervalMinutes: intervalMinutes,
+		BucketCount:     bucketCount,
+		SeriesSchema:    common.GetPerfMetricsConfig().BucketTime,
+		Groups:          resultGroups,
+	}, nil
+}
+
+func GetGroupProviderCounts() (map[string]int, error) {
+	var channels []Channel
+	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+
+	groupProviders := make(map[string]map[string]struct{})
+	for _, channel := range channels {
+		groups := channel.GetGroups()
+		if len(groups) == 0 {
+			groups = []string{"default"}
+		}
+		providerKey := fmt.Sprintf("channel:%d", channel.Id)
+		if channel.ProviderID > 0 {
+			providerKey = fmt.Sprintf("provider:%d", channel.ProviderID)
+		}
+		for _, groupName := range groups {
+			groupName = strings.TrimSpace(groupName)
+			if groupName == "" {
+				groupName = "default"
+			}
+			providers := groupProviders[groupName]
+			if providers == nil {
+				providers = make(map[string]struct{})
+				groupProviders[groupName] = providers
+			}
+			providers[providerKey] = struct{}{}
+		}
+	}
+
+	counts := make(map[string]int, len(groupProviders))
+	for groupName, providers := range groupProviders {
+		counts[groupName] = len(providers)
+	}
+	return counts, nil
+}
+
 func GetRankingGroupPerfStats(startTime int64, endTime int64) ([]RankingGroupPerfStat, error) {
 	aggregates := make(map[string]perfAccumulator)
 	if LOG_DB != nil {
@@ -649,6 +886,19 @@ func roundFloat(value float64, precision int) float64 {
 	}
 	multiplier := math.Pow10(precision)
 	return math.Round(value*multiplier) / multiplier
+}
+
+func perfGroupHealthStatus(requestCount int64, successRate float64) string {
+	if requestCount <= 0 {
+		return "empty"
+	}
+	if successRate >= 99 {
+		return "ok"
+	}
+	if successRate >= 95 {
+		return "warning"
+	}
+	return "error"
 }
 
 func perfMetricGroupCol() string {

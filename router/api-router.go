@@ -36,6 +36,7 @@ func SetApiRouter(router *gin.Engine) {
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		{
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
+			perfMetricsRoute.GET("/groups", controller.GetPerfGroupHealthSummary)
 			perfMetricsRoute.GET("/summary", controller.GetPerfMetricsSummary)
 		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)

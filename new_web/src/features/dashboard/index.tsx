@@ -83,6 +83,12 @@ const LazyGroupStatsTable = lazy(() =>
   }))
 )
 
+const LazyGroupHealthGrid = lazy(() =>
+  import('./components/groups/group-health-grid').then((m) => ({
+    default: m.GroupHealthGrid,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -149,6 +155,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   groups: {
     titleKey: 'Group Analytics',
   },
+  'group-health': {
+    titleKey: 'Group Health',
+  },
 }
 
 export function Dashboard() {
@@ -199,7 +208,10 @@ export function Dashboard() {
       DASHBOARD_SECTION_IDS.filter(
         (section) =>
           section !== 'overview' &&
-          ((section !== 'users' && section !== 'groups') || isAdmin)
+          ((section !== 'users' &&
+            section !== 'groups' &&
+            section !== 'group-health') ||
+            isAdmin)
       ),
     [isAdmin]
   )
@@ -313,6 +325,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyGroupStatsTable />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'group-health' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyGroupHealthGrid />
               </Suspense>
             </FadeIn>
           )}

@@ -4555,6 +4555,17 @@
     "QQ Friend Link": "Liên kết bạn QQ",
     "Used by the QQ binding dialog to open the add-friend link.": "Được dùng trong hộp thoại liên kết QQ để mở liên kết thêm bạn.",
     "https://qm.qq.com/q/iEXjxDoSrK": "https://qm.qq.com/q/iEXjxDoSrK",
-    "Notification Group": "Nhóm thông báo"
+    "Notification Group": "Nhóm thông báo",
+    "Group Health": "Group Health",
+    "24h success rate": "24h success rate",
+    "{{count}} providers": "{{count}} providers",
+    "Average first-token latency": "Average first-token latency",
+    "Average token/s": "Average token/s",
+    "No group health data": "No group health data",
+    "Enable performance metrics to collect group health data.": "Enable performance metrics to collect group health data.",
+    "Excellent >= 99%": "Excellent >= 99%",
+    "Warning 95%-99%": "Warning 95%-99%",
+    "Error < 95%": "Error < 95%",
+    "10 minutes": "10 minutes"
   }
 }
