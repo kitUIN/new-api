@@ -939,48 +939,46 @@ func testIdleEnabledGroups(interval time.Duration) error {
 		finishChannelTestRun()
 		return err
 	}
-	gopool.Go(func() {
-		defer finishChannelTestRun()
+	defer finishChannelTestRun()
 
-		group2channels := make(map[string][]model.Channel)
-		selectableGroups := setting.GetUserUsableGroupsCopy()
-		for i := range groupChannels {
-			item := groupChannels[i]
-			if item.Group == "" {
-				continue
-			}
-			if _, ok := selectableGroups[item.Group]; !ok {
-				continue
-			}
-			group2channels[item.Group] = append(group2channels[item.Group], item.Channel)
+	group2channels := make(map[string][]model.Channel)
+	selectableGroups := setting.GetUserUsableGroupsCopy()
+	for i := range groupChannels {
+		item := groupChannels[i]
+		if item.Group == "" {
+			continue
 		}
+		if _, ok := selectableGroups[item.Group]; !ok {
+			continue
+		}
+		group2channels[item.Group] = append(group2channels[item.Group], item.Channel)
+	}
 
-		for group, channels := range group2channels {
-			if operation_setting.ShouldSkipAutoTestChannelGroup(group) {
-				common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: group is configured to be skipped", group))
-				continue
-			}
-			now := time.Now()
-			if last, ok := service.GetGroupLastUserRequest(group); ok && now.Sub(last) < interval {
-				common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: user request within %.0f minutes", group, interval.Minutes()))
-				continue
-			}
-			common.SysLog(fmt.Sprintf("automatically testing enabled channels for idle group %s", group))
-			for i := range channels {
-				channel := &channels[i]
-				if channel.Status == common.ChannelStatusManuallyDisabled {
-					continue
-				}
-				isChannelEnabled := channel.Status == common.ChannelStatusEnabled
-				tik := time.Now()
-				result := testChannelWithGroup(channel, "", "", defaultChannelTestStream, group)
-				tok := time.Now()
-				milliseconds := tok.Sub(tik).Milliseconds()
-				evaluateChannelTestResult(channel, result, milliseconds, isChannelEnabled)
-				time.Sleep(common.RequestInterval)
-			}
+	for group, channels := range group2channels {
+		if operation_setting.ShouldSkipAutoTestChannelGroup(group) {
+			common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: group is configured to be skipped", group))
+			continue
 		}
-	})
+		now := time.Now()
+		if last, ok := service.GetGroupLastUserRequest(group); ok && now.Sub(last) < interval {
+			common.SysLog(fmt.Sprintf("skip automatic channel test for group %s: user request within %.0f minutes", group, interval.Minutes()))
+			continue
+		}
+		common.SysLog(fmt.Sprintf("automatically testing enabled channels for idle group %s", group))
+		for i := range channels {
+			channel := &channels[i]
+			if channel.Status == common.ChannelStatusManuallyDisabled {
+				continue
+			}
+			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
+			tik := time.Now()
+			result := testChannelWithGroup(channel, "", "", defaultChannelTestStream, group)
+			tok := time.Now()
+			milliseconds := tok.Sub(tik).Milliseconds()
+			evaluateChannelTestResult(channel, result, milliseconds, isChannelEnabled)
+			time.Sleep(common.RequestInterval)
+		}
+	}
 	return nil
 }
 
@@ -1026,8 +1024,11 @@ func AutomaticallyTestChannels() {
 				time.Sleep(time.Until(nextRun))
 				common.SysLog(fmt.Sprintf("automatically test channels at aligned %s with idle interval %f minutes", nextRun.Format("15:04:05"), frequency))
 				common.SysLog("automatically testing idle enabled groups")
-				_ = testIdleEnabledGroups(interval)
-				common.SysLog("automatically channel test finished")
+				if err := testIdleEnabledGroups(interval); err != nil {
+					common.SysError("automatically channel test failed: " + err.Error())
+				} else {
+					common.SysLog("automatically channel test finished")
+				}
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break
 				}

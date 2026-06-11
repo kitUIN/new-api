@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
   type RowSelectionState,
@@ -218,6 +219,7 @@ export function ChannelTestDialog({
   onOpenChange,
 }: ChannelTestDialogProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { currentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(true)
@@ -343,6 +345,7 @@ export function ChannelTestDialog({
         updateTestResult(model, finalResult)
       } finally {
         markModelTesting(model, false)
+        void queryClient.invalidateQueries({ queryKey: ['perf-group-health'] })
       }
       return finalResult
     },
@@ -351,6 +354,7 @@ export function ChannelTestDialog({
       endpointType,
       isStreamTest,
       markModelTesting,
+      queryClient,
       t,
       updateTestResult,
     ]

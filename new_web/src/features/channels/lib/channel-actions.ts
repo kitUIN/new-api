@@ -570,6 +570,7 @@ export async function handleTestAllChannels(
         )
       )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({ queryKey: ['perf-group-health'] })
       onSuccess?.()
     } else {
       toast.error(

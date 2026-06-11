@@ -90,7 +90,7 @@ function formatWindow(bucket: PerfGroupHealthBucket): string {
 
 export function GroupHealthGrid() {
   const { t } = useTranslation()
-  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const healthQuery = useQuery({
     queryKey: [
       'perf-group-health',
@@ -118,6 +118,7 @@ export function GroupHealthGrid() {
         <GroupHealthToolbar
           autoRefresh={autoRefresh}
           isFetching={healthQuery.isFetching}
+          onRefresh={() => healthQuery.refetch()}
           onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
         />
         <GroupHealthSkeleton />
@@ -131,6 +132,7 @@ export function GroupHealthGrid() {
         <GroupHealthToolbar
           autoRefresh={autoRefresh}
           isFetching={healthQuery.isFetching}
+          onRefresh={() => healthQuery.refetch()}
           onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
         />
         <Empty className='min-h-72 border'>
@@ -153,6 +155,7 @@ export function GroupHealthGrid() {
       <GroupHealthToolbar
         autoRefresh={autoRefresh}
         isFetching={healthQuery.isFetching}
+        onRefresh={() => healthQuery.refetch()}
         onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
       />
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3'>
@@ -168,12 +171,34 @@ export function GroupHealthGrid() {
 function GroupHealthToolbar(props: {
   autoRefresh: boolean
   isFetching: boolean
+  onRefresh: () => void
   onToggleAutoRefresh: () => void
 }) {
   const { t } = useTranslation()
 
   return (
-    <div className='flex justify-end'>
+    <div className='flex justify-end gap-2'>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={props.onRefresh}
+              disabled={props.isFetching}
+            >
+              <RefreshCw
+                data-icon='inline-start'
+                className={cn(props.isFetching && 'animate-spin')}
+                aria-hidden='true'
+              />
+              {t('Refresh')}
+            </Button>
+          }
+        />
+        <TooltipContent>{t('Refresh group health data')}</TooltipContent>
+      </Tooltip>
       <Tooltip>
         <TooltipTrigger
           render={
@@ -184,11 +209,7 @@ function GroupHealthToolbar(props: {
               onClick={props.onToggleAutoRefresh}
               aria-pressed={props.autoRefresh}
             >
-              <RefreshCw
-                data-icon='inline-start'
-                className={cn(props.isFetching && 'animate-spin')}
-                aria-hidden='true'
-              />
+              <RefreshCw data-icon='inline-start' aria-hidden='true' />
               {t('Auto refresh')} (1m)
             </Button>
           }
