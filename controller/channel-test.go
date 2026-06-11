@@ -43,6 +43,24 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+const defaultChannelTestStream = true
+
+func parseChannelTestStream(c *gin.Context) bool {
+	rawStream, ok := c.GetQuery("stream")
+	if !ok {
+		return defaultChannelTestStream
+	}
+	rawStream = strings.TrimSpace(rawStream)
+	if rawStream == "" {
+		return defaultChannelTestStream
+	}
+	isStream, err := strconv.ParseBool(rawStream)
+	if err != nil {
+		return defaultChannelTestStream
+	}
+	return isStream
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -452,7 +470,8 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 			newAPIError: respErr,
 		}
 	}
-	usage, usageErr := coerceTestUsage(usageA, isStream, info.GetEstimatePromptTokens())
+	effectiveStream := info.IsStream
+	usage, usageErr := coerceTestUsage(usageA, effectiveStream, info.GetEstimatePromptTokens())
 	if usageErr != nil {
 		return testResult{
 			context:     c,
@@ -461,7 +480,7 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 		}
 	}
 	result := w.Result()
-	respBody, err := readTestResponseBody(result.Body, isStream)
+	respBody, err := readTestResponseBody(result.Body, effectiveStream)
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -762,7 +781,7 @@ func TestChannel(c *gin.Context) {
 	//}()
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
-	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	isStream := parseChannelTestStream(c)
 	tik := time.Now()
 	result := testChannel(channel, testModel, endpointType, isStream)
 	if result.localErr != nil {
@@ -870,7 +889,7 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
+			result := testChannel(channel, "", "", defaultChannelTestStream)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 
@@ -924,7 +943,7 @@ func testIdleEnabledGroups(interval time.Duration) error {
 				}
 				isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 				tik := time.Now()
-				result := testChannelWithGroup(channel, "", "", false, group)
+				result := testChannelWithGroup(channel, "", "", defaultChannelTestStream, group)
 				tok := time.Now()
 				milliseconds := tok.Sub(tik).Milliseconds()
 				evaluateChannelTestResult(channel, result, milliseconds, isChannelEnabled)

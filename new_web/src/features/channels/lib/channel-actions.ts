@@ -218,14 +218,15 @@ export async function handleTestChannel(
     errorCode?: string
   ) => void
 ): Promise<void> {
+  const hasStreamOption = typeof options?.stream === 'boolean'
   const payload =
-    options && (options.testModel || options.endpointType || options.stream)
+    options && (options.testModel || options.endpointType || hasStreamOption)
       ? {
           ...(options.testModel ? { model: options.testModel } : {}),
           ...(options.endpointType
             ? { endpoint_type: options.endpointType }
             : {}),
-          ...(options.stream ? { stream: true } : {}),
+          ...(hasStreamOption ? { stream: options.stream } : {}),
         }
       : undefined
 

@@ -89,7 +89,7 @@ export const useChannelsData = () => {
   const [isBatchTesting, setIsBatchTesting] = useState(false);
   const [modelTablePage, setModelTablePage] = useState(1);
   const [selectedEndpointType, setSelectedEndpointType] = useState('');
-  const [isStreamTest, setIsStreamTest] = useState(false);
+  const [isStreamTest, setIsStreamTest] = useState(true);
   const [globalPassThroughEnabled, setGlobalPassThroughEnabled] =
     useState(false);
 
@@ -877,7 +877,7 @@ export const useChannelsData = () => {
     record,
     model,
     endpointType = '',
-    stream = false,
+    stream = true,
   ) => {
     const testKey = `${record.id}-${model}`;
 
@@ -894,9 +894,7 @@ export const useChannelsData = () => {
       if (endpointType) {
         url += `&endpoint_type=${endpointType}`;
       }
-      if (stream) {
-        url += `&stream=true`;
-      }
+      url += `&stream=${stream ? 'true' : 'false'}`;
       const res = await API.get(url);
 
       // 检查是否在请求期间被停止
@@ -1117,7 +1115,7 @@ export const useChannelsData = () => {
     setSelectedModelKeys([]);
     setModelTablePage(1);
     setSelectedEndpointType('');
-    setIsStreamTest(false);
+    setIsStreamTest(true);
     // 可选择性保留测试结果，这里不清空以便用户查看
   };
 

@@ -220,7 +220,7 @@ export function ChannelTestDialog({
   const { t } = useTranslation()
   const { currentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
-  const [isStreamTest, setIsStreamTest] = useState(false)
+  const [isStreamTest, setIsStreamTest] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -237,7 +237,7 @@ export function ChannelTestDialog({
 
   const resetState = useCallback(() => {
     setEndpointType('auto')
-    setIsStreamTest(false)
+    setIsStreamTest(true)
     setSearchTerm('')
     setTestResults({})
     setRowSelection({})
@@ -322,7 +322,7 @@ export function ChannelTestDialog({
           {
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
-            stream: isStreamTest || undefined,
+            stream: isStreamTest,
             silent,
           },
           (success, responseTime, error, errorCode) => {

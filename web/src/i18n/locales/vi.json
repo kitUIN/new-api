@@ -3352,7 +3352,7 @@
     "语音输出": "Đầu ra giọng nói",
     "说明": "Mô tả",
     "说明：": "Mô tả: ",
-    "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Lưu ý: Bài kiểm tra trên trang này sử dụng yêu cầu không streaming. Nếu kênh chỉ hỗ trợ phản hồi streaming, bài kiểm tra có thể thất bại. Vui lòng dựa vào sử dụng thực tế.",
+    "说明：本页测试默认使用流式请求；不支持流式的端点会自动使用非流式。": "Lưu ý: Trang này mặc định dùng yêu cầu streaming để kiểm tra. Các endpoint không hỗ trợ streaming sẽ tự động dùng chế độ không streaming.",
     "说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。": "Lưu ý: Kết quả tạo ra là JSON có thể dán trực tiếp vào khóa kênh (bao gồm access_token / refresh_token / account_id).",
     "说明信息": "Thông tin mô tả",
     "请上传": "Vui lòng tải lên",

@@ -3018,7 +3018,7 @@
     "语音输出": "Sortie vocale",
     "说明": "Description",
     "说明：": "Description :",
-    "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Remarque : les tests sur cette page utilisent des requêtes non-streaming. Si un canal ne prend en charge que les réponses en streaming, les tests peuvent échouer. Veuillez vous référer à l’usage réel.",
+    "说明：本页测试默认使用流式请求；不支持流式的端点会自动使用非流式。": "Remarque : les tests sur cette page utilisent le streaming par défaut. Les points de terminaison qui ne le prennent pas en charge utiliseront automatiquement le mode non-streaming.",
     "说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。": "Note : Le résultat généré est un JSON qui peut être collé directement dans la clé du canal (inclut access_token / refresh_token / account_id).",
     "说明信息": "Description",
     "请上传密钥文件": "Veuillez télécharger le fichier de clé",

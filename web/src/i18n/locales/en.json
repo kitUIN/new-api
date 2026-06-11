@@ -3045,7 +3045,7 @@
     "语音输出": "Voice output",
     "说明": "Description",
     "说明：": "Instructions:",
-    "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Note: Tests on this page use non-streaming requests. If a channel only supports streaming responses, tests may fail. Please rely on actual usage.",
+    "说明：本页测试默认使用流式请求；不支持流式的端点会自动使用非流式。": "Note: Tests on this page use streaming requests by default. Endpoints that do not support streaming will automatically use non-streaming.",
     "说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。": "Note: The generated result is a JSON that can be pasted directly into the channel key (includes access_token / refresh_token / account_id).",
     "说明信息": "Description",
     "请上传密钥文件": "Please upload the key file",
