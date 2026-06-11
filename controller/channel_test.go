@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -34,6 +35,24 @@ func TestParseChannelTestStream(t *testing.T) {
 				t.Fatalf("parseChannelTestStream() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNextAlignedChannelTestTimeUsesWallClockBuckets(t *testing.T) {
+	now := time.Date(2026, 6, 12, 1, 23, 45, 0, time.Local)
+	got := nextAlignedChannelTestTime(now)
+	want := time.Date(2026, 6, 12, 1, 30, 0, 0, time.Local)
+	if !got.Equal(want) {
+		t.Fatalf("nextAlignedChannelTestTime() = %v, want %v", got, want)
+	}
+}
+
+func TestNextAlignedChannelTestTimeSkipsCurrentBucketBoundary(t *testing.T) {
+	now := time.Date(2026, 6, 12, 1, 30, 0, 0, time.Local)
+	got := nextAlignedChannelTestTime(now)
+	want := time.Date(2026, 6, 12, 1, 40, 0, 0, time.Local)
+	if !got.Equal(want) {
+		t.Fatalf("nextAlignedChannelTestTime() = %v, want %v", got, want)
 	}
 }
 

@@ -998,6 +998,16 @@ func TestAllChannels(c *gin.Context) {
 
 var autoTestChannelsOnce sync.Once
 
+func nextAlignedChannelTestTime(now time.Time) time.Time {
+	const interval = 10 * time.Minute
+	base := now.Truncate(time.Hour)
+	next := base
+	for !next.After(now) {
+		next = next.Add(interval)
+	}
+	return next
+}
+
 func AutomaticallyTestChannels() {
 	// 只在Master节点定时测试渠道
 	if !common.IsMasterNode {
@@ -1012,8 +1022,9 @@ func AutomaticallyTestChannels() {
 			for {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
 				interval := time.Duration(int(math.Round(frequency))) * time.Minute
-				time.Sleep(interval)
-				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
+				nextRun := nextAlignedChannelTestTime(time.Now())
+				time.Sleep(time.Until(nextRun))
+				common.SysLog(fmt.Sprintf("automatically test channels at aligned %s with idle interval %f minutes", nextRun.Format("15:04:05"), frequency))
 				common.SysLog("automatically testing idle enabled groups")
 				_ = testIdleEnabledGroups(interval)
 				common.SysLog("automatically channel test finished")
