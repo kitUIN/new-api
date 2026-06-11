@@ -100,7 +100,10 @@ export function GroupHealthGrid() {
     queryFn: () =>
       getPerfGroupHealth(HEALTH_WINDOW_HOURS, HEALTH_INTERVAL_MINUTES),
     refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
-    staleTime: 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnReconnect: 'always',
+    refetchOnWindowFocus: 'always',
+    staleTime: 0,
     retry: false,
   })
 

@@ -93,6 +93,9 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 			Success:          result.localErr == nil && result.newAPIError == nil,
 			CompletionTokens: perfCompletionTokens,
 		})
+		if err := model.FlushPerfMetrics(); err != nil {
+			common.SysError("failed to flush channel test performance metrics: " + err.Error())
+		}
 	}()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,

@@ -81,3 +81,33 @@ func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {
 	require.Greater(t, defaultGroup.AvgLatencyMs, 0.0)
 	require.Equal(t, 100.0, defaultGroup.AvgTTFTMs)
 }
+
+func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+
+	start := time.Now().Add(-800 * time.Millisecond)
+	RecordChannelTestPerfMetric(nil, &relaycommon.RelayInfo{
+		OriginModelName:   "channel-test-flush-model",
+		UsingGroup:        "default",
+		StartTime:         start,
+		FirstResponseTime: start.Add(120 * time.Millisecond),
+		IsChannelTest:     true,
+	}, PerfMetricSample{
+		Success:          true,
+		CompletionTokens: 12,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	ResetPerfMetricsForTest()
+	summary, err := GetPerfGroupHealthSummary(1, 10)
+	require.NoError(t, err)
+	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 1, defaultGroup.RequestCount)
+	require.Equal(t, 100.0, defaultGroup.SuccessRate)
+}
