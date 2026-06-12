@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -70,32 +70,89 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const perfSchema = z.object({
-  'performance_setting.disk_cache_enabled': z.boolean(),
-  'performance_setting.disk_cache_threshold_mb': z.coerce.number().min(1),
-  'performance_setting.disk_cache_max_size_mb': z.coerce.number().min(100),
-  'performance_setting.disk_cache_path': z.string().optional(),
-  'performance_setting.monitor_enabled': z.boolean(),
-  'performance_setting.monitor_cpu_threshold': z.coerce.number().min(0),
-  'performance_setting.monitor_memory_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'performance_setting.monitor_disk_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'perf_metrics_setting.enabled': z.boolean(),
-  'perf_metrics_setting.flush_interval': z.coerce.number().min(1),
-  'perf_metrics_setting.bucket_time': z.enum([
-    'minute',
-    '5min',
-    '10min',
-    'hour',
-  ]),
-  'perf_metrics_setting.retention_days': z.coerce.number().min(0),
+  performance_setting: z.object({
+    disk_cache_enabled: z.boolean(),
+    disk_cache_threshold_mb: z.coerce.number().min(1),
+    disk_cache_max_size_mb: z.coerce.number().min(100),
+    disk_cache_path: z.string().optional(),
+    monitor_enabled: z.boolean(),
+    monitor_cpu_threshold: z.coerce.number().min(0),
+    monitor_memory_threshold: z.coerce.number().min(0).max(100),
+    monitor_disk_threshold: z.coerce.number().min(0).max(100),
+  }),
+  perf_metrics_setting: z.object({
+    enabled: z.boolean(),
+    flush_interval: z.coerce.number().min(1),
+    bucket_time: z.enum(['minute', '5min', '10min', 'hour']),
+    retention_days: z.coerce.number().min(0),
+  }),
 })
 
 type PerfFormValues = z.infer<typeof perfSchema>
+
+type FlatPerfFormValues = {
+  'performance_setting.disk_cache_enabled': boolean
+  'performance_setting.disk_cache_threshold_mb': number
+  'performance_setting.disk_cache_max_size_mb': number
+  'performance_setting.disk_cache_path': string
+  'performance_setting.monitor_enabled': boolean
+  'performance_setting.monitor_cpu_threshold': number
+  'performance_setting.monitor_memory_threshold': number
+  'performance_setting.monitor_disk_threshold': number
+  'perf_metrics_setting.enabled': boolean
+  'perf_metrics_setting.flush_interval': number
+  'perf_metrics_setting.bucket_time': 'minute' | '5min' | '10min' | 'hour'
+  'perf_metrics_setting.retention_days': number
+}
+
+const buildFormDefaults = (defaults: FlatPerfFormValues): PerfFormValues => ({
+  performance_setting: {
+    disk_cache_enabled: defaults['performance_setting.disk_cache_enabled'],
+    disk_cache_threshold_mb:
+      defaults['performance_setting.disk_cache_threshold_mb'],
+    disk_cache_max_size_mb:
+      defaults['performance_setting.disk_cache_max_size_mb'],
+    disk_cache_path: defaults['performance_setting.disk_cache_path'] ?? '',
+    monitor_enabled: defaults['performance_setting.monitor_enabled'],
+    monitor_cpu_threshold:
+      defaults['performance_setting.monitor_cpu_threshold'],
+    monitor_memory_threshold:
+      defaults['performance_setting.monitor_memory_threshold'],
+    monitor_disk_threshold:
+      defaults['performance_setting.monitor_disk_threshold'],
+  },
+  perf_metrics_setting: {
+    enabled: defaults['perf_metrics_setting.enabled'],
+    flush_interval: defaults['perf_metrics_setting.flush_interval'],
+    bucket_time: defaults['perf_metrics_setting.bucket_time'],
+    retention_days: defaults['perf_metrics_setting.retention_days'],
+  },
+})
+
+const normalizeFormValues = (values: PerfFormValues): FlatPerfFormValues => ({
+  'performance_setting.disk_cache_enabled':
+    values.performance_setting.disk_cache_enabled,
+  'performance_setting.disk_cache_threshold_mb':
+    values.performance_setting.disk_cache_threshold_mb,
+  'performance_setting.disk_cache_max_size_mb':
+    values.performance_setting.disk_cache_max_size_mb,
+  'performance_setting.disk_cache_path':
+    values.performance_setting.disk_cache_path ?? '',
+  'performance_setting.monitor_enabled':
+    values.performance_setting.monitor_enabled,
+  'performance_setting.monitor_cpu_threshold':
+    values.performance_setting.monitor_cpu_threshold,
+  'performance_setting.monitor_memory_threshold':
+    values.performance_setting.monitor_memory_threshold,
+  'performance_setting.monitor_disk_threshold':
+    values.performance_setting.monitor_disk_threshold,
+  'perf_metrics_setting.enabled': values.perf_metrics_setting.enabled,
+  'perf_metrics_setting.flush_interval':
+    values.perf_metrics_setting.flush_interval,
+  'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
+  'perf_metrics_setting.retention_days':
+    values.perf_metrics_setting.retention_days,
+})
 
 function formatBytes(bytes: number, decimals = 2): string {
   if (!bytes || isNaN(bytes)) return '0 Bytes'
@@ -109,7 +166,7 @@ function formatBytes(bytes: number, decimals = 2): string {
 }
 
 interface Props {
-  defaultValues: PerfFormValues
+  defaultValues: FlatPerfFormValues
 }
 
 type LogInfo = {
@@ -162,15 +219,25 @@ export function PerformanceSection(props: Props) {
   const [logCleanupMode, setLogCleanupMode] = useState('by_count')
   const [logCleanupValue, setLogCleanupValue] = useState(10)
   const [logCleanupLoading, setLogCleanupLoading] = useState(false)
+  const baselineRef = useRef<FlatPerfFormValues>(props.defaultValues)
+
+  const formDefaults = useMemo(
+    () => buildFormDefaults(props.defaultValues),
+    [props.defaultValues]
+  )
 
   const form = useForm<PerfFormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(perfSchema) as any,
-    defaultValues: props.defaultValues,
+    defaultValues: formDefaults,
   })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useResetForm(form as any, props.defaultValues)
+  useResetForm(form as any, formDefaults)
+
+  useEffect(() => {
+    baselineRef.current = props.defaultValues
+  }, [props.defaultValues])
 
   const fetchStats = useCallback(async () => {
     try {
@@ -196,10 +263,11 @@ export function PerformanceSection(props: Props) {
   }, [fetchStats, fetchLogInfo])
 
   const onSubmit = async (data: PerfFormValues) => {
-    const entries = Object.entries(data) as [string, unknown][]
-    const updates = entries.filter(
+    const normalized = normalizeFormValues(data)
+    const updates = Object.entries(normalized).filter(
       ([key, value]) =>
-        value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
+        value !==
+        (baselineRef.current[key as keyof FlatPerfFormValues] as unknown)
     )
     if (updates.length === 0) {
       toast.info(t('No changes to save'))
@@ -212,6 +280,7 @@ export function PerformanceSection(props: Props) {
       })
     }
     toast.success(t('Saved successfully'))
+    baselineRef.current = normalized
     fetchStats()
   }
 
@@ -286,21 +355,6 @@ export function PerformanceSection(props: Props) {
   const maxCacheSizeMb = form.watch(
     'performance_setting.disk_cache_max_size_mb'
   )
-
-  const handlePerfMetricsEnabledChange = (checked: boolean) => {
-    // react-hook-form treats dotted names as nested paths in its type helper,
-    // while system option keys are intentionally flat dotted strings.
-    const setValue = form.setValue as (
-      name: string,
-      value: boolean,
-      options: { shouldDirty: boolean; shouldTouch: boolean; shouldValidate: boolean }
-    ) => void
-    setValue('perf_metrics_setting.enabled', checked, {
-      shouldDirty: true,
-      shouldTouch: true,
-      shouldValidate: true,
-    })
-  }
 
   const lowDiskSpace =
     diskEnabled &&
@@ -530,7 +584,7 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Switch
                       checked={field.value}
-                      onCheckedChange={handlePerfMetricsEnabledChange}
+                      onCheckedChange={field.onChange}
                     />
                   </FormControl>
                 </SettingsSwitchItem>
