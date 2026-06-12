@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +35,44 @@ func TestParseChannelTestStream(t *testing.T) {
 
 			if got := parseChannelTestStream(c); got != tt.want {
 				t.Fatalf("parseChannelTestStream() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeChannelTestEndpointOpenAIUsesResponses(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeOpenAI}
+
+	tests := []struct {
+		name         string
+		modelName    string
+		endpointType string
+		want         string
+	}{
+		{
+			name:      "auto openai defaults to responses",
+			modelName: "gpt-4o-mini",
+			want:      string(constant.EndpointTypeOpenAIResponse),
+		},
+		{
+			name:         "explicit openai is upgraded to responses",
+			modelName:    "gpt-4o-mini",
+			endpointType: string(constant.EndpointTypeOpenAI),
+			want:         string(constant.EndpointTypeOpenAIResponse),
+		},
+		{
+			name:         "specialized endpoint is preserved",
+			modelName:    "text-embedding-3-small",
+			endpointType: string(constant.EndpointTypeEmbeddings),
+			want:         string(constant.EndpointTypeEmbeddings),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeChannelTestEndpoint(channel, tt.modelName, tt.endpointType)
+			if got != tt.want {
+				t.Fatalf("normalizeChannelTestEndpoint() = %q, want %q", got, tt.want)
 			}
 		})
 	}

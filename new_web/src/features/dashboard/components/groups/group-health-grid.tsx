@@ -493,6 +493,10 @@ function BucketDetails(props: { bucket: PerfGroupHealthBucket }) {
       value: formatBucketThroughput(bucket.avg_tps),
     },
     {
+      label: t('Requests'),
+      value: String(bucket.request_count || 0),
+    },
+    {
       label: t('Error count'),
       value: String(errorCount),
     },

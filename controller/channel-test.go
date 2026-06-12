@@ -63,11 +63,16 @@ func parseChannelTestStream(c *gin.Context) bool {
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
-	if normalized != "" {
-		return normalized
-	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeOpenAI {
+		if normalized == "" || normalized == string(constant.EndpointTypeOpenAI) {
+			return string(constant.EndpointTypeOpenAIResponse)
+		}
+	}
+	if normalized != "" {
+		return normalized
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
