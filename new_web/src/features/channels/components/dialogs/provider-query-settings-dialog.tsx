@@ -50,7 +50,7 @@ import { channelsQueryKeys } from '../../lib'
 import {
   BALANCE_QUERY_NEWAPI_TEMPLATE,
   BALANCE_QUERY_SUB2API_TEMPLATE,
-  GROUP_QUERY_NEWAPI_TEMPLATE,
+  GROUP_QUERY_TEMPLATES,
   getBalanceQueryTemplateKey,
   normalizeBalanceQueryTemplate,
 } from '../../lib/channel-form'
@@ -148,7 +148,11 @@ function defaultState(provider: ProviderRow | null): FormState {
       ? BALANCE_QUERY_SUB2API_TEMPLATE
       : BALANCE_QUERY_NEWAPI_TEMPLATE
   const g = settings.group_query || {}
-  const gTemplate = GROUP_QUERY_NEWAPI_TEMPLATE
+  const gTemplateKey =
+    g.template && g.template in GROUP_QUERY_TEMPLATES
+      ? (g.template as keyof typeof GROUP_QUERY_TEMPLATES)
+      : 'newapi'
+  const gTemplate = GROUP_QUERY_TEMPLATES[gTemplateKey]
 
   return {
     balance_enabled: b.enabled === true,
@@ -186,7 +190,7 @@ function defaultState(provider: ProviderRow | null): FormState {
     balance_message_path:
       b.extractor?.message_path || bTemplate.extractor.message_path,
     group_enabled: g.enabled === true,
-    group_template: g.template || 'newapi',
+    group_template: gTemplateKey,
     group_interval_seconds: g.interval_seconds || 300,
     group_source_channel_id:
       g.source_channel_id || provider?.children?.[0]?.id || 0,
@@ -262,6 +266,29 @@ export function ProviderQuerySettingsDialog(props: Props) {
       balance_success_value: tpl.extractor.success_value,
       balance_success_optional: tpl.extractor.success_optional,
       balance_message_path: tpl.extractor.message_path,
+    }))
+  }
+
+  const applyGroupTemplate = (templateKey: string | null) => {
+    if (!templateKey) return
+    const normalizedTemplateKey =
+      templateKey in GROUP_QUERY_TEMPLATES
+        ? (templateKey as keyof typeof GROUP_QUERY_TEMPLATES)
+        : 'newapi'
+    const tpl = GROUP_QUERY_TEMPLATES[normalizedTemplateKey]
+    setForm((prev) => ({
+      ...prev,
+      group_template: normalizedTemplateKey,
+      group_request_url: tpl.request.url,
+      group_request_method: tpl.request.method,
+      group_request_headers: JSON.stringify(tpl.request.headers, null, 2),
+      group_data_path: tpl.extractor.data_path,
+      group_desc_path: tpl.extractor.desc_path,
+      group_ratio_path: tpl.extractor.ratio_path,
+      group_success_path: tpl.extractor.success_path,
+      group_success_value: tpl.extractor.success_value,
+      group_success_optional: tpl.extractor.success_optional,
+      group_message_path: tpl.extractor.message_path,
     }))
   }
 
@@ -488,11 +515,20 @@ export function ProviderQuerySettingsDialog(props: Props) {
                 value={form.group_interval_seconds}
                 onChange={(v) => set('group_interval_seconds', v)}
               />
-              <TextField
-                label={t('Template')}
-                value={form.group_template}
-                onChange={(v) => set('group_template', v)}
-              />
+              <Field label={t('Template')}>
+                <Select
+                  value={form.group_template}
+                  onValueChange={applyGroupTemplate}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='newapi'>New API</SelectItem>
+                    <SelectItem value='sub2api'>sub2api</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
             </div>
             <RequestFields prefix='group' form={form} set={set} />
             <div className='grid gap-3 sm:grid-cols-3'>

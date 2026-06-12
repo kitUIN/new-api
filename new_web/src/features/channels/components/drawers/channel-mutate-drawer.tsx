@@ -1037,28 +1037,35 @@ export function ChannelMutateDrawer({
     [setFormValues, t]
   )
 
-  const applyGroupQueryTemplate = useCallback(() => {
-    const template = GROUP_QUERY_TEMPLATES.newapi
-    setFormValues({
-      group_query_template: 'newapi',
-      group_query_request_url: template.request.url,
-      group_query_request_method: template.request.method,
-      group_query_request_headers: JSON.stringify(
-        template.request.headers,
-        null,
-        2
-      ),
-      group_query_request_body: '',
-      group_query_data_path: template.extractor.data_path,
-      group_query_desc_path: template.extractor.desc_path,
-      group_query_ratio_path: template.extractor.ratio_path,
-      group_query_success_path: template.extractor.success_path,
-      group_query_success_value: template.extractor.success_value,
-      group_query_success_optional: template.extractor.success_optional,
-      group_query_message_path: template.extractor.message_path,
-    })
-    toast.success(t('Filled New API group query template'))
-  }, [setFormValues, t])
+  const applyGroupQueryTemplate = useCallback(
+    (templateKey: keyof typeof GROUP_QUERY_TEMPLATES) => {
+      const template = GROUP_QUERY_TEMPLATES[templateKey]
+      const templateName = templateKey === 'sub2api' ? 'sub2api' : 'New API'
+
+      setFormValues({
+        group_query_template: templateKey,
+        group_query_request_url: template.request.url,
+        group_query_request_method: template.request.method,
+        group_query_request_headers: JSON.stringify(
+          template.request.headers,
+          null,
+          2
+        ),
+        group_query_request_body: '',
+        group_query_data_path: template.extractor.data_path,
+        group_query_desc_path: template.extractor.desc_path,
+        group_query_ratio_path: template.extractor.ratio_path,
+        group_query_success_path: template.extractor.success_path,
+        group_query_success_value: template.extractor.success_value,
+        group_query_success_optional: template.extractor.success_optional,
+        group_query_message_path: template.extractor.message_path,
+      })
+      toast.success(
+        t('Filled {{name}} group query template', { name: templateName })
+      )
+    },
+    [setFormValues, t]
+  )
 
   // Handle successful submission
   const handleSuccess = useCallback(() => {
@@ -3580,15 +3587,28 @@ export function ChannelMutateDrawer({
                               title={t('Upstream group query')}
                               icon={<Route className='h-4 w-4' />}
                             />
-                            <Button
-                              type='button'
-                              variant='outline'
-                              size='sm'
-                              onClick={applyGroupQueryTemplate}
-                            >
-                              <Sparkles className='mr-2 h-4 w-4' />
-                              {t('New API template')}
-                            </Button>
+                            <div className='flex flex-wrap gap-2'>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() => applyGroupQueryTemplate('newapi')}
+                              >
+                                <Sparkles className='mr-2 h-4 w-4' />
+                                {t('New API template')}
+                              </Button>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() =>
+                                  applyGroupQueryTemplate('sub2api')
+                                }
+                              >
+                                <Sparkles className='mr-2 h-4 w-4' />
+                                {t('sub2api template')}
+                              </Button>
+                            </div>
                           </div>
 
                           <FormField
@@ -3638,6 +3658,9 @@ export function ChannelMutateDrawer({
                                       <SelectGroup>
                                         <SelectItem value='newapi'>
                                           New API
+                                        </SelectItem>
+                                        <SelectItem value='sub2api'>
+                                          sub2api
                                         </SelectItem>
                                         <SelectItem value='custom'>
                                           {t('Custom')}

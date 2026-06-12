@@ -149,8 +149,28 @@ export const GROUP_QUERY_NEWAPI_TEMPLATE = {
   },
 } as const
 
+export const GROUP_QUERY_SUB2API_TEMPLATE = {
+  request: {
+    url: '{{baseUrl}}/api/v1/groups/available?timezone=Asia%2FShanghai',
+    method: 'GET',
+    headers: {
+      Authorization: 'Bearer {{apiKey}}',
+    },
+  },
+  extractor: {
+    data_path: 'data',
+    desc_path: 'description',
+    ratio_path: 'rate_multiplier',
+    success_path: 'code',
+    success_value: '0',
+    success_optional: false,
+    message_path: 'message',
+  },
+} as const
+
 export const GROUP_QUERY_TEMPLATES = {
   newapi: GROUP_QUERY_NEWAPI_TEMPLATE,
+  sub2api: GROUP_QUERY_SUB2API_TEMPLATE,
 } as const
 
 function parseOptionalJson(value: string | undefined): unknown {

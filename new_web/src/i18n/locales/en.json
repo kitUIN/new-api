@@ -4619,6 +4619,7 @@
     "Enable group query": "启用分组查询",
     "Error message path": "错误消息路径",
     "Filled {{name}} balance query template": "已填入 {{name}} 余额查询模板",
+    "Filled {{name}} group query template": "已填入 {{name}} 分组查询模板",
     "Filled New API group query template": "已填入 New API 分组查询模板",
     "Group data path": "分组数据路径",
     "Group query instance": "分组查询实例",
