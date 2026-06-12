@@ -65,6 +65,7 @@ import {
 import {
   formatChannelAffinitySessionKey,
   getChannelAffinitySessionKey,
+  getUsageLogSessionKeyInfo,
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
@@ -895,7 +896,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
           const other = parseLogOther(log.other)
           const affinity = other?.admin_info?.channel_affinity
-          const sessionKey = getChannelAffinitySessionKey(affinity)
+          const sessionKeyInfo = getUsageLogSessionKeyInfo(
+            other?.admin_info?.session_key,
+            affinity
+          )
+          const sessionKey = getChannelAffinitySessionKey(sessionKeyInfo)
           const displayKey = formatChannelAffinitySessionKey(sessionKey)
 
           if (!displayKey) {
@@ -917,28 +922,28 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-xs text-xs'>
                   <div className='flex flex-col gap-1'>
-                    <p className='font-medium'>{t('Channel Affinity')}</p>
+                    <p className='font-medium'>{t('Session Key')}</p>
                     <p>
                       {t('Session Key')}: {displayKey}
                     </p>
-                    {affinity?.key_fp && (
+                    {sessionKeyInfo?.key_fp && (
                       <p>
-                        {t('Key Fingerprint')}: {affinity.key_fp}
+                        {t('Key Fingerprint')}: {sessionKeyInfo.key_fp}
                       </p>
                     )}
-                    {affinity?.rule_name && (
+                    {sessionKeyInfo?.rule_name && (
                       <p>
-                        {t('Rule')}: {affinity.rule_name}
+                        {t('Rule')}: {sessionKeyInfo.rule_name}
                       </p>
                     )}
-                    {(affinity?.key_source ||
-                      affinity?.key_path ||
-                      affinity?.key_key) && (
+                    {(sessionKeyInfo?.key_source ||
+                      sessionKeyInfo?.key_path ||
+                      sessionKeyInfo?.key_key) && (
                       <p>
                         {t('Source')}:{' '}
                         {[
-                          affinity.key_source,
-                          affinity.key_path || affinity.key_key,
+                          sessionKeyInfo.key_source,
+                          sessionKeyInfo.key_path || sessionKeyInfo.key_key,
                         ]
                           .filter(Boolean)
                           .join(':')}

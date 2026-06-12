@@ -2175,6 +2175,8 @@
     "Keep-alive Ping": "Keep-alive Ping",
     "Key": "Key",
     "Key Fingerprint": "Key Fingerprint",
+    "Session Key": "Session Key",
+    "Session Key Rule": "Session Key Rule",
     "Key Sources": "Key Sources",
     "Key Summary": "Key Summary",
     "Key Update Mode": "Key Update Mode",

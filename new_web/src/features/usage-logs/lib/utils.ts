@@ -124,6 +124,13 @@ export function getChannelAffinitySessionKey(
   return String(affinity?.key_hint || affinity?.key_fp || '').trim()
 }
 
+export function getUsageLogSessionKeyInfo(
+  sessionKey?: ChannelAffinityInfo | null,
+  affinity?: ChannelAffinityInfo | null
+): ChannelAffinityInfo | null {
+  return sessionKey || affinity || null
+}
+
 /**
  * Build time range parameters with default values
  * Shared logic for all log types

@@ -2121,6 +2121,8 @@
     "Keep-alive Ping": "キープアライブPing",
     "Key": "キー",
     "Key Fingerprint": "キーフィンガープリント",
+    "Session Key": "セッションキー",
+    "Session Key Rule": "セッションキールール",
     "Key Sources": "キーソース",
     "Key Summary": "キー概要",
     "Key Update Mode": "キー更新モード",

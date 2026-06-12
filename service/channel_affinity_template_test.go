@@ -21,6 +21,29 @@ func buildChannelAffinityTemplateContextForTest(meta channelAffinityMeta) *gin.C
 	return ctx
 }
 
+func TestAppendChannelAffinitySessionKeyAdminInfo(t *testing.T) {
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:       "codex-session",
+		UsingGroup:     "default",
+		ModelName:      "gpt-5",
+		RequestPath:    "/v1/responses",
+		KeySourceType:  "gjson",
+		KeySourcePath:  "prompt_cache_key",
+		KeyHint:        "abcd...wxyz",
+		KeyFingerprint: "fp123456",
+	})
+	adminInfo := map[string]interface{}{}
+
+	AppendChannelAffinitySessionKeyAdminInfo(ctx, adminInfo)
+
+	sessionKey, ok := adminInfo["session_key"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "codex-session", sessionKey["rule_name"])
+	require.Equal(t, "abcd...wxyz", sessionKey["key_hint"])
+	require.Equal(t, "fp123456", sessionKey["key_fp"])
+	require.NotContains(t, adminInfo, "channel_affinity")
+}
+
 func TestApplyChannelAffinityOverrideTemplate_NoTemplate(t *testing.T) {
 	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 		RuleName: "rule-no-template",

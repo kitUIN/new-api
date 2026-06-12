@@ -2175,6 +2175,8 @@
     "Keep-alive Ping": "保持连接心跳",
     "Key": "密钥",
     "Key Fingerprint": "Key 指纹",
+    "Session Key": "会话键",
+    "Session Key Rule": "会话键规则",
     "Key Sources": "Key 来源",
     "Key Summary": "Key 摘要",
     "Key Update Mode": "密钥更新模式",

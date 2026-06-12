@@ -63,6 +63,7 @@ import {
 import {
   formatChannelAffinitySessionKey,
   getChannelAffinitySessionKey,
+  getUsageLogSessionKeyInfo,
   getLogTypeConfig,
   isPerCallBilling,
   isTimingLogType,
@@ -596,7 +597,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
   const channelAffinity = other?.admin_info?.channel_affinity
-  const sessionKey = getChannelAffinitySessionKey(channelAffinity)
+  const sessionKeyInfo = getUsageLogSessionKeyInfo(
+    other?.admin_info?.session_key,
+    channelAffinity
+  )
+  const sessionKey = getChannelAffinitySessionKey(sessionKeyInfo)
   const sessionKeyDisplay = formatChannelAffinitySessionKey(sessionKey)
 
   return (
@@ -676,9 +681,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
                         copyText={sessionKey}
                         className='rounded-md font-mono'
                       />
-                      {channelAffinity?.key_fp && (
+                      {sessionKeyInfo?.key_fp && (
                         <span className='text-muted-foreground font-mono text-[11px]'>
-                          {t('Key Fingerprint')}: {channelAffinity.key_fp}
+                          {t('Key Fingerprint')}: {sessionKeyInfo.key_fp}
                         </span>
                       )}
                     </span>
@@ -686,10 +691,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               )}
 
-              {props.isAdmin && channelAffinity?.rule_name && (
+              {props.isAdmin && sessionKeyInfo?.rule_name && (
                 <DetailRow
-                  label={t('Affinity Rule')}
-                  value={channelAffinity.rule_name}
+                  label={t('Session Key Rule')}
+                  value={sessionKeyInfo.rule_name}
                   mono
                 />
               )}

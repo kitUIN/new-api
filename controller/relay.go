@@ -402,6 +402,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			adminInfo["is_multi_key"] = true
 			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
 		}
+		service.AppendChannelAffinitySessionKeyAdminInfo(c, adminInfo)
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
 		service.AppendSessionGroupFailoverAdminInfo(c, adminInfo)
 		if err.ResponseBody != "" {

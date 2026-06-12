@@ -662,6 +662,31 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int
 	c.Set(ginKeyChannelAffinityLogInfo, info)
 }
 
+func channelAffinitySessionKeyLogInfo(meta channelAffinityMeta) map[string]interface{} {
+	return map[string]interface{}{
+		"rule_name":    meta.RuleName,
+		"using_group":  meta.UsingGroup,
+		"model":        meta.ModelName,
+		"request_path": meta.RequestPath,
+		"key_source":   meta.KeySourceType,
+		"key_key":      meta.KeySourceKey,
+		"key_path":     meta.KeySourcePath,
+		"key_hint":     meta.KeyHint,
+		"key_fp":       meta.KeyFingerprint,
+	}
+}
+
+func AppendChannelAffinitySessionKeyAdminInfo(c *gin.Context, adminInfo map[string]interface{}) {
+	if c == nil || adminInfo == nil {
+		return
+	}
+	meta, ok := getChannelAffinityMeta(c)
+	if !ok || strings.TrimSpace(meta.KeyFingerprint) == "" {
+		return
+	}
+	adminInfo["session_key"] = channelAffinitySessionKeyLogInfo(meta)
+}
+
 func AppendChannelAffinityAdminInfo(c *gin.Context, adminInfo map[string]interface{}) {
 	if c == nil || adminInfo == nil {
 		return
