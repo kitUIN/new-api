@@ -174,20 +174,30 @@ function buildGroupPricingRows(
     fallback: {},
     context: 'user usable groups',
   })
-  const names = new Set([...Object.keys(ratioMap), ...Object.keys(usableMap)])
+  const disabledDescriptionPrefix = '__disabled_description__:'
+  const names = new Set([
+    ...Object.keys(ratioMap),
+    ...Object.keys(usableMap)
+      .filter((name) => !name.startsWith(disabledDescriptionPrefix))
+      .map((name) => name.trim())
+      .filter(Boolean),
+  ])
 
   return Array.from(names).map((name) => ({
     _id: createGroupPricingId(),
     name,
     ratio: normalizeRatio(ratioMap[name]),
     selectable: Object.prototype.hasOwnProperty.call(usableMap, name),
-    description: String(usableMap[name] ?? ''),
+    description: String(
+      usableMap[name] ?? usableMap[`${disabledDescriptionPrefix}${name}`] ?? ''
+    ),
   }))
 }
 
 function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
+  const disabledDescriptionPrefix = '__disabled_description__:'
 
   for (const row of rows) {
     const name = row.name.trim()
@@ -195,6 +205,8 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     groupRatio[name] = normalizeRatio(row.ratio)
     if (row.selectable) {
       userUsableGroups[name] = row.description
+    } else if (row.description.trim()) {
+      userUsableGroups[`${disabledDescriptionPrefix}${name}`] = row.description
     }
   }
 
@@ -856,10 +868,7 @@ function GroupPricingTable({
     queryFn: getGroupQuerySources,
   })
 
-  const sources = useMemo(
-    () => sourcesData?.data ?? [],
-    [sourcesData?.data]
-  )
+  const sources = useMemo(() => sourcesData?.data ?? [], [sourcesData?.data])
 
   const sourceMap = useMemo(() => {
     const map = new Map<BindingSourceKey, GroupQuerySource>()
@@ -1083,23 +1092,17 @@ function GroupPricingTable({
                           </div>
                         </TableCell>
                         <TableCell className='w-60'>
-                          {row.selectable ? (
-                            <Input
-                              value={row.description}
-                              placeholder={t('Group description')}
-                              onChange={(event) =>
-                                updateRow(
-                                  row._id,
-                                  'description',
-                                  event.target.value
-                                )
-                              }
-                            />
-                          ) : (
-                            <span className='text-muted-foreground px-3 text-sm'>
-                              -
-                            </span>
-                          )}
+                          <Input
+                            value={row.description}
+                            placeholder={t('Group description')}
+                            onChange={(event) =>
+                              updateRow(
+                                row._id,
+                                'description',
+                                event.target.value
+                              )
+                            }
+                          />
                         </TableCell>
                         <TableCell className='w-80'>
                           {binding ? (
@@ -1118,9 +1121,8 @@ function GroupPricingTable({
                                   {binding.upstream_group}
                                   <span className='text-muted-foreground'>
                                     {' '}
-                                    {t('offset')} {normalizeOffset(
-                                      binding.offset
-                                    )}
+                                    {t('offset')}{' '}
+                                    {normalizeOffset(binding.offset)}
                                   </span>
                                   {finalRatio !== null && (
                                     <span className='text-muted-foreground'>
@@ -1196,9 +1198,7 @@ function GroupPricingTable({
         }}
         row={bindingDialogRow}
         binding={
-          bindingDialogRow
-            ? bindings[bindingDialogRow.name.trim()]
-            : undefined
+          bindingDialogRow ? bindings[bindingDialogRow.name.trim()] : undefined
         }
         sources={sources}
         isLoading={sourcesLoading}

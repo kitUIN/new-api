@@ -9,6 +9,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSub2APIGroupTemplateDefaults(t *testing.T) {
+	config := buildGroupQueryConfig(nil, dto.GroupQuery{Template: "sub_api"})
+
+	require.Equal(t, balanceQueryTemplateSub2API, config.Template)
+	require.Equal(t, "{{baseUrl}}/api/v1/groups/available?timezone=Asia%2FShanghai", config.Request.URL)
+	require.Equal(t, "GET", config.Request.Method)
+	require.Equal(t, "Bearer {{apiKey}}", config.Request.Headers["Authorization"])
+	require.Equal(t, "data", config.Extractor.DataPath)
+	require.Equal(t, "description", config.Extractor.DescPath)
+	require.Equal(t, "rate_multiplier", config.Extractor.RatioPath)
+	require.Equal(t, "code", config.Extractor.SuccessPath)
+	require.Equal(t, "0", config.Extractor.SuccessValue)
+	require.False(t, config.Extractor.SuccessOptional)
+}
+
+func TestExtractGroupQueryResultSupportsSub2APIArray(t *testing.T) {
+	config := buildGroupQueryConfig(nil, dto.GroupQuery{Template: balanceQueryTemplateSub2API})
+	body := []byte(`{
+		"code": 0,
+		"message": "success",
+		"data": [
+			{"id": 2, "name": "GPT-VIP专线", "description": "", "rate_multiplier": 0.15},
+			{"id": 13, "name": "GPT-Pro通道", "description": "Pro", "rate_multiplier": 0.2}
+		]
+	}`)
+
+	result, err := extractGroupQueryResult(body, config.Extractor)
+
+	require.NoError(t, err)
+	require.Equal(t, dto.GroupQueryItem{Desc: "GPT-VIP专线", Ratio: 0.15}, result["GPT-VIP专线"])
+	require.Equal(t, dto.GroupQueryItem{Desc: "Pro", Ratio: 0.2}, result["GPT-Pro通道"])
+}
+
 func TestApplyUpstreamGroupRatioBindingsToMap(t *testing.T) {
 	result := map[string]dto.GroupQueryItem{
 		"up-default": {Desc: "Default", Ratio: 1.2},

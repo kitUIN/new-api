@@ -75,14 +75,47 @@ func getGroupQueryIntervalSeconds(config dto.GroupQuery) int {
 }
 
 func buildGroupQueryConfig(channel *model.Channel, config dto.GroupQuery) dto.GroupQuery {
-	template := strings.ToLower(strings.TrimSpace(config.Template))
-	if template == "" {
-		template = balanceQueryTemplateNewAPI
-	}
+	template := normalizeBalanceQueryTemplate(config.Template)
 	switch template {
 	case balanceQueryTemplateNewAPI, balanceQueryTemplateSub2API:
 		config.Template = template
 	default:
+		return config
+	}
+
+	if template == balanceQueryTemplateSub2API {
+		if strings.TrimSpace(config.Request.URL) == "" {
+			config.Request.URL = "{{baseUrl}}/api/v1/groups/available?timezone=Asia%2FShanghai"
+		}
+		if strings.TrimSpace(config.Request.Method) == "" {
+			config.Request.Method = http.MethodGet
+		}
+		if config.Request.Headers == nil {
+			config.Request.Headers = map[string]string{}
+		}
+		if _, ok := config.Request.Headers["Authorization"]; !ok {
+			config.Request.Headers["Authorization"] = "Bearer {{apiKey}}"
+		}
+		if strings.TrimSpace(config.Extractor.DataPath) == "" {
+			config.Extractor.DataPath = "data"
+		}
+		if strings.TrimSpace(config.Extractor.DescPath) == "" {
+			config.Extractor.DescPath = "description"
+		}
+		if strings.TrimSpace(config.Extractor.RatioPath) == "" {
+			config.Extractor.RatioPath = "rate_multiplier"
+		}
+		if strings.TrimSpace(config.Extractor.SuccessPath) == "" {
+			config.Extractor.SuccessPath = "code"
+		}
+		if strings.TrimSpace(config.Extractor.SuccessValue) == "" {
+			config.Extractor.SuccessValue = "0"
+		}
+		config.Extractor.SuccessOptional = false
+		if strings.TrimSpace(config.Extractor.MessagePath) == "" {
+			config.Extractor.MessagePath = "message"
+		}
+		_ = channel
 		return config
 	}
 
@@ -126,6 +159,49 @@ func buildGroupQueryConfig(channel *model.Channel, config dto.GroupQuery) dto.Gr
 	}
 	_ = channel
 	return config
+}
+
+func extractGroupQueryArrayResult(data gjson.Result, extractor dto.GroupQueryExtractorConfig) (map[string]dto.GroupQueryItem, error) {
+	result := make(map[string]dto.GroupQueryItem)
+	var parseErr error
+	data.ForEach(func(_, value gjson.Result) bool {
+		if !value.IsObject() {
+			parseErr = errors.New("上游分组数据格式无效")
+			return false
+		}
+		groupName := strings.TrimSpace(value.Get("name").String())
+		if groupName == "" {
+			groupName = strings.TrimSpace(value.Get("group").String())
+		}
+		if groupName == "" {
+			groupName = strings.TrimSpace(value.Get("id").String())
+		}
+		if groupName == "" {
+			parseErr = errors.New("上游分组缺少名称字段")
+			return false
+		}
+		item := dto.GroupQueryItem{Desc: groupName}
+		if extractor.DescPath != "" {
+			if desc := strings.TrimSpace(value.Get(extractor.DescPath).String()); desc != "" {
+				item.Desc = desc
+			}
+		}
+		ratio := value.Get(extractor.RatioPath)
+		if !ratio.Exists() || ratio.Type == gjson.Null {
+			parseErr = fmt.Errorf("上游分组 %s 缺少倍率字段", groupName)
+			return false
+		}
+		item.Ratio = ratio.Float()
+		result[groupName] = item
+		return true
+	})
+	if parseErr != nil {
+		return nil, parseErr
+	}
+	if len(result) == 0 {
+		return nil, errors.New("上游分组查询响应没有可用分组")
+	}
+	return result, nil
 }
 
 func replaceGroupQueryVars(value string, channel *model.Channel, config dto.GroupQuery) string {
@@ -204,6 +280,9 @@ func extractGroupQueryResult(body []byte, extractor dto.GroupQueryExtractorConfi
 			return nil, errors.New("上游分组查询响应缺少分组数据字段")
 		}
 		data = value
+	}
+	if data.IsArray() {
+		return extractGroupQueryArrayResult(data, extractor)
 	}
 	if !data.IsObject() {
 		return nil, errors.New("上游分组查询响应分组数据不是对象")

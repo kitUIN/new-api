@@ -1,11 +1,13 @@
 package setting
 
 import (
-	"encoding/json"
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 )
+
+const disabledGroupDescriptionPrefix = "__disabled_description__:"
 
 var userUsableGroups = map[string]string{
 	"default": "默认分组",
@@ -13,12 +15,19 @@ var userUsableGroups = map[string]string{
 }
 var userUsableGroupsMutex sync.RWMutex
 
+func isDisabledGroupDescriptionKey(groupName string) bool {
+	return strings.HasPrefix(groupName, disabledGroupDescriptionPrefix)
+}
+
 func GetUserUsableGroupsCopy() map[string]string {
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()
 
 	copyUserUsableGroups := make(map[string]string)
 	for k, v := range userUsableGroups {
+		if isDisabledGroupDescriptionKey(k) {
+			continue
+		}
 		copyUserUsableGroups[k] = v
 	}
 	return copyUserUsableGroups
@@ -28,7 +37,7 @@ func UserUsableGroups2JSONString() string {
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()
 
-	jsonBytes, err := json.Marshal(userUsableGroups)
+	jsonBytes, err := common.Marshal(userUsableGroups)
 	if err != nil {
 		common.SysLog("error marshalling user groups: " + err.Error())
 	}
@@ -40,7 +49,7 @@ func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 	defer userUsableGroupsMutex.Unlock()
 
 	userUsableGroups = make(map[string]string)
-	return json.Unmarshal([]byte(jsonStr), &userUsableGroups)
+	return common.UnmarshalJsonStr(jsonStr, &userUsableGroups)
 }
 
 func GetUsableGroupDescription(groupName string) string {
