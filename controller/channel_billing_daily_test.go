@@ -66,6 +66,9 @@ func TestSub2APIBalanceTemplateUsesTotalRecharged(t *testing.T) {
 	if config.Request.URL != "{{baseUrl}}/api/v1/auth/me?timezone=Asia%2FShanghai" {
 		t.Fatalf("expected sub2api auth/me url, got %q", config.Request.URL)
 	}
+	if config.Request.Headers["Authorization"] != "Bearer {{accessToken}}" {
+		t.Fatalf("expected sub2api access token auth header, got %q", config.Request.Headers["Authorization"])
+	}
 	if config.Extractor.RemainingPath != "data.balance" {
 		t.Fatalf("expected data.balance remaining path, got %q", config.Extractor.RemainingPath)
 	}

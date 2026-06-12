@@ -64,7 +64,7 @@ export const BALANCE_QUERY_SUB2API_TEMPLATE = {
     url: '{{baseUrl}}/api/v1/auth/me?timezone=Asia%2FShanghai',
     method: 'GET',
     headers: {
-      Authorization: 'Bearer {{apiKey}}',
+      Authorization: 'Bearer {{accessToken}}',
     },
   },
   extractor: {

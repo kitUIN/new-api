@@ -452,7 +452,7 @@ func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dt
 			config.Request.Headers = map[string]string{}
 		}
 		if _, ok := config.Request.Headers["Authorization"]; !ok {
-			config.Request.Headers["Authorization"] = "Bearer {{apiKey}}"
+			config.Request.Headers["Authorization"] = "Bearer {{accessToken}}"
 		}
 		if strings.TrimSpace(config.Extractor.RemainingPath) == "" {
 			config.Extractor.RemainingPath = "data.balance"

@@ -163,7 +163,7 @@ const BALANCE_QUERY_SUB2API_TEMPLATE = {
     url: '{{baseUrl}}/api/v1/auth/me?timezone=Asia%2FShanghai',
     method: 'GET',
     headers: {
-      Authorization: 'Bearer {{apiKey}}',
+      Authorization: 'Bearer {{accessToken}}',
     },
   },
   extractor: {
@@ -4209,7 +4209,9 @@ const EditChannelModal = (props) => {
                       <Form.Select
                         field='provider_id'
                         label={t('供应商 API 地址')}
-                        placeholder={t('选择已有供应商，或在下方 API 地址中填写新地址')}
+                        placeholder={t(
+                          '选择已有供应商，或在下方 API 地址中填写新地址',
+                        )}
                         optionList={providerOptionList}
                         style={{ width: '100%' }}
                         filter={selectFilter}
