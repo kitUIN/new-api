@@ -31,6 +31,7 @@ type Token struct {
 	SessionGroupFailoverEnabled bool           `json:"session_group_failover_enabled"`
 	SessionFailoverGroups       string         `json:"session_failover_groups" gorm:"type:text;default:''"`
 	SessionFailoverThreshold    int            `json:"session_failover_threshold" gorm:"default:3"`
+	ApiKeyGroupFailoverRuntime  any            `json:"api_key_group_failover_runtime,omitempty" gorm:"-"`
 	DeletedAt                   gorm.DeletedAt `gorm:"index"`
 }
 

@@ -398,7 +398,7 @@ export function ApiKeysMutateDrawer({
                     </FormControl>
                     {sessionFailoverEnabled && (
                       <FormDescription>
-                        {t('P0 is controlled by the session failover chain')}
+                        {t('P0 is controlled by the API key failover chain')}
                       </FormDescription>
                     )}
                     <FormMessage />
@@ -440,11 +440,11 @@ export function ApiKeysMutateDrawer({
                   <FormItem className={sideDrawerSwitchItemClassName()}>
                     <div className='flex flex-col gap-0.5'>
                       <FormLabel className='text-sm'>
-                        {t('Session group failover')}
+                        {t('API key group failover')}
                       </FormLabel>
                       <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
                         {t(
-                          'Keeps each session on the current priority group and moves to the next group after consecutive final failures.'
+                          'Keeps this API key on the current priority group and moves to the next group after consecutive final failures.'
                         )}
                       </FormDescription>
                     </div>
@@ -546,7 +546,7 @@ export function ApiKeysMutateDrawer({
                         </div>
                         <FormDescription>
                           {t(
-                            'Each new session starts at P0. Existing sessions stay on the promoted priority until their Redis state expires.'
+                            'This API key starts at P0 and keeps the promoted priority globally until the Redis state is reset.'
                           )}
                         </FormDescription>
                         <FormMessage />
@@ -573,7 +573,7 @@ export function ApiKeysMutateDrawer({
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'A session moves to the next priority group after this many final failed requests.'
+                            'This API key moves to the next priority group after this many final failed requests.'
                           )}
                         </FormDescription>
                         <FormMessage />

@@ -218,6 +218,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
+        const runtime = apiKey.api_key_group_failover_runtime
+        const currentLevel =
+          runtime && runtime.current_level >= 0
+            ? runtime.current_level
+            : 0
 
         if (
           apiKey.session_group_failover_enabled &&
@@ -238,7 +243,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                     >
                       <StatusBadge
                         label={`P${index}`}
-                        variant='info'
+                        variant={index === currentLevel ? 'success' : 'info'}
                         copyable={false}
                       />
                       <GroupBadge
@@ -257,11 +262,24 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <span className='text-xs'>
-                  {failoverGroups
-                    .map((failoverGroup, index) => `P${index} ${failoverGroup}`)
-                    .join(' -> ')}
-                </span>
+                <div className='flex flex-col gap-1 text-xs'>
+                  <span>
+                    {failoverGroups
+                      .map((failoverGroup, index) =>
+                        index === currentLevel
+                          ? `P${index} ${failoverGroup} (${t('Current')})`
+                          : `P${index} ${failoverGroup}`
+                      )
+                      .join(' -> ')}
+                  </span>
+                  {runtime && (
+                    <span className='text-muted-foreground'>
+                      {t('Current level')}: P{runtime.current_level} ·{' '}
+                      {t('Failures')}: {runtime.failure_count}/
+                      {runtime.threshold}
+                    </span>
+                  )}
+                </div>
               </TooltipContent>
             </Tooltip>
           )

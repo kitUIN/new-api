@@ -52,6 +52,18 @@ export const apiKeySchema = z.object({
     .default(false),
   session_failover_groups: z.string().nullish().default(''),
   session_failover_threshold: z.number().optional().default(3),
+  api_key_group_failover_runtime: z
+    .object({
+      enabled: z.boolean(),
+      groups: z.array(z.string()),
+      current_level: z.number(),
+      selected_group: z.string(),
+      failure_count: z.number(),
+      threshold: z.number(),
+      scope: z.string(),
+      updated_at: z.number(),
+    })
+    .nullish(),
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),

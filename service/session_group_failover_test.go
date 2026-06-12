@@ -54,6 +54,34 @@ func TestNormalizeTokenSessionFailoverSetsPrimaryGroup(t *testing.T) {
 	require.JSONEq(t, `["default","vip"]`, token.SessionFailoverGroups)
 }
 
+func TestApiKeyGroupFailoverRedisKeyIsTokenScoped(t *testing.T) {
+	require.Equal(t, "new-api:api_key_group_failover:v1:123", apiKeyGroupFailoverRedisKey(123))
+}
+
+func TestSameFailoverGroups(t *testing.T) {
+	require.True(t, sameFailoverGroups([]string{"default", "vip"}, []string{"default", "vip"}))
+	require.False(t, sameFailoverGroups([]string{"default", "vip"}, []string{"default", "backup"}))
+	require.False(t, sameFailoverGroups([]string{"default"}, []string{"default", "vip"}))
+}
+
+func TestGetApiKeyGroupFailoverRuntimeDefaultsToP0WithoutRedis(t *testing.T) {
+	token := &model.Token{
+		Id:                          123,
+		SessionGroupFailoverEnabled: true,
+		SessionFailoverGroups:       `["default","vip"]`,
+		SessionFailoverThreshold:    2,
+	}
+
+	runtime := GetApiKeyGroupFailoverRuntime(token)
+
+	require.NotNil(t, runtime)
+	require.Equal(t, 0, runtime.CurrentLevel)
+	require.Equal(t, "default", runtime.SelectedGroup)
+	require.Equal(t, 0, runtime.FailureCount)
+	require.Equal(t, 2, runtime.Threshold)
+	require.Equal(t, "api_key", runtime.Scope)
+}
+
 func TestNextSessionGroupFailoverState(t *testing.T) {
 	info := SessionGroupFailoverContext{
 		Groups:       []string{"default", "vip", "svip"},

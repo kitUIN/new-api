@@ -76,7 +76,7 @@ export function getApiKeyFormSchema(t: TFunction) {
         ctx.addIssue({
           code: 'custom',
           path: ['session_failover_groups'],
-          message: t('Auto group cannot be used in session failover'),
+          message: t('Auto group cannot be used in API key failover'),
         })
       }
       if (uniqueGroups.size !== groups.length) {

@@ -4,24 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
-const sessionGroupFailoverNamespace = "new-api:session_group_failover:v1"
-
-type channelAffinitySession struct {
-	RuleName       string
-	KeyFingerprint string
-	KeyHint        string
-	TTLSeconds     int
-}
+const apiKeyGroupFailoverNamespace = "new-api:api_key_group_failover:v1"
 
 type SessionGroupFailoverState struct {
 	LevelIndex   int      `json:"level_index"`
@@ -31,18 +22,26 @@ type SessionGroupFailoverState struct {
 }
 
 type SessionGroupFailoverContext struct {
-	Enabled        bool     `json:"enabled"`
-	Groups         []string `json:"groups"`
-	CurrentLevel   int      `json:"current_level"`
-	SelectedGroup  string   `json:"selected_group"`
-	FailureCount   int      `json:"failure_count"`
-	Threshold      int      `json:"threshold"`
-	Switched       bool     `json:"switched"`
-	KeyFingerprint string   `json:"key_fp"`
-	KeyHint        string   `json:"key_hint,omitempty"`
-	RuleName       string   `json:"rule_name"`
-	RedisKey       string   `json:"-"`
-	TTLSeconds     int      `json:"-"`
+	Enabled       bool     `json:"enabled"`
+	Groups        []string `json:"groups"`
+	CurrentLevel  int      `json:"current_level"`
+	SelectedGroup string   `json:"selected_group"`
+	FailureCount  int      `json:"failure_count"`
+	Threshold     int      `json:"threshold"`
+	Switched      bool     `json:"switched"`
+	Scope         string   `json:"scope"`
+	RedisKey      string   `json:"-"`
+}
+
+type ApiKeyGroupFailoverRuntime struct {
+	Enabled       bool     `json:"enabled"`
+	Groups        []string `json:"groups"`
+	CurrentLevel  int      `json:"current_level"`
+	SelectedGroup string   `json:"selected_group"`
+	FailureCount  int      `json:"failure_count"`
+	Threshold     int      `json:"threshold"`
+	Scope         string   `json:"scope"`
+	UpdatedAt     int64    `json:"updated_at"`
 }
 
 func parseSessionFailoverGroups(raw string) ([]string, error) {
@@ -79,7 +78,7 @@ func normalizeSessionFailoverGroups(groups []string, userGroup string) ([]string
 			return nil, errors.New("故障转移分组不能为空")
 		}
 		if group == "auto" {
-			return nil, errors.New("会话故障转移分组链不支持 auto")
+			return nil, errors.New("API Key 故障转移分组链不支持 auto")
 		}
 		if _, ok := seen[group]; ok {
 			return nil, fmt.Errorf("故障转移分组重复: %s", group)
@@ -107,18 +106,18 @@ func NormalizeTokenSessionFailover(token *model.Token, userGroup string) error {
 		return nil
 	}
 	if token.SessionFailoverThreshold < 1 {
-		return errors.New("会话故障转移连续失败次数至少为 1")
+		return errors.New("API Key 故障转移连续失败次数至少为 1")
 	}
 	groups, err := parseSessionFailoverGroups(token.SessionFailoverGroups)
 	if err != nil {
-		return fmt.Errorf("会话故障转移分组格式错误: %w", err)
+		return fmt.Errorf("API Key 故障转移分组格式错误: %w", err)
 	}
 	groups, err = normalizeSessionFailoverGroups(groups, userGroup)
 	if err != nil {
 		return err
 	}
 	if len(groups) < 2 {
-		return errors.New("会话故障转移至少需要 2 个分组")
+		return errors.New("API Key 故障转移至少需要 2 个分组")
 	}
 	encoded, err := encodeSessionFailoverGroups(groups)
 	if err != nil {
@@ -130,79 +129,20 @@ func NormalizeTokenSessionFailover(token *model.Token, userGroup string) error {
 	return nil
 }
 
-func resolveChannelAffinitySession(c *gin.Context, modelName string) (channelAffinitySession, bool) {
-	if meta, ok := getChannelAffinityMeta(c); ok && strings.TrimSpace(meta.KeyFingerprint) != "" {
-		ttlSeconds := meta.TTLSeconds
-		if ttlSeconds <= 0 {
-			ttlSeconds = 3600
-		}
-		return channelAffinitySession{
-			RuleName:       strings.TrimSpace(meta.RuleName),
-			KeyFingerprint: strings.TrimSpace(meta.KeyFingerprint),
-			KeyHint:        strings.TrimSpace(meta.KeyHint),
-			TTLSeconds:     ttlSeconds,
-		}, true
-	}
-
-	setting := operation_setting.GetChannelAffinitySetting()
-	if setting == nil {
-		return channelAffinitySession{}, false
-	}
-	path := ""
-	if c != nil && c.Request != nil && c.Request.URL != nil {
-		path = c.Request.URL.Path
-	}
-	userAgent := ""
-	if c != nil && c.Request != nil {
-		userAgent = c.Request.UserAgent()
-	}
-	for _, rule := range setting.Rules {
-		if !matchAnyRegexCached(rule.ModelRegex, modelName) {
-			continue
-		}
-		if len(rule.PathRegex) > 0 && !matchAnyRegexCached(rule.PathRegex, path) {
-			continue
-		}
-		if len(rule.UserAgentInclude) > 0 && !matchAnyIncludeFold(rule.UserAgentInclude, userAgent) {
-			continue
-		}
-		var affinityValue string
-		for _, src := range rule.KeySources {
-			affinityValue = extractChannelAffinityValue(c, src)
-			if affinityValue != "" {
-				break
-			}
-		}
-		if affinityValue == "" {
-			continue
-		}
-		if rule.ValueRegex != "" && !matchAnyRegexCached([]string{rule.ValueRegex}, affinityValue) {
-			continue
-		}
-		ttlSeconds := rule.TTLSeconds
-		if ttlSeconds <= 0 {
-			ttlSeconds = setting.DefaultTTLSeconds
-		}
-		if ttlSeconds <= 0 {
-			ttlSeconds = 3600
-		}
-		return channelAffinitySession{
-			RuleName:       strings.TrimSpace(rule.Name),
-			KeyFingerprint: affinityFingerprint(affinityValue),
-			KeyHint:        buildChannelAffinityKeyHint(affinityValue),
-			TTLSeconds:     ttlSeconds,
-		}, true
-	}
-	return channelAffinitySession{}, false
+func apiKeyGroupFailoverRedisKey(tokenID int) string {
+	return fmt.Sprintf("%s:%d", apiKeyGroupFailoverNamespace, tokenID)
 }
 
-func sessionGroupFailoverRedisKey(tokenID int, session channelAffinitySession) string {
-	rule := session.RuleName
-	if rule == "" {
-		rule = "default"
+func sameFailoverGroups(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
 	}
-	ruleHash := affinityFingerprint(rule)
-	return fmt.Sprintf("%s:%d:%s:%s", sessionGroupFailoverNamespace, tokenID, ruleHash, session.KeyFingerprint)
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func readSessionGroupFailoverState(redisKey string) (SessionGroupFailoverState, bool) {
@@ -221,19 +161,52 @@ func readSessionGroupFailoverState(redisKey string) (SessionGroupFailoverState, 
 	return state, true
 }
 
-func writeSessionGroupFailoverState(redisKey string, state SessionGroupFailoverState, ttlSeconds int) error {
-	if redisKey == "" || !common.RedisEnabled || common.RDB == nil {
+func GetApiKeyGroupFailoverRuntime(token *model.Token) *ApiKeyGroupFailoverRuntime {
+	if token == nil || !token.SessionGroupFailoverEnabled {
 		return nil
 	}
-	if ttlSeconds <= 0 {
-		ttlSeconds = 3600
+	groups, err := parseSessionFailoverGroups(token.SessionFailoverGroups)
+	if err != nil || len(groups) < 2 {
+		return nil
+	}
+	threshold := token.SessionFailoverThreshold
+	if threshold < 1 {
+		threshold = 3
+	}
+	level := 0
+	failureCount := 0
+	updatedAt := int64(0)
+	if state, found := readSessionGroupFailoverState(apiKeyGroupFailoverRedisKey(token.Id)); found && sameFailoverGroups(state.Groups, groups) {
+		level = state.LevelIndex
+		failureCount = state.FailureCount
+		updatedAt = state.UpdatedAt
+	}
+	if level < 0 || level >= len(groups) {
+		level = 0
+		failureCount = 0
+	}
+	return &ApiKeyGroupFailoverRuntime{
+		Enabled:       true,
+		Groups:        groups,
+		CurrentLevel:  level,
+		SelectedGroup: groups[level],
+		FailureCount:  failureCount,
+		Threshold:     threshold,
+		Scope:         "api_key",
+		UpdatedAt:     updatedAt,
+	}
+}
+
+func writeSessionGroupFailoverState(redisKey string, state SessionGroupFailoverState) error {
+	if redisKey == "" || !common.RedisEnabled || common.RDB == nil {
+		return nil
 	}
 	state.UpdatedAt = common.GetTimestamp()
 	data, err := common.Marshal(state)
 	if err != nil {
 		return err
 	}
-	return common.RedisSet(redisKey, string(data), time.Duration(ttlSeconds)*time.Second)
+	return common.RedisSet(redisKey, string(data), 0)
 }
 
 func getSessionGroupFailoverContext(c *gin.Context) (*SessionGroupFailoverContext, bool) {
@@ -247,7 +220,7 @@ func getSessionGroupFailoverContext(c *gin.Context) (*SessionGroupFailoverContex
 	return info, true
 }
 
-func ApplySessionGroupFailover(c *gin.Context, modelName string) {
+func ApplySessionGroupFailover(c *gin.Context, _ string) {
 	if c == nil || !common.GetContextKeyBool(c, constant.ContextKeyTokenSessionGroupFailoverEnabled) {
 		return
 	}
@@ -257,14 +230,14 @@ func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 	rawGroups := common.GetContextKeyString(c, constant.ContextKeyTokenSessionFailoverGroups)
 	groups, err := parseSessionFailoverGroups(rawGroups)
 	if err != nil {
-		common.SysLog("session group failover groups parse failed: " + err.Error())
+		common.SysLog("api key group failover groups parse failed: " + err.Error())
 		return
 	}
 	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 	groups, err = normalizeSessionFailoverGroups(groups, userGroup)
 	if err != nil || len(groups) < 2 {
 		if err != nil {
-			common.SysLog("session group failover groups invalid: " + err.Error())
+			common.SysLog("api key group failover groups invalid: " + err.Error())
 		}
 		return
 	}
@@ -272,16 +245,15 @@ func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 	if threshold < 1 {
 		threshold = 3
 	}
-	session, ok := resolveChannelAffinitySession(c, modelName)
-	if !ok || session.KeyFingerprint == "" {
-		return
-	}
 	tokenID := common.GetContextKeyInt(c, constant.ContextKeyTokenId)
 	if tokenID <= 0 {
 		return
 	}
-	redisKey := sessionGroupFailoverRedisKey(tokenID, session)
+	redisKey := apiKeyGroupFailoverRedisKey(tokenID)
 	state, found := readSessionGroupFailoverState(redisKey)
+	if found && !sameFailoverGroups(state.Groups, groups) {
+		found = false
+	}
 	level := 0
 	failureCount := 0
 	if found {
@@ -296,17 +268,14 @@ func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 	common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, selectedGroup)
 	common.SetContextKey(c, constant.ContextKeySessionGroupFailover, &SessionGroupFailoverContext{
-		Enabled:        true,
-		Groups:         groups,
-		CurrentLevel:   level,
-		SelectedGroup:  selectedGroup,
-		FailureCount:   failureCount,
-		Threshold:      threshold,
-		KeyFingerprint: session.KeyFingerprint,
-		KeyHint:        session.KeyHint,
-		RuleName:       session.RuleName,
-		RedisKey:       redisKey,
-		TTLSeconds:     session.TTLSeconds,
+		Enabled:       true,
+		Groups:        groups,
+		CurrentLevel:  level,
+		SelectedGroup: selectedGroup,
+		FailureCount:  failureCount,
+		Threshold:     threshold,
+		Scope:         "api_key",
+		RedisKey:      redisKey,
 	})
 }
 
@@ -329,8 +298,8 @@ func RecordSessionGroupFailoverResult(c *gin.Context, success bool) {
 	}
 
 	state, info.Switched = nextSessionGroupFailoverState(state, *info, success)
-	if err := writeSessionGroupFailoverState(info.RedisKey, state, info.TTLSeconds); err != nil {
-		common.SysLog("failed to write session group failover state: " + err.Error())
+	if err := writeSessionGroupFailoverState(info.RedisKey, state); err != nil {
+		common.SysLog("failed to write api key group failover state: " + err.Error())
 		return
 	}
 	info.CurrentLevel = state.LevelIndex
@@ -367,7 +336,7 @@ func AppendSessionGroupFailoverAdminInfo(c *gin.Context, adminInfo map[string]in
 	if !ok {
 		return
 	}
-	adminInfo["session_group_failover"] = map[string]interface{}{
+	adminInfo["api_key_group_failover"] = map[string]interface{}{
 		"enabled":        info.Enabled,
 		"groups":         info.Groups,
 		"current_level":  info.CurrentLevel,
@@ -375,8 +344,6 @@ func AppendSessionGroupFailoverAdminInfo(c *gin.Context, adminInfo map[string]in
 		"failure_count":  info.FailureCount,
 		"threshold":      info.Threshold,
 		"switched":       info.Switched,
-		"key_fp":         info.KeyFingerprint,
-		"key_hint":       info.KeyHint,
-		"rule_name":      info.RuleName,
+		"scope":          info.Scope,
 	}
 }
