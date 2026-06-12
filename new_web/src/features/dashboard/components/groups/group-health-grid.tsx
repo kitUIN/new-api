@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Gauge, HeartPulse, RefreshCw, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
+import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,11 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
@@ -51,8 +57,27 @@ import type {
 
 const HEALTH_WINDOW_HOURS = 24
 const HEALTH_BAR_WINDOW_HOURS = 6
+const HEALTH_RECENT_WINDOW_HOURS = 2
 const HEALTH_INTERVAL_MINUTES = 10
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
+const HEALTH_DOT_SIZE_PX = 10
+const HEALTH_DOT_GAP_PX = 4
+const PROVIDER_ICON_MATCHERS: Array<[RegExp, string]> = [
+  [/^codex/i, 'OpenAI.Color'],
+  [/^cc/i, 'Claude.Color'],
+  [/openai|chatgpt|gpt/i, 'OpenAI.Color'],
+  [/anthropic|claude/i, 'Claude.Color'],
+  [/gemini|google|vertex/i, 'Gemini.Color'],
+  [/azure/i, 'Azure.Color'],
+  [/aws|bedrock/i, 'Aws.Color'],
+  [/openrouter/i, 'OpenRouter.Color'],
+  [/deepseek/i, 'DeepSeek.Color'],
+  [/grok|xai/i, 'XAI.Color'],
+  [/moonshot|kimi/i, 'Moonshot.Color'],
+  [/mistral/i, 'Mistral.Color'],
+  [/cohere/i, 'Cohere.Color'],
+  [/ollama/i, 'Ollama.Color'],
+]
 
 function statusDotClassName(status: PerfGroupHealthStatus): string {
   switch (status) {
@@ -86,6 +111,60 @@ function formatWindow(bucket: PerfGroupHealthBucket): string {
   return `${dayjs.unix(bucket.ts).format('MM-DD HH:mm')} ~ ${dayjs
     .unix(bucket.end_ts)
     .format('HH:mm')}`
+}
+
+function formatBucketThroughput(tps: number): string {
+  if (!Number.isFinite(tps) || tps <= 0) return '—'
+  return tps.toFixed(tps < 10 ? 2 : 1)
+}
+
+function getGroupProviderIcon(groupName: string): React.ReactNode {
+  const matched = PROVIDER_ICON_MATCHERS.find(([pattern]) =>
+    pattern.test(groupName)
+  )
+  return getLobeIcon(matched?.[1] || groupName, 18)
+}
+
+function calculateRecentSuccessRate(
+  buckets: PerfGroupHealthBucket[],
+  hours: number
+) {
+  const bucketCount = Math.ceil((hours * 60) / HEALTH_INTERVAL_MINUTES)
+  const recentBuckets = buckets.slice(-bucketCount)
+  const totals = recentBuckets.reduce(
+    (acc, bucket) => {
+      acc.requests += bucket.request_count || 0
+      acc.successes += bucket.success_count || 0
+      return acc
+    },
+    { requests: 0, successes: 0 }
+  )
+
+  return {
+    requestCount: totals.requests,
+    successRate:
+      totals.requests > 0 ? (totals.successes / totals.requests) * 100 : 0,
+  }
+}
+
+function useElementWidth<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null)
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const updateWidth = () => setWidth(element.clientWidth)
+    updateWidth()
+
+    const resizeObserver = new ResizeObserver(updateWidth)
+    resizeObserver.observe(element)
+
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  return [ref, width] as const
 }
 
 export function GroupHealthGrid() {
@@ -228,16 +307,38 @@ function GroupHealthCard(props: { group: PerfGroupHealth }) {
   const { t } = useTranslation()
   const group = props.group
   const hasSamples = group.request_count > 0
-  const visibleBucketCount = Math.ceil(
+  const [bucketBarRef, bucketBarWidth] = useElementWidth<HTMLDivElement>()
+  const defaultVisibleBucketCount = Math.ceil(
     (HEALTH_BAR_WINDOW_HOURS * 60) / HEALTH_INTERVAL_MINUTES
   )
+  const visibleBucketCount = bucketBarWidth
+    ? Math.max(
+        1,
+        Math.min(
+          group.buckets.length,
+          Math.floor(
+            (bucketBarWidth + HEALTH_DOT_GAP_PX) /
+              (HEALTH_DOT_SIZE_PX + HEALTH_DOT_GAP_PX)
+          )
+        )
+      )
+    : Math.min(group.buckets.length, defaultVisibleBucketCount)
   const visibleBuckets = group.buckets.slice(-visibleBucketCount)
+  const recentHealth = calculateRecentSuccessRate(
+    group.buckets,
+    HEALTH_RECENT_WINDOW_HOURS
+  )
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
       <div className='flex items-start justify-between gap-3 border-b px-4 py-3'>
         <div className='min-w-0'>
-          <div className='truncate text-sm font-semibold'>{group.group}</div>
+          <div className='flex min-w-0 items-center gap-2'>
+            <span className='flex size-5 shrink-0 items-center justify-center'>
+              {getGroupProviderIcon(group.group)}
+            </span>
+            <div className='truncate text-sm font-semibold'>{group.group}</div>
+          </div>
           <div className='mt-1 flex flex-wrap items-center gap-1.5'>
             <Badge variant='outline' className='font-mono'>
               {formatRatio(group.ratio)}
@@ -247,17 +348,37 @@ function GroupHealthCard(props: { group: PerfGroupHealth }) {
             </Badge>
           </div>
         </div>
-        <div className='shrink-0 text-right'>
-          <div className='text-muted-foreground text-[11px]'>
-            {t('24h success rate')}
+        <div className='grid shrink-0 grid-cols-[auto_auto] items-start gap-6 text-right'>
+          <div>
+            <div className='text-muted-foreground text-[10px] leading-none'>
+              {t('24h success rate')}
+            </div>
+            <div
+              className={cn(
+                'mt-1 font-mono text-xs font-semibold tabular-nums',
+                statusTextClassName(group.success_rate, group.request_count)
+              )}
+            >
+              {hasSamples ? formatUptimePct(group.success_rate) : '—'}
+            </div>
           </div>
-          <div
-            className={cn(
-              'font-mono text-lg font-semibold tabular-nums',
-              statusTextClassName(group.success_rate, group.request_count)
-            )}
-          >
-            {hasSamples ? formatUptimePct(group.success_rate) : '—'}
+          <div>
+            <div className='text-muted-foreground text-[11px] leading-none'>
+              {t('2h success rate')}
+            </div>
+            <div
+              className={cn(
+                'mt-1 font-mono text-xl font-semibold tabular-nums',
+                statusTextClassName(
+                  recentHealth.successRate,
+                  recentHealth.requestCount
+                )
+              )}
+            >
+              {recentHealth.requestCount > 0
+                ? formatUptimePct(recentHealth.successRate)
+                : '—'}
+            </div>
           </div>
         </div>
       </div>
@@ -282,7 +403,8 @@ function GroupHealthCard(props: { group: PerfGroupHealth }) {
         </div>
 
         <div
-          className='grid gap-px'
+          ref={bucketBarRef}
+          className='grid items-center justify-items-center gap-1'
           style={{
             gridTemplateColumns: visibleBuckets.length
               ? `repeat(${visibleBuckets.length}, minmax(0, 1fr))`
@@ -318,45 +440,94 @@ function MetricCell(props: {
 }
 
 function BucketDot(props: { bucket: PerfGroupHealthBucket }) {
-  const { t } = useTranslation()
   const bucket = props.bucket
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Popover>
+      <PopoverTrigger
         render={
           <button
             type='button'
             className={cn(
-              'focus-visible:ring-ring h-3 min-w-0 rounded-full focus-visible:ring-2 focus-visible:outline-none',
+              'focus-visible:ring-ring size-2.5 shrink-0 rounded-full transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:outline-none data-[popup-open]:scale-125',
               statusDotClassName(bucket.status)
             )}
             aria-label={formatWindow(bucket)}
           />
         }
       />
-      <TooltipContent side='top' className='flex-col items-start font-mono'>
-        <div className='font-medium'>{formatWindow(bucket)}</div>
-        <div>
-          {t('Success rate')}:{' '}
-          {bucket.request_count > 0
-            ? formatUptimePct(bucket.success_rate)
-            : '—'}
-        </div>
-        <div>
-          {t('Average first-token latency')}:{' '}
-          {formatLatency(bucket.avg_ttft_ms)}
-        </div>
-        <div>
-          {t('Average latency')}: {formatLatency(bucket.avg_latency_ms)}
-        </div>
-        <div>
-          {t('Average token/s')}: {formatThroughput(bucket.avg_tps)}
-        </div>
-        <div>
-          {t('Requests')}: {bucket.request_count}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+      <PopoverContent
+        side='top'
+        className='w-56 max-w-[calc(100vw-2rem)] rounded-lg p-3.5 shadow-lg'
+      >
+        <BucketDetails bucket={bucket} />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function BucketDetails(props: { bucket: PerfGroupHealthBucket }) {
+  const { t } = useTranslation()
+  const bucket = props.bucket
+  const errorCount = Math.max(
+    0,
+    (bucket.request_count || 0) - (bucket.success_count || 0)
+  )
+  const rows = [
+    {
+      label: t('Success rate'),
+      value:
+        bucket.request_count > 0 ? formatUptimePct(bucket.success_rate) : '—',
+      active: bucket.request_count > 0,
+      valueClassName: 'text-success',
+    },
+    {
+      label: t('First-token latency'),
+      value: formatLatency(bucket.avg_ttft_ms),
+    },
+    {
+      label: t('Latency'),
+      value: formatLatency(bucket.avg_latency_ms),
+    },
+    {
+      label: t('token/s'),
+      value: formatBucketThroughput(bucket.avg_tps),
+    },
+    {
+      label: t('Error count'),
+      value: String(errorCount),
+    },
+  ]
+
+  return (
+    <div className='text-popover-foreground w-full'>
+      <div className='mb-3 font-mono text-sm font-semibold tracking-normal'>
+        {formatWindow(bucket)}
+      </div>
+      <div className='flex flex-col gap-2'>
+        {rows.map((row) => (
+          <div key={row.label} className='grid grid-cols-[1fr_auto] gap-3'>
+            <div className='text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium'>
+              <span
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  row.active ? 'bg-success' : 'bg-muted-foreground/45'
+                )}
+                aria-hidden='true'
+              />
+              <span className='truncate'>{row.label}</span>
+            </div>
+            <div
+              className={cn(
+                'font-mono text-xs font-semibold tabular-nums',
+                row.valueClassName
+              )}
+            >
+              {row.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
