@@ -99,8 +99,10 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
+				service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
 				service.ApplySessionGroupFailover(c, modelRequest.Model)
 				usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)

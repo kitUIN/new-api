@@ -131,8 +131,21 @@ func NormalizeTokenSessionFailover(token *model.Token, userGroup string) error {
 }
 
 func resolveChannelAffinitySession(c *gin.Context, modelName string) (channelAffinitySession, bool) {
+	if meta, ok := getChannelAffinityMeta(c); ok && strings.TrimSpace(meta.KeyFingerprint) != "" {
+		ttlSeconds := meta.TTLSeconds
+		if ttlSeconds <= 0 {
+			ttlSeconds = 3600
+		}
+		return channelAffinitySession{
+			RuleName:       strings.TrimSpace(meta.RuleName),
+			KeyFingerprint: strings.TrimSpace(meta.KeyFingerprint),
+			KeyHint:        strings.TrimSpace(meta.KeyHint),
+			TTLSeconds:     ttlSeconds,
+		}, true
+	}
+
 	setting := operation_setting.GetChannelAffinitySetting()
-	if setting == nil || !setting.Enabled {
+	if setting == nil {
 		return channelAffinitySession{}, false
 	}
 	path := ""
