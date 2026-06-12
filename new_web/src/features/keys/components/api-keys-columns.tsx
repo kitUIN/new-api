@@ -33,6 +33,7 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
+import { parseSessionFailoverGroups } from '../lib'
 import { type ApiKey } from '../types'
 import {
   ApiKeyCell,
@@ -214,6 +215,57 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const apiKey = row.original
         const group = row.getValue('group') as string
         const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+        const failoverGroups = parseSessionFailoverGroups(
+          apiKey.session_failover_groups
+        )
+
+        if (
+          apiKey.session_group_failover_enabled &&
+          failoverGroups.length >= 2
+        ) {
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className='inline-flex max-w-64 items-center gap-1.5 overflow-hidden text-xs' />
+                }
+              >
+                <span className='flex min-w-0 items-center gap-1'>
+                  {failoverGroups.slice(0, 3).map((failoverGroup, index) => (
+                    <span
+                      key={`${failoverGroup}-${index}`}
+                      className='flex min-w-0 items-center gap-1'
+                    >
+                      <StatusBadge
+                        label={`P${index}`}
+                        variant='info'
+                        copyable={false}
+                      />
+                      <GroupBadge
+                        group={failoverGroup}
+                        ratio={groupRatios[failoverGroup]}
+                      />
+                    </span>
+                  ))}
+                  {failoverGroups.length > 3 && (
+                    <StatusBadge
+                      label={`+${failoverGroups.length - 3}`}
+                      variant='neutral'
+                      copyable={false}
+                    />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span className='text-xs'>
+                  {failoverGroups
+                    .map((failoverGroup, index) => `P${index} ${failoverGroup}`)
+                    .join(' -> ')}
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
 
         if (group === 'auto') {
           return (

@@ -223,15 +223,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			service.RecordSessionGroupFailoverResult(c, true)
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		shouldRetryNow := shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
+		if !shouldRetryNow {
+			service.RecordSessionGroupFailoverResult(c, false)
+		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetryNow {
 			break
 		}
 	}
@@ -398,6 +403,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
 		}
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
+		service.AppendSessionGroupFailoverAdminInfo(c, adminInfo)
 		if err.ResponseBody != "" {
 			adminInfo["upstream_error_body"] = truncateLogField(common.MaskSensitiveInfo(err.ResponseBody), 4096)
 		}
@@ -567,9 +573,14 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			service.RecordSessionGroupFailoverResult(c, true)
 			break
 		}
 
+		shouldRetryNow := shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry())
+		if !shouldRetryNow {
+			service.RecordSessionGroupFailoverResult(c, false)
+		}
 		if !taskErr.LocalError {
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
@@ -577,7 +588,7 @@ func RelayTask(c *gin.Context) {
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetryNow {
 			break
 		}
 	}

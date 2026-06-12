@@ -37,6 +37,9 @@ export function getApiKeyFormSchema(t: TFunction) {
       allow_ips: z.string().optional(),
       group: z.string().optional(),
       cross_group_retry: z.boolean().optional(),
+      session_group_failover_enabled: z.boolean().optional(),
+      session_failover_groups: z.array(z.string()),
+      session_failover_threshold: z.number().min(1),
       tokenCount: z.number().min(1).optional(),
     })
     .superRefine((data, ctx) => {
@@ -52,6 +55,35 @@ export function getApiKeyFormSchema(t: TFunction) {
           code: 'custom',
           path: ['remain_quota_dollars'],
           message: t('Quota must be zero or greater'),
+        })
+      }
+
+      if (!data.session_group_failover_enabled) {
+        return
+      }
+
+      const groups = data.session_failover_groups
+        .map((group) => group.trim())
+      const uniqueGroups = new Set(groups)
+      if (groups.length < 2) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['session_failover_groups'],
+          message: t('Select at least two failover groups'),
+        })
+      }
+      if (groups.some((group) => group === 'auto')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['session_failover_groups'],
+          message: t('Auto group cannot be used in session failover'),
+        })
+      }
+      if (uniqueGroups.size !== groups.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['session_failover_groups'],
+          message: t('Failover groups cannot be duplicated'),
         })
       }
     })
@@ -72,6 +104,9 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   allow_ips: '',
   group: DEFAULT_GROUP,
   cross_group_retry: true,
+  session_group_failover_enabled: false,
+  session_failover_groups: [],
+  session_failover_threshold: 3,
   tokenCount: 1,
 }
 
@@ -95,6 +130,12 @@ export function getApiKeyFormDefaultValues(
 export function transformFormDataToPayload(
   data: ApiKeyFormValues
 ): ApiKeyFormData {
+  const failoverGroups = data.session_failover_groups
+    .map((group) => group.trim())
+  const failoverEnabled =
+    !!data.session_group_failover_enabled && failoverGroups.length >= 2
+  const group = failoverEnabled ? failoverGroups[0] : data.group || ''
+
   return {
     name: data.name,
     remain_quota: data.unlimited_quota
@@ -107,8 +148,29 @@ export function transformFormDataToPayload(
     model_limits_enabled: data.model_limits.length > 0,
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
-    group: data.group || '',
-    cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
+    group,
+    cross_group_retry:
+      !failoverEnabled && group === 'auto' ? !!data.cross_group_retry : false,
+    session_group_failover_enabled: failoverEnabled,
+    session_failover_groups: failoverEnabled
+      ? JSON.stringify(failoverGroups)
+      : '',
+    session_failover_threshold: Math.max(
+      1,
+      data.session_failover_threshold || 3
+    ),
+  }
+}
+
+export function parseSessionFailoverGroups(raw?: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((group) => (typeof group === 'string' ? group.trim() : ''))
+  } catch {
+    return []
   }
 }
 
@@ -134,6 +196,15 @@ export function transformApiKeyToFormDefaults(
     allow_ips: apiKey.allow_ips || '',
     group: apiKey.group || DEFAULT_GROUP,
     cross_group_retry: !!apiKey.cross_group_retry,
+    session_group_failover_enabled:
+      !!apiKey.session_group_failover_enabled,
+    session_failover_groups: parseSessionFailoverGroups(
+      apiKey.session_failover_groups
+    ),
+    session_failover_threshold: Math.max(
+      1,
+      apiKey.session_failover_threshold || 3
+    ),
     tokenCount: 1,
   }
 }

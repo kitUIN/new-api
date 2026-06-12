@@ -20,13 +20,23 @@ import { useEffect, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  KeyRound,
+  Plus,
+  Settings2,
+  Trash2,
+  WalletCards,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -125,6 +135,7 @@ export function ApiKeysMutateDrawer({
     })
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
+  const concreteGroups = groups.filter((g) => g.value !== 'auto')
   const schema = getApiKeyFormSchema(t)
 
   const form = useForm<ApiKeyFormValues>({
@@ -245,6 +256,81 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
+  const sessionFailoverEnabled = form.watch(
+    'session_group_failover_enabled'
+  )
+  const sessionFailoverGroups = form.watch('session_failover_groups') || []
+
+  const setFailoverGroups = (nextGroups: string[]) => {
+    form.setValue('session_failover_groups', nextGroups, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    if (nextGroups.length > 0) {
+      form.setValue('group', nextGroups[0], { shouldDirty: true })
+    }
+  }
+
+  const getFailoverOptions = (index: number) => {
+    const used = new Set(
+      sessionFailoverGroups.filter((_, groupIndex) => groupIndex !== index)
+    )
+    return concreteGroups.filter((group) => !used.has(group.value))
+  }
+
+  const handleFailoverEnabledChange = (checked: boolean) => {
+    form.setValue('session_group_failover_enabled', checked, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    if (!checked) {
+      return
+    }
+    const currentGroups = form.getValues('session_failover_groups') || []
+    if (currentGroups.length >= 2) {
+      setFailoverGroups(currentGroups)
+      return
+    }
+    const primary =
+      selectedGroup && selectedGroup !== 'auto'
+        ? selectedGroup
+        : concreteGroups[0]?.value
+    const secondary = concreteGroups.find((group) => group.value !== primary)
+    const nextGroups = [primary, secondary?.value].filter(
+      (group): group is string => group !== undefined
+    )
+    setFailoverGroups(nextGroups)
+    form.setValue('cross_group_retry', false, { shouldDirty: true })
+  }
+
+  const handleAddFailoverGroup = () => {
+    const next = concreteGroups.find(
+      (group) => !sessionFailoverGroups.includes(group.value)
+    )
+    if (!next) return
+    setFailoverGroups([...sessionFailoverGroups, next.value])
+  }
+
+  const handleMoveFailoverGroup = (index: number, direction: -1 | 1) => {
+    const next = [...sessionFailoverGroups]
+    const target = index + direction
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setFailoverGroups(next)
+  }
+
+  const handleRemoveFailoverGroup = (index: number) => {
+    setFailoverGroups(
+      sessionFailoverGroups.filter((_, groupIndex) => groupIndex !== index)
+    )
+  }
+
+  useEffect(() => {
+    if (!sessionFailoverEnabled || sessionFailoverGroups.length === 0) return
+    if (sessionFailoverGroups[0] !== selectedGroup) {
+      form.setValue('group', sessionFailoverGroups[0])
+    }
+  }, [form, selectedGroup, sessionFailoverEnabled, sessionFailoverGroups])
 
   return (
     <Sheet
@@ -307,8 +393,14 @@ export function ApiKeysMutateDrawer({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t('Select a group')}
+                        disabled={sessionFailoverEnabled}
                       />
                     </FormControl>
+                    {sessionFailoverEnabled && (
+                      <FormDescription>
+                        {t('P0 is controlled by the session failover chain')}
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -339,6 +431,156 @@ export function ApiKeysMutateDrawer({
                     </FormItem>
                   )}
                 />
+              )}
+
+              <FormField
+                control={form.control}
+                name='session_group_failover_enabled'
+                render={({ field }) => (
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <div className='flex flex-col gap-0.5'>
+                      <FormLabel className='text-sm'>
+                        {t('Session group failover')}
+                      </FormLabel>
+                      <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
+                        {t(
+                          'Keeps each session on the current priority group and moves to the next group after consecutive final failures.'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={!!field.value}
+                        onCheckedChange={handleFailoverEnabledChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {sessionFailoverEnabled && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name='session_failover_groups'
+                    render={() => (
+                      <FormItem>
+                        <div className='flex items-center justify-between gap-3'>
+                          <FormLabel>{t('Failover group chain')}</FormLabel>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleAddFailoverGroup}
+                            disabled={
+                              sessionFailoverGroups.length >=
+                              concreteGroups.length
+                            }
+                          >
+                            <Plus className='size-4' />
+                            {t('Add group')}
+                          </Button>
+                        </div>
+                        <div className='flex flex-col gap-2'>
+                          {sessionFailoverGroups.map((group, index) => (
+                            <div
+                              key={`${group}-${index}`}
+                              className='border-border bg-muted/20 flex items-center gap-2 rounded-md border p-2'
+                            >
+                              <Badge variant='outline' className='w-10'>
+                                P{index}
+                              </Badge>
+                              <div className='min-w-0 flex-1'>
+                                <ApiKeyGroupCombobox
+                                  options={getFailoverOptions(index)}
+                                  value={group}
+                                  onValueChange={(value) => {
+                                    const next = [...sessionFailoverGroups]
+                                    next[index] = value
+                                    setFailoverGroups(next)
+                                  }}
+                                  placeholder={t('Select a group')}
+                                />
+                              </div>
+                              <div className='flex shrink-0 items-center gap-1'>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  onClick={() =>
+                                    handleMoveFailoverGroup(index, -1)
+                                  }
+                                  disabled={index === 0}
+                                  aria-label={t('Move up')}
+                                >
+                                  <ArrowUp className='size-4' />
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  onClick={() =>
+                                    handleMoveFailoverGroup(index, 1)
+                                  }
+                                  disabled={
+                                    index === sessionFailoverGroups.length - 1
+                                  }
+                                  aria-label={t('Move down')}
+                                >
+                                  <ArrowDown className='size-4' />
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  onClick={() =>
+                                    handleRemoveFailoverGroup(index)
+                                  }
+                                  aria-label={t('Remove')}
+                                >
+                                  <Trash2 className='size-4' />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <FormDescription>
+                          {t(
+                            'Each new session starts at P0. Existing sessions stay on the promoted priority until their Redis state expires.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='session_failover_threshold'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Consecutive failure threshold')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min='1'
+                            step='1'
+                            onChange={(e) =>
+                              field.onChange(parseInt(e.target.value, 10) || 1)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'A session moves to the next priority group after this many final failed requests.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
               )}
 
               <FormField
