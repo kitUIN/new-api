@@ -99,6 +99,12 @@ function statusTextClassName(rate: number, requestCount: number): string {
   return 'text-destructive'
 }
 
+function balanceDotClassName(level: PerfGroupHealth['balance_level']): string {
+  if (level === 0) return 'bg-destructive'
+  if (level === 1) return 'bg-warning'
+  return 'bg-success'
+}
+
 function formatRatio(ratio: number): string {
   if (!Number.isFinite(ratio)) return 'x1'
   return `x${ratio
@@ -343,7 +349,14 @@ function GroupHealthCard(props: { group: PerfGroupHealth }) {
             <Badge variant='outline' className='font-mono'>
               {formatRatio(group.ratio)}
             </Badge>
-            <Badge variant='secondary'>
+            <Badge variant='secondary' className='gap-1.5'>
+              <span
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  balanceDotClassName(group.balance_level)
+                )}
+                aria-hidden='true'
+              />
               {t('{{count}} providers', { count: group.provider_count })}
             </Badge>
           </div>

@@ -75,6 +75,7 @@ type PerfGroupHealth struct {
 	Group         string                  `json:"group"`
 	Ratio         float64                 `json:"ratio"`
 	ProviderCount int                     `json:"provider_count"`
+	BalanceLevel  int                     `json:"balance_level"`
 	RequestCount  int64                   `json:"request_count"`
 	SuccessRate   float64                 `json:"success_rate"`
 	AvgTTFTMs     float64                 `json:"avg_ttft_ms"`
@@ -593,11 +594,11 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		bucket.add(acc)
 	}
 
-	providerCounts, err := GetGroupProviderCounts()
+	providerStats, err := GetGroupProviderStats()
 	if err != nil {
 		return PerfGroupHealthSummary{}, err
 	}
-	for groupName := range providerCounts {
+	for groupName := range providerStats {
 		if !shouldShowGroup(groupName) {
 			continue
 		}
@@ -613,7 +614,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 
 	resultGroups := make([]PerfGroupHealth, 0, len(groupNames))
 	for _, groupName := range groupNames {
-		if providerCounts[groupName] <= 0 {
+		stats := providerStats[groupName]
+		if stats.ProviderCount <= 0 {
 			continue
 		}
 		group := groups[groupName]
@@ -652,7 +654,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		resultGroups = append(resultGroups, PerfGroupHealth{
 			Group:         groupName,
 			Ratio:         ratio,
-			ProviderCount: providerCounts[groupName],
+			ProviderCount: stats.ProviderCount,
+			BalanceLevel:  perfGroupBalanceLevel(stats.MinBalance),
 			RequestCount:  group.total.requestCount,
 			SuccessRate:   successRate,
 			AvgTTFTMs:     avgTTFTMs,
@@ -690,6 +693,21 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}, nil
 }
 
+type GroupProviderStats struct {
+	ProviderCount int
+	MinBalance    float64
+}
+
+func perfGroupBalanceLevel(balance float64) int {
+	if balance < 3 {
+		return 0
+	}
+	if balance < 6 {
+		return 1
+	}
+	return 2
+}
+
 func perfGroupRecentSuccessRate(buckets []PerfGroupHealthBucket, hours int, intervalMinutes int) (float64, int64) {
 	if hours <= 0 {
 		hours = 2
@@ -717,20 +735,64 @@ func perfGroupRecentSuccessRate(buckets []PerfGroupHealthBucket, hours int, inte
 }
 
 func GetGroupProviderCounts() (map[string]int, error) {
+	stats, err := GetGroupProviderStats()
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int, len(stats))
+	for groupName, stat := range stats {
+		counts[groupName] = stat.ProviderCount
+	}
+	return counts, nil
+}
+
+func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 	var channels []Channel
 	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
 		return nil, err
 	}
 
-	groupProviders := make(map[string]map[string]struct{})
+	providerIDs := make([]int, 0)
+	providerIDSet := make(map[int]struct{})
+	for _, channel := range channels {
+		if channel.ProviderID <= 0 {
+			continue
+		}
+		if _, ok := providerIDSet[channel.ProviderID]; ok {
+			continue
+		}
+		providerIDSet[channel.ProviderID] = struct{}{}
+		providerIDs = append(providerIDs, channel.ProviderID)
+	}
+
+	providerBalances := make(map[int]float64, len(providerIDs))
+	if len(providerIDs) > 0 {
+		var providers []ChannelProvider
+		if err := DB.Select("id", "balance").Where("id IN ?", providerIDs).Find(&providers).Error; err != nil {
+			return nil, err
+		}
+		for _, provider := range providers {
+			providerBalances[provider.Id] = provider.Balance
+		}
+	}
+
+	type groupProviderBalance struct {
+		balance float64
+	}
+
+	groupProviders := make(map[string]map[string]groupProviderBalance)
 	for _, channel := range channels {
 		groups := channel.GetGroups()
 		if len(groups) == 0 {
 			groups = []string{"default"}
 		}
 		providerKey := fmt.Sprintf("channel:%d", channel.Id)
+		balance := channel.Balance
 		if channel.ProviderID > 0 {
 			providerKey = fmt.Sprintf("provider:%d", channel.ProviderID)
+			if providerBalance, ok := providerBalances[channel.ProviderID]; ok {
+				balance = providerBalance
+			}
 		}
 		for _, groupName := range groups {
 			groupName = strings.TrimSpace(groupName)
@@ -739,18 +801,29 @@ func GetGroupProviderCounts() (map[string]int, error) {
 			}
 			providers := groupProviders[groupName]
 			if providers == nil {
-				providers = make(map[string]struct{})
+				providers = make(map[string]groupProviderBalance)
 				groupProviders[groupName] = providers
 			}
-			providers[providerKey] = struct{}{}
+			existing, ok := providers[providerKey]
+			if !ok || balance < existing.balance {
+				providers[providerKey] = groupProviderBalance{balance: balance}
+			}
 		}
 	}
 
-	counts := make(map[string]int, len(groupProviders))
+	stats := make(map[string]GroupProviderStats, len(groupProviders))
 	for groupName, providers := range groupProviders {
-		counts[groupName] = len(providers)
+		stat := GroupProviderStats{ProviderCount: len(providers)}
+		first := true
+		for _, provider := range providers {
+			if first || provider.balance < stat.MinBalance {
+				stat.MinBalance = provider.balance
+				first = false
+			}
+		}
+		stats[groupName] = stat
 	}
-	return counts, nil
+	return stats, nil
 }
 
 func GetRankingGroupPerfStats(startTime int64, endTime int64) ([]RankingGroupPerfStat, error) {

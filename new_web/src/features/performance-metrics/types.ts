@@ -77,6 +77,7 @@ export type PerfGroupHealth = {
   group: string
   ratio: number
   provider_count: number
+  balance_level: 0 | 1 | 2
   request_count: number
   success_rate: number
   avg_ttft_ms: number
