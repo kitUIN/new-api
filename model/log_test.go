@@ -53,6 +53,7 @@ func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {
 		BucketTime:    "10min",
 		FlushInterval: 5,
 	})
+	insertEnabledChannel(t, 1, "default")
 
 	start := time.Now().Add(-500 * time.Millisecond)
 	relayInfo := &relaycommon.RelayInfo{
@@ -90,6 +91,7 @@ func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {
 		BucketTime:    "10min",
 		FlushInterval: 5,
 	})
+	insertEnabledChannel(t, 1, "default")
 
 	start := time.Now().Add(-800 * time.Millisecond)
 	RecordChannelTestPerfMetric(nil, &relaycommon.RelayInfo{

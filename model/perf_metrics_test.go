@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
 )
@@ -205,6 +206,7 @@ func TestGetPerfGroupHealthSummaryAggregatesGroupsAndTenMinuteBuckets(t *testing
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
 	})
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0}`))
+	insertEnabledChannel(t, 1, "default,vip")
 	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
 		Enabled:       true,
 		BucketTime:    "10min",
@@ -278,6 +280,7 @@ func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {
 		BucketTime:    "5min",
 		FlushInterval: 5,
 	})
+	insertEnabledChannel(t, 1, "default")
 
 	base := time.Now().Unix()
 	base = base - base%600
@@ -312,6 +315,7 @@ func TestGetPerfGroupHealthSummaryOnlyIncludesEnabledGroups(t *testing.T) {
 	})
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"disabled":1}`))
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default group"}`))
+	insertEnabledChannel(t, 1, "default,disabled")
 	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
 		Enabled:       true,
 		BucketTime:    "10min",
@@ -347,6 +351,76 @@ func TestGetPerfGroupHealthSummaryOnlyIncludesEnabledGroups(t *testing.T) {
 	requirePerfGroupHealth(t, summary.Groups, "default")
 	for _, group := range summary.Groups {
 		require.NotEqual(t, "disabled", group.Group)
+	}
+}
+
+func TestGetPerfGroupHealthSummaryFiltersAndSortsGroups(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	monitorSetting := operation_setting.GetMonitorSetting()
+	originalSkipGroups := monitorSetting.AutoTestChannelSkipGroups
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		monitorSetting.AutoTestChannelSkipGroups = originalSkipGroups
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1,"skipped":1,"empty":1}`))
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default group","vip":"VIP","skipped":"Skipped","empty":"Empty"}`))
+	monitorSetting.AutoTestChannelSkipGroups = "skipped"
+	insertEnabledChannel(t, 1, "default")
+	insertEnabledChannel(t, 2, "vip")
+	insertEnabledChannel(t, 3, "skipped")
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+
+	base := time.Now().Unix()
+	base = base - base%600
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: base + 10,
+		ModelName: "default-low",
+		Group:     "default",
+		Success:   true,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: base + 20,
+		ModelName: "default-low",
+		Group:     "default",
+		Success:   false,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: base + 30,
+		ModelName: "vip-high",
+		Group:     "vip",
+		Success:   true,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: base + 40,
+		ModelName: "skipped-hidden",
+		Group:     "skipped",
+		Success:   true,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: base + 50,
+		ModelName: "empty-hidden",
+		Group:     "empty",
+		Success:   true,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	require.Len(t, summary.Groups, 2)
+	require.Equal(t, "vip", summary.Groups[0].Group)
+	require.Equal(t, "default", summary.Groups[1].Group)
+	for _, group := range summary.Groups {
+		require.NotEqual(t, "skipped", group.Group)
+		require.NotEqual(t, "empty", group.Group)
+		require.Greater(t, group.ProviderCount, 0)
 	}
 }
 
@@ -492,4 +566,14 @@ func requirePerfGroupHealthBucket(t *testing.T, buckets []PerfGroupHealthBucket,
 	}
 	t.Fatalf("bucket %d not found", ts)
 	return PerfGroupHealthBucket{}
+}
+
+func insertEnabledChannel(t *testing.T, id int, group string) {
+	t.Helper()
+	require.NoError(t, DB.Create(&Channel{
+		Id:     id,
+		Status: common.ChannelStatusEnabled,
+		Key:    "test-key",
+		Group:  group,
+	}).Error)
 }

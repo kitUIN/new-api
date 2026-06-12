@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 )
@@ -494,6 +495,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 
 	groups := make(map[string]*groupedAccumulator)
 	enabledGroups := setting.GetUserUsableGroupsCopy()
+	skippedGroups := operation_setting.ParseAutoTestChannelSkipGroups(operation_setting.GetMonitorSetting().AutoTestChannelSkipGroups)
 	isEnabledGroup := func(groupName string) bool {
 		groupName = strings.TrimSpace(groupName)
 		if groupName == "" {
@@ -501,6 +503,17 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		}
 		_, ok := enabledGroups[groupName]
 		return ok
+	}
+	shouldShowGroup := func(groupName string) bool {
+		groupName = strings.TrimSpace(groupName)
+		if groupName == "" {
+			groupName = "default"
+		}
+		if !isEnabledGroup(groupName) {
+			return false
+		}
+		_, skipped := skippedGroups[groupName]
+		return !skipped
 	}
 	ensureGroup := func(groupName string) *groupedAccumulator {
 		groupName = strings.TrimSpace(groupName)
@@ -516,7 +529,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}
 
 	for groupName := range ratio_setting.GetGroupRatioCopy() {
-		if !isEnabledGroup(groupName) {
+		if !shouldShowGroup(groupName) {
 			continue
 		}
 		ensureGroup(groupName)
@@ -566,7 +579,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if bucketTs < startBucket || bucketTs >= endExclusive {
 			continue
 		}
-		if !isEnabledGroup(row.Group) {
+		if !shouldShowGroup(row.Group) {
 			continue
 		}
 		group := ensureGroup(row.Group)
@@ -585,7 +598,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		return PerfGroupHealthSummary{}, err
 	}
 	for groupName := range providerCounts {
-		if !isEnabledGroup(groupName) {
+		if !shouldShowGroup(groupName) {
 			continue
 		}
 		ensureGroup(groupName)
@@ -600,6 +613,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 
 	resultGroups := make([]PerfGroupHealth, 0, len(groupNames))
 	for _, groupName := range groupNames {
+		if providerCounts[groupName] <= 0 {
+			continue
+		}
 		group := groups[groupName]
 		avgLatencyMs, avgTTFTMs, successRate, avgTps := group.total.summary()
 		ratio, ok := ratios[groupName]
@@ -645,6 +661,25 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			Buckets:       buckets,
 		})
 	}
+	sort.SliceStable(resultGroups, func(i, j int) bool {
+		leftRate, leftRequests := perfGroupRecentSuccessRate(resultGroups[i].Buckets, 2, intervalMinutes)
+		rightRate, rightRequests := perfGroupRecentSuccessRate(resultGroups[j].Buckets, 2, intervalMinutes)
+		if leftRequests != rightRequests {
+			if leftRequests == 0 {
+				return false
+			}
+			if rightRequests == 0 {
+				return true
+			}
+		}
+		if leftRate != rightRate {
+			return leftRate > rightRate
+		}
+		if resultGroups[i].ProviderCount != resultGroups[j].ProviderCount {
+			return resultGroups[i].ProviderCount > resultGroups[j].ProviderCount
+		}
+		return resultGroups[i].Group < resultGroups[j].Group
+	})
 
 	return PerfGroupHealthSummary{
 		WindowHours:     hours,
@@ -653,6 +688,32 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		SeriesSchema:    common.GetPerfMetricsConfig().BucketTime,
 		Groups:          resultGroups,
 	}, nil
+}
+
+func perfGroupRecentSuccessRate(buckets []PerfGroupHealthBucket, hours int, intervalMinutes int) (float64, int64) {
+	if hours <= 0 {
+		hours = 2
+	}
+	if intervalMinutes <= 0 {
+		intervalMinutes = 10
+	}
+	bucketCount := hours * 60 / intervalMinutes
+	if bucketCount <= 0 {
+		bucketCount = 1
+	}
+	if bucketCount > len(buckets) {
+		bucketCount = len(buckets)
+	}
+	var requests int64
+	var successes int64
+	for _, bucket := range buckets[len(buckets)-bucketCount:] {
+		requests += bucket.RequestCount
+		successes += bucket.SuccessCount
+	}
+	if requests == 0 {
+		return 0, 0
+	}
+	return roundFloat(float64(successes)/float64(requests)*100, 2), requests
 }
 
 func GetGroupProviderCounts() (map[string]int, error) {
