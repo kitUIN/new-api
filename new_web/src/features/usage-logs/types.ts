@@ -19,7 +19,37 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Type definitions for usage logs
  */
-import type { UsageLog } from './data/schema'
+
+export interface UsageLog {
+  [key: string]: unknown
+
+  id: number
+  user_id: number
+  created_at: number
+  type: number
+  content?: string
+  username?: string
+  token_name?: string
+  model_name: string
+  quota: number
+  prompt_tokens: number
+  completion_tokens: number
+  use_time: number
+  is_stream?: boolean
+  channel: number
+  channel_name?: string
+  qq_id?: string
+  token_id?: number
+  group?: string
+  ip?: string
+  request_id?: string
+  upstream_request_id?: string
+  other: string
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  cache_read_quota?: number
+  cache_write_quota?: number
+}
 
 // ============================================================================
 // Log Category Types
@@ -53,6 +83,7 @@ export interface CommonLogFilters extends CommonFilters {
   username?: string
   requestId?: string
   upstreamRequestId?: string
+  sessionKey?: string
 }
 
 /**
@@ -293,6 +324,7 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  channel_affinity_key?: string
 }
 
 export interface GetLogsResponse {
@@ -317,6 +349,7 @@ export interface GetLogStatsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  channel_affinity_key?: string
 }
 
 export interface GetLogStatsResponse {

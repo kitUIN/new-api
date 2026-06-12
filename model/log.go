@@ -426,7 +426,32 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
+func channelAffinityLogLikePattern(input string) (string, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", nil
+	}
+	if len(input) < 2 {
+		return "", errors.New("会话键搜索关键词长度至少为 2 个字符")
+	}
+	input = strings.ReplaceAll(input, "!", "!!")
+	input = strings.ReplaceAll(input, "%", "!%")
+	input = strings.ReplaceAll(input, `_`, `!_`)
+	return "%" + input + "%", nil
+}
+
+func applyChannelAffinityLogFilter(tx *gorm.DB, channelAffinityKey string) (*gorm.DB, error) {
+	if channelAffinityKey == "" {
+		return tx, nil
+	}
+	pattern, err := channelAffinityLogLikePattern(channelAffinityKey)
+	if err != nil {
+		return nil, err
+	}
+	return tx.Where("logs.other LIKE ? ESCAPE '!'", pattern), nil
+}
+
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, channelAffinityKey string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -457,6 +482,10 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	tx, err = applyChannelAffinityLogFilter(tx, channelAffinityKey)
+	if err != nil {
+		return nil, 0, err
 	}
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
@@ -515,7 +544,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, channelAffinityKey string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -544,6 +573,10 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	tx, err = applyChannelAffinityLogFilter(tx, channelAffinityKey)
+	if err != nil {
+		return nil, 0, err
 	}
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
@@ -597,7 +630,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, channelAffinityKey string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -632,6 +665,14 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+	}
+	tx, err = applyChannelAffinityLogFilter(tx, channelAffinityKey)
+	if err != nil {
+		return stat, err
+	}
+	rpmTpmQuery, err = applyChannelAffinityLogFilter(rpmTpmQuery, channelAffinityKey)
+	if err != nil {
+		return stat, err
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)

@@ -49,7 +49,6 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
-import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
   getParamOverrideActionLabel,
@@ -62,11 +61,13 @@ import {
   getResponseTimeColor,
 } from '../../lib/format'
 import {
+  formatChannelAffinitySessionKey,
+  getChannelAffinitySessionKey,
   getLogTypeConfig,
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
-import type { LogOtherData } from '../../types'
+import type { LogOtherData, UsageLog } from '../../types'
 
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
@@ -594,6 +595,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
+  const channelAffinity = other?.admin_info?.channel_affinity
+  const sessionKey = getChannelAffinitySessionKey(channelAffinity)
+  const sessionKeyDisplay = formatChannelAffinitySessionKey(sessionKey)
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -659,6 +663,52 @@ export function DetailsDialog(props: DetailsDialogProps) {
               {channelChain && props.isAdmin && (
                 <DetailRow label={t('Retry Chain')} value={channelChain} mono />
               )}
+
+              {props.isAdmin && sessionKeyDisplay && (
+                <DetailRow
+                  label={t('Session Key')}
+                  value={
+                    <span className='flex min-w-0 flex-wrap items-center gap-1.5'>
+                      <StatusBadge
+                        label={sessionKeyDisplay}
+                        variant='amber'
+                        size='sm'
+                        copyText={sessionKey}
+                        className='rounded-md font-mono'
+                      />
+                      {channelAffinity?.key_fp && (
+                        <span className='text-muted-foreground font-mono text-[11px]'>
+                          {t('Key Fingerprint')}: {channelAffinity.key_fp}
+                        </span>
+                      )}
+                    </span>
+                  }
+                />
+              )}
+
+              {props.isAdmin && channelAffinity?.rule_name && (
+                <DetailRow
+                  label={t('Affinity Rule')}
+                  value={channelAffinity.rule_name}
+                  mono
+                />
+              )}
+
+              {props.isAdmin &&
+                (channelAffinity?.key_source ||
+                  channelAffinity?.key_path ||
+                  channelAffinity?.key_key) && (
+                  <DetailRow
+                    label={t('Affinity Source')}
+                    value={[
+                      channelAffinity.key_source,
+                      channelAffinity.key_path || channelAffinity.key_key,
+                    ]
+                      .filter(Boolean)
+                      .join(':')}
+                    mono
+                  />
+                )}
 
               {props.log.token_name && (
                 <DetailRow

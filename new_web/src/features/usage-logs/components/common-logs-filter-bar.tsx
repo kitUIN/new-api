@@ -94,6 +94,7 @@ export function CommonLogsFilterBar<TData>(
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
+      sessionKey: searchParams.sessionKey || undefined,
     })
 
     const typeArr = searchParams.type
@@ -114,6 +115,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
+    searchParams.sessionKey,
     searchParams.type,
   ])
 
@@ -171,7 +173,8 @@ export function CommonLogsFilterBar<TData>(
     !!filters.username ||
     !!filters.channel ||
     !!filters.requestId ||
-    !!filters.upstreamRequestId
+    !!filters.upstreamRequestId ||
+    !!filters.sessionKey
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   const hasAdditionalFilters =
@@ -183,6 +186,7 @@ export function CommonLogsFilterBar<TData>(
     isAdmin ? filters.channel : undefined,
     filters.requestId,
     filters.upstreamRequestId,
+    filters.sessionKey,
   ].filter(Boolean).length
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
   const logTypeItems = useMemo(
@@ -324,6 +328,14 @@ export function CommonLogsFilterBar<TData>(
           placeholder={t('Upstream Request ID')}
           value={filters.upstreamRequestId || ''}
           onChange={(e) => handleChange('upstreamRequestId', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Session Key')}
+          value={filters.sessionKey || ''}
+          onChange={(e) => handleChange('sessionKey', e.target.value)}
           onKeyDown={handleKeyDown}
         />
       </LogsFilterField>

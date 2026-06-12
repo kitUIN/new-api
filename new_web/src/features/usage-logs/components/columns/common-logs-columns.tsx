@@ -53,7 +53,6 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { LOG_TYPE_ALL_VALUE } from '../../constants'
-import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
   getFirstResponseTimeColor,
@@ -64,12 +63,14 @@ import {
   isViolationFeeLog,
 } from '../../lib/format'
 import {
+  formatChannelAffinitySessionKey,
+  getChannelAffinitySessionKey,
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
   isPerCallBilling,
 } from '../../lib/utils'
-import type { LogOtherData } from '../../types'
+import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
@@ -882,6 +883,75 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         },
         meta: { label: t('User'), mobileHidden: true },
+      },
+      {
+        id: 'session_key',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Session Key')} />
+        ),
+        cell: function SessionKeyCell({ row }) {
+          const log = row.original
+          if (!isDisplayableLogType(log.type)) return null
+
+          const other = parseLogOther(log.other)
+          const affinity = other?.admin_info?.channel_affinity
+          const sessionKey = getChannelAffinitySessionKey(affinity)
+          const displayKey = formatChannelAffinitySessionKey(sessionKey)
+
+          if (!displayKey) {
+            return <span className='text-muted-foreground/40 text-xs'>—</span>
+          }
+
+          return (
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger render={<div className='max-w-[120px]' />}>
+                  <StatusBadge
+                    label={displayKey}
+                    icon={Sparkles}
+                    copyText={sessionKey}
+                    size='sm'
+                    variant='amber'
+                    className='max-w-full rounded-md font-mono'
+                  />
+                </TooltipTrigger>
+                <TooltipContent side='top' className='max-w-xs text-xs'>
+                  <div className='flex flex-col gap-1'>
+                    <p className='font-medium'>{t('Channel Affinity')}</p>
+                    <p>
+                      {t('Session Key')}: {displayKey}
+                    </p>
+                    {affinity?.key_fp && (
+                      <p>
+                        {t('Key Fingerprint')}: {affinity.key_fp}
+                      </p>
+                    )}
+                    {affinity?.rule_name && (
+                      <p>
+                        {t('Rule')}: {affinity.rule_name}
+                      </p>
+                    )}
+                    {(affinity?.key_source ||
+                      affinity?.key_path ||
+                      affinity?.key_key) && (
+                      <p>
+                        {t('Source')}:{' '}
+                        {[
+                          affinity.key_source,
+                          affinity.key_path || affinity.key_key,
+                        ]
+                          .filter(Boolean)
+                          .join(':')}
+                      </p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        meta: { label: t('Session Key'), mobileHidden: true },
+        size: 120,
       }
     )
   }

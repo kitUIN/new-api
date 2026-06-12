@@ -38,6 +38,7 @@ import type {
   FetchLogsConfig,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  ChannelAffinityInfo,
 } from '../types'
 
 // ============================================================================
@@ -108,6 +109,19 @@ export function buildQueryParams(
   })
 
   return queryParams
+}
+
+export function formatChannelAffinitySessionKey(value?: string): string {
+  const key = String(value || '').trim()
+  if (!key) return ''
+  if (key.includes('...') || key.length <= 8) return key
+  return `${key.slice(0, 4)}...${key.slice(-4)}`
+}
+
+export function getChannelAffinitySessionKey(
+  affinity?: ChannelAffinityInfo | null
+): string {
+  return String(affinity?.key_hint || affinity?.key_fp || '').trim()
 }
 
 /**
@@ -216,6 +230,9 @@ export function buildApiParams(config: {
     ...(searchParams.upstreamRequestId
       ? { upstream_request_id: String(searchParams.upstreamRequestId) }
       : {}),
+    ...(searchParams.sessionKey
+      ? { channel_affinity_key: String(searchParams.sessionKey) }
+      : {}),
     ...buildTimeRangeParams(searchParams, false),
   }
 
@@ -242,6 +259,9 @@ export function buildApiParams(config: {
           break
         case 'username':
           if (isAdmin) params.username = String(value)
+          break
+        case 'session_key':
+          params.channel_affinity_key = String(value)
           break
       }
     })

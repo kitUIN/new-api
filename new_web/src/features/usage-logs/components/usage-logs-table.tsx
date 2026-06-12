@@ -103,6 +103,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
               searchKey: 'username',
               type: 'string' as const,
             },
+            {
+              columnId: 'session_key',
+              searchKey: 'sessionKey',
+              type: 'string' as const,
+            },
           ]
         : []),
     ],
