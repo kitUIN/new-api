@@ -72,6 +72,7 @@ type FormState = {
   balance_interval_seconds: number
   balance_source_channel_id: number
   balance_access_token: string
+  balance_refresh_token: string
   balance_user_id: string
   balance_request_url: string
   balance_request_method: string
@@ -93,6 +94,7 @@ type FormState = {
   group_interval_seconds: number
   group_source_channel_id: number
   group_access_token: string
+  group_refresh_token: string
   group_user_id: string
   group_request_url: string
   group_request_method: string
@@ -161,6 +163,7 @@ function defaultState(provider: ProviderRow | null): FormState {
     balance_source_channel_id:
       b.source_channel_id || provider?.children?.[0]?.id || 0,
     balance_access_token: b.access_token || '',
+    balance_refresh_token: b.refresh_token || '',
     balance_user_id: b.user_id || '',
     balance_request_url: b.request?.url || bTemplate.request.url,
     balance_request_method: b.request?.method || bTemplate.request.method,
@@ -195,6 +198,7 @@ function defaultState(provider: ProviderRow | null): FormState {
     group_source_channel_id:
       g.source_channel_id || provider?.children?.[0]?.id || 0,
     group_access_token: g.access_token || '',
+    group_refresh_token: g.refresh_token || '',
     group_user_id: g.user_id || '',
     group_request_url: g.request?.url || gTemplate.request.url,
     group_request_method: g.request?.method || gTemplate.request.method,
@@ -305,6 +309,7 @@ export function ProviderQuerySettingsDialog(props: Props) {
         ),
         source_channel_id: Number(form.balance_source_channel_id) || 0,
         access_token: form.balance_access_token,
+        refresh_token: form.balance_refresh_token,
         user_id: form.balance_user_id,
         request: {
           url: form.balance_request_url,
@@ -335,6 +340,7 @@ export function ProviderQuerySettingsDialog(props: Props) {
         ),
         source_channel_id: Number(form.group_source_channel_id) || 0,
         access_token: form.group_access_token,
+        refresh_token: form.group_refresh_token,
         user_id: form.group_user_id,
         request: {
           url: form.group_request_url,
@@ -688,11 +694,16 @@ function RequestFields(props: {
   const p = props.prefix
   return (
     <>
-      <div className='grid gap-3 sm:grid-cols-2'>
+      <div className='grid gap-3 sm:grid-cols-3'>
         <TextField
           label='Access Token'
           value={props.form[`${p}_access_token`]}
           onChange={(v) => props.set(`${p}_access_token`, v)}
+        />
+        <TextField
+          label='Refresh Token'
+          value={props.form[`${p}_refresh_token`]}
+          onChange={(v) => props.set(`${p}_refresh_token`, v)}
         />
         <TextField
           label={t('User ID')}

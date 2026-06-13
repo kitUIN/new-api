@@ -172,6 +172,7 @@ export type BalanceQueryConfig = {
   interval_seconds?: number
   source_channel_id?: number
   access_token?: string
+  refresh_token?: string
   user_id?: string
   request?: QueryRequestConfig
   extractor?: BalanceQueryExtractorConfig
@@ -201,6 +202,7 @@ export type GroupQueryConfig = {
   interval_seconds?: number
   source_channel_id?: number
   access_token?: string
+  refresh_token?: string
   user_id?: string
   request?: QueryRequestConfig
   extractor?: GroupQueryExtractorConfig
@@ -482,6 +484,7 @@ export interface ChannelFormData {
   balance_query_interval_seconds?: number
   balance_query_source_channel_id?: number
   balance_query_access_token?: string
+  balance_query_refresh_token?: string
   balance_query_user_id?: string
   balance_query_request_url?: string
   balance_query_request_method?: string
@@ -507,6 +510,7 @@ export interface ChannelFormData {
   group_query_interval_seconds?: number
   group_query_source_channel_id?: number
   group_query_access_token?: string
+  group_query_refresh_token?: string
   group_query_user_id?: string
   group_query_request_url?: string
   group_query_request_method?: string

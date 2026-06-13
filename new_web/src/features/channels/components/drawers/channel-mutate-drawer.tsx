@@ -3324,7 +3324,7 @@ export function ChannelMutateDrawer({
                             )}
                           />
 
-                          <div className='grid gap-4 sm:grid-cols-2'>
+                          <div className='grid gap-4 sm:grid-cols-3'>
                             <FormField
                               control={form.control}
                               name='balance_query_access_token'
@@ -3335,6 +3335,24 @@ export function ChannelMutateDrawer({
                                     <Input
                                       placeholder={t(
                                         'Used for {{accessToken}}. Empty uses the channel key.'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='balance_query_refresh_token'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Refresh Token</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={t(
+                                        'Used for automatic token refresh after a 401 response.'
                                       )}
                                       {...field}
                                     />
@@ -3377,7 +3395,7 @@ export function ChannelMutateDrawer({
                                 </FormControl>
                                 <FormDescription>
                                   {t(
-                                    'Supports {{baseUrl}}, {{accessToken}}, {{apiKey}}, and {{userId}} variables.'
+                                    'Supports {{baseUrl}}, {{accessToken}}, {{refreshToken}}, {{apiKey}}, and {{userId}} variables.'
                                   )}
                                 </FormDescription>
                                 <FormMessage />
@@ -3746,7 +3764,7 @@ export function ChannelMutateDrawer({
                             )}
                           />
 
-                          <div className='grid gap-4 sm:grid-cols-2'>
+                          <div className='grid gap-4 sm:grid-cols-3'>
                             <FormField
                               control={form.control}
                               name='group_query_access_token'
@@ -3757,6 +3775,24 @@ export function ChannelMutateDrawer({
                                     <Input
                                       placeholder={t(
                                         'Used for {{accessToken}}. Empty uses the channel key.'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='group_query_refresh_token'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Refresh Token</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={t(
+                                        'Used for automatic token refresh after a 401 response.'
                                       )}
                                       {...field}
                                     />
@@ -3799,7 +3835,7 @@ export function ChannelMutateDrawer({
                                 </FormControl>
                                 <FormDescription>
                                   {t(
-                                    'Supports {{baseUrl}}, {{accessToken}}, {{apiKey}}, and {{userId}} variables.'
+                                    'Supports {{baseUrl}}, {{accessToken}}, {{refreshToken}}, {{apiKey}}, and {{userId}} variables.'
                                   )}
                                 </FormDescription>
                                 <FormMessage />

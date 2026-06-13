@@ -167,7 +167,7 @@ func GetResponseBodyWithBody(method, url string, body string, channel *model.Cha
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code: %d", res.StatusCode)
+		return nil, &responseStatusError{StatusCode: res.StatusCode}
 	}
 	responseBody, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -408,6 +408,30 @@ type balanceQueryDebugInfo struct {
 	Error     string            `json:"error,omitempty"`
 }
 
+type responseStatusError struct {
+	StatusCode int
+}
+
+func (e *responseStatusError) Error() string {
+	return fmt.Sprintf("status code: %d", e.StatusCode)
+}
+
+type sub2APIAuthRefreshResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int    `json:"expires_in"`
+		TokenType    string `json:"token_type"`
+	} `json:"data"`
+}
+
+type sub2APIAuthTokens struct {
+	AccessToken  string
+	RefreshToken string
+}
+
 func getBalanceQueryIntervalSeconds(config dto.BalanceQuery) int {
 	if config.IntervalSeconds == nil {
 		return balanceQueryDefaultIntervalSecond
@@ -540,6 +564,7 @@ func replaceBalanceQueryVars(value string, channel *model.Channel, config dto.Ba
 	replacer := strings.NewReplacer(
 		"{{baseUrl}}", baseURL,
 		"{{accessToken}}", accessToken,
+		"{{refreshToken}}", config.RefreshToken,
 		"{{apiKey}}", channel.Key,
 		"{{key}}", channel.Key,
 		"{{userId}}", config.UserID,
@@ -547,6 +572,126 @@ func replaceBalanceQueryVars(value string, channel *model.Channel, config dto.Ba
 		"{{channelName}}", channel.Name,
 	)
 	return replacer.Replace(value)
+}
+
+func isUnauthorizedStatus(err error) bool {
+	var statusErr *responseStatusError
+	return errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusUnauthorized
+}
+
+func shouldRefreshSub2APIToken(template string, refreshToken string, err error) bool {
+	return normalizeBalanceQueryTemplate(template) == balanceQueryTemplateSub2API &&
+		strings.TrimSpace(refreshToken) != "" &&
+		isUnauthorizedStatus(err)
+}
+
+func getQueryBaseURL(channel *model.Channel) string {
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[channel.Type], "/")
+	}
+	return baseURL
+}
+
+func refreshSub2APIQueryToken(channel *model.Channel, refreshToken string) (sub2APIAuthTokens, error) {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return sub2APIAuthTokens{}, errors.New("refresh_token 不能为空")
+	}
+	baseURL := getQueryBaseURL(channel)
+	if baseURL == "" {
+		return sub2APIAuthTokens{}, errors.New("刷新 token 请求地址不能为空")
+	}
+	payload, err := common.Marshal(map[string]string{
+		"refresh_token": refreshToken,
+	})
+	if err != nil {
+		return sub2APIAuthTokens{}, err
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/auth/refresh", bytes.NewReader(payload))
+	if err != nil {
+		return sub2APIAuthTokens{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	if err != nil {
+		return sub2APIAuthTokens{}, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return sub2APIAuthTokens{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return sub2APIAuthTokens{}, &responseStatusError{StatusCode: res.StatusCode}
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return sub2APIAuthTokens{}, err
+	}
+	response := sub2APIAuthRefreshResponse{}
+	if err := common.Unmarshal(body, &response); err != nil {
+		return sub2APIAuthTokens{}, err
+	}
+	if response.Code != 0 {
+		if strings.TrimSpace(response.Message) != "" {
+			return sub2APIAuthTokens{}, errors.New(response.Message)
+		}
+		return sub2APIAuthTokens{}, fmt.Errorf("刷新 token 失败，code: %d", response.Code)
+	}
+	tokens := sub2APIAuthTokens{
+		AccessToken:  strings.TrimSpace(response.Data.AccessToken),
+		RefreshToken: strings.TrimSpace(response.Data.RefreshToken),
+	}
+	if tokens.AccessToken == "" || tokens.RefreshToken == "" {
+		return sub2APIAuthTokens{}, errors.New("刷新 token 响应缺少 access_token 或 refresh_token")
+	}
+	return tokens, nil
+}
+
+func updateChannelBalanceQueryTokens(channel *model.Channel, settings dto.ChannelOtherSettings, tokens sub2APIAuthTokens) dto.ChannelOtherSettings {
+	settings.BalanceQuery.AccessToken = tokens.AccessToken
+	settings.BalanceQuery.RefreshToken = tokens.RefreshToken
+	settings.GroupQuery.AccessToken = tokens.AccessToken
+	settings.GroupQuery.RefreshToken = tokens.RefreshToken
+	channel.SetOtherSettings(settings)
+	return settings
+}
+
+func updateProviderBalanceQueryTokens(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, tokens sub2APIAuthTokens) dto.ChannelProviderSettings {
+	settings.BalanceQuery.AccessToken = tokens.AccessToken
+	settings.BalanceQuery.RefreshToken = tokens.RefreshToken
+	settings.GroupQuery.AccessToken = tokens.AccessToken
+	settings.GroupQuery.RefreshToken = tokens.RefreshToken
+	provider.SetOtherSettings(settings)
+	return settings
+}
+
+func updateChannelGroupQueryTokens(channel *model.Channel, settings dto.ChannelOtherSettings, tokens sub2APIAuthTokens) dto.ChannelOtherSettings {
+	settings.BalanceQuery.AccessToken = tokens.AccessToken
+	settings.BalanceQuery.RefreshToken = tokens.RefreshToken
+	settings.GroupQuery.AccessToken = tokens.AccessToken
+	settings.GroupQuery.RefreshToken = tokens.RefreshToken
+	channel.SetOtherSettings(settings)
+	return settings
+}
+
+func updateProviderGroupQueryTokens(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, tokens sub2APIAuthTokens) dto.ChannelProviderSettings {
+	settings.BalanceQuery.AccessToken = tokens.AccessToken
+	settings.BalanceQuery.RefreshToken = tokens.RefreshToken
+	settings.GroupQuery.AccessToken = tokens.AccessToken
+	settings.GroupQuery.RefreshToken = tokens.RefreshToken
+	provider.SetOtherSettings(settings)
+	return settings
+}
+
+func persistChannelSettingsOnly(channel *model.Channel, settings dto.ChannelOtherSettings) {
+	channel.SetOtherSettings(settings)
+	if err := model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
+		"settings": channel.OtherSettings,
+	}).Error; err != nil {
+		common.SysLog(fmt.Sprintf("failed to persist channel settings: channel_id=%d, error=%v", channel.Id, err))
+	}
 }
 
 func balanceQueryHeadersToMap(headers http.Header) map[string]string {
@@ -993,6 +1138,29 @@ func executeProviderConfiguredBalance(provider *model.ChannelProvider, providerS
 	}
 	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
 	if err != nil {
+		if shouldRefreshSub2APIToken(config.Template, config.RefreshToken, err) {
+			tokens, refreshErr := refreshSub2APIQueryToken(channel, config.RefreshToken)
+			if refreshErr == nil {
+				providerSettings = updateProviderBalanceQueryTokens(provider, providerSettings, tokens)
+				config.AccessToken = tokens.AccessToken
+				config.RefreshToken = tokens.RefreshToken
+				headers = http.Header{}
+				for key, value := range config.Request.Headers {
+					if strings.TrimSpace(key) == "" {
+						continue
+					}
+					headers.Set(key, replaceBalanceQueryVars(value, channel, config))
+				}
+				requestBody = replaceBalanceQueryVars(config.Request.Body, channel, config)
+				debugInfo.Headers = balanceQueryHeadersToMap(headers)
+				debugInfo.Body = requestBody
+				body, err = GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+			} else {
+				err = fmt.Errorf("余额查询 401 后刷新 token 失败: %w", refreshErr)
+			}
+		}
+	}
+	if err != nil {
 		debugInfo.Error = err.Error()
 		logBalanceQueryDebug(debugInfo)
 		result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
@@ -1044,6 +1212,34 @@ func executeChannelConfiguredBalance(target *model.Channel, targetSettings dto.C
 		Body:      requestBody,
 	}
 	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	if err != nil {
+		if shouldRefreshSub2APIToken(config.Template, config.RefreshToken, err) {
+			tokens, refreshErr := refreshSub2APIQueryToken(channel, config.RefreshToken)
+			if refreshErr == nil {
+				settings = updateChannelBalanceQueryTokens(channel, settings, tokens)
+				if target.Id == channel.Id {
+					targetSettings = settings
+				} else {
+					persistChannelSettingsOnly(channel, settings)
+				}
+				config.AccessToken = tokens.AccessToken
+				config.RefreshToken = tokens.RefreshToken
+				headers = http.Header{}
+				for key, value := range config.Request.Headers {
+					if strings.TrimSpace(key) == "" {
+						continue
+					}
+					headers.Set(key, replaceBalanceQueryVars(value, channel, config))
+				}
+				requestBody = replaceBalanceQueryVars(config.Request.Body, channel, config)
+				debugInfo.Headers = balanceQueryHeadersToMap(headers)
+				debugInfo.Body = requestBody
+				body, err = GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+			} else {
+				err = fmt.Errorf("余额查询 401 后刷新 token 失败: %w", refreshErr)
+			}
+		}
+	}
 	if err != nil {
 		debugInfo.Error = err.Error()
 		logBalanceQueryDebug(debugInfo)

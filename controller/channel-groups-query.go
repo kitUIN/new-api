@@ -94,7 +94,7 @@ func buildGroupQueryConfig(channel *model.Channel, config dto.GroupQuery) dto.Gr
 			config.Request.Headers = map[string]string{}
 		}
 		if _, ok := config.Request.Headers["Authorization"]; !ok {
-			config.Request.Headers["Authorization"] = "Bearer {{apiKey}}"
+			config.Request.Headers["Authorization"] = "Bearer {{accessToken}}"
 		}
 		if strings.TrimSpace(config.Extractor.DataPath) == "" {
 			config.Extractor.DataPath = "data"
@@ -216,6 +216,7 @@ func replaceGroupQueryVars(value string, channel *model.Channel, config dto.Grou
 	replacer := strings.NewReplacer(
 		"{{baseUrl}}", baseURL,
 		"{{accessToken}}", accessToken,
+		"{{refreshToken}}", config.RefreshToken,
 		"{{apiKey}}", channel.Key,
 		"{{key}}", channel.Key,
 		"{{userId}}", config.UserID,
@@ -558,6 +559,29 @@ func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSe
 	}
 	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
 	if err != nil {
+		if shouldRefreshSub2APIToken(config.Template, config.RefreshToken, err) {
+			tokens, refreshErr := refreshSub2APIQueryToken(channel, config.RefreshToken)
+			if refreshErr == nil {
+				providerSettings = updateProviderGroupQueryTokens(provider, providerSettings, tokens)
+				config.AccessToken = tokens.AccessToken
+				config.RefreshToken = tokens.RefreshToken
+				headers = http.Header{}
+				for key, value := range config.Request.Headers {
+					if strings.TrimSpace(key) == "" {
+						continue
+					}
+					headers.Set(key, replaceGroupQueryVars(value, channel, config))
+				}
+				requestBody = replaceGroupQueryVars(config.Request.Body, channel, config)
+				debugInfo.Headers = balanceQueryHeadersToMap(headers)
+				debugInfo.Body = requestBody
+				body, err = GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+			} else {
+				err = fmt.Errorf("上游分组查询 401 后刷新 token 失败: %w", refreshErr)
+			}
+		}
+	}
+	if err != nil {
 		debugInfo.Error = err.Error()
 		logGroupQueryDebug(debugInfo)
 		persistProviderGroupQueryResult(provider, providerSettings, nil, err)
@@ -609,6 +633,34 @@ func executeChannelConfiguredGroups(target *model.Channel, targetSettings dto.Ch
 		Body:      requestBody,
 	}
 	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	if err != nil {
+		if shouldRefreshSub2APIToken(config.Template, config.RefreshToken, err) {
+			tokens, refreshErr := refreshSub2APIQueryToken(channel, config.RefreshToken)
+			if refreshErr == nil {
+				settings = updateChannelGroupQueryTokens(channel, settings, tokens)
+				if target.Id == channel.Id {
+					targetSettings = settings
+				} else {
+					persistChannelSettingsOnly(channel, settings)
+				}
+				config.AccessToken = tokens.AccessToken
+				config.RefreshToken = tokens.RefreshToken
+				headers = http.Header{}
+				for key, value := range config.Request.Headers {
+					if strings.TrimSpace(key) == "" {
+						continue
+					}
+					headers.Set(key, replaceGroupQueryVars(value, channel, config))
+				}
+				requestBody = replaceGroupQueryVars(config.Request.Body, channel, config)
+				debugInfo.Headers = balanceQueryHeadersToMap(headers)
+				debugInfo.Body = requestBody
+				body, err = GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+			} else {
+				err = fmt.Errorf("上游分组查询 401 后刷新 token 失败: %w", refreshErr)
+			}
+		}
+	}
 	if err != nil {
 		debugInfo.Error = err.Error()
 		logGroupQueryDebug(debugInfo)

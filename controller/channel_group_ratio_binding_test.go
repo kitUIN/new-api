@@ -15,7 +15,7 @@ func TestSub2APIGroupTemplateDefaults(t *testing.T) {
 	require.Equal(t, balanceQueryTemplateSub2API, config.Template)
 	require.Equal(t, "{{baseUrl}}/api/v1/groups/available?timezone=Asia%2FShanghai", config.Request.URL)
 	require.Equal(t, "GET", config.Request.Method)
-	require.Equal(t, "Bearer {{apiKey}}", config.Request.Headers["Authorization"])
+	require.Equal(t, "Bearer {{accessToken}}", config.Request.Headers["Authorization"])
 	require.Equal(t, "data", config.Extractor.DataPath)
 	require.Equal(t, "description", config.Extractor.DescPath)
 	require.Equal(t, "rate_multiplier", config.Extractor.RatioPath)

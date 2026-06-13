@@ -63,6 +63,7 @@ type BalanceQuery struct {
 	IntervalSeconds *int                        `json:"interval_seconds,omitempty"`
 	SourceChannelID int                         `json:"source_channel_id,omitempty"`
 	AccessToken     string                      `json:"access_token,omitempty"`
+	RefreshToken    string                      `json:"refresh_token,omitempty"`
 	UserID          string                      `json:"user_id,omitempty"`
 	Request         BalanceQueryRequestConfig   `json:"request,omitempty"`
 	Extractor       BalanceQueryExtractorConfig `json:"extractor,omitempty"`
@@ -110,6 +111,7 @@ type GroupQuery struct {
 	IntervalSeconds *int                      `json:"interval_seconds,omitempty"`
 	SourceChannelID int                       `json:"source_channel_id,omitempty"`
 	AccessToken     string                    `json:"access_token,omitempty"`
+	RefreshToken    string                    `json:"refresh_token,omitempty"`
 	UserID          string                    `json:"user_id,omitempty"`
 	Request         BalanceQueryRequestConfig `json:"request,omitempty"`
 	Extractor       GroupQueryExtractorConfig `json:"extractor,omitempty"`

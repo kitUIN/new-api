@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 )
 
 func TestCalculateBalanceQueryDailyUsed(t *testing.T) {
@@ -69,6 +70,12 @@ func TestSub2APIBalanceTemplateUsesTotalRecharged(t *testing.T) {
 	if config.Request.Headers["Authorization"] != "Bearer {{accessToken}}" {
 		t.Fatalf("expected sub2api access token auth header, got %q", config.Request.Headers["Authorization"])
 	}
+	config.AccessToken = "at_test"
+	config.RefreshToken = "rt_test"
+	replaced := replaceBalanceQueryVars("{{accessToken}}/{{refreshToken}}", &model.Channel{}, config)
+	if replaced != "at_test/rt_test" {
+		t.Fatalf("expected refresh token variable replacement, got %q", replaced)
+	}
 	if config.Extractor.RemainingPath != "data.balance" {
 		t.Fatalf("expected data.balance remaining path, got %q", config.Extractor.RemainingPath)
 	}
@@ -106,5 +113,29 @@ func TestSubAPIBalanceTemplateAliasUsesTotalRecharged(t *testing.T) {
 	}
 	if math.Abs(result.Used-22.9937) > 0.000001 {
 		t.Fatalf("expected used 22.9937, got %f", result.Used)
+	}
+}
+
+func TestSub2APITokenRefreshUpdatesBalanceAndGroupQuery(t *testing.T) {
+	tokens := sub2APIAuthTokens{AccessToken: "new_access", RefreshToken: "new_refresh"}
+	settings := dto.ChannelOtherSettings{
+		BalanceQuery: dto.BalanceQuery{AccessToken: "old_balance_access", RefreshToken: "old_balance_refresh"},
+		GroupQuery:   dto.GroupQuery{AccessToken: "old_group_access", RefreshToken: "old_group_refresh"},
+	}
+
+	updated := updateChannelBalanceQueryTokens(&model.Channel{}, settings, tokens)
+	if updated.BalanceQuery.AccessToken != tokens.AccessToken || updated.BalanceQuery.RefreshToken != tokens.RefreshToken {
+		t.Fatalf("expected balance query tokens to be updated, got %+v", updated.BalanceQuery)
+	}
+	if updated.GroupQuery.AccessToken != tokens.AccessToken || updated.GroupQuery.RefreshToken != tokens.RefreshToken {
+		t.Fatalf("expected group query tokens to be updated, got %+v", updated.GroupQuery)
+	}
+
+	updated = updateChannelGroupQueryTokens(&model.Channel{}, settings, tokens)
+	if updated.BalanceQuery.AccessToken != tokens.AccessToken || updated.BalanceQuery.RefreshToken != tokens.RefreshToken {
+		t.Fatalf("expected balance query tokens to be updated from group refresh, got %+v", updated.BalanceQuery)
+	}
+	if updated.GroupQuery.AccessToken != tokens.AccessToken || updated.GroupQuery.RefreshToken != tokens.RefreshToken {
+		t.Fatalf("expected group query tokens to be updated from group refresh, got %+v", updated.GroupQuery)
 	}
 }
