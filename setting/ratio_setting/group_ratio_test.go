@@ -114,3 +114,118 @@ func TestCompareGroupRatioChangesIgnoresEqualMaps(t *testing.T) {
 	require.Empty(t, changes)
 	require.Empty(t, FormatGroupRatioChangeMessage(changes))
 }
+
+func TestCompareUpstreamGroupRatioBindingChanges(t *testing.T) {
+	changes := CompareUpstreamGroupRatioBindingChanges(
+		map[string]UpstreamGroupRatioBinding{
+			"old": {
+				SourceType:    UpstreamGroupRatioBindingSourceProvider,
+				SourceID:      2,
+				UpstreamGroup: "old-upstream",
+			},
+			"vip": {
+				SourceType:    UpstreamGroupRatioBindingSourceChannel,
+				SourceID:      1,
+				UpstreamGroup: "vip",
+			},
+		},
+		map[string]UpstreamGroupRatioBinding{
+			"new": {
+				SourceType:    UpstreamGroupRatioBindingSourceChannel,
+				SourceID:      3,
+				UpstreamGroup: "new-upstream",
+				Offset:        0.1,
+			},
+			"vip": {
+				SourceType:    UpstreamGroupRatioBindingSourceChannel,
+				SourceID:      1,
+				UpstreamGroup: "vip-pro",
+			},
+		},
+	)
+
+	require.Equal(t, []UpstreamGroupRatioBindingChange{
+		{
+			Type:  UpstreamGroupRatioBindingChangeAdded,
+			Group: "new",
+			NewBinding: UpstreamGroupRatioBinding{
+				SourceType:    UpstreamGroupRatioBindingSourceChannel,
+				SourceID:      3,
+				UpstreamGroup: "new-upstream",
+				Offset:        0.1,
+			},
+		},
+		{
+			Type:  UpstreamGroupRatioBindingChangeDeleted,
+			Group: "old",
+			OldBinding: UpstreamGroupRatioBinding{
+				SourceType:    UpstreamGroupRatioBindingSourceProvider,
+				SourceID:      2,
+				UpstreamGroup: "old-upstream",
+			},
+		},
+		{
+			Type:  UpstreamGroupRatioBindingChangeUpdated,
+			Group: "vip",
+			OldBinding: UpstreamGroupRatioBinding{
+				SourceType:    UpstreamGroupRatioBindingSourceChannel,
+				SourceID:      1,
+				UpstreamGroup: "vip",
+			},
+			NewBinding: UpstreamGroupRatioBinding{
+				SourceType:    UpstreamGroupRatioBindingSourceChannel,
+				SourceID:      1,
+				UpstreamGroup: "vip-pro",
+			},
+		},
+	}, changes)
+	require.Equal(t, []string{
+		"+ new: channel #3 / new-upstream / 偏移 0.1",
+		"- old: 原绑定 provider #2 / old-upstream",
+		"* vip: channel #1 / vip -> channel #1 / vip-pro",
+	}, FormatUpstreamGroupRatioBindingChangeLines(changes))
+}
+
+func TestCompareGroupSpecialUsableChanges(t *testing.T) {
+	changes := CompareGroupSpecialUsableChanges(
+		map[string]map[string]string{
+			"vip": {
+				"+:fast":  "Fast",
+				"-:cheap": "Cheap",
+			},
+		},
+		map[string]map[string]string{
+			"vip": {
+				"+:fast": "Fast Plus",
+				"media":  "Media",
+			},
+		},
+	)
+
+	require.Equal(t, []GroupSpecialUsableChange{
+		{
+			Type:      GroupSpecialUsableChangeUpdated,
+			UserGroup: "vip",
+			Rule:      "+:fast",
+			OldValue:  "Fast",
+			NewValue:  "Fast Plus",
+		},
+		{
+			Type:      GroupSpecialUsableChangeDeleted,
+			UserGroup: "vip",
+			Rule:      "-:cheap",
+			OldValue:  "Cheap",
+		},
+		{
+			Type:      GroupSpecialUsableChangeAdded,
+			UserGroup: "vip",
+			Rule:      "media",
+			NewValue:  "Media",
+		},
+	}, changes)
+	require.Equal(t, []string{
+		"* 用户分组 vip: 可见 fast 描述 Fast -> Fast Plus",
+		"- 用户分组 vip: 移除规则 不可见 cheap",
+		"+ 用户分组 vip: 可见 media (Media)",
+	}, FormatGroupSpecialUsableChangeLines(changes))
+}

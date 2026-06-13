@@ -219,23 +219,32 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	if key == "GroupRatio" {
+	switch key {
+	case "GroupRatio":
 		return updateGroupRatioOption(value)
+	case "UserUsableGroups":
+		return updateUserUsableGroupsOption(value)
+	case "group_ratio_setting.upstream_group_ratio_bindings":
+		return updateUpstreamGroupRatioBindingsOption(value)
+	case "group_ratio_setting.group_special_usable_group":
+		return updateGroupSpecialUsableGroupOption(value)
 	}
 
-	// Save to database first
 	option := Option{
 		Key: key,
 	}
+	saveOptionValue(&option, key, value)
+	return updateOptionMap(key, value)
+}
+
+func saveOptionValue(option *Option, key string, value string) {
 	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
+	DB.FirstOrCreate(option, Option{Key: key})
 	option.Value = value
 	// Save is a combination function.
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+	DB.Save(option)
 }
 
 func updateGroupRatioOption(value string) error {
@@ -247,9 +256,7 @@ func updateGroupRatioOption(value string) error {
 	option := Option{
 		Key: "GroupRatio",
 	}
-	DB.FirstOrCreate(&option, Option{Key: "GroupRatio"})
-	option.Value = value
-	DB.Save(&option)
+	saveOptionValue(&option, "GroupRatio", value)
 
 	if err := updateOptionMap("GroupRatio", value); err != nil {
 		return err
@@ -258,6 +265,70 @@ func updateGroupRatioOption(value string) error {
 	changes := ratio_setting.CompareGroupRatioChanges(previousRatios, ratio_setting.GetGroupRatioCopy())
 	message := ratio_setting.FormatGroupRatioChangeMessage(changes)
 	common.SendQQNotificationGroupMessage(message, "group ratio change notify")
+	return nil
+}
+
+func updateUserUsableGroupsOption(value string) error {
+	previousGroups := make(map[string]string)
+	if err := common.UnmarshalJsonStr(setting.UserUsableGroups2JSONString(), &previousGroups); err != nil {
+		common.SysLog("failed to parse previous user usable groups: " + err.Error())
+	}
+
+	option := Option{
+		Key: "UserUsableGroups",
+	}
+	saveOptionValue(&option, "UserUsableGroups", value)
+
+	if err := updateOptionMap("UserUsableGroups", value); err != nil {
+		return err
+	}
+
+	currentGroups := make(map[string]string)
+	if err := common.UnmarshalJsonStr(setting.UserUsableGroups2JSONString(), &currentGroups); err != nil {
+		common.SysLog("failed to parse current user usable groups: " + err.Error())
+		return nil
+	}
+
+	changes := setting.CompareUserUsableGroupChanges(previousGroups, currentGroups)
+	message := setting.FormatUserUsableGroupChangeMessage(changes)
+	common.SendQQNotificationGroupMessage(message, "user usable group change notify")
+	return nil
+}
+
+func updateUpstreamGroupRatioBindingsOption(value string) error {
+	previousBindings := ratio_setting.GetUpstreamGroupRatioBindingsCopy()
+
+	option := Option{
+		Key: "group_ratio_setting.upstream_group_ratio_bindings",
+	}
+	saveOptionValue(&option, "group_ratio_setting.upstream_group_ratio_bindings", value)
+
+	if err := updateOptionMap("group_ratio_setting.upstream_group_ratio_bindings", value); err != nil {
+		return err
+	}
+
+	changes := ratio_setting.CompareUpstreamGroupRatioBindingChanges(previousBindings, ratio_setting.GetUpstreamGroupRatioBindingsCopy())
+	message := ratio_setting.FormatUpstreamGroupRatioBindingChangeMessage(changes)
+	common.SendQQNotificationGroupMessage(message, "upstream group ratio binding change notify")
+	return nil
+}
+
+func updateGroupSpecialUsableGroupOption(value string) error {
+	ratioSetting := ratio_setting.GetGroupRatioSetting()
+	previousRules := ratioSetting.GroupSpecialUsableGroup.ReadAll()
+
+	option := Option{
+		Key: "group_ratio_setting.group_special_usable_group",
+	}
+	saveOptionValue(&option, "group_ratio_setting.group_special_usable_group", value)
+
+	if err := updateOptionMap("group_ratio_setting.group_special_usable_group", value); err != nil {
+		return err
+	}
+
+	changes := ratio_setting.CompareGroupSpecialUsableChanges(previousRules, ratioSetting.GroupSpecialUsableGroup.ReadAll())
+	message := ratio_setting.FormatGroupSpecialUsableChangeMessage(changes)
+	common.SendQQNotificationGroupMessage(message, "group special usable change notify")
 	return nil
 }
 

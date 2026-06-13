@@ -3,6 +3,8 @@ package setting
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDisabledGroupDescriptionsAreStoredButNotSelectable(t *testing.T) {
@@ -30,4 +32,62 @@ func TestDisabledGroupDescriptionsAreStoredButNotSelectable(t *testing.T) {
 	if !strings.Contains(raw, "__disabled_description__:vip") {
 		t.Fatalf("expected disabled group description to remain stored, got %s", raw)
 	}
+}
+
+func TestCompareUserUsableGroupChanges(t *testing.T) {
+	changes := CompareUserUsableGroupChanges(
+		map[string]string{
+			"default":                           "Default",
+			"vip":                               "VIP",
+			"__disabled_description__:disabled": "Disabled",
+			"removed":                           "Removed",
+		},
+		map[string]string{
+			"default":                         "Default Plus",
+			"__disabled_description__:vip":    "VIP",
+			"disabled":                        "Disabled",
+			"__disabled_description__:hidden": "Hidden",
+		},
+	)
+
+	require.Equal(t, []UserUsableGroupChange{
+		{
+			Type:    UserUsableGroupChangeDescription,
+			Group:   "default",
+			OldDesc: "Default",
+			NewDesc: "Default Plus",
+		},
+		{
+			Type:        UserUsableGroupChangeUpdated,
+			Group:       "disabled",
+			OldDesc:     "Disabled",
+			NewDesc:     "Disabled",
+			OldDisabled: true,
+		},
+		{
+			Type:        UserUsableGroupChangeAdded,
+			Group:       "hidden",
+			NewDesc:     "Hidden",
+			NewDisabled: true,
+		},
+		{
+			Type:    UserUsableGroupChangeDeleted,
+			Group:   "removed",
+			OldDesc: "Removed",
+		},
+		{
+			Type:        UserUsableGroupChangeUpdated,
+			Group:       "vip",
+			OldDesc:     "VIP",
+			NewDesc:     "VIP",
+			NewDisabled: true,
+		},
+	}, changes)
+	require.Equal(t, []string{
+		"* default: 描述 Default -> Default Plus",
+		"* disabled: 用户不可见 -> 用户可见",
+		"+ hidden: 用户不可见，描述 Hidden",
+		"- removed: 用户不再可见",
+		"* vip: 用户可见 -> 用户不可见",
+	}, FormatUserUsableGroupChangeLines(changes))
 }
