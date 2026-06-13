@@ -120,21 +120,21 @@ func FormatUserUsableGroupChangeLines(changes []UserUsableGroupChange) []string 
 		switch change.Type {
 		case UserUsableGroupChangeAdded:
 			if change.NewDisabled {
-				lines = append(lines, fmt.Sprintf("+ %s: 用户不可见，描述 %s", change.Group, change.NewDesc))
+				lines = append(lines, fmt.Sprintf("+ %s: 关闭，描述 %s", change.Group, change.NewDesc))
 			} else {
-				lines = append(lines, fmt.Sprintf("+ %s: 用户可见，描述 %s", change.Group, change.NewDesc))
+				lines = append(lines, fmt.Sprintf("+ %s: 开启，描述 %s", change.Group, change.NewDesc))
 			}
 		case UserUsableGroupChangeUpdated:
 			if change.NewDisabled {
-				lines = append(lines, fmt.Sprintf("* %s: 用户可见 -> 用户不可见", change.Group))
+				lines = append(lines, fmt.Sprintf("* %s: 开启 -> 关闭", change.Group))
 			} else {
-				lines = append(lines, fmt.Sprintf("* %s: 用户不可见 -> 用户可见", change.Group))
+				lines = append(lines, fmt.Sprintf("* %s: 关闭 -> 开启", change.Group))
 			}
 		case UserUsableGroupChangeDeleted:
 			if change.OldDisabled {
 				lines = append(lines, fmt.Sprintf("- %s: 移除不可见描述", change.Group))
 			} else {
-				lines = append(lines, fmt.Sprintf("- %s: 用户不再可见", change.Group))
+				lines = append(lines, fmt.Sprintf("- %s: 关闭", change.Group))
 			}
 		case UserUsableGroupChangeDescription:
 			lines = append(lines, fmt.Sprintf("* %s: 描述 %s -> %s", change.Group, change.OldDesc, change.NewDesc))

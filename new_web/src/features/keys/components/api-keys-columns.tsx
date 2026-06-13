@@ -48,7 +48,7 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(): Record<string, number> {
+export function useGroupRatios(): Record<string, number> {
   const { data } = useQuery({
     queryKey: ['user-self-groups'],
     queryFn: getUserGroups,
@@ -66,6 +66,56 @@ function useGroupRatios(): Record<string, number> {
   })
 
   return data ?? {}
+}
+
+export function FailoverGroupsCell({
+  failoverGroups,
+  currentLevel,
+  groupRatios,
+  compact = false,
+}: {
+  failoverGroups: string[]
+  currentLevel: number
+  groupRatios: Record<string, number>
+  compact?: boolean
+}) {
+  const displayedGroups = failoverGroups.slice(0, 3)
+
+  return (
+    <span
+      className={cn(
+        'flex flex-wrap items-center gap-1.5 text-xs whitespace-normal',
+        compact ? 'min-w-max' : 'min-w-[18rem]'
+      )}
+    >
+      {displayedGroups.map((failoverGroup, index) => (
+        <span
+          key={`${failoverGroup}-${index}`}
+          className='inline-flex min-w-max items-center gap-1'
+        >
+          <StatusBadge
+            label={`P${index}`}
+            variant={index === currentLevel ? 'success' : 'info'}
+            copyable={false}
+            className='shrink-0'
+          />
+          <GroupBadge
+            group={failoverGroup}
+            ratio={groupRatios[failoverGroup]}
+            ratioColor='group'
+          />
+        </span>
+      ))}
+      {failoverGroups.length > 3 && (
+        <StatusBadge
+          label={`+${failoverGroups.length - 3}`}
+          variant='neutral'
+          copyable={false}
+          className='shrink-0'
+        />
+      )}
+    </span>
+  )
 }
 
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
@@ -220,9 +270,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         )
         const runtime = apiKey.api_key_group_failover_runtime
         const currentLevel =
-          runtime && runtime.current_level >= 0
-            ? runtime.current_level
-            : 0
+          runtime && runtime.current_level >= 0 ? runtime.current_level : 0
 
         if (
           apiKey.session_group_failover_enabled &&
@@ -232,34 +280,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <span className='inline-flex max-w-64 items-center gap-1.5 overflow-hidden text-xs' />
+                  <span className='inline-flex max-w-full text-xs whitespace-normal' />
                 }
               >
-                <span className='flex min-w-0 items-center gap-1'>
-                  {failoverGroups.slice(0, 3).map((failoverGroup, index) => (
-                    <span
-                      key={`${failoverGroup}-${index}`}
-                      className='flex min-w-0 items-center gap-1'
-                    >
-                      <StatusBadge
-                        label={`P${index}`}
-                        variant={index === currentLevel ? 'success' : 'info'}
-                        copyable={false}
-                      />
-                      <GroupBadge
-                        group={failoverGroup}
-                        ratio={groupRatios[failoverGroup]}
-                      />
-                    </span>
-                  ))}
-                  {failoverGroups.length > 3 && (
-                    <StatusBadge
-                      label={`+${failoverGroups.length - 3}`}
-                      variant='neutral'
-                      copyable={false}
-                    />
-                  )}
-                </span>
+                <FailoverGroupsCell
+                  failoverGroups={failoverGroups}
+                  currentLevel={currentLevel}
+                  groupRatios={groupRatios}
+                />
               </TooltipTrigger>
               <TooltipContent>
                 <div className='flex flex-col gap-1 text-xs'>
@@ -315,6 +343,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         return <GroupBadge group={group} ratio={ratio} />
       },
       meta: { label: t('Group'), mobileHidden: true },
+      size: 260,
     },
     {
       id: 'model_limits',

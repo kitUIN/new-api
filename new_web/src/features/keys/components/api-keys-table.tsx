@@ -51,6 +51,7 @@ import {
   DISABLED_ROW_MOBILE,
   DataTablePage,
 } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getApiKeys, searchApiKeys } from '../api'
 import {
@@ -59,9 +60,14 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
+import { parseSessionFailoverGroups } from '../lib'
 import { type ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
-import { useApiKeysColumns } from './api-keys-columns'
+import {
+  FailoverGroupsCell,
+  useApiKeysColumns,
+  useGroupRatios,
+} from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -103,6 +109,7 @@ function ApiKeysMobileList({
   isLoading: boolean
 }) {
   const { t } = useTranslation()
+  const groupRatios = useGroupRatios()
   const rows = table.getRowModel().rows
 
   if (isLoading) return <ApiKeysMobileSkeleton />
@@ -133,6 +140,16 @@ function ApiKeysMobileList({
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
         const total = apiKey.used_quota + apiKey.remain_quota
+        const group = apiKey.group || ''
+        const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+        const failoverGroups = parseSessionFailoverGroups(
+          apiKey.session_failover_groups
+        )
+        const runtime = apiKey.api_key_group_failover_runtime
+        const currentLevel =
+          runtime && runtime.current_level >= 0 ? runtime.current_level : 0
+        const showFailoverGroups =
+          apiKey.session_group_failover_enabled && failoverGroups.length >= 2
 
         return (
           <div
@@ -180,6 +197,37 @@ function ApiKeysMobileList({
                   </span>
                 </span>
               )}
+            </div>
+
+            <div className='flex items-start justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground shrink-0 pt-0.5'>
+                {t('Group')}
+              </span>
+              <div className='no-scrollbar min-w-0 flex-1 overflow-x-auto text-right'>
+                <div className='ml-auto flex w-max justify-end'>
+                  {showFailoverGroups ? (
+                    <FailoverGroupsCell
+                      failoverGroups={failoverGroups}
+                      currentLevel={currentLevel}
+                      groupRatios={groupRatios}
+                      compact
+                    />
+                  ) : group === 'auto' ? (
+                    <span className='inline-flex flex-wrap justify-end gap-1.5'>
+                      <GroupBadge group='auto' />
+                      {apiKey.cross_group_retry && (
+                        <StatusBadge
+                          label={t('Cross-group')}
+                          variant='info'
+                          copyable={false}
+                        />
+                      )}
+                    </span>
+                  ) : (
+                    <GroupBadge group={group} ratio={ratio} />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )
