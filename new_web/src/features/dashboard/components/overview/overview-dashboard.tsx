@@ -39,8 +39,9 @@ import {
 import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { getUserModels } from '@/lib/api'
+import { getSelf, getUserModels } from '@/lib/api'
 import { MOTION_TRANSITION } from '@/lib/motion'
+import { USER_BALANCE_REFRESH_INTERVAL_MS } from '@/lib/polling'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -424,6 +425,7 @@ function CompactQuickAction(props: { action: QuickAction }) {
 export function OverviewDashboard() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
+  const setUser = useAuthStore((state) => state.auth.setUser)
   const { items: apiInfoItems } = useApiInfo()
   const {
     apiInfo: showApiInfoPanel,
@@ -447,6 +449,19 @@ export function OverviewDashboard() {
       return result.success ? (result.data?.items ?? []) : []
     },
     staleTime: 60 * 1000,
+  })
+
+  useQuery({
+    queryKey: ['dashboard', 'overview', 'self'],
+    queryFn: async () => {
+      const result = await getSelf()
+      if (result.success && result.data) {
+        setUser(result.data)
+      }
+      return result.data ?? null
+    },
+    refetchInterval: USER_BALANCE_REFRESH_INTERVAL_MS,
+    staleTime: USER_BALANCE_REFRESH_INTERVAL_MS,
   })
 
   const modelsQuery = useQuery({

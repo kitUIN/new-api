@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
+import { USER_BALANCE_REFRESH_INTERVAL_MS } from '@/lib/polling'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
@@ -76,6 +78,7 @@ export function Wallet(props: WalletProps) {
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
+  const setAuthUser = useAuthStore((state) => state.auth.setUser)
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
@@ -104,23 +107,39 @@ export function Wallet(props: WalletProps) {
     useWaffoPancakePayment()
 
   // Fetch and refresh user data
-  const fetchUser = useCallback(async () => {
-    try {
-      setUserLoading(true)
-      const response = await getSelf()
-      if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
+  const fetchUser = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) {
+          setUserLoading(true)
+        }
+        const response = await getSelf()
+        if (response.success && response.data) {
+          setUser(response.data as UserWalletData)
+          setAuthUser(response.data)
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to fetch user data:', error)
+      } finally {
+        if (!silent) {
+          setUserLoading(false)
+        }
       }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
-    } finally {
-      setUserLoading(false)
-    }
-  }, [])
+    },
+    [setAuthUser]
+  )
 
   useEffect(() => {
     fetchUser()
+  }, [fetchUser])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void fetchUser(true)
+    }, USER_BALANCE_REFRESH_INTERVAL_MS)
+
+    return () => window.clearInterval(intervalId)
   }, [fetchUser])
 
   useEffect(() => {

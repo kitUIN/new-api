@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
+import { USER_BALANCE_REFRESH_INTERVAL_MS } from '@/lib/polling'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
@@ -158,7 +159,8 @@ export function SummaryCards() {
         end_timestamp: summaryTimeRange.end_timestamp,
         default_time: 'hour',
       }),
-    staleTime: 60 * 1000,
+    refetchInterval: USER_BALANCE_REFRESH_INTERVAL_MS,
+    staleTime: USER_BALANCE_REFRESH_INTERVAL_MS,
   })
 
   const summaryValues = useMemo(() => {

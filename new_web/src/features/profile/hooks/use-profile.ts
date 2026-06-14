@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
+import { USER_BALANCE_REFRESH_INTERVAL_MS } from '@/lib/polling'
 import { getUserProfile, updateUserProfile, updateUserSettings } from '../api'
 import type {
   UserProfile,
@@ -34,30 +36,35 @@ export function useProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const setAuthUser = useAuthStore((state) => state.auth.setUser)
 
   // Fetch user profile (with optional silent mode)
-  const fetchProfile = useCallback(async (silent = false) => {
-    try {
-      if (!silent) {
-        setLoading(true)
-      }
-      const response = await getUserProfile()
+  const fetchProfile = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) {
+          setLoading(true)
+        }
+        const response = await getUserProfile()
 
-      if (response.success && response.data) {
-        setProfile(response.data)
+        if (response.success && response.data) {
+          setProfile(response.data)
+          setAuthUser(response.data)
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to fetch profile:', error)
+        if (!silent) {
+          toast.error(i18next.t('Failed to load profile'))
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false)
+        }
       }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch profile:', error)
-      if (!silent) {
-        toast.error(i18next.t('Failed to load profile'))
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false)
-      }
-    }
-  }, [])
+    },
+    [setAuthUser]
+  )
 
   // Refresh profile silently (without loading state)
   const refreshProfile = useCallback(async () => {
@@ -121,6 +128,14 @@ export function useProfile() {
   // Initial fetch
   useEffect(() => {
     fetchProfile()
+  }, [fetchProfile])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void fetchProfile(true)
+    }, USER_BALANCE_REFRESH_INTERVAL_MS)
+
+    return () => window.clearInterval(intervalId)
   }, [fetchProfile])
 
   return {
