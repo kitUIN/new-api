@@ -35,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -78,15 +79,101 @@ const oauthSchema = z.object({
   QQAdminNumber: z.string().optional(),
   QQNotificationGroup: z.string().optional(),
   QQFriendLink: z.string().optional(),
+  'qq_group_change_notify_setting.group_ratio_change_enabled': z.boolean(),
+  'qq_group_change_notify_setting.group_ratio_change_target': z.string(),
+  'qq_group_change_notify_setting.binding_change_enabled': z.boolean(),
+  'qq_group_change_notify_setting.binding_change_target': z.string(),
+  'qq_group_change_notify_setting.user_usable_group_change_enabled':
+    z.boolean(),
+  'qq_group_change_notify_setting.user_usable_group_change_target': z.string(),
 })
 
 const oauthTabContentClassName =
   'grid min-w-0 gap-x-5 gap-y-6 lg:grid-cols-2 [&>[data-slot=form-item]]:min-w-0 lg:[&>[data-slot=form-item]:has([data-slot=switch])]:col-span-2'
 
+const nestedOptionNamespaces = [
+  'oidc',
+  'discord',
+  'qq_group_change_notify_setting',
+] as const
+
 type OAuthFormValues = z.infer<typeof oauthSchema>
 
 type OAuthSectionProps = {
   defaultValues: OAuthFormValues
+}
+
+const qqNotifyTargetOptions = [
+  { value: 'admin', labelKey: 'Admin' },
+  { value: 'group', labelKey: 'Notification Group' },
+  { value: 'both', labelKey: 'Both' },
+] as const
+
+type QQNotifyTargetFieldProps = {
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}
+
+function normalizeQQNotifyTarget(target: string | undefined) {
+  if (target === 'admin' || target === 'both') return target
+  return 'group'
+}
+
+function QQNotifyTargetField({
+  value,
+  onChange,
+  disabled,
+}: QQNotifyTargetFieldProps) {
+  const { t } = useTranslation()
+
+  return (
+    <ToggleGroup
+      value={[normalizeQQNotifyTarget(value)]}
+      variant='outline'
+      size='sm'
+      onValueChange={(nextValue) => {
+        const [selectedValue] = nextValue
+        if (selectedValue) onChange(selectedValue)
+      }}
+      disabled={disabled}
+      className='flex flex-wrap justify-end gap-2'
+    >
+      {qqNotifyTargetOptions.map((option) => (
+        <ToggleGroupItem
+          key={option.value}
+          value={option.value}
+        >
+          {t(option.labelKey)}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  )
+}
+
+function flattenNestedOptionValues(values: Record<string, unknown>) {
+  const flattenedData: Record<string, unknown> = {}
+
+  Object.entries(values).forEach(([key, value]) => {
+    if (
+      nestedOptionNamespaces.includes(
+        key as (typeof nestedOptionNamespaces)[number]
+      ) &&
+      typeof value === 'object' &&
+      value !== null
+    ) {
+      Object.entries(value as Record<string, unknown>).forEach(
+        ([nestedKey, nestedValue]) => {
+          flattenedData[`${key}.${nestedKey}`] = nestedValue
+        }
+      )
+      return
+    }
+
+    flattenedData[key] = value
+  })
+
+  return flattenedData
 }
 
 export function OAuthSection({ defaultValues }: OAuthSectionProps) {
@@ -123,6 +210,22 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     QQAdminNumber: defaultValues.QQAdminNumber ?? '',
     QQNotificationGroup: defaultValues.QQNotificationGroup ?? '',
     QQFriendLink: defaultValues.QQFriendLink ?? '',
+    'qq_group_change_notify_setting.group_ratio_change_target':
+      normalizeQQNotifyTarget(
+        defaultValues[
+          'qq_group_change_notify_setting.group_ratio_change_target'
+        ]
+      ),
+    'qq_group_change_notify_setting.binding_change_target':
+      normalizeQQNotifyTarget(
+        defaultValues['qq_group_change_notify_setting.binding_change_target']
+      ),
+    'qq_group_change_notify_setting.user_usable_group_change_target':
+      normalizeQQNotifyTarget(
+        defaultValues[
+          'qq_group_change_notify_setting.user_usable_group_change_target'
+        ]
+      ),
   }
 
   const form = useForm<OAuthFormValues>({
@@ -132,28 +235,9 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
   const onSubmit = async () => {
     // Get raw form values directly
-    // React Hook Form treats "oidc.xxx" as nested paths, so we need to flatten
+    // React Hook Form treats dotted option keys as nested paths, so flatten them.
     const rawData = form.getValues() as Record<string, unknown>
-
-    // Flatten nested oidc object back to dot notation keys
-    const flattenedData: Record<string, unknown> = {}
-
-    Object.entries(rawData).forEach(([key, value]) => {
-      if (
-        (key === 'oidc' || key === 'discord') &&
-        typeof value === 'object' &&
-        value !== null
-      ) {
-        // React Hook Form auto-nested these fields, flatten them back
-        Object.entries(value as Record<string, unknown>).forEach(
-          ([nestedKey, nestedValue]) => {
-            flattenedData[`${key}.${nestedKey}`] = nestedValue
-          }
-        )
-      } else {
-        flattenedData[key] = value
-      }
-    })
+    const flattenedData = flattenNestedOptionValues(rawData)
 
     const finalData = flattenedData as OAuthFormValues
 
@@ -224,42 +308,39 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
   }
 
   const handleReset = () => {
-    // React Hook Form auto-nests 'oidc.xxx' fields into { oidc: { xxx: value } }
-    // So we need to pass the same structure when resetting
+    // React Hook Form auto-nests dotted option keys, so reset both nested and
+    // top-level fields against the normalized flat defaults.
     const currentValues = form.getValues() as Record<string, unknown>
 
     // Create reset values matching RHF's internal structure
     const resetValues = { ...currentValues }
 
-    // Update nested oidc fields
-    if (resetValues.oidc && typeof resetValues.oidc === 'object') {
-      Object.keys(resetValues.oidc as Record<string, unknown>).forEach(
-        (key) => {
-          const flatKey = `oidc.${key}` as keyof typeof normalizedDefaults
-          if (flatKey in normalizedDefaults) {
-            ;(resetValues.oidc as Record<string, unknown>)[key] =
-              normalizedDefaults[flatKey]
+    nestedOptionNamespaces.forEach((namespace) => {
+      if (
+        resetValues[namespace] &&
+        typeof resetValues[namespace] === 'object'
+      ) {
+        Object.keys(resetValues[namespace] as Record<string, unknown>).forEach(
+          (key) => {
+            const flatKey =
+              `${namespace}.${key}` as keyof typeof normalizedDefaults
+            if (flatKey in normalizedDefaults) {
+              ;(resetValues[namespace] as Record<string, unknown>)[key] =
+                normalizedDefaults[flatKey]
+            }
           }
-        }
-      )
-    }
-
-    // Update nested discord fields
-    if (resetValues.discord && typeof resetValues.discord === 'object') {
-      Object.keys(resetValues.discord as Record<string, unknown>).forEach(
-        (key) => {
-          const flatKey = `discord.${key}` as keyof typeof normalizedDefaults
-          if (flatKey in normalizedDefaults) {
-            ;(resetValues.discord as Record<string, unknown>)[key] =
-              normalizedDefaults[flatKey]
-          }
-        }
-      )
-    }
+        )
+      }
+    })
 
     // Update top-level fields
     Object.keys(resetValues).forEach((key) => {
-      if (key !== 'oidc' && key in normalizedDefaults) {
+      if (
+        !nestedOptionNamespaces.includes(
+          key as (typeof nestedOptionNamespaces)[number]
+        ) &&
+        key in normalizedDefaults
+      ) {
         resetValues[key] =
           normalizedDefaults[key as keyof typeof normalizedDefaults]
       }
@@ -882,6 +963,125 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     </FormItem>
                   )}
                 />
+
+                <div className='flex min-w-0 flex-col gap-2 lg:col-span-2'>
+                  <div className='flex min-w-0 flex-col gap-1'>
+                    <h4 className='text-sm font-medium'>
+                      {t('QQ Group Change Notifications')}
+                    </h4>
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'Choose which group change events are pushed to QQ and where they are sent.'
+                      )}
+                    </p>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name='qq_group_change_notify_setting.group_ratio_change_enabled'
+                    render={({ field }) => (
+                      <SettingsSwitchItem>
+                        <SettingsSwitchContent>
+                          <FormLabel>{t('Group ratio change push')}</FormLabel>
+                          <FormDescription>
+                            {t('Push when group billing ratios change')}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <div className='flex flex-wrap items-center justify-end gap-3'>
+                          <FormField
+                            control={form.control}
+                            name='qq_group_change_notify_setting.group_ratio_change_target'
+                            render={({ field: targetField }) => (
+                              <QQNotifyTargetField
+                                value={targetField.value}
+                                onChange={targetField.onChange}
+                                disabled={!field.value}
+                              />
+                            )}
+                          />
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                      </SettingsSwitchItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='qq_group_change_notify_setting.binding_change_enabled'
+                    render={({ field }) => (
+                      <SettingsSwitchItem>
+                        <SettingsSwitchContent>
+                          <FormLabel>{t('Binding change push')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Push when upstream group ratio bindings change'
+                            )}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <div className='flex flex-wrap items-center justify-end gap-3'>
+                          <FormField
+                            control={form.control}
+                            name='qq_group_change_notify_setting.binding_change_target'
+                            render={({ field: targetField }) => (
+                              <QQNotifyTargetField
+                                value={targetField.value}
+                                onChange={targetField.onChange}
+                                disabled={!field.value}
+                              />
+                            )}
+                          />
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                      </SettingsSwitchItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='qq_group_change_notify_setting.user_usable_group_change_enabled'
+                    render={({ field }) => (
+                      <SettingsSwitchItem>
+                        <SettingsSwitchContent>
+                          <FormLabel>{t('User group state change push')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Push when groups are added, deleted, enabled, disabled, or descriptions change'
+                            )}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <div className='flex flex-wrap items-center justify-end gap-3'>
+                          <FormField
+                            control={form.control}
+                            name='qq_group_change_notify_setting.user_usable_group_change_target'
+                            render={({ field: targetField }) => (
+                              <QQNotifyTargetField
+                                value={targetField.value}
+                                onChange={targetField.onChange}
+                                disabled={!field.value}
+                              />
+                            )}
+                          />
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                      </SettingsSwitchItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}

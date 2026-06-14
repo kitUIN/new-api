@@ -66,3 +66,43 @@ func SendQQNotificationGroupMessage(message string, logPrefix string) {
 		}
 	}()
 }
+
+func SendQQAdminMessage(message string, logPrefix string) {
+	message = strings.TrimSpace(message)
+	targetAdmin := strings.TrimSpace(QQAdminNumber)
+	if message == "" || QQCallbackAddress == "" || QQCallbackAccessToken == "" || targetAdmin == "" {
+		return
+	}
+
+	go func() {
+		payload, err := Marshal(qqNotifyPayload{
+			QQ:      targetAdmin,
+			AdminQQ: targetAdmin,
+			To:      targetAdmin,
+			Message: message,
+			Content: message,
+		})
+		if err != nil {
+			SysLog(fmt.Sprintf("failed to marshal %s payload: %v", logPrefix, err))
+			return
+		}
+		req, err := http.NewRequest(http.MethodPost, qqNotifyServiceURL("/api/nachoai/send_message"), bytes.NewReader(payload))
+		if err != nil {
+			SysLog(fmt.Sprintf("failed to create %s request: %v", logPrefix, err))
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		setQQNotifyServiceAuthHeader(req)
+
+		client := http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			SysLog(fmt.Sprintf("failed to send %s: %v", logPrefix, err))
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			SysLog(fmt.Sprintf("failed to send %s: status=%d", logPrefix, resp.StatusCode))
+		}
+	}()
+}

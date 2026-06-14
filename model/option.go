@@ -264,7 +264,7 @@ func updateGroupRatioOption(value string) error {
 
 	changes := ratio_setting.CompareGroupRatioChanges(previousRatios, ratio_setting.GetGroupRatioCopy())
 	message := ratio_setting.FormatGroupRatioChangeMessage(changes)
-	common.SendQQNotificationGroupMessage(message, "group ratio change notify")
+	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventGroupRatio, message, "group ratio change notify")
 	return nil
 }
 
@@ -291,7 +291,7 @@ func updateUserUsableGroupsOption(value string) error {
 
 	changes := setting.CompareUserUsableGroupChanges(previousGroups, currentGroups)
 	message := setting.FormatUserUsableGroupChangeMessage(changes)
-	common.SendQQNotificationGroupMessage(message, "user usable group change notify")
+	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventUserUsableGroup, message, "user usable group change notify")
 	return nil
 }
 
@@ -309,7 +309,7 @@ func updateUpstreamGroupRatioBindingsOption(value string) error {
 
 	changes := ratio_setting.CompareUpstreamGroupRatioBindingChanges(previousBindings, ratio_setting.GetUpstreamGroupRatioBindingsCopy())
 	message := ratio_setting.FormatUpstreamGroupRatioBindingChangeMessage(changes)
-	common.SendQQNotificationGroupMessage(message, "upstream group ratio binding change notify")
+	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventBinding, message, "upstream group ratio binding change notify")
 	return nil
 }
 

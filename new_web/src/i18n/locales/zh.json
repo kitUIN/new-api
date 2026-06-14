@@ -1838,7 +1838,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4765,6 +4765,15 @@
     "Thank you for meeting us": "感谢相遇",
     "Move forward slowly": "前路漫漫",
     "See you again someday": "珍重再见",
-    "Auto refresh is off": "自动刷新已关闭"
+    "Auto refresh is off": "自动刷新已关闭",
+    "Both": "两者",
+    "QQ Group Change Notifications": "QQ 分组变更推送",
+    "Choose which group change events are pushed to QQ and where they are sent.": "选择哪些分组变更事件推送到 QQ，以及推送到哪里。",
+    "Group ratio change push": "分组倍率变更推送",
+    "Push when group billing ratios change": "分组计费倍率变化时推送",
+    "Binding change push": "绑定变更推送",
+    "Push when upstream group ratio bindings change": "上游分组倍率绑定变化时推送",
+    "User group state change push": "分组状态变更推送",
+    "Push when groups are added, deleted, enabled, disabled, or descriptions change": "分组新增、删除、开启、关闭或描述变化时推送"
   }
 }

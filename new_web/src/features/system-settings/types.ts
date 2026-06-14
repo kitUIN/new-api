@@ -110,6 +110,12 @@ export type AuthSettings = {
   QQAdminNumber: string
   QQNotificationGroup: string
   QQFriendLink: string
+  'qq_group_change_notify_setting.group_ratio_change_enabled': boolean
+  'qq_group_change_notify_setting.group_ratio_change_target': string
+  'qq_group_change_notify_setting.binding_change_enabled': boolean
+  'qq_group_change_notify_setting.binding_change_target': string
+  'qq_group_change_notify_setting.user_usable_group_change_enabled': boolean
+  'qq_group_change_notify_setting.user_usable_group_change_target': string
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string

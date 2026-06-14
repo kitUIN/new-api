@@ -1838,7 +1838,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4765,6 +4765,15 @@
     "Thank you for meeting us": "Thank you for meeting us",
     "Move forward slowly": "Move forward slowly",
     "See you again someday": "See you again someday",
-    "Auto refresh is off": "Auto refresh is off"
+    "Auto refresh is off": "Auto refresh is off",
+    "Both": "Both",
+    "QQ Group Change Notifications": "QQ Group Change Notifications",
+    "Choose which group change events are pushed to QQ and where they are sent.": "Choose which group change events are pushed to QQ and where they are sent.",
+    "Group ratio change push": "Group ratio change push",
+    "Push when group billing ratios change": "Push when group billing ratios change",
+    "Binding change push": "Binding change push",
+    "Push when upstream group ratio bindings change": "Push when upstream group ratio bindings change",
+    "User group state change push": "User group state change push",
+    "Push when groups are added, deleted, enabled, disabled, or descriptions change": "Push when groups are added, deleted, enabled, disabled, or descriptions change"
   }
 }

@@ -80,6 +80,26 @@ const AUTH_SECTIONS = [
           QQAdminNumber: settings.QQAdminNumber,
           QQNotificationGroup: settings.QQNotificationGroup,
           QQFriendLink: settings.QQFriendLink,
+          'qq_group_change_notify_setting.group_ratio_change_enabled':
+            settings[
+              'qq_group_change_notify_setting.group_ratio_change_enabled'
+            ],
+          'qq_group_change_notify_setting.group_ratio_change_target':
+            settings[
+              'qq_group_change_notify_setting.group_ratio_change_target'
+            ],
+          'qq_group_change_notify_setting.binding_change_enabled':
+            settings['qq_group_change_notify_setting.binding_change_enabled'],
+          'qq_group_change_notify_setting.binding_change_target':
+            settings['qq_group_change_notify_setting.binding_change_target'],
+          'qq_group_change_notify_setting.user_usable_group_change_enabled':
+            settings[
+              'qq_group_change_notify_setting.user_usable_group_change_enabled'
+            ],
+          'qq_group_change_notify_setting.user_usable_group_change_target':
+            settings[
+              'qq_group_change_notify_setting.user_usable_group_change_target'
+            ],
         }}
       />
     ),
