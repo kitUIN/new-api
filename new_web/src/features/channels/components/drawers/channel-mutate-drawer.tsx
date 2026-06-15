@@ -1355,9 +1355,7 @@ export function ChannelMutateDrawer({
                             <FormControl>
                               <Combobox
                                 options={providerOptions}
-                                value={
-                                  field.value ? String(field.value) : ''
-                                }
+                                value={field.value ? String(field.value) : ''}
                                 onValueChange={(value) => {
                                   const providerId = Number(value) || 0
                                   field.onChange(providerId)
@@ -3610,7 +3608,9 @@ export function ChannelMutateDrawer({
                                 type='button'
                                 variant='outline'
                                 size='sm'
-                                onClick={() => applyGroupQueryTemplate('newapi')}
+                                onClick={() =>
+                                  applyGroupQueryTemplate('newapi')
+                                }
                               >
                                 <Sparkles className='mr-2 h-4 w-4' />
                                 {t('New API template')}
@@ -4031,7 +4031,9 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
-                      {(currentType === 1 || currentType === 14) && (
+                      {(currentType === 1 ||
+                        currentType === 14 ||
+                        currentType === 57) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
                             title={t('Field passthrough controls')}
@@ -4039,28 +4041,63 @@ export function ChannelMutateDrawer({
                           />
 
                           <div className='divide-border space-y-0 divide-y border-y'>
-                            <FormField
-                              control={form.control}
-                              name='allow_service_tier'
-                              render={({ field }) => (
-                                <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                                  <div className='space-y-0.5'>
-                                    <FormLabel className='text-sm'>
-                                      {t('Allow service_tier passthrough')}
-                                    </FormLabel>
-                                    <FormDescription>
-                                      {t('Pass through the service_tier field')}
-                                    </FormDescription>
-                                  </div>
-                                  <FormControl>
-                                    <Switch
-                                      checked={field.value}
-                                      onCheckedChange={field.onChange}
-                                    />
-                                  </FormControl>
-                                </FormItem>
-                              )}
-                            />
+                            {(currentType === 1 || currentType === 14) && (
+                              <FormField
+                                control={form.control}
+                                name='allow_service_tier'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel className='text-sm'>
+                                        {t('Allow service_tier passthrough')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Pass through the service_tier field'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {(currentType === 1 || currentType === 57) && (
+                              <>
+                                <FormField
+                                  control={form.control}
+                                  name='responses_image_generation_tool_filter_enabled'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel className='text-sm'>
+                                          {t(
+                                            'Filter Responses image generation tool'
+                                          )}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Remove image_generation tools before forwarding Responses requests upstream'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              </>
+                            )}
 
                             {currentType === 1 && (
                               <>

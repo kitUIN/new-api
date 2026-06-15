@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,6 +60,12 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	filterResponsesImageGenerationTools := !info.ChannelOtherSettings.DisableResponsesImageGenerationFilter
+	if filterResponsesImageGenerationTools {
+		if err = request.RemoveImageGenerationTools(); err != nil {
+			return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+	}
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
@@ -76,7 +83,18 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = common.ReaderOnly(storage)
+		rawBody, err := storage.Bytes()
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+		}
+		jsonData := rawBody
+		if filterResponsesImageGenerationTools {
+			jsonData, err = removeResponsesImageGenerationToolsFromBody(rawBody)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
+		requestBody = bytes.NewBuffer(jsonData)
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
@@ -99,6 +117,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 			if err != nil {
 				return newAPIErrorFromParamOverride(err)
+			}
+		}
+
+		if filterResponsesImageGenerationTools {
+			jsonData, err = removeResponsesImageGenerationToolsFromBody(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 		}
 
@@ -163,4 +188,30 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func removeResponsesImageGenerationToolsFromBody(jsonData []byte) ([]byte, error) {
+	var request map[string]json.RawMessage
+	if err := common.Unmarshal(jsonData, &request); err != nil {
+		return nil, err
+	}
+
+	tools, ok := request["tools"]
+	if !ok {
+		return jsonData, nil
+	}
+
+	filteredTools, removed, err := dto.FilterOpenAIResponsesImageGenerationTools(tools)
+	if err != nil {
+		return nil, err
+	}
+	if !removed {
+		return jsonData, nil
+	}
+	if len(filteredTools) == 0 {
+		delete(request, "tools")
+	} else {
+		request["tools"] = filteredTools
+	}
+	return common.Marshal(request)
 }

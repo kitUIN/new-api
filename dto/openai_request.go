@@ -860,6 +860,59 @@ type OpenAIResponsesRequest struct {
 	Preset json.RawMessage `json:"preset,omitempty"`
 }
 
+const OpenAIResponsesToolTypeImageGeneration = "image_generation"
+
+func (r *OpenAIResponsesRequest) RemoveImageGenerationTools() error {
+	tools, removed, err := FilterOpenAIResponsesImageGenerationTools(r.Tools)
+	if err != nil {
+		return err
+	}
+	if removed {
+		r.Tools = tools
+	}
+	return nil
+}
+
+func FilterOpenAIResponsesImageGenerationTools(tools json.RawMessage) (json.RawMessage, bool, error) {
+	if len(tools) == 0 {
+		return tools, false, nil
+	}
+
+	var rawTools []json.RawMessage
+	if err := common.Unmarshal(tools, &rawTools); err != nil {
+		return tools, false, nil
+	}
+
+	filteredTools := make([]json.RawMessage, 0, len(rawTools))
+	removed := false
+	for _, rawTool := range rawTools {
+		var toolType struct {
+			Type string `json:"type"`
+		}
+		if err := common.Unmarshal(rawTool, &toolType); err != nil {
+			filteredTools = append(filteredTools, rawTool)
+			continue
+		}
+		if toolType.Type == OpenAIResponsesToolTypeImageGeneration {
+			removed = true
+			continue
+		}
+		filteredTools = append(filteredTools, rawTool)
+	}
+
+	if !removed {
+		return tools, false, nil
+	}
+	if len(filteredTools) == 0 {
+		return nil, true, nil
+	}
+	filteredBytes, err := common.Marshal(filteredTools)
+	if err != nil {
+		return nil, false, err
+	}
+	return filteredBytes, true, nil
+}
+
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var fileMeta = make([]*types.FileMeta, 0)
 	var texts = make([]string, 0)

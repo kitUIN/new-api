@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -70,4 +71,30 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "max_tool_calls").Exists())
 	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
+}
+
+func TestOpenAIResponsesRequestRemoveImageGenerationTools(t *testing.T) {
+	raw := json.RawMessage(`[
+		{"type":"function","name":"shell_command"},
+		{"type":"image_generation","output_format":"png"},
+		{"type":"web_search","search_content_types":["text","image"]}
+	]`)
+
+	req := OpenAIResponsesRequest{Tools: raw}
+	err := req.RemoveImageGenerationTools()
+	require.NoError(t, err)
+
+	require.False(t, gjson.GetBytes(req.Tools, `#[type="image_generation"]`).Exists())
+	require.Equal(t, "function", gjson.GetBytes(req.Tools, "0.type").String())
+	require.Equal(t, "web_search", gjson.GetBytes(req.Tools, "1.type").String())
+}
+
+func TestOpenAIResponsesRequestRemoveOnlyImageGenerationToolClearsTools(t *testing.T) {
+	req := OpenAIResponsesRequest{
+		Tools: json.RawMessage(`[{"type":"image_generation","output_format":"png"}]`),
+	}
+
+	err := req.RemoveImageGenerationTools()
+	require.NoError(t, err)
+	require.Nil(t, req.Tools)
 }
