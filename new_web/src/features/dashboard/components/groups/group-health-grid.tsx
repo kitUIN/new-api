@@ -154,7 +154,7 @@ function balanceDotClassName(level: PerfGroupHealth['balance_level']): string {
 function formatRatio(ratio: number): string {
   if (!Number.isFinite(ratio)) return 'x1'
   return `x${ratio
-    .toFixed(ratio % 1 === 0 ? 0 : 3)
+    .toFixed(3)
     .replace(/0+$/, '')
     .replace(/\.$/, '')}`
 }
@@ -782,7 +782,7 @@ function RatioHistoryChart(props: {
           />
           <YAxis
             dataKey='ratio'
-            width={32}
+            width={44}
             tickFormatter={(value) => formatRatio(Number(value))}
             tickLine={false}
             axisLine={false}

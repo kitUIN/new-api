@@ -18,70 +18,40 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { useStatus } from '@/hooks/use-status'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
-import { TermsFooter } from '../components/terms-footer'
-import { SignUpForm } from './components/sign-up-form'
 
 export function SignUp() {
   const { t } = useTranslation()
-  const { status } = useStatus()
-  const registerEnabled =
-    status?.register_enabled ?? status?.data?.register_enabled ?? true
 
-  if (!registerEnabled) {
-    return (
-      <AuthLayout>
-        <div className='w-full space-y-6 text-center sm:text-left'>
-          <div className='space-y-2'>
-            <h2 className='text-2xl font-semibold tracking-tight'>
-              {t('Registration is not open')}
-            </h2>
-            <p className='text-muted-foreground text-sm sm:text-base'>
-              {t(
-                'Please sign in with an existing account or contact the administrator.'
-              )}
-            </p>
-          </div>
-
+  return (
+    <AuthLayout>
+      <Card className='w-full text-center'>
+        <CardHeader>
+          <CardTitle className='text-2xl'>
+            {t('Registration is not open')}
+          </CardTitle>
+          <CardDescription>
+            {t(
+              'Please sign in with an existing account or contact the administrator.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           <Link
             to='/sign-in'
             className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium transition-colors'
           >
             {t('Sign in')}
           </Link>
-        </div>
-      </AuthLayout>
-    )
-  }
-
-  return (
-    <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Create an account')}
-          </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {t('Already have an account?')}{' '}
-            <Link
-              to='/sign-in'
-              className='hover:text-primary font-medium underline underline-offset-4'
-            >
-              {t('Sign in')}
-            </Link>
-            .
-          </p>
-        </div>
-
-        <SignUpForm />
-
-        <TermsFooter
-          variant='sign-up'
-          status={status}
-          className='text-center'
-        />
-      </div>
+        </CardContent>
+      </Card>
     </AuthLayout>
   )
 }
