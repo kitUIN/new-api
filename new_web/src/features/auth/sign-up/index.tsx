@@ -26,6 +26,34 @@ import { SignUpForm } from './components/sign-up-form'
 export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
+  const registerEnabled =
+    status?.register_enabled ?? status?.data?.register_enabled ?? true
+
+  if (!registerEnabled) {
+    return (
+      <AuthLayout>
+        <div className='w-full space-y-6 text-center sm:text-left'>
+          <div className='space-y-2'>
+            <h2 className='text-2xl font-semibold tracking-tight'>
+              {t('Registration is not open')}
+            </h2>
+            <p className='text-muted-foreground text-sm sm:text-base'>
+              {t(
+                'Please sign in with an existing account or contact the administrator.'
+              )}
+            </p>
+          </div>
+
+          <Link
+            to='/sign-in'
+            className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium transition-colors'
+          >
+            {t('Sign in')}
+          </Link>
+        </div>
+      </AuthLayout>
+    )
+  }
 
   return (
     <AuthLayout>
