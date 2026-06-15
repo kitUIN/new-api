@@ -98,6 +98,10 @@ func UpdateChannelProvider(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+	if err := model.ClearChannelQuerySettingsForProvider(provider.Id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	model.InitChannelCache()
 	common.ApiSuccess(c, &provider)
 }

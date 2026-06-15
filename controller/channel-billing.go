@@ -1401,34 +1401,10 @@ func UpdateChannelProviderBalance(c *gin.Context) {
 }
 
 func GetChannelBalanceQueryInstances(c *gin.Context) {
-	channels, err := model.GetAllChannels(0, 0, true, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	instances := make([]gin.H, 0)
-	for _, channel := range channels {
-		settings := channel.GetOtherSettings()
-		config := settings.BalanceQuery
-		if !config.Enabled || config.SourceChannelID > 0 {
-			continue
-		}
-		interval := getBalanceQueryIntervalSeconds(config)
-		instances = append(instances, gin.H{
-			"id":               channel.Id,
-			"name":             channel.Name,
-			"type":             channel.Type,
-			"template":         config.Template,
-			"interval_seconds": interval,
-			"last_check_time":  config.LastCheckTime,
-			"last_error":       config.LastError,
-			"last_result":      config.LastResult,
-		})
-	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    instances,
+		"data":    []gin.H{},
 	})
 }
 

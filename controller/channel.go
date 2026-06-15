@@ -623,6 +623,14 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if addChannelRequest.Channel != nil {
+		if settings, _, err := model.StripChannelQuerySettings(addChannelRequest.Channel.OtherSettings); err != nil {
+			common.ApiError(c, err)
+			return
+		} else {
+			addChannelRequest.Channel.OtherSettings = settings
+		}
+	}
 
 	// 使用统一的校验函数
 	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
@@ -898,6 +906,12 @@ func UpdateChannel(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if settings, _, err := model.StripChannelQuerySettings(channel.OtherSettings); err != nil {
+		common.ApiError(c, err)
+		return
+	} else {
+		channel.OtherSettings = settings
 	}
 
 	// 使用统一的校验函数

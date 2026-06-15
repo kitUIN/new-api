@@ -632,15 +632,6 @@ function normalizeSourceChannelId(value: unknown): number {
   return Math.round(numeric)
 }
 
-function parseQueryHeaders(value: string | undefined): Record<string, string> {
-  try {
-    const parsed = parseOptionalJson(value)
-    return isJsonObjectValue(parsed) ? (parsed as Record<string, string>) : {}
-  } catch {
-    return {}
-  }
-}
-
 function getBalanceQueryFormDefaults(
   balanceQuery: BalanceQueryConfig | undefined
 ) {
@@ -1005,80 +996,8 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
   }
 
-  const previousBalanceQuery = isJsonObjectValue(settingsObj.balance_query)
-    ? settingsObj.balance_query
-    : {}
-  const previousGroupQuery = isJsonObjectValue(settingsObj.group_query)
-    ? settingsObj.group_query
-    : {}
-
-  settingsObj.balance_query = {
-    ...previousBalanceQuery,
-    enabled: formData.balance_query_enabled === true,
-    template: normalizeBalanceQueryTemplate(formData.balance_query_template),
-    interval_seconds: normalizeInterval(
-      formData.balance_query_interval_seconds
-    ),
-    source_channel_id: normalizeSourceChannelId(
-      formData.balance_query_source_channel_id
-    ),
-    access_token: formData.balance_query_access_token || '',
-    refresh_token: formData.balance_query_refresh_token || '',
-    user_id: formData.balance_query_user_id || '',
-    request: {
-      url: formData.balance_query_request_url || '',
-      method: formData.balance_query_request_method || 'GET',
-      headers: parseQueryHeaders(formData.balance_query_request_headers),
-      body: formData.balance_query_request_body || '',
-    },
-    extractor: {
-      plan_name_path: formData.balance_query_plan_name_path || '',
-      remaining_path: formData.balance_query_remaining_path || '',
-      used_path: formData.balance_query_used_path || '',
-      total_path: formData.balance_query_total_path || '',
-      unit_path: formData.balance_query_unit_path || '',
-      unit: formData.balance_query_unit || 'USD',
-      divisor: Number(formData.balance_query_divisor) || 1,
-      success_path: formData.balance_query_success_path || '',
-      success_value: formData.balance_query_success_value || '',
-      success_optional: formData.balance_query_success_optional === true,
-      message_path: formData.balance_query_message_path || '',
-    },
-    last_result: formData.balance_query_last_result || null,
-    last_check_time: Number(formData.balance_query_last_check_time) || 0,
-    last_error: formData.balance_query_last_error || '',
-  }
-
-  settingsObj.group_query = {
-    ...previousGroupQuery,
-    enabled: formData.group_query_enabled === true,
-    template: normalizeBalanceQueryTemplate(formData.group_query_template),
-    interval_seconds: normalizeInterval(formData.group_query_interval_seconds),
-    source_channel_id: normalizeSourceChannelId(
-      formData.group_query_source_channel_id
-    ),
-    access_token: formData.group_query_access_token || '',
-    refresh_token: formData.group_query_refresh_token || '',
-    user_id: formData.group_query_user_id || '',
-    request: {
-      url: formData.group_query_request_url || '',
-      method: formData.group_query_request_method || 'GET',
-      headers: parseQueryHeaders(formData.group_query_request_headers),
-      body: formData.group_query_request_body || '',
-    },
-    extractor: {
-      data_path: formData.group_query_data_path || '',
-      desc_path: formData.group_query_desc_path || '',
-      ratio_path: formData.group_query_ratio_path || '',
-      success_path: formData.group_query_success_path || '',
-      success_value: formData.group_query_success_value || '',
-      success_optional: formData.group_query_success_optional === true,
-      message_path: formData.group_query_message_path || '',
-    },
-    last_result: formData.group_query_last_result || null,
-    last_check_time: Number(formData.group_query_last_check_time) || 0,
-    last_error: formData.group_query_last_error || '',
-  }
+  delete settingsObj.balance_query
+  delete settingsObj.group_query
 
   // Upstream model update settings (for model-fetchable channel types)
   if (MODEL_FETCHABLE_TYPES.has(formData.type)) {

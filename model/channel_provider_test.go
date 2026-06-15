@@ -69,4 +69,59 @@ func TestMigrateChannelProviderQuerySettingsCompletesMissingGroupFromSharedSourc
 	require.True(t, settings.GroupQuery.Enabled)
 	require.Equal(t, source.Id, settings.GroupQuery.SourceChannelID)
 	require.Equal(t, "https://provider.example/groups-source", settings.GroupQuery.Request.URL)
+
+	updatedSource, err := GetChannelById(source.Id, true)
+	require.NoError(t, err)
+	sourceChannelSettings := updatedSource.GetOtherSettings()
+	require.False(t, sourceChannelSettings.BalanceQuery.Enabled)
+	require.False(t, sourceChannelSettings.GroupQuery.Enabled)
+
+	updatedConsumer, err := GetChannelById(consumer.Id, true)
+	require.NoError(t, err)
+	consumerChannelSettings := updatedConsumer.GetOtherSettings()
+	require.False(t, consumerChannelSettings.BalanceQuery.Enabled)
+	require.False(t, consumerChannelSettings.GroupQuery.Enabled)
+}
+
+func TestClearChannelQuerySettingsForProviderOnlyRemovesQueryFields(t *testing.T) {
+	truncateTables(t)
+
+	provider := &ChannelProvider{
+		Id:      1,
+		Name:    "provider",
+		BaseURL: "https://provider.example",
+		Status:  1,
+	}
+	require.NoError(t, DB.Create(provider).Error)
+
+	channelSettings, err := common.Marshal(dto.ChannelOtherSettings{
+		AzureResponsesVersion: "2024-10-01",
+		BalanceQuery: dto.BalanceQuery{
+			Enabled: true,
+			Request: dto.BalanceQueryRequestConfig{URL: "https://provider.example/balance"},
+		},
+		GroupQuery: dto.GroupQuery{
+			Enabled: true,
+			Request: dto.BalanceQueryRequestConfig{URL: "https://provider.example/groups"},
+		},
+	})
+	require.NoError(t, err)
+	channel := &Channel{
+		Id:            10,
+		ProviderID:    provider.Id,
+		Name:          "channel",
+		Key:           "key",
+		Status:        1,
+		OtherSettings: string(channelSettings),
+	}
+	require.NoError(t, DB.Create(channel).Error)
+
+	require.NoError(t, ClearChannelQuerySettingsForProvider(provider.Id))
+
+	updated, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	settings := updated.GetOtherSettings()
+	require.Equal(t, "2024-10-01", settings.AzureResponsesVersion)
+	require.False(t, settings.BalanceQuery.Enabled)
+	require.False(t, settings.GroupQuery.Enabled)
 }

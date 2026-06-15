@@ -286,6 +286,9 @@ func MigrateChannelProviderQuerySettings() error {
 	for _, provider := range providers {
 		settings := provider.GetOtherSettings()
 		if settings.BalanceQuery.Enabled && settings.GroupQuery.Enabled {
+			if err := ClearChannelQuerySettingsForProvider(provider.Id); err != nil {
+				return err
+			}
 			continue
 		}
 		var channels []*Channel
@@ -332,6 +335,11 @@ func MigrateChannelProviderQuerySettings() error {
 			}
 		}
 		if !changed {
+			if settings.BalanceQuery.Enabled || settings.GroupQuery.Enabled {
+				if err := ClearChannelQuerySettingsForProvider(provider.Id); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		provider.SetOtherSettings(settings)
@@ -343,8 +351,71 @@ func MigrateChannelProviderQuerySettings() error {
 		}).Error; err != nil {
 			return err
 		}
+		if settings.BalanceQuery.Enabled || settings.GroupQuery.Enabled {
+			if err := ClearChannelQuerySettingsForProvider(provider.Id); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+func ClearChannelQuerySettingsForProvider(providerID int) error {
+	if providerID <= 0 {
+		return nil
+	}
+	var channels []*Channel
+	if err := DB.Where("provider_id = ?", providerID).Find(&channels).Error; err != nil {
+		return err
+	}
+	for _, channel := range channels {
+		if channel == nil || strings.TrimSpace(channel.OtherSettings) == "" {
+			continue
+		}
+		settings := map[string]interface{}{}
+		if err := common.UnmarshalJsonStr(channel.OtherSettings, &settings); err != nil {
+			common.SysLog(fmt.Sprintf("failed to unmarshal channel settings while clearing query settings: channel_id=%d, error=%v", channel.Id, err))
+			continue
+		}
+		_, hasBalanceQuery := settings["balance_query"]
+		_, hasGroupQuery := settings["group_query"]
+		if !hasBalanceQuery && !hasGroupQuery {
+			continue
+		}
+		delete(settings, "balance_query")
+		delete(settings, "group_query")
+		data, err := common.Marshal(settings)
+		if err != nil {
+			return err
+		}
+		channel.OtherSettings = string(data)
+		if err := DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("settings", channel.OtherSettings).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func StripChannelQuerySettings(otherSettings string) (string, bool, error) {
+	if strings.TrimSpace(otherSettings) == "" {
+		return otherSettings, false, nil
+	}
+	settings := map[string]interface{}{}
+	if err := common.UnmarshalJsonStr(otherSettings, &settings); err != nil {
+		return otherSettings, false, err
+	}
+	_, hasBalanceQuery := settings["balance_query"]
+	_, hasGroupQuery := settings["group_query"]
+	if !hasBalanceQuery && !hasGroupQuery {
+		return otherSettings, false, nil
+	}
+	delete(settings, "balance_query")
+	delete(settings, "group_query")
+	data, err := common.Marshal(settings)
+	if err != nil {
+		return otherSettings, false, err
+	}
+	return string(data), true, nil
 }
 
 func ListChannelProviders(offset int, limit int) ([]*ChannelProvider, int64, error) {
