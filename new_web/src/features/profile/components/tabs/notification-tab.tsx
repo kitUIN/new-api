@@ -17,11 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, Loader2, Mail, MessageCircle, Server, Webhook } from 'lucide-react'
+import {
+  Bell,
+  ExternalLink,
+  Loader2,
+  Mail,
+  MessageCircle,
+  Server,
+  Webhook,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ROLE } from '@/lib/roles'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -54,8 +71,10 @@ interface NotificationTabProps {
 
 export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const isAdmin = (profile?.role ?? 0) >= ROLE.ADMIN
   const [loading, setLoading] = useState(false)
+  const [qqFriendDialogOpen, setQQFriendDialogOpen] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     notify_type: 'email',
     quota_warning_threshold: DEFAULT_QUOTA_WARNING_THRESHOLD,
@@ -102,6 +121,16 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     }
   }, [profile])
 
+  const qqFriendLink =
+    (status?.qq_friend_link as string | undefined) ||
+    (status?.data?.qq_friend_link as string | undefined) ||
+    ''
+
+  const shouldShowQQFriendDialog = (message?: string) => {
+    if (settings.notify_type !== 'qq') return false
+    return /好友|friend/i.test(message || '')
+  }
+
   const handleSave = async () => {
     try {
       setLoading(true)
@@ -111,7 +140,11 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         toast.success(t('Settings updated successfully'))
         onUpdate()
       } else {
-        toast.error(response.message || t('Failed to update settings'))
+        const message = response.message || t('Failed to update settings')
+        toast.error(message)
+        if (shouldShowQQFriendDialog(message)) {
+          setQQFriendDialogOpen(true)
+        }
       }
     } catch (_error) {
       toast.error(t('Failed to update settings'))
@@ -160,7 +193,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         </RadioGroup>
         {settings.notify_type === 'qq' && (
           <p className='text-muted-foreground text-xs'>
-            {t('Notifications will be sent to the QQ account bound to your profile.')}
+            {t('Before saving, we will verify that your bound QQ account is already a friend.')}
           </p>
         )}
       </div>
@@ -395,6 +428,52 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           {loading ? t('Saving...') : t('Save Settings')}
         </Button>
       </div>
+
+      <Dialog
+        open={qqFriendDialogOpen}
+        onOpenChange={setQQFriendDialogOpen}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('Add QQ friend')}</DialogTitle>
+            <DialogDescription>
+              {t(
+                'QQ notifications require the bound QQ account to be a friend before they can be enabled.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {qqFriendLink ? (
+            <div className='bg-muted min-w-0 rounded-lg border px-3 py-2 text-sm break-all'>
+              {qqFriendLink}
+            </div>
+          ) : (
+            <p className='text-muted-foreground text-sm'>
+              {t('QQ friend link is not configured. Please contact the administrator.')}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setQQFriendDialogOpen(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='button'
+              disabled={!qqFriendLink}
+              onClick={() => {
+                if (qqFriendLink) {
+                  window.open(qqFriendLink, '_blank', 'noopener')
+                }
+              }}
+            >
+              <ExternalLink className='h-4 w-4' />
+              {t('Open QQ friend link')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

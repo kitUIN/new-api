@@ -1260,6 +1260,19 @@ func UpdateUserSetting(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	if req.QuotaWarningType == dto.NotifyTypeQQ {
+		qqId := strings.TrimSpace(user.QQId)
+		if qqId == "" {
+			common.ApiErrorMsg(c, "请先绑定 QQ 账户")
+			return
+		}
+		if err := ensureQQIsFriend(qqId); err != nil {
+			common.ApiError(c, fmt.Errorf("启用 QQ 通知前请先添加 QQ 好友：%w", err))
+			return
+		}
+	}
+
 	existingSettings := user.GetSetting()
 	upstreamModelUpdateNotifyEnabled := existingSettings.UpstreamModelUpdateNotifyEnabled
 	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {

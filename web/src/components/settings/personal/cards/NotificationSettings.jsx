@@ -750,7 +750,7 @@ const NotificationSettings = ({
                 {notificationSettings.warningType === 'qq' && (
                   <Form.Slot label={t('QQ通知')}>
                     <div className='text-xs text-gray-500 leading-relaxed'>
-                      {t('系统将发送通知到当前账号已绑定的QQ。')}
+                      {t('保存前会检测当前账号已绑定的QQ是否已添加好友。')}
                     </div>
                   </Form.Slot>
                 )}
