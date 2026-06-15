@@ -60,7 +60,7 @@ func EmbeddingHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	logger.LogDebug(c, fmt.Sprintf("converted embedding request body: %s", string(jsonData)))
 	requestBody := bytes.NewBuffer(jsonData)
 
-	reqBodyForLog := requestBody.String()
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)

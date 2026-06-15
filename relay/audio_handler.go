@@ -44,12 +44,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
-	var reqBodyForLog string
-	if storage, sErr := common.GetBodyStorage(c); sErr == nil {
-		if raw, bErr := storage.Bytes(); bErr == nil {
-			reqBodyForLog = string(raw)
-		}
-	}
+	reqBodyForLog := requestBodySnapshot(c, ioReader)
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)

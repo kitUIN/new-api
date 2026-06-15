@@ -218,9 +218,15 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	requestURL := getMjRequestPath(c.Request.URL.String())
 	baseURL := c.GetString("base_url")
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, "", &httpResp)
 	mjResp, _, err := service.DoMidjourneyHttpRequest(c, time.Second*60, fullRequestURL)
 	if err != nil {
+		recordDetail()
 		return &mjResp.Response
+	}
+	if mjResp.StatusCode != http.StatusOK || mjResp.Response.Code != 1 {
+		recordDetail()
 	}
 	defer func() {
 		if mjResp.StatusCode == 200 && mjResp.Response.Code == 1 {
@@ -301,9 +307,15 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 
 	requestURL := getMjRequestPath(c.Request.URL.String())
 	fullRequestURL := fmt.Sprintf("%s%s", channel.GetBaseURL(), requestURL)
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, nil, "", &httpResp)
 	midjResponseWithStatus, _, err := service.DoMidjourneyHttpRequest(c, time.Second*30, fullRequestURL)
 	if err != nil {
+		recordDetail()
 		return &midjResponseWithStatus.Response
+	}
+	if midjResponseWithStatus.StatusCode != http.StatusOK {
+		recordDetail()
 	}
 	midjResponse := &midjResponseWithStatus.Response
 	c.Writer.WriteHeader(midjResponseWithStatus.StatusCode)
@@ -523,11 +535,18 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, relayInfo, "", &httpResp)
 	midjResponseWithStatus, responseBody, err := service.DoMidjourneyHttpRequest(c, time.Second*60, fullRequestURL)
 	if err != nil {
+		recordDetail()
 		return &midjResponseWithStatus.Response
 	}
 	midjResponse := &midjResponseWithStatus.Response
+	if midjResponseWithStatus.StatusCode != http.StatusOK ||
+		(midjResponse.Code != 1 && midjResponse.Code != 21 && midjResponse.Code != 22) {
+		recordDetail()
+	}
 
 	defer func() {
 		if consumeQuota && midjResponseWithStatus.StatusCode == 200 {

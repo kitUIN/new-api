@@ -73,14 +73,7 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
-	var reqBodyForLog string
-	if buf, ok := requestBody.(*bytes.Buffer); ok {
-		reqBodyForLog = buf.String()
-	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
-		if raw, bErr := storage.Bytes(); bErr == nil {
-			reqBodyForLog = string(raw)
-		}
-	}
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)

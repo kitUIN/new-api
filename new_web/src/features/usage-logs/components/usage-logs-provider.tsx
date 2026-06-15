@@ -29,6 +29,10 @@ interface UsageLogsContextValue {
   setAffinityTarget: (target: ChannelAffinityInfo | null) => void
   affinityDialogOpen: boolean
   setAffinityDialogOpen: (open: boolean) => void
+  requestDetailRequestId: string | null
+  setRequestDetailRequestId: (requestId: string | null) => void
+  requestDetailDialogOpen: boolean
+  setRequestDetailDialogOpen: (open: boolean) => void
   sensitiveVisible: boolean
   setSensitiveVisible: (visible: boolean) => void
 }
@@ -43,6 +47,10 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
   const [affinityTarget, setAffinityTarget] =
     useState<ChannelAffinityInfo | null>(null)
   const [affinityDialogOpen, setAffinityDialogOpen] = useState(false)
+  const [requestDetailRequestId, setRequestDetailRequestId] = useState<
+    string | null
+  >(null)
+  const [requestDetailDialogOpen, setRequestDetailDialogOpen] = useState(false)
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
 
   return (
@@ -56,6 +64,10 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
         setAffinityTarget,
         affinityDialogOpen,
         setAffinityDialogOpen,
+        requestDetailRequestId,
+        setRequestDetailRequestId,
+        requestDetailDialogOpen,
+        setRequestDetailDialogOpen,
         sensitiveVisible,
         setSensitiveVisible,
       }}

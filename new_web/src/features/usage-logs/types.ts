@@ -339,6 +339,41 @@ export interface GetLogsResponse {
   }
 }
 
+export interface RequestDetailSummary {
+  id: number
+  request_id: string
+  user_id: number
+  created_at: number
+}
+
+export interface RequestDetail {
+  id: number
+  request_id: string
+  user_id: number
+  created_at: number
+  request_headers?: string
+  request_body?: string
+  response_headers?: string
+  response_body?: string
+}
+
+export interface GetRequestDetailsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items: RequestDetailSummary[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export interface GetRequestDetailResponse {
+  success: boolean
+  message?: string
+  data?: RequestDetail
+}
+
 export interface GetLogStatsParams {
   type?: number
   username?: string

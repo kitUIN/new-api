@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { RequestDetailDialog } from './components/dialogs/request-detail-dialog'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
   UsageLogsProvider,
@@ -66,6 +67,9 @@ function UsageLogsContent() {
     affinityTarget,
     affinityDialogOpen,
     setAffinityDialogOpen,
+    requestDetailRequestId,
+    requestDetailDialogOpen,
+    setRequestDetailDialogOpen,
   } = useUsageLogsContext()
   const tabNavGroups = useMemo<NavGroup[]>(
     () => [
@@ -154,6 +158,12 @@ function UsageLogsContent() {
               }
             : null
         }
+      />
+
+      <RequestDetailDialog
+        requestId={requestDetailRequestId}
+        open={requestDetailDialogOpen}
+        onOpenChange={setRequestDetailDialogOpen}
       />
     </>
   )

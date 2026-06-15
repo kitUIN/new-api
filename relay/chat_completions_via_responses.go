@@ -124,12 +124,18 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
+	requestBody := bytes.NewBuffer(jsonData)
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, bytes.NewBuffer(jsonData))
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
+	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	if resp == nil {
+		recordDetail()
 		return nil, types.NewOpenAIError(nil, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
@@ -140,6 +146,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		recordDetail()
 		return nil, newApiErr
 	}
 
@@ -147,6 +154,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
 		if newApiErr != nil {
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			recordDetail()
 			return nil, newApiErr
 		}
 		return usage, nil
@@ -155,6 +163,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	usage, newApiErr := openaichannel.OaiResponsesToChatHandler(c, info, httpResp)
 	if newApiErr != nil {
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		recordDetail()
 		return nil, newApiErr
 	}
 	return usage, nil

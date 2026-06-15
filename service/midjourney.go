@@ -210,6 +210,8 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 		auth = strings.TrimPrefix(auth, "Bearer ")
 		req.Header.Set("mj-api-secret", auth)
 	}
+	c.Set("upstream_request_headers", req.Header.Clone())
+	c.Set("upstream_request_body", string(reqBody))
 	defer cancel()
 	resp, err := GetHttpClient().Do(req)
 	if err != nil {
@@ -217,6 +219,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "do_request_failed", http.StatusInternalServerError), nullBytes, err
 	}
 	statusCode := resp.StatusCode
+	c.Set("upstream_response_headers", resp.Header.Clone())
 	//if statusCode != 200  {
 	//	return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "bad_response_status_code", statusCode), nullBytes, nil
 	//}
@@ -234,6 +237,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_response_body_failed", statusCode), nullBytes, err
 	}
+	c.Set("upstream_response_body", string(responseBody))
 	CloseResponseBodyGracefully(resp)
 	respStr := string(responseBody)
 	log.Printf("respStr: %s", respStr)

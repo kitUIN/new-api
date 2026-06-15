@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -99,6 +100,7 @@ func GetRequestDetailById(id int) (*RequestDetail, error) {
 func GetUserRequestDetailById(userId, id int) (*RequestDetail, error) {
 	var detail RequestDetail
 	err := LOG_DB.Where("user_id = ?", userId).First(&detail, id).Error
+	detail.RedactSensitiveHeaders()
 	return &detail, err
 }
 
@@ -117,4 +119,46 @@ func marshalHeaders(headers map[string][]string) string {
 
 func MarshalHeaders(headers map[string][]string) string {
 	return marshalHeaders(headers)
+}
+
+func (detail *RequestDetail) RedactSensitiveHeaders() {
+	if detail == nil {
+		return
+	}
+	detail.RequestHeaders = RedactSensitiveHeadersJSON(detail.RequestHeaders)
+	detail.ResponseHeaders = RedactSensitiveHeadersJSON(detail.ResponseHeaders)
+}
+
+func RedactSensitiveHeadersJSON(headersJSON string) string {
+	if strings.TrimSpace(headersJSON) == "" {
+		return headersJSON
+	}
+	var headers map[string][]string
+	if err := common.Unmarshal([]byte(headersJSON), &headers); err != nil {
+		return headersJSON
+	}
+	for key := range headers {
+		if IsSensitiveHeader(key) {
+			headers[key] = []string{"[redacted]"}
+		}
+	}
+	return marshalHeaders(headers)
+}
+
+func IsSensitiveHeader(key string) bool {
+	switch strings.ToLower(key) {
+	case "authorization",
+		"proxy-authorization",
+		"cookie",
+		"set-cookie",
+		"x-api-key",
+		"x-api-token",
+		"x-goog-api-key",
+		"api-key",
+		"api-token",
+		"mj-api-secret":
+		return true
+	default:
+		return false
+	}
 }

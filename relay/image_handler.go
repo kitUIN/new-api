@@ -83,14 +83,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
-	var reqBodyForLog string
-	if buf, ok := requestBody.(*bytes.Buffer); ok {
-		reqBodyForLog = buf.String()
-	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
-		if raw, bErr := storage.Bytes(); bErr == nil {
-			reqBodyForLog = string(raw)
-		}
-	}
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response

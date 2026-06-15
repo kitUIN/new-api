@@ -168,17 +168,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = bytes.NewReader(jsonData)
 	}
 
-	var reqBodyForLog string
-	if r, ok := requestBody.(*bytes.Reader); ok {
-		data := make([]byte, r.Len())
-		_, _ = r.Read(data)
-		_, _ = r.Seek(0, 0)
-		reqBodyForLog = string(data)
-	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
-		if raw, bErr := storage.Bytes(); bErr == nil {
-			reqBodyForLog = string(raw)
-		}
-	}
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
@@ -281,13 +271,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
 	requestBody = bytes.NewReader(jsonData)
 
-	var reqBodyForLogEmbed string
-	if r, ok := requestBody.(*bytes.Reader); ok {
-		data := make([]byte, r.Len())
-		_, _ = r.Read(data)
-		_, _ = r.Seek(0, 0)
-		reqBodyForLogEmbed = string(data)
-	}
+	reqBodyForLogEmbed := requestBodySnapshot(c, requestBody)
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLogEmbed, &httpResp)

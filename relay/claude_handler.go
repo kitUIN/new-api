@@ -188,14 +188,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
-	var reqBodyForLog string
-	if buf, ok := requestBody.(*bytes.Buffer); ok {
-		reqBodyForLog = buf.String()
-	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
-		if raw, bErr := storage.Bytes(); bErr == nil {
-			reqBodyForLog = string(raw)
-		}
-	}
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
@@ -246,18 +239,27 @@ func claudeCountTokensPassthrough(c *gin.Context, info *relaycommon.RelayInfo, a
 	}
 
 	requestBody := bytes.NewBuffer(jsonData)
+	reqBodyForLog := requestBodySnapshot(c, requestBody)
 
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
-	httpResp := resp.(*http.Response)
+	httpResp = resp.(*http.Response)
 	defer httpResp.Body.Close()
 
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+	c.Set("upstream_response_body", string(body))
+	if httpResp.StatusCode != http.StatusOK {
+		recordDetail()
 	}
 
 	c.Data(httpResp.StatusCode, httpResp.Header.Get("Content-Type"), body)

@@ -26,6 +26,7 @@ import {
   Download,
   Package,
   SquarePen,
+  FileText,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -44,6 +45,7 @@ import {
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -96,6 +98,11 @@ function formatRatioCompact(ratio: number | undefined): string {
   return ratio % 1 === 0
     ? String(ratio)
     : ratio.toFixed(4).replace(/\.?0+$/, '')
+}
+
+function formatCompactId(value: string): string {
+  if (value.length <= 14) return value
+  return `${value.slice(0, 6)}...${value.slice(-6)}`
 }
 
 function getGroupRatioText(other: LogOtherData | null): string | null {
@@ -957,6 +964,59 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         },
         meta: { label: t('Session Key'), mobileHidden: true },
         size: 120,
+      },
+      {
+        id: 'request_id',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Request')} />
+        ),
+        cell: function RequestIdCell({ row }) {
+          const { setRequestDetailRequestId, setRequestDetailDialogOpen } =
+            useUsageLogsContext()
+          const requestId = row.original.request_id
+
+          if (!requestId) {
+            return <span className='text-muted-foreground/40 text-xs'>—</span>
+          }
+
+          return (
+            <div className='flex max-w-[180px] items-center gap-1.5'>
+              <StatusBadge
+                label={formatCompactId(requestId)}
+                copyText={requestId}
+                size='sm'
+                variant='neutral'
+                className='max-w-[140px] min-w-0 rounded-md font-mono'
+              />
+              <TooltipProvider delay={300}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='size-6 shrink-0'
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setRequestDetailRequestId(requestId)
+                          setRequestDetailDialogOpen(true)
+                        }}
+                      />
+                    }
+                  >
+                    <FileText className='size-3.5' aria-hidden='true' />
+                  </TooltipTrigger>
+                  <TooltipContent side='top'>
+                    {t('Request Details')}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )
+        },
+        meta: { label: t('Request'), mobileHidden: true },
+        size: 170,
       }
     )
   }
