@@ -18,13 +18,33 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Gauge, HeartPulse, RefreshCw, Timer } from 'lucide-react'
+import {
+  Activity,
+  CalendarDays,
+  Gauge,
+  HeartPulse,
+  RefreshCw,
+  Timer,
+} from 'lucide-react'
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 import {
   Empty,
   EmptyDescription,
@@ -38,18 +58,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getPerfGroupHealth } from '@/features/performance-metrics/api'
+import {
+  getGroupRatioHistory,
+  getPerfGroupHealth,
+} from '@/features/performance-metrics/api'
 import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import type {
+  GroupRatioHistorySeries,
   PerfGroupHealth,
   PerfGroupHealthBucket,
   PerfGroupHealthStatus,
@@ -62,6 +87,27 @@ const HEALTH_INTERVAL_MINUTES = 10
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
 const HEALTH_DOT_SIZE_PX = 10
 const HEALTH_DOT_GAP_PX = 4
+const DEFAULT_RATIO_HISTORY_DAYS = 7
+type RatioHistoryRangeMode = '7d' | 'week' | 'month' | 'custom'
+
+type RatioHistoryRange = {
+  mode: RatioHistoryRangeMode
+  startTs: number
+  endTs: number
+}
+
+type RatioChartPoint = {
+  ts: number
+  ratio: number
+  source?: string
+}
+
+const ratioChartConfig = {
+  ratio: {
+    label: 'Ratio',
+    color: 'var(--chart-1)',
+  },
+} satisfies ChartConfig
 const PROVIDER_ICON_MATCHERS: Array<[RegExp, string]> = [
   [/^codex/i, 'OpenAI.Color'],
   [/^cc/i, 'Claude.Color'],
@@ -124,6 +170,52 @@ function formatBucketThroughput(tps: number): string {
   return tps.toFixed(tps < 10 ? 2 : 1)
 }
 
+function getDefaultRatioHistoryRange(): RatioHistoryRange {
+  const now = dayjs()
+  return {
+    mode: '7d',
+    startTs: now.subtract(DEFAULT_RATIO_HISTORY_DAYS, 'day').unix(),
+    endTs: now.unix(),
+  }
+}
+
+function getPresetRatioHistoryRange(
+  mode: Exclude<RatioHistoryRangeMode, 'custom'>
+): RatioHistoryRange {
+  const now = dayjs()
+  if (mode === 'week') {
+    return {
+      mode,
+      startTs: now.startOf('week').unix(),
+      endTs: now.unix(),
+    }
+  }
+  if (mode === 'month') {
+    return {
+      mode,
+      startTs: now.startOf('month').unix(),
+      endTs: now.unix(),
+    }
+  }
+  return getDefaultRatioHistoryRange()
+}
+
+function toInputValue(ts: number): string {
+  return dayjs.unix(ts).format('YYYY-MM-DDTHH:mm')
+}
+
+function parseInputTs(value: string): number | null {
+  if (!value) return null
+  const parsed = dayjs(value)
+  return parsed.isValid() ? parsed.unix() : null
+}
+
+function formatRatioHistoryRangeLabel(range: RatioHistoryRange): string {
+  return `${dayjs.unix(range.startTs).format('YYYY-MM-DD HH:mm')} ~ ${dayjs
+    .unix(range.endTs)
+    .format('YYYY-MM-DD HH:mm')}`
+}
+
 function getGroupProviderIcon(groupName: string): React.ReactNode {
   const matched = PROVIDER_ICON_MATCHERS.find(([pattern]) =>
     pattern.test(groupName)
@@ -176,6 +268,9 @@ function useElementWidth<T extends HTMLElement>() {
 export function GroupHealthGrid() {
   const { t } = useTranslation()
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [ratioRange, setRatioRange] = useState<RatioHistoryRange>(
+    getDefaultRatioHistoryRange
+  )
   const healthQuery = useQuery({
     queryKey: [
       'perf-group-health',
@@ -191,19 +286,50 @@ export function GroupHealthGrid() {
     staleTime: 0,
     retry: false,
   })
+  const ratioHistoryQuery = useQuery({
+    queryKey: [
+      'group-ratio-history',
+      ratioRange.startTs,
+      ratioRange.endTs,
+    ],
+    queryFn: () =>
+      getGroupRatioHistory({
+        start_ts: ratioRange.startTs,
+        end_ts: ratioRange.endTs,
+      }),
+    refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
+    refetchOnMount: 'always',
+    refetchOnReconnect: 'always',
+    refetchOnWindowFocus: 'always',
+    staleTime: 0,
+    retry: false,
+  })
 
   const groups = useMemo(
     () => healthQuery.data?.data.groups ?? [],
     [healthQuery.data]
   )
+  const ratioHistoryMap = useMemo(() => {
+    const map = new Map<string, GroupRatioHistorySeries>()
+    for (const item of ratioHistoryQuery.data?.data.groups ?? []) {
+      map.set(item.group, item)
+    }
+    return map
+  }, [ratioHistoryQuery.data])
+  const refetchAll = () => {
+    healthQuery.refetch()
+    ratioHistoryQuery.refetch()
+  }
 
   if (healthQuery.isLoading) {
     return (
       <div className='flex flex-col gap-3'>
         <GroupHealthToolbar
+          ratioRange={ratioRange}
           autoRefresh={autoRefresh}
-          isFetching={healthQuery.isFetching}
-          onRefresh={() => healthQuery.refetch()}
+          isFetching={healthQuery.isFetching || ratioHistoryQuery.isFetching}
+          onRatioRangeChange={setRatioRange}
+          onRefresh={refetchAll}
           onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
         />
         <GroupHealthSkeleton />
@@ -215,9 +341,11 @@ export function GroupHealthGrid() {
     return (
       <div className='flex flex-col gap-3'>
         <GroupHealthToolbar
+          ratioRange={ratioRange}
           autoRefresh={autoRefresh}
-          isFetching={healthQuery.isFetching}
-          onRefresh={() => healthQuery.refetch()}
+          isFetching={healthQuery.isFetching || ratioHistoryQuery.isFetching}
+          onRatioRangeChange={setRatioRange}
+          onRefresh={refetchAll}
           onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
         />
         <Empty className='min-h-72 border'>
@@ -238,14 +366,21 @@ export function GroupHealthGrid() {
   return (
     <div className='flex flex-col gap-3'>
       <GroupHealthToolbar
+        ratioRange={ratioRange}
         autoRefresh={autoRefresh}
-        isFetching={healthQuery.isFetching}
-        onRefresh={() => healthQuery.refetch()}
+        isFetching={healthQuery.isFetching || ratioHistoryQuery.isFetching}
+        onRatioRangeChange={setRatioRange}
+        onRefresh={refetchAll}
         onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
       />
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3'>
         {groups.map((group) => (
-          <GroupHealthCard key={group.group} group={group} />
+          <GroupHealthCard
+            key={group.group}
+            group={group}
+            ratioHistory={ratioHistoryMap.get(group.group)}
+            ratioRange={ratioRange}
+          />
         ))}
       </div>
       <HealthLegend />
@@ -254,15 +389,22 @@ export function GroupHealthGrid() {
 }
 
 function GroupHealthToolbar(props: {
+  ratioRange: RatioHistoryRange
   autoRefresh: boolean
   isFetching: boolean
+  onRatioRangeChange: (range: RatioHistoryRange) => void
   onRefresh: () => void
   onToggleAutoRefresh: () => void
 }) {
   const { t } = useTranslation()
 
   return (
-    <div className='flex justify-end gap-2'>
+    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+      <RatioHistoryRangePicker
+        range={props.ratioRange}
+        onChange={props.onRatioRangeChange}
+      />
+      <div className='flex justify-end gap-2'>
       <Tooltip>
         <TooltipTrigger
           render={
@@ -305,11 +447,137 @@ function GroupHealthToolbar(props: {
             : t('Auto refresh is off')}
         </TooltipContent>
       </Tooltip>
+      </div>
     </div>
   )
 }
 
-function GroupHealthCard(props: { group: PerfGroupHealth }) {
+function RatioHistoryRangePicker(props: {
+  range: RatioHistoryRange
+  onChange: (range: RatioHistoryRange) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [draftStart, setDraftStart] = useState(toInputValue(props.range.startTs))
+  const [draftEnd, setDraftEnd] = useState(toInputValue(props.range.endTs))
+
+  const handlePreset = (mode: Exclude<RatioHistoryRangeMode, 'custom'>) => {
+    props.onChange(getPresetRatioHistoryRange(mode))
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setDraftStart(toInputValue(props.range.startTs))
+      setDraftEnd(toInputValue(props.range.endTs))
+    }
+    setOpen(nextOpen)
+  }
+
+  const applyCustomRange = () => {
+    const startTs = parseInputTs(draftStart)
+    const endTs = parseInputTs(draftEnd)
+    if (!startTs || !endTs || startTs >= endTs) return
+    props.onChange({
+      mode: 'custom',
+      startTs,
+      endTs,
+    })
+    setOpen(false)
+  }
+
+  return (
+    <div className='flex flex-wrap items-center gap-1.5'>
+      <Button
+        type='button'
+        variant={props.range.mode === '7d' ? 'default' : 'outline'}
+        size='sm'
+        onClick={() => handlePreset('7d')}
+      >
+        {t('Ratio range: last 7 days')}
+      </Button>
+      <Button
+        type='button'
+        variant={props.range.mode === 'week' ? 'default' : 'outline'}
+        size='sm'
+        onClick={() => handlePreset('week')}
+      >
+        {t('Ratio range: this week')}
+      </Button>
+      <Button
+        type='button'
+        variant={props.range.mode === 'month' ? 'default' : 'outline'}
+        size='sm'
+        onClick={() => handlePreset('month')}
+      >
+        {t('Ratio range: this month')}
+      </Button>
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger
+          render={
+            <Button
+              type='button'
+              variant={props.range.mode === 'custom' ? 'default' : 'outline'}
+              size='sm'
+              className='max-w-full'
+            />
+          }
+        >
+          <CalendarDays data-icon='inline-start' aria-hidden='true' />
+          <span className='truncate'>
+            {props.range.mode === 'custom'
+              ? formatRatioHistoryRangeLabel(props.range)
+              : t('Custom')}
+          </span>
+        </PopoverTrigger>
+        <PopoverContent
+          align='start'
+          className='w-[min(520px,calc(100vw-2rem))] p-3'
+        >
+          <div className='space-y-3'>
+            <div className='grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-end'>
+              <div className='space-y-1.5'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Start Time')}
+                </div>
+                <Input
+                  type='datetime-local'
+                  value={draftStart}
+                  onChange={(event) => setDraftStart(event.target.value)}
+                  className='h-8 text-sm leading-5 tabular-nums'
+                />
+              </div>
+              <span className='text-muted-foreground hidden pb-2 text-xs sm:block'>
+                ~
+              </span>
+              <div className='space-y-1.5'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('End Time')}
+                </div>
+                <Input
+                  type='datetime-local'
+                  value={draftEnd}
+                  onChange={(event) => setDraftEnd(event.target.value)}
+                  className='h-8 text-sm leading-5 tabular-nums'
+                />
+              </div>
+            </div>
+            <div className='flex justify-end'>
+              <Button size='sm' className='h-8' onClick={applyCustomRange}>
+                {t('Confirm')}
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
+function GroupHealthCard(props: {
+  group: PerfGroupHealth
+  ratioHistory: GroupRatioHistorySeries | undefined
+  ratioRange: RatioHistoryRange
+}) {
   const { t } = useTranslation()
   const group = props.group
   const hasSamples = group.request_count > 0
@@ -428,8 +696,131 @@ function GroupHealthCard(props: { group: PerfGroupHealth }) {
             <BucketDot key={bucket.ts} bucket={bucket} />
           ))}
         </div>
+
+        <RatioHistoryChart
+          currentRatio={group.ratio}
+          history={props.ratioHistory}
+          range={props.ratioRange}
+        />
       </div>
     </section>
+  )
+}
+
+function buildRatioChartData(
+  currentRatio: number,
+  history: GroupRatioHistorySeries | undefined,
+  range: RatioHistoryRange
+): RatioChartPoint[] {
+  const points: RatioChartPoint[] = [...(history?.points ?? [])]
+    .filter((point) => point.ts >= range.startTs && point.ts <= range.endTs)
+    .sort((a, b) => a.ts - b.ts)
+    .map((point) => ({
+      ts: point.ts,
+      ratio: point.ratio,
+      source: point.source,
+    }))
+
+  if (!points.length) {
+    points.push({
+      ts: range.startTs,
+      ratio: currentRatio,
+    })
+  }
+
+  const last = points[points.length - 1]
+  if (last && last.ts < range.endTs) {
+    points.push({
+      ts: range.endTs,
+      ratio: last.ratio,
+    })
+  }
+
+  return points
+}
+
+function RatioHistoryChart(props: {
+  currentRatio: number
+  history: GroupRatioHistorySeries | undefined
+  range: RatioHistoryRange
+}) {
+  const { t } = useTranslation()
+  const data = useMemo(
+    () => buildRatioChartData(props.currentRatio, props.history, props.range),
+    [props.currentRatio, props.history, props.range]
+  )
+  const changedCount = Math.max(0, data.length - 2)
+
+  return (
+    <div className='rounded-md border bg-muted/20 px-2.5 py-2'>
+      <div className='mb-1 flex items-center justify-between gap-2'>
+        <div className='text-muted-foreground truncate text-[10px] font-medium'>
+          {t('Ratio history')}
+        </div>
+        <div className='text-muted-foreground shrink-0 font-mono text-[10px] tabular-nums'>
+          {changedCount > 0
+            ? t('{{count}} changes', { count: changedCount })
+            : t('No ratio changes')}
+        </div>
+      </div>
+      <ChartContainer
+        config={ratioChartConfig}
+        className='h-24 w-full aspect-auto'
+        initialDimension={{ width: 320, height: 96 }}
+      >
+        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid vertical={false} strokeDasharray='3 3' />
+          <XAxis
+            dataKey='ts'
+            type='number'
+            domain={[props.range.startTs, props.range.endTs]}
+            tickFormatter={(value) => dayjs.unix(Number(value)).format('MM-DD')}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={6}
+            minTickGap={28}
+          />
+          <YAxis
+            dataKey='ratio'
+            width={32}
+            tickFormatter={(value) => formatRatio(Number(value))}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={4}
+            domain={['dataMin', 'dataMax']}
+          />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(value, _name, item) => (
+                  <div className='grid gap-1'>
+                    <div className='font-mono text-xs font-semibold tabular-nums'>
+                      {formatRatio(Number(value))}
+                    </div>
+                    <div className='text-muted-foreground text-[11px]'>
+                      {dayjs
+                        .unix(Number(item.payload?.ts ?? 0))
+                        .format('YYYY-MM-DD HH:mm')}
+                    </div>
+                  </div>
+                )}
+              />
+            }
+          />
+          <Line
+            type='stepAfter'
+            dataKey='ratio'
+            stroke='var(--color-ratio)'
+            strokeWidth={2}
+            dot={{ r: 2 }}
+            activeDot={{ r: 4 }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ChartContainer>
+    </div>
   )
 }
 

@@ -44,6 +44,19 @@ func GetPerfGroupHealthSummary(c *gin.Context) {
 	common.ApiSuccess(c, summary)
 }
 
+func GetGroupRatioHistory(c *gin.Context) {
+	startTs := getInt64Query(c, "start_ts", 0)
+	endTs := getInt64Query(c, "end_ts", 0)
+
+	summary, err := model.GetGroupRatioHistorySummary(startTs, endTs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, summary)
+}
+
 func GetPerfMetrics(c *gin.Context) {
 	modelName := strings.TrimSpace(c.Query("model"))
 	if modelName == "" {
@@ -92,4 +105,12 @@ func getPerfMetricsGroupIntervalMinutes(c *gin.Context) int {
 		return maxPerfMetricsGroupIntervalMinutes
 	}
 	return intervalMinutes
+}
+
+func getInt64Query(c *gin.Context, key string, defaultValue int64) int64 {
+	value, err := strconv.ParseInt(c.DefaultQuery(key, strconv.FormatInt(defaultValue, 10)), 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }

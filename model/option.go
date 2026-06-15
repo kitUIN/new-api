@@ -248,6 +248,10 @@ func saveOptionValue(option *Option, key string, value string) {
 }
 
 func updateGroupRatioOption(value string) error {
+	return UpdateGroupRatioOptionWithSource(value, GroupRatioHistorySourceManual)
+}
+
+func UpdateGroupRatioOptionWithSource(value string, source string) error {
 	groupRatioOptionUpdateMutex.Lock()
 	defer groupRatioOptionUpdateMutex.Unlock()
 
@@ -262,7 +266,11 @@ func updateGroupRatioOption(value string) error {
 		return err
 	}
 
-	changes := ratio_setting.CompareGroupRatioChanges(previousRatios, ratio_setting.GetGroupRatioCopy())
+	currentRatios := ratio_setting.GetGroupRatioCopy()
+	changes := ratio_setting.CompareGroupRatioChanges(previousRatios, currentRatios)
+	if err := RecordGroupRatioChanges(previousRatios, currentRatios, source); err != nil {
+		common.SysLog("failed to record group ratio changes: " + err.Error())
+	}
 	message := ratio_setting.FormatGroupRatioChangeMessage(changes)
 	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventGroupRatio, message, "group ratio change notify")
 	return nil

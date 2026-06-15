@@ -412,7 +412,7 @@ func syncUpstreamGroupRatioBindings(sourceType string, sourceID int, result map[
 		common.SysLog("failed to marshal synced group ratios: " + err.Error())
 		return
 	}
-	if err := model.UpdateOption("GroupRatio", string(data)); err != nil {
+	if err := model.UpdateGroupRatioOptionWithSource(string(data), model.GroupRatioHistorySourceSync); err != nil {
 		common.SysLog("failed to persist synced group ratios: " + err.Error())
 	}
 }

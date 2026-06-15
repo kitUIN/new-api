@@ -97,3 +97,24 @@ export type PerfGroupHealthData = {
     groups: PerfGroupHealth[]
   }
 }
+
+export type GroupRatioHistoryPoint = {
+  ts: number
+  ratio: number
+  source?: string
+}
+
+export type GroupRatioHistorySeries = {
+  group: string
+  points: GroupRatioHistoryPoint[]
+}
+
+export type GroupRatioHistoryData = {
+  success: boolean
+  message?: string
+  data: {
+    start_ts: number
+    end_ts: number
+    groups: GroupRatioHistorySeries[]
+  }
+}

@@ -12,6 +12,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetGroupRatioHistorySummary(t *testing.T) {
+	truncateTables(t)
+	original := ratio_setting.GroupRatio2JSONString()
+	defer func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(original))
+	}()
+
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1}`))
+	require.NoError(t, RecordGroupRatioChanges(
+		map[string]float64{"default": 1, "vip": 1},
+		map[string]float64{"default": 1, "vip": 0.5},
+		GroupRatioHistorySourceManual,
+	))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.5}`))
+
+	endTs := time.Now().Unix()
+	startTs := endTs - 7*24*60*60
+	summary, err := GetGroupRatioHistorySummary(startTs, endTs)
+	require.NoError(t, err)
+	require.NotEmpty(t, summary.Groups)
+
+	var vipSeries []GroupRatioHistoryPoint
+	for _, series := range summary.Groups {
+		if series.Group == "vip" {
+			vipSeries = series.Points
+			break
+		}
+	}
+	require.GreaterOrEqual(t, len(vipSeries), 2)
+	require.Equal(t, 1.0, vipSeries[0].Ratio)
+	require.Equal(t, 0.5, vipSeries[len(vipSeries)-1].Ratio)
+}
+
 func TestGetPerfMetricsSummaryAggregatesBuckets(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
