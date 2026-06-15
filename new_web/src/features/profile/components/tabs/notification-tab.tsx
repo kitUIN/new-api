@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
+import { Bell, Loader2, Mail, MessageCircle, Server, Webhook } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ROLE } from '@/lib/roles'
@@ -40,6 +40,7 @@ const NOTIFICATION_ICONS: Record<string, typeof Mail> = {
   webhook: Webhook,
   bark: Bell,
   gotify: Server,
+  qq: MessageCircle,
 }
 
 // ============================================================================
@@ -129,7 +130,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           onValueChange={(value) =>
             updateField('notify_type', value as NotifyType)
           }
-          className='grid grid-cols-4 gap-1.5 sm:gap-3'
+          className='grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5'
         >
           {NOTIFICATION_METHODS.map((method) => {
             const Icon = NOTIFICATION_ICONS[method.value]
@@ -157,6 +158,11 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             )
           })}
         </RadioGroup>
+        {settings.notify_type === 'qq' && (
+          <p className='text-muted-foreground text-xs'>
+            {t('Notifications will be sent to the QQ account bound to your profile.')}
+          </p>
+        )}
       </div>
 
       {/* Warning Threshold */}

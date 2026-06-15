@@ -432,6 +432,7 @@ const NotificationSettings = ({
                   <Radio value='webhook'>{t('Webhook通知')}</Radio>
                   <Radio value='bark'>{t('Bark通知')}</Radio>
                   <Radio value='gotify'>{t('Gotify通知')}</Radio>
+                  <Radio value='qq'>{t('QQ通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
@@ -743,6 +744,15 @@ const NotificationSettings = ({
                       </div>
                     </div>
                   </>
+                )}
+
+                {/* QQ推送设置 */}
+                {notificationSettings.warningType === 'qq' && (
+                  <Form.Slot label={t('QQ通知')}>
+                    <div className='text-xs text-gray-500 leading-relaxed'>
+                      {t('系统将发送通知到当前账号已绑定的QQ。')}
+                    </div>
+                  </Form.Slot>
                 )}
               </div>
             </TabPane>

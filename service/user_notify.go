@@ -2,7 +2,6 @@ package service
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -101,6 +100,17 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			return nil
 		}
 		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
+	case dto.NotifyTypeQQ:
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			return err
+		}
+		qqId := strings.TrimSpace(user.QQId)
+		if qqId == "" {
+			common.SysLog(fmt.Sprintf("user %d has no qq id, skip sending qq notification", userId))
+			return nil
+		}
+		return sendQQNotify(qqId, data)
 	}
 	return nil
 }
@@ -215,7 +225,7 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 	}
 
 	// 序列化为 JSON
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := common.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal gotify payload: %v", err)
 	}
@@ -278,4 +288,19 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 	}
 
 	return nil
+}
+
+func sendQQNotify(qqId string, data dto.Notify) error {
+	content := data.Content
+	for _, value := range data.Values {
+		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
+	}
+	message := strings.TrimSpace(data.Title)
+	if content != "" {
+		if message != "" {
+			message += "\n"
+		}
+		message += content
+	}
+	return common.SendQQUserMessage(qqId, message, "qq user notification")
 }

@@ -23,4 +23,5 @@ var (
 	NotifyTypeWebhook = "webhook" // Webhook
 	NotifyTypeBark    = "bark"    // Bark 推送
 	NotifyTypeGotify  = "gotify"  // Gotify 推送
+	NotifyTypeQQ      = "qq"      // QQ 推送
 )
