@@ -748,6 +748,24 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	return err
 }
 
+func ResetUserPasswordByQQId(qqId string, password string) error {
+	if qqId == "" || password == "" {
+		return errors.New("QQ 号或密码为空！")
+	}
+	hashedPassword, err := common.Password2Hash(password)
+	if err != nil {
+		return err
+	}
+	result := DB.Model(&User{}).Where("qq_id = ?", qqId).Update("password", hashedPassword)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("该 QQ 号未绑定账号")
+	}
+	return nil
+}
+
 func IsAdmin(userId int) bool {
 	if userId == 0 {
 		return false

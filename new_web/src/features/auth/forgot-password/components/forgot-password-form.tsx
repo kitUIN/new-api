@@ -20,11 +20,10 @@ import { useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -36,11 +35,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Turnstile } from '@/components/turnstile'
-import { sendPasswordResetEmail } from '@/features/auth/api'
-import {
-  forgotPasswordFormSchema,
-  PASSWORD_RESET_COUNTDOWN,
-} from '@/features/auth/constants'
+import { resetPasswordByQQ } from '@/features/auth/api'
+import { forgotPasswordFormSchema } from '@/features/auth/constants'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 
 export function ForgotPasswordForm({
@@ -57,15 +53,10 @@ export function ForgotPasswordForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const {
-    secondsLeft,
-    isActive,
-    start: startCountdown,
-  } = useCountdown({ initialSeconds: PASSWORD_RESET_COUNTDOWN })
 
   const form = useForm<z.infer<typeof forgotPasswordFormSchema>>({
     resolver: zodResolver(forgotPasswordFormSchema),
-    defaultValues: { email: '' },
+    defaultValues: { qq: '' },
   })
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
@@ -74,13 +65,12 @@ export function ForgotPasswordForm({
 
     setIsLoading(true)
     try {
-      const res = await sendPasswordResetEmail(data.email, turnstileToken)
+      const res = await resetPasswordByQQ(data.qq, turnstileToken)
       if (res?.success) {
         form.reset()
-        startCountdown()
-        toast.success(t('Reset email sent, please check your inbox'))
+        toast.success(t('Password has been reset and sent to your QQ'))
       } else {
-        toast.error(res?.message || t('Failed to send reset email'))
+        toast.error(res?.message || t('Failed to reset password'))
       }
     } catch (_error) {
       // Errors are handled by global interceptor
@@ -98,12 +88,16 @@ export function ForgotPasswordForm({
       >
         <FormField
           control={form.control}
-          name='email'
+          name='qq'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>{t('QQ Number')}</FormLabel>
               <FormControl>
-                <Input placeholder='name@example.com' {...field} />
+                <Input
+                  inputMode='numeric'
+                  placeholder={t('Enter your QQ number')}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -113,12 +107,10 @@ export function ForgotPasswordForm({
         <Button
           type='submit'
           className='mt-2'
-          disabled={isLoading || isActive || !turnstileReady}
+          disabled={isLoading || !turnstileReady}
         >
-          {isActive
-            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
-            : t('Send reset email')}
-          {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
+          {t('Reset password now')}
+          {isLoading ? <Loader2 className='animate-spin' /> : null}
         </Button>
 
         {isTurnstileEnabled && (

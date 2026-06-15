@@ -47,9 +47,10 @@ export const registerFormSchema = z
   })
 
 export const forgotPasswordFormSchema = z.object({
-  email: z.string().email({
-    message: 'Please enter a valid email address',
-  }),
+  qq: z
+    .string()
+    .min(1, 'Please enter your QQ number')
+    .regex(/^\d{5,20}$/, 'Please enter a valid QQ number'),
 })
 
 export const otpFormSchema = z.object({

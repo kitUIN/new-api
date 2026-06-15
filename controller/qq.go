@@ -42,6 +42,26 @@ type qqUnbindRequest struct {
 	QQAdminNumber string `json:"qq_admin_number"`
 }
 
+type qqFriendRequest struct {
+	QQ      string `json:"qq"`
+	AdminQQ string `json:"admin_qq"`
+	To      string `json:"to"`
+}
+
+type qqMessageRequest struct {
+	QQ      string `json:"qq"`
+	AdminQQ string `json:"admin_qq"`
+	To      string `json:"to"`
+	Message string `json:"message"`
+	Content string `json:"content"`
+}
+
+type qqServiceResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
+}
+
 func qqServiceURL(path string) string {
 	return strings.TrimRight(common.QQCallbackAddress, "/") + path
 }
@@ -51,6 +71,120 @@ func setQQServiceAuthHeader(req *http.Request) {
 		req.Header.Set("Authorization", common.QQCallbackAccessToken)
 		req.Header.Set("X-Access-Token", common.QQCallbackAccessToken)
 	}
+}
+
+func ensureQQPasswordResetServiceConfigured() error {
+	if common.QQCallbackAddress == "" || common.QQCallbackAccessToken == "" || common.QQAdminNumber == "" {
+		return errors.New("管理员未配置 QQ 服务地址、accessToken 或管理员 QQ")
+	}
+	return nil
+}
+
+func qqResponseDataTruthy(data any) bool {
+	switch value := data.(type) {
+	case nil:
+		return true
+	case bool:
+		return value
+	case string:
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		return normalized != "" && normalized != "0" && normalized != "false" && normalized != "no"
+	case float64:
+		return value != 0
+	case map[string]any:
+		for _, key := range []string{"is_friend", "friend", "isFriend", "ok", "exists"} {
+			if fieldValue, ok := value[key]; ok {
+				return qqResponseDataTruthy(fieldValue)
+			}
+		}
+		return true
+	default:
+		return true
+	}
+}
+
+func ensureQQIsFriend(qqId string) error {
+	if err := ensureQQPasswordResetServiceConfigured(); err != nil {
+		return err
+	}
+	payload, err := common.Marshal(qqFriendRequest{
+		QQ:      qqId,
+		AdminQQ: common.QQAdminNumber,
+		To:      qqId,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, qqServiceURL("/api/nachoai/friend"), bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	setQQServiceAuthHeader(req)
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+	httpResponse, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer httpResponse.Body.Close()
+	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
+		return errors.New("确认 QQ 好友关系失败")
+	}
+	var res qqServiceResponse
+	if err := common.DecodeJson(httpResponse.Body, &res); err != nil {
+		return err
+	}
+	if !res.Success {
+		if res.Message != "" {
+			return errors.New(res.Message)
+		}
+		return errors.New("该 QQ 号不是好友")
+	}
+	if !qqResponseDataTruthy(res.Data) {
+		return errors.New("该 QQ 号不是好友")
+	}
+	return nil
+}
+
+func sendQQPasswordResetMessage(qqId string) error {
+	if err := ensureQQPasswordResetServiceConfigured(); err != nil {
+		return err
+	}
+	message := fmt.Sprintf("您的 %s 账号密码已重置，新密码为：%s。请登录后及时修改密码。", common.SystemName, qqId)
+	payload, err := common.Marshal(qqMessageRequest{
+		QQ:      qqId,
+		AdminQQ: common.QQAdminNumber,
+		To:      qqId,
+		Message: message,
+		Content: message,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, qqServiceURL("/api/nachoai/send_message"), bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	setQQServiceAuthHeader(req)
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+	httpResponse, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer httpResponse.Body.Close()
+	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
+		return errors.New("发送 QQ 密码重置消息失败")
+	}
+	var res qqServiceResponse
+	if err := common.DecodeJson(httpResponse.Body, &res); err == nil && !res.Success && res.Message != "" {
+		return errors.New(res.Message)
+	}
+	return nil
 }
 
 func getQQIdByCode(code string) (string, error) {

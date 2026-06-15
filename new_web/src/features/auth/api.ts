@@ -63,13 +63,13 @@ export async function logout(): Promise<ApiResponse> {
 // Password Management
 // ----------------------------------------------------------------------------
 
-// Send password reset email
-export async function sendPasswordResetEmail(
-  email: string,
+// Reset password by QQ
+export async function resetPasswordByQQ(
+  qq: string,
   turnstile?: string
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
-    params: { email, turnstile },
+    params: { qq, turnstile },
   })
   return res.data
 }

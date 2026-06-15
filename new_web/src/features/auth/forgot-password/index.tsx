@@ -32,7 +32,7 @@ export function ForgotPassword() {
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {t(
-              'Enter your registered email and we will send you a link to reset your password.'
+              'Enter your bound QQ number. We will verify it is a friend, reset your password to the QQ number, and send the result to QQ.'
             )}
           </p>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>

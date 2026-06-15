@@ -25,7 +25,7 @@ export {
   login2fa,
   logout,
   register,
-  sendPasswordResetEmail,
+  resetPasswordByQQ,
   sendEmailVerification,
   bindEmail,
   getOAuthState,

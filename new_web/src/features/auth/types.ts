@@ -42,7 +42,7 @@ export interface RegisterPayload {
 }
 
 export interface PasswordResetPayload {
-  email: string
+  qq: string
   turnstile?: string
 }
 
