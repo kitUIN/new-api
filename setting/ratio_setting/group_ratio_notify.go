@@ -149,6 +149,9 @@ func CompareUpstreamGroupRatioBindingChanges(previous, current map[string]Upstre
 }
 
 func FormatUpstreamGroupRatioBinding(binding UpstreamGroupRatioBinding) string {
+	if expression := strings.TrimSpace(binding.OffsetExpression); expression != "" {
+		return fmt.Sprintf("%s #%d / %s / 表达式 %s", binding.SourceType, binding.SourceID, binding.UpstreamGroup, expression)
+	}
 	if binding.Offset == 0 {
 		return fmt.Sprintf("%s #%d / %s", binding.SourceType, binding.SourceID, binding.UpstreamGroup)
 	}

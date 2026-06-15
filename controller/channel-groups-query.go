@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"reflect"
 	"sort"
@@ -333,17 +332,6 @@ func groupRatioSyncNearlyEqual(a, b float64) bool {
 	return b-a < groupRatioSyncEpsilon
 }
 
-func calculateBoundGroupRatio(upstreamRatio float64, offset float64) (float64, bool) {
-	if math.IsNaN(upstreamRatio) || math.IsInf(upstreamRatio, 0) || math.IsNaN(offset) || math.IsInf(offset, 0) {
-		return 0, false
-	}
-	result := upstreamRatio + offset
-	if result < 0 {
-		result = 0
-	}
-	return result, true
-}
-
 func applyUpstreamGroupRatioBindingsToMap(
 	sourceType string,
 	sourceID int,
@@ -371,9 +359,9 @@ func applyUpstreamGroupRatioBindingsToMap(
 			common.SysLog(fmt.Sprintf("skip upstream group ratio sync: local_group=%s source_type=%s source_id=%d upstream_group=%s reason=upstream group missing", localGroup, sourceType, sourceID, binding.UpstreamGroup))
 			continue
 		}
-		nextRatio, ok := calculateBoundGroupRatio(item.Ratio, binding.Offset)
-		if !ok {
-			common.SysLog(fmt.Sprintf("skip upstream group ratio sync: local_group=%s source_type=%s source_id=%d upstream_group=%s reason=invalid ratio", localGroup, sourceType, sourceID, binding.UpstreamGroup))
+		nextRatio, err := ratio_setting.CalculateUpstreamGroupBoundRatio(item.Ratio, binding)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("skip upstream group ratio sync: local_group=%s source_type=%s source_id=%d upstream_group=%s reason=invalid ratio: %s", localGroup, sourceType, sourceID, binding.UpstreamGroup, err.Error()))
 			continue
 		}
 		if groupRatioSyncNearlyEqual(currentRatio, nextRatio) {

@@ -51,6 +51,7 @@ func TestApplyUpstreamGroupRatioBindingsToMap(t *testing.T) {
 		"default": 1,
 		"vip":     1,
 		"locked":  0.75,
+		"expr":    1,
 	}
 	bindings := map[string]ratio_setting.UpstreamGroupRatioBinding{
 		"default": {
@@ -71,6 +72,12 @@ func TestApplyUpstreamGroupRatioBindingsToMap(t *testing.T) {
 			UpstreamGroup: "up-vip",
 			Offset:        -2,
 		},
+		"expr": {
+			SourceType:       ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:         10,
+			UpstreamGroup:    "up-default",
+			OffsetExpression: "(x + 0.3) / 10 + 0.4",
+		},
 		"missing-local": {
 			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceChannel,
 			SourceID:      10,
@@ -90,6 +97,7 @@ func TestApplyUpstreamGroupRatioBindingsToMap(t *testing.T) {
 	require.Equal(t, 1.21, next["default"])
 	require.Equal(t, 1.0, next["vip"])
 	require.Equal(t, 0.0, next["locked"])
+	require.InDelta(t, 0.55, next["expr"], 1e-9)
 	require.NotContains(t, next, "missing-local")
 }
 

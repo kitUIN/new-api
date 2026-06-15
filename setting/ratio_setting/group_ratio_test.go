@@ -44,6 +44,22 @@ func TestCheckUpstreamGroupRatioBindings(t *testing.T) {
 			"offset": -0.05
 		}
 	}`))
+	require.NoError(t, CheckUpstreamGroupRatioBindings(`{
+		"default": {
+			"source_type": "provider",
+			"source_id": 2,
+			"upstream_group": "default",
+			"offset": "(x + 0.3) / 10 + 0.4"
+		}
+	}`))
+	require.NoError(t, CheckUpstreamGroupRatioBindings(`{
+		"default": {
+			"source_type": "provider",
+			"source_id": 2,
+			"upstream_group": "default",
+			"offset_expr": "(x + 0.3) / 10 + 0.4"
+		}
+	}`))
 
 	require.Error(t, CheckUpstreamGroupRatioBindings(`{
 		"default": {
@@ -66,6 +82,31 @@ func TestCheckUpstreamGroupRatioBindings(t *testing.T) {
 			"upstream_group": ""
 		}
 	}`))
+	require.Error(t, CheckUpstreamGroupRatioBindings(`{
+		"default": {
+			"source_type": "channel",
+			"source_id": 1,
+			"upstream_group": "default",
+			"offset": "x + "
+		}
+	}`))
+}
+
+func TestCalculateUpstreamGroupBoundRatio(t *testing.T) {
+	ratio, err := CalculateUpstreamGroupBoundRatio(1.2, UpstreamGroupRatioBinding{Offset: 0.01})
+	require.NoError(t, err)
+	require.Equal(t, 1.21, ratio)
+
+	ratio, err = CalculateUpstreamGroupBoundRatio(1.2, UpstreamGroupRatioBinding{OffsetExpression: "(x + 0.3) / 10 + 0.4"})
+	require.NoError(t, err)
+	require.InDelta(t, 0.55, ratio, 1e-9)
+
+	ratio, err = CalculateUpstreamGroupBoundRatio(0.8, UpstreamGroupRatioBinding{OffsetExpression: "x - 2"})
+	require.NoError(t, err)
+	require.Equal(t, 0.0, ratio)
+
+	_, err = CalculateUpstreamGroupBoundRatio(1.2, UpstreamGroupRatioBinding{OffsetExpression: "x + "})
+	require.Error(t, err)
 }
 
 func TestCheckGroupRatioRejectsNegative(t *testing.T) {

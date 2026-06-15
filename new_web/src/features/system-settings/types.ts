@@ -412,7 +412,8 @@ export type UpstreamGroupRatioBinding = {
   source_type: UpstreamGroupRatioBindingSourceType
   source_id: number
   upstream_group: string
-  offset?: number
+  offset?: number | string
+  offset_expr?: string
 }
 
 export type GroupQueryItem = {

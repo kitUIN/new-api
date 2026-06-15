@@ -1,13 +1,16 @@
 package ratio_setting
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/expr-lang/expr"
 )
 
 var defaultGroupRatio = map[string]float64{
@@ -32,10 +35,63 @@ const (
 )
 
 type UpstreamGroupRatioBinding struct {
-	SourceType    string  `json:"source_type"`
-	SourceID      int     `json:"source_id"`
-	UpstreamGroup string  `json:"upstream_group"`
-	Offset        float64 `json:"offset,omitempty"`
+	SourceType       string  `json:"source_type"`
+	SourceID         int     `json:"source_id"`
+	UpstreamGroup    string  `json:"upstream_group"`
+	Offset           float64 `json:"offset,omitempty"`
+	OffsetExpression string  `json:"-"`
+}
+
+func (binding *UpstreamGroupRatioBinding) UnmarshalJSON(data []byte) error {
+	var payload struct {
+		SourceType       string          `json:"source_type"`
+		SourceID         int             `json:"source_id"`
+		UpstreamGroup    string          `json:"upstream_group"`
+		Offset           json.RawMessage `json:"offset"`
+		OffsetExpression string          `json:"offset_expr"`
+	}
+	if err := common.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+
+	binding.SourceType = payload.SourceType
+	binding.SourceID = payload.SourceID
+	binding.UpstreamGroup = payload.UpstreamGroup
+	binding.OffsetExpression = strings.TrimSpace(payload.OffsetExpression)
+	binding.Offset = 0
+
+	if len(payload.Offset) == 0 || common.GetJsonType(payload.Offset) == "null" {
+		return nil
+	}
+	switch common.GetJsonType(payload.Offset) {
+	case "string":
+		var offsetExpression string
+		if err := common.Unmarshal(payload.Offset, &offsetExpression); err != nil {
+			return err
+		}
+		binding.OffsetExpression = strings.TrimSpace(offsetExpression)
+	case "number":
+		if err := common.Unmarshal(payload.Offset, &binding.Offset); err != nil {
+			return err
+		}
+	default:
+		return errors.New("upstream group ratio binding offset must be a number or expression string")
+	}
+	return nil
+}
+
+func (binding UpstreamGroupRatioBinding) MarshalJSON() ([]byte, error) {
+	payload := map[string]interface{}{
+		"source_type":    binding.SourceType,
+		"source_id":      binding.SourceID,
+		"upstream_group": binding.UpstreamGroup,
+	}
+	if expression := strings.TrimSpace(binding.OffsetExpression); expression != "" {
+		payload["offset"] = expression
+	} else if binding.Offset != 0 {
+		payload["offset"] = binding.Offset
+	}
+	return common.Marshal(payload)
 }
 
 var upstreamGroupRatioBindingMap = types.NewRWMap[string, UpstreamGroupRatioBinding]()
@@ -142,6 +198,62 @@ func UpdateUpstreamGroupRatioBindingsByJSONString(jsonStr string) error {
 	return types.LoadFromJsonString(upstreamGroupRatioBindingMap, jsonStr)
 }
 
+func CheckUpstreamGroupRatioOffsetExpression(expression string) error {
+	expression = strings.TrimSpace(expression)
+	if expression == "" {
+		return nil
+	}
+	_, err := expr.Compile(
+		expression,
+		expr.Env(map[string]interface{}{"x": float64(0)}),
+		expr.AsFloat64(),
+	)
+	if err != nil {
+		return fmt.Errorf("invalid offset expression: %w", err)
+	}
+	return nil
+}
+
+func CalculateUpstreamGroupBoundRatio(upstreamRatio float64, binding UpstreamGroupRatioBinding) (float64, error) {
+	if math.IsNaN(upstreamRatio) || math.IsInf(upstreamRatio, 0) {
+		return 0, errors.New("upstream ratio must be finite")
+	}
+
+	var result float64
+	if expression := strings.TrimSpace(binding.OffsetExpression); expression != "" {
+		prog, err := expr.Compile(
+			expression,
+			expr.Env(map[string]interface{}{"x": float64(0)}),
+			expr.AsFloat64(),
+		)
+		if err != nil {
+			return 0, fmt.Errorf("offset expression compile error: %w", err)
+		}
+		output, err := expr.Run(prog, map[string]interface{}{"x": upstreamRatio})
+		if err != nil {
+			return 0, fmt.Errorf("offset expression run error: %w", err)
+		}
+		value, ok := output.(float64)
+		if !ok {
+			return 0, fmt.Errorf("offset expression result is %T, want float64", output)
+		}
+		result = value
+	} else {
+		if math.IsNaN(binding.Offset) || math.IsInf(binding.Offset, 0) {
+			return 0, errors.New("offset must be finite")
+		}
+		result = upstreamRatio + binding.Offset
+	}
+
+	if math.IsNaN(result) || math.IsInf(result, 0) {
+		return 0, errors.New("bound ratio must be finite")
+	}
+	if result < 0 {
+		result = 0
+	}
+	return result, nil
+}
+
 func CheckGroupRatio(jsonStr string) error {
 	checkGroupRatio := make(map[string]float64)
 	err := common.Unmarshal([]byte(jsonStr), &checkGroupRatio)
@@ -178,6 +290,9 @@ func CheckUpstreamGroupRatioBindings(jsonStr string) error {
 		}
 		if math.IsNaN(binding.Offset) || math.IsInf(binding.Offset, 0) {
 			return errors.New("upstream group ratio binding offset must be finite: " + group)
+		}
+		if err := CheckUpstreamGroupRatioOffsetExpression(binding.OffsetExpression); err != nil {
+			return fmt.Errorf("upstream group ratio binding offset expression invalid: %s: %w", group, err)
 		}
 	}
 	return nil

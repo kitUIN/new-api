@@ -127,6 +127,54 @@ function normalizeOffset(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function getBindingOffsetExpression(
+  binding: UpstreamGroupRatioBinding | undefined
+): string {
+  if (!binding) return '0'
+  const expression = String(binding.offset_expr ?? '').trim()
+  if (expression) return expression
+  if (typeof binding.offset === 'string') {
+    return binding.offset.trim() || '0'
+  }
+  return String(normalizeOffset(binding.offset))
+}
+
+function isNumericOffsetExpression(expression: string): boolean {
+  if (expression.trim() === '') return true
+  return Number.isFinite(Number(expression))
+}
+
+function evaluateOffsetExpression(expression: string, upstreamRatio: number) {
+  const trimmed = expression.trim()
+  if (trimmed === '') return upstreamRatio
+  if (isNumericOffsetExpression(trimmed)) {
+    return upstreamRatio + Number(trimmed)
+  }
+
+  if (!/^[0-9xX+\-*/().\s]+$/.test(trimmed)) return null
+  try {
+    const fn = new Function('x', `"use strict"; return (${trimmed});`)
+    const result = Number(fn(upstreamRatio))
+    return Number.isFinite(result) ? result : null
+  } catch {
+    return null
+  }
+}
+
+function serializeOffsetExpression(expression: string): {
+  offset?: number | string
+  offset_expr?: string
+} {
+  const trimmed = expression.trim()
+  if (trimmed === '' || trimmed === '0') {
+    return {}
+  }
+  if (isNumericOffsetExpression(trimmed)) {
+    return { offset: Number(trimmed) }
+  }
+  return { offset: trimmed }
+}
+
 function getSourceKey(sourceType: 'channel' | 'provider', sourceId: number) {
   return `${sourceType}:${sourceId}` as BindingSourceKey
 }
@@ -159,7 +207,11 @@ function calculateFinalRatio(
   if (!source || !binding) return null
   const upstream = source.last_result?.[binding.upstream_group]?.ratio
   if (!Number.isFinite(Number(upstream))) return null
-  return Math.max(0, Number(upstream) + normalizeOffset(binding.offset))
+  const value = evaluateOffsetExpression(
+    getBindingOffsetExpression(binding),
+    Number(upstream)
+  )
+  return value === null ? null : Math.max(0, value)
 }
 
 function buildGroupPricingRows(
@@ -1122,7 +1174,7 @@ function GroupPricingTable({
                                   <span className='text-muted-foreground'>
                                     {' '}
                                     {t('offset')}{' '}
-                                    {normalizeOffset(binding.offset)}
+                                    {getBindingOffsetExpression(binding)}
                                   </span>
                                   {finalRatio !== null && (
                                     <span className='text-muted-foreground'>
@@ -1264,7 +1316,7 @@ function GroupBindingDialog({
     if (binding) {
       setSourceKey(getSourceKey(binding.source_type, binding.source_id))
       setUpstreamGroup(binding.upstream_group)
-      setOffset(String(normalizeOffset(binding.offset)))
+      setOffset(getBindingOffsetExpression(binding))
       return
     }
 
@@ -1292,14 +1344,17 @@ function GroupBindingDialog({
       source_type: parsedSource.sourceType,
       source_id: parsedSource.sourceID,
       upstream_group: upstreamGroup.trim(),
-      offset: normalizeOffset(offset),
+      ...serializeOffsetExpression(offset),
     })
   }
 
   const selectedItem = selectedSource?.last_result?.[upstreamGroup]
   const finalRatio =
     selectedItem && Number.isFinite(Number(selectedItem.ratio))
-      ? Math.max(0, Number(selectedItem.ratio) + normalizeOffset(offset))
+      ? (() => {
+          const value = evaluateOffsetExpression(offset, Number(selectedItem.ratio))
+          return value === null ? null : Math.max(0, value)
+        })()
       : null
 
   return (
@@ -1379,11 +1434,9 @@ function GroupBindingDialog({
           <div className='space-y-2'>
             <Label>{t('Offset')}</Label>
             <Input
-              type='number'
-              step={0.01}
               value={offset}
               onChange={(event) => setOffset(event.target.value)}
-              placeholder='0'
+              placeholder='(x + 0.3) / 10 + 0.4'
             />
           </div>
 
