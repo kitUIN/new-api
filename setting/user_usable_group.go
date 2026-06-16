@@ -44,6 +44,34 @@ func UserUsableGroups2JSONString() string {
 	return string(jsonBytes)
 }
 
+func BuildDisabledUserUsableGroupJSONString(groupName string) (string, bool, error) {
+	groupName = strings.TrimSpace(groupName)
+	if groupName == "" {
+		return "", false, nil
+	}
+
+	userUsableGroupsMutex.RLock()
+	defer userUsableGroupsMutex.RUnlock()
+
+	desc, ok := userUsableGroups[groupName]
+	if !ok {
+		return "", false, nil
+	}
+
+	nextGroups := make(map[string]string, len(userUsableGroups))
+	for k, v := range userUsableGroups {
+		nextGroups[k] = v
+	}
+	delete(nextGroups, groupName)
+	nextGroups[disabledGroupDescriptionPrefix+groupName] = desc
+
+	jsonBytes, err := common.Marshal(nextGroups)
+	if err != nil {
+		return "", false, err
+	}
+	return string(jsonBytes), true, nil
+}
+
 func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 	userUsableGroupsMutex.Lock()
 	defer userUsableGroupsMutex.Unlock()

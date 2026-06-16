@@ -34,6 +34,27 @@ func TestDisabledGroupDescriptionsAreStoredButNotSelectable(t *testing.T) {
 	}
 }
 
+func TestBuildDisabledUserUsableGroupJSONString(t *testing.T) {
+	original := UserUsableGroups2JSONString()
+	defer func() {
+		if err := UpdateUserUsableGroupsByJSONString(original); err != nil {
+			t.Fatalf("restore user usable groups: %v", err)
+		}
+	}()
+
+	require.NoError(t, UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+
+	next, changed, err := BuildDisabledUserUsableGroupJSONString("vip")
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.JSONEq(t, `{"default":"Default","__disabled_description__:vip":"VIP"}`, next)
+
+	next, changed, err = BuildDisabledUserUsableGroupJSONString("missing")
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.Empty(t, next)
+}
+
 func TestCompareUserUsableGroupChanges(t *testing.T) {
 	changes := CompareUserUsableGroupChanges(
 		map[string]string{
