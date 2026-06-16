@@ -433,12 +433,13 @@ func TestGetPerfGroupHealthSummaryFiltersAndSortsGroups(t *testing.T) {
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
 		monitorSetting.AutoTestChannelSkipGroups = originalSkipGroups
 	})
-	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1,"skipped":1,"empty":1}`))
-	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default group","vip":"VIP","skipped":"Skipped","empty":"Empty"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":2,"cheap":0.5,"skipped":1,"empty":1}`))
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default group","vip":"VIP","cheap":"Cheap","skipped":"Skipped","empty":"Empty"}`))
 	monitorSetting.AutoTestChannelSkipGroups = "skipped"
 	insertEnabledChannel(t, 1, "default")
 	insertEnabledChannel(t, 2, "vip")
-	insertEnabledChannel(t, 3, "skipped")
+	insertEnabledChannel(t, 3, "cheap")
+	insertEnabledChannel(t, 4, "skipped")
 	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
 		Enabled:       true,
 		BucketTime:    "10min",
@@ -467,12 +468,18 @@ func TestGetPerfGroupHealthSummaryFiltersAndSortsGroups(t *testing.T) {
 	})
 	RecordPerfMetricSample(PerfMetricSample{
 		Timestamp: base + 40,
+		ModelName: "cheap-high",
+		Group:     "cheap",
+		Success:   true,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: base + 50,
 		ModelName: "skipped-hidden",
 		Group:     "skipped",
 		Success:   true,
 	})
 	RecordPerfMetricSample(PerfMetricSample{
-		Timestamp: base + 50,
+		Timestamp: base + 60,
 		ModelName: "empty-hidden",
 		Group:     "empty",
 		Success:   true,
@@ -481,9 +488,10 @@ func TestGetPerfGroupHealthSummaryFiltersAndSortsGroups(t *testing.T) {
 
 	summary, err := GetPerfGroupHealthSummary(24, 10)
 	require.NoError(t, err)
-	require.Len(t, summary.Groups, 2)
-	require.Equal(t, "vip", summary.Groups[0].Group)
-	require.Equal(t, "default", summary.Groups[1].Group)
+	require.Len(t, summary.Groups, 3)
+	require.Equal(t, "cheap", summary.Groups[0].Group)
+	require.Equal(t, "vip", summary.Groups[1].Group)
+	require.Equal(t, "default", summary.Groups[2].Group)
 	for _, group := range summary.Groups {
 		require.NotEqual(t, "skipped", group.Group)
 		require.NotEqual(t, "empty", group.Group)

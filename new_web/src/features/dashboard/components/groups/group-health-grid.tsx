@@ -245,6 +245,35 @@ function calculateRecentSuccessRate(
   }
 }
 
+function compareGroupHealth(
+  left: PerfGroupHealth,
+  right: PerfGroupHealth
+): number {
+  const leftRecent = calculateRecentSuccessRate(
+    left.buckets,
+    HEALTH_RECENT_WINDOW_HOURS
+  )
+  const rightRecent = calculateRecentSuccessRate(
+    right.buckets,
+    HEALTH_RECENT_WINDOW_HOURS
+  )
+
+  if (leftRecent.requestCount !== rightRecent.requestCount) {
+    if (leftRecent.requestCount === 0) return 1
+    if (rightRecent.requestCount === 0) return -1
+  }
+  if (leftRecent.successRate !== rightRecent.successRate) {
+    return rightRecent.successRate - leftRecent.successRate
+  }
+  if (left.ratio !== right.ratio) {
+    return left.ratio - right.ratio
+  }
+  if (left.provider_count !== right.provider_count) {
+    return right.provider_count - left.provider_count
+  }
+  return left.group.localeCompare(right.group)
+}
+
 function useElementWidth<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
   const [width, setWidth] = useState(0)
@@ -306,7 +335,7 @@ export function GroupHealthGrid() {
   })
 
   const groups = useMemo(
-    () => healthQuery.data?.data.groups ?? [],
+    () => [...(healthQuery.data?.data.groups ?? [])].sort(compareGroupHealth),
     [healthQuery.data]
   )
   const ratioHistoryMap = useMemo(() => {

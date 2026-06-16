@@ -678,6 +678,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if leftRate != rightRate {
 			return leftRate > rightRate
 		}
+		if resultGroups[i].Ratio != resultGroups[j].Ratio {
+			return resultGroups[i].Ratio < resultGroups[j].Ratio
+		}
 		if resultGroups[i].ProviderCount != resultGroups[j].ProviderCount {
 			return resultGroups[i].ProviderCount > resultGroups[j].ProviderCount
 		}
