@@ -45,6 +45,40 @@ func TestGetGroupRatioHistorySummary(t *testing.T) {
 	require.Equal(t, 0.5, vipSeries[len(vipSeries)-1].Ratio)
 }
 
+func TestRecordGroupRatioChangesSkipsAddedGroups(t *testing.T) {
+	truncateTables(t)
+	original := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(original))
+	})
+
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"new":0.7}`))
+	require.NoError(t, RecordGroupRatioChanges(
+		map[string]float64{"default": 1},
+		map[string]float64{"default": 1, "new": 0.7},
+		GroupRatioHistorySourceManual,
+	))
+
+	var count int64
+	require.NoError(t, DB.Model(&GroupRatioHistory{}).Where(commonGroupCol+" = ?", "new").Count(&count).Error)
+	require.Zero(t, count)
+
+	endTs := time.Now().Unix()
+	startTs := endTs - 7*24*60*60
+	summary, err := GetGroupRatioHistorySummary(startTs, endTs)
+	require.NoError(t, err)
+
+	var newSeries []GroupRatioHistoryPoint
+	for _, series := range summary.Groups {
+		if series.Group == "new" {
+			newSeries = series.Points
+			break
+		}
+	}
+	require.Len(t, newSeries, 1)
+	require.Equal(t, 0.7, newSeries[0].Ratio)
+}
+
 func TestGetPerfMetricsSummaryAggregatesBuckets(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()

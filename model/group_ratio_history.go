@@ -51,6 +51,9 @@ func RecordGroupRatioChanges(previous, current map[string]float64, source string
 	now := time.Now().Unix()
 	records := make([]GroupRatioHistory, 0, len(changes))
 	for _, change := range changes {
+		if change.Type == ratio_setting.GroupRatioChangeAdded {
+			continue
+		}
 		group := strings.TrimSpace(change.Group)
 		if group == "" {
 			group = "default"
@@ -62,6 +65,9 @@ func RecordGroupRatioChanges(previous, current map[string]float64, source string
 			Source:    source,
 			CreatedAt: now,
 		})
+	}
+	if len(records) == 0 {
+		return nil
 	}
 	return DB.Create(&records).Error
 }
