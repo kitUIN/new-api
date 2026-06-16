@@ -39,9 +39,19 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CompactDateTimeRangePicker } from '@/components/compact-date-time-range-picker'
 import { getGroupQuotaData } from '@/features/dashboard/api'
-import { TIME_RANGE_PRESETS } from '@/features/dashboard/constants'
-import { getPresetDateRange } from '@/features/dashboard/lib'
+import {
+  DASHBOARD_STATS_ALL_RANGE_VALUE,
+  DASHBOARD_STATS_CUSTOM_RANGE_VALUE,
+  TIME_RANGE_PRESETS,
+} from '@/features/dashboard/constants'
+import {
+  getAllUnixTimeRange,
+  getPresetDateRange,
+  getPresetUnixTimeRange,
+  toUnixTimeRange,
+} from '@/features/dashboard/lib'
 import type { GroupQuotaDataItem } from '@/features/dashboard/types'
 
 interface GroupModelStats {
@@ -261,24 +271,49 @@ function TableSkeletonRows() {
 
 export function GroupStatsTable() {
   const { t } = useTranslation()
-  const [selectedRange, setSelectedRange] = useState(7)
+  const [selectedRange, setSelectedRange] = useState<string>('7')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [customRange, setCustomRange] = useState<{
+    start?: Date
+    end?: Date
+  }>(() => getPresetDateRange(7))
   const [timeRange, setTimeRange] = useState(() => {
-    const { start, end } = getPresetDateRange(7)
-    return {
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    }
+    return getPresetUnixTimeRange(7)
   })
 
-  const handleRangeChange = useCallback((days: number) => {
-    setSelectedRange(days)
-    const { start, end } = getPresetDateRange(days)
-    setTimeRange({
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    })
-  }, [])
+  const handleRangeChange = useCallback(
+    (value: string) => {
+      setSelectedRange(value)
+
+      if (value === DASHBOARD_STATS_ALL_RANGE_VALUE) {
+        setTimeRange(getAllUnixTimeRange())
+        return
+      }
+
+      if (value === DASHBOARD_STATS_CUSTOM_RANGE_VALUE) {
+        if (customRange.start && customRange.end) {
+          setTimeRange(
+            toUnixTimeRange({ start: customRange.start, end: customRange.end })
+          )
+        }
+        return
+      }
+
+      setTimeRange(getPresetUnixTimeRange(Number(value)))
+    },
+    [customRange.end, customRange.start]
+  )
+
+  const handleCustomRangeChange = useCallback(
+    (range: { start?: Date; end?: Date }) => {
+      setSelectedRange(DASHBOARD_STATS_CUSTOM_RANGE_VALUE)
+      setCustomRange(range)
+      if (range.start && range.end) {
+        setTimeRange(toUnixTimeRange({ start: range.start, end: range.end }))
+      }
+    },
+    []
+  )
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['dashboard', 'group-quota', timeRange],
@@ -312,11 +347,17 @@ export function GroupStatsTable() {
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
         <Tabs
-          value={String(selectedRange)}
-          onValueChange={(value) => handleRangeChange(Number(value))}
+          value={selectedRange}
+          onValueChange={handleRangeChange}
           className='shrink-0'
         >
           <TabsList>
+            <TabsTrigger
+              value={DASHBOARD_STATS_ALL_RANGE_VALUE}
+              className='px-2.5 text-xs'
+            >
+              {t('All')}
+            </TabsTrigger>
             {TIME_RANGE_PRESETS.map((preset) => (
               <TabsTrigger
                 key={preset.days}
@@ -326,8 +367,23 @@ export function GroupStatsTable() {
                 {t(preset.label)}
               </TabsTrigger>
             ))}
+            <TabsTrigger
+              value={DASHBOARD_STATS_CUSTOM_RANGE_VALUE}
+              className='px-2.5 text-xs'
+            >
+              {t('Custom')}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {selectedRange === DASHBOARD_STATS_CUSTOM_RANGE_VALUE && (
+          <CompactDateTimeRangePicker
+            start={customRange.start}
+            end={customRange.end}
+            onChange={handleCustomRangeChange}
+            className='h-8 w-[min(26rem,calc(100vw-2rem))] text-xs'
+          />
+        )}
 
         {isFetching && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />

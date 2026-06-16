@@ -27,16 +27,22 @@ import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CompactDateTimeRangePicker } from '@/components/compact-date-time-range-picker'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
+  DASHBOARD_STATS_ALL_RANGE_VALUE,
+  DASHBOARD_STATS_CUSTOM_RANGE_VALUE,
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
 } from '@/features/dashboard/constants'
 import {
+  getAllUnixTimeRange,
   getDefaultDays,
   getPresetDateRange,
-  getSavedGranularity,
+  getPresetUnixTimeRange,
   saveGranularity,
+  getSavedGranularity,
+  toUnixTimeRange,
   processUserChartData,
 } from '@/features/dashboard/lib'
 import type { ProcessedUserChartData } from '@/features/dashboard/types'
@@ -76,35 +82,63 @@ export function UserCharts() {
   const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(() =>
     getSavedGranularity()
   )
-  const [selectedRange, setSelectedRange] = useState<number>(() =>
-    getDefaultDays(timeGranularity)
+  const [selectedRange, setSelectedRange] = useState<string>(() =>
+    String(getDefaultDays(timeGranularity))
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
+  const [customRange, setCustomRange] = useState<{
+    start?: Date
+    end?: Date
+  }>(() => getPresetDateRange(getDefaultDays(timeGranularity)))
   const [timeRange, setTimeRange] = useState(() => {
-    const days = getDefaultDays(timeGranularity)
-    const { start, end } = getPresetDateRange(days)
-    return {
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    }
+    return getPresetUnixTimeRange(getDefaultDays(timeGranularity))
   })
 
-  const handleRangeChange = useCallback((days: number) => {
-    setSelectedRange(days)
-    const { start, end } = getPresetDateRange(days)
-    setTimeRange({
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    })
-  }, [])
+  const handleRangeChange = useCallback(
+    (value: string) => {
+      setSelectedRange(value)
+
+      if (value === DASHBOARD_STATS_ALL_RANGE_VALUE) {
+        setTimeRange(getAllUnixTimeRange())
+        return
+      }
+
+      if (value === DASHBOARD_STATS_CUSTOM_RANGE_VALUE) {
+        if (customRange.start && customRange.end) {
+          setTimeRange(
+            toUnixTimeRange({ start: customRange.start, end: customRange.end })
+          )
+        }
+        return
+      }
+
+      setTimeRange(getPresetUnixTimeRange(Number(value)))
+    },
+    [customRange.end, customRange.start]
+  )
+
+  const handleCustomRangeChange = useCallback(
+    (range: { start?: Date; end?: Date }) => {
+      setSelectedRange(DASHBOARD_STATS_CUSTOM_RANGE_VALUE)
+      setCustomRange(range)
+      if (range.start && range.end) {
+        setTimeRange(toUnixTimeRange({ start: range.start, end: range.end }))
+      }
+    },
+    []
+  )
 
   const handleGranularityChange = useCallback(
     (g: TimeGranularity) => {
       setTimeGranularity(g)
       saveGranularity(g)
       const days = getDefaultDays(g)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
+      if (
+        selectedRange !== DASHBOARD_STATS_ALL_RANGE_VALUE &&
+        selectedRange !== DASHBOARD_STATS_CUSTOM_RANGE_VALUE &&
+        String(days) !== selectedRange
+      ) {
+        handleRangeChange(String(days))
       }
     },
     [selectedRange, handleRangeChange]
@@ -157,11 +191,17 @@ export function UserCharts() {
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
         <Tabs
-          value={String(selectedRange)}
-          onValueChange={(value) => handleRangeChange(Number(value))}
+          value={selectedRange}
+          onValueChange={handleRangeChange}
           className='shrink-0'
         >
           <TabsList>
+            <TabsTrigger
+              value={DASHBOARD_STATS_ALL_RANGE_VALUE}
+              className='px-2.5 text-xs'
+            >
+              {t('All')}
+            </TabsTrigger>
             {TIME_RANGE_PRESETS.map((preset) => (
               <TabsTrigger
                 key={preset.days}
@@ -171,8 +211,23 @@ export function UserCharts() {
                 {t(preset.label)}
               </TabsTrigger>
             ))}
+            <TabsTrigger
+              value={DASHBOARD_STATS_CUSTOM_RANGE_VALUE}
+              className='px-2.5 text-xs'
+            >
+              {t('Custom')}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {selectedRange === DASHBOARD_STATS_CUSTOM_RANGE_VALUE && (
+          <CompactDateTimeRangePicker
+            start={customRange.start}
+            end={customRange.end}
+            onChange={handleCustomRangeChange}
+            className='h-8 w-[min(26rem,calc(100vw-2rem))] text-xs'
+          />
+        )}
 
         <Tabs
           value={timeGranularity}

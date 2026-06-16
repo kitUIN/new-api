@@ -52,6 +52,10 @@ export const TIME_RANGE_PRESETS = [
   { label: '29 Days', days: 29 },
 ] as const
 
+export const DASHBOARD_STATS_ALL_RANGE_VALUE = 'all'
+export const DASHBOARD_STATS_CUSTOM_RANGE_VALUE = 'custom'
+export const DASHBOARD_STATS_ALL_START_TIMESTAMP = 0
+
 export const CONSUMPTION_DISTRIBUTION_CHART_OPTIONS = [
   { value: 'bar', labelKey: 'Bar Chart' },
   { value: 'area', labelKey: 'Area Chart' },

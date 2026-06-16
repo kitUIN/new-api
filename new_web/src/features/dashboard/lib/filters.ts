@@ -23,6 +23,7 @@ import {
   type TimeGranularity,
 } from '@/lib/time'
 import {
+  DASHBOARD_STATS_ALL_START_TIMESTAMP,
   DASHBOARD_CHART_PREFERENCES_STORAGE_KEY,
   DEFAULT_DASHBOARD_CHART_PREFERENCES,
   EMPTY_DASHBOARD_FILTERS,
@@ -154,6 +155,33 @@ export function getPresetDateRange(days: number): { start: Date; end: Date } {
   }
 
   return getRollingDateRange(days)
+}
+
+export function toUnixTimeRange(range: { start: Date; end: Date }): {
+  start_timestamp: number
+  end_timestamp: number
+} {
+  return {
+    start_timestamp: Math.floor(range.start.getTime() / 1000),
+    end_timestamp: Math.floor(range.end.getTime() / 1000),
+  }
+}
+
+export function getPresetUnixTimeRange(days: number): {
+  start_timestamp: number
+  end_timestamp: number
+} {
+  return toUnixTimeRange(getPresetDateRange(days))
+}
+
+export function getAllUnixTimeRange(): {
+  start_timestamp: number
+  end_timestamp: number
+} {
+  return {
+    start_timestamp: DASHBOARD_STATS_ALL_START_TIMESTAMP,
+    end_timestamp: Math.floor(Date.now() / 1000),
+  }
 }
 
 export function buildDefaultDashboardFilters(
