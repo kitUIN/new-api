@@ -83,10 +83,13 @@ import type {
 const HEALTH_WINDOW_HOURS = 24
 const HEALTH_BAR_WINDOW_HOURS = 6
 const HEALTH_RECENT_WINDOW_HOURS = 2
+const HEALTH_TRAFFIC_SHARE_WINDOW_HOURS = 1
 const HEALTH_INTERVAL_MINUTES = 10
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
 const HEALTH_DOT_SIZE_PX = 10
 const HEALTH_DOT_GAP_PX = 4
+const TRAFFIC_SHARE_RING_RADIUS = 8
+const TRAFFIC_SHARE_RING_CIRCUMFERENCE = 2 * Math.PI * TRAFFIC_SHARE_RING_RADIUS
 const DEFAULT_RATIO_HISTORY_DAYS = 7
 type RatioHistoryRangeMode = '7d' | 'week' | 'month' | 'custom'
 
@@ -245,6 +248,23 @@ function calculateRecentSuccessRate(
   }
 }
 
+function calculateRecentRequestCount(
+  buckets: PerfGroupHealthBucket[],
+  hours: number
+): number {
+  const bucketCount = Math.ceil((hours * 60) / HEALTH_INTERVAL_MINUTES)
+  return buckets
+    .slice(-bucketCount)
+    .reduce((total, bucket) => total + (bucket.request_count || 0), 0)
+}
+
+function formatSharePct(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0%'
+  if (value < 1) return '<1%'
+  if (value >= 99.95) return '100%'
+  return `${value.toFixed(value < 10 ? 1 : 0)}%`
+}
+
 function compareGroupHealth(
   left: PerfGroupHealth,
   right: PerfGroupHealth
@@ -338,6 +358,27 @@ export function GroupHealthGrid() {
     () => [...(healthQuery.data?.data.groups ?? [])].sort(compareGroupHealth),
     [healthQuery.data]
   )
+  const trafficShareMap = useMemo(() => {
+    const counts = new Map<string, number>()
+    let total = 0
+    for (const group of groups) {
+      const count = calculateRecentRequestCount(
+        group.buckets,
+        HEALTH_TRAFFIC_SHARE_WINDOW_HOURS
+      )
+      counts.set(group.group, count)
+      total += count
+    }
+    const shares = new Map<string, number>()
+    if (total <= 0) return shares
+    for (const group of groups) {
+      const count = counts.get(group.group) ?? 0
+      if (count > 0) {
+        shares.set(group.group, (count / total) * 100)
+      }
+    }
+    return shares
+  }, [groups])
   const ratioHistoryMap = useMemo(() => {
     const map = new Map<string, GroupRatioHistorySeries>()
     for (const item of ratioHistoryQuery.data?.data.groups ?? []) {
@@ -402,11 +443,13 @@ export function GroupHealthGrid() {
         onRefresh={refetchAll}
         onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
       />
+      <TrafficShareHint />
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3'>
         {groups.map((group) => (
           <GroupHealthCard
             key={group.group}
             group={group}
+            trafficShare={trafficShareMap.get(group.group) ?? 0}
             ratioHistory={ratioHistoryMap.get(group.group)}
             ratioRange={ratioRange}
           />
@@ -604,6 +647,7 @@ function RatioHistoryRangePicker(props: {
 
 function GroupHealthCard(props: {
   group: PerfGroupHealth
+  trafficShare: number
   ratioHistory: GroupRatioHistorySeries | undefined
   ratioRange: RatioHistoryRange
 }) {
@@ -636,11 +680,14 @@ function GroupHealthCard(props: {
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
       <div className='flex items-start justify-between gap-3 border-b px-4 py-3'>
         <div className='min-w-0'>
-          <div className='flex min-w-0 items-center gap-2'>
-            <span className='flex size-5 shrink-0 items-center justify-center'>
-              {getGroupProviderIcon(group.group)}
-            </span>
-            <div className='truncate text-sm font-semibold'>{group.group}</div>
+          <div className='flex min-w-0 items-center gap-2.5'>
+            <div className='flex min-w-0 items-center gap-2'>
+              <span className='flex size-5 shrink-0 items-center justify-center'>
+                {getGroupProviderIcon(group.group)}
+              </span>
+              <div className='truncate text-sm font-semibold'>{group.group}</div>
+            </div>
+            <TrafficShareRing percent={props.trafficShare} />
           </div>
           <div className='mt-1 flex flex-wrap items-center gap-1.5'>
             <Badge variant='outline' className='font-mono'>
@@ -733,6 +780,67 @@ function GroupHealthCard(props: {
         />
       </div>
     </section>
+  )
+}
+
+function TrafficShareHint() {
+  const { t } = useTranslation()
+  return (
+    <div className='text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-xs'>
+      <span className='border-primary/35 inline-flex size-4 shrink-0 rounded-full border-2 border-t-primary' />
+      <span>{t('小圆环表示过去1小时内请求占比。')}</span>
+    </div>
+  )
+}
+
+function TrafficShareRing(props: { percent: number }) {
+  const { t } = useTranslation()
+  if (!Number.isFinite(props.percent) || props.percent <= 0) return null
+
+  const percent = Math.min(100, Math.max(0, props.percent))
+  const dashOffset =
+    TRAFFIC_SHARE_RING_CIRCUMFERENCE * (1 - percent / 100)
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className='inline-flex shrink-0 items-center gap-1.5'>
+            <svg
+              viewBox='0 0 20 20'
+              className='size-5 -rotate-90'
+              aria-hidden='true'
+            >
+              <circle
+                cx='10'
+                cy='10'
+                r={TRAFFIC_SHARE_RING_RADIUS}
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2.5'
+                className='text-primary/20'
+              />
+              <circle
+                cx='10'
+                cy='10'
+                r={TRAFFIC_SHARE_RING_RADIUS}
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2.5'
+                strokeLinecap='round'
+                strokeDasharray={TRAFFIC_SHARE_RING_CIRCUMFERENCE}
+                strokeDashoffset={dashOffset}
+                className='text-primary'
+              />
+            </svg>
+            <span className='text-primary font-mono text-[11px] font-semibold tabular-nums'>
+              {formatSharePct(percent)}
+            </span>
+          </span>
+        }
+      />
+      <TooltipContent>{t('过去1小时内请求占比')}</TooltipContent>
+    </Tooltip>
   )
 }
 
