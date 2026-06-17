@@ -371,6 +371,52 @@ func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {
 	require.Equal(t, "ok", bucket.Status)
 }
 
+func TestGetPerfGroupHealthSummaryUsesRecentInMemorySamples(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+	insertEnabledChannel(t, 1, "default")
+	insertEnabledChannel(t, 2, "vip")
+
+	now := time.Now().Unix()
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: now - 12*60,
+		ModelName: "recent-fallback-old",
+		Group:     "default",
+		Success:   true,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: now - 2*60,
+		ModelName: "recent-direct-success",
+		Group:     "vip",
+		Success:   true,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: now - 1*60,
+		ModelName: "recent-direct-failure",
+		Group:     "vip",
+		Success:   false,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+
+	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 1, defaultGroup.RecentRequestCount)
+	require.Equal(t, 100.0, defaultGroup.RecentSuccessRate)
+	require.Equal(t, 20, defaultGroup.RecentWindowMinutes)
+
+	vipGroup := requirePerfGroupHealth(t, summary.Groups, "vip")
+	require.EqualValues(t, 2, vipGroup.RecentRequestCount)
+	require.Equal(t, 50.0, vipGroup.RecentSuccessRate)
+	require.Equal(t, 10, vipGroup.RecentWindowMinutes)
+}
+
 func TestGetPerfGroupHealthSummaryOnlyIncludesEnabledGroups(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()

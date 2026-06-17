@@ -74,16 +74,19 @@ type PerfGroupHealthBucket struct {
 }
 
 type PerfGroupHealth struct {
-	Group         string                  `json:"group"`
-	Ratio         float64                 `json:"ratio"`
-	ProviderCount int                     `json:"provider_count"`
-	BalanceLevel  int                     `json:"balance_level"`
-	RequestCount  int64                   `json:"request_count"`
-	SuccessRate   float64                 `json:"success_rate"`
-	AvgTTFTMs     float64                 `json:"avg_ttft_ms"`
-	AvgLatencyMs  float64                 `json:"avg_latency_ms"`
-	AvgTps        float64                 `json:"avg_tps"`
-	Buckets       []PerfGroupHealthBucket `json:"buckets"`
+	Group               string                  `json:"group"`
+	Ratio               float64                 `json:"ratio"`
+	ProviderCount       int                     `json:"provider_count"`
+	BalanceLevel        int                     `json:"balance_level"`
+	RequestCount        int64                   `json:"request_count"`
+	SuccessRate         float64                 `json:"success_rate"`
+	AvgTTFTMs           float64                 `json:"avg_ttft_ms"`
+	AvgLatencyMs        float64                 `json:"avg_latency_ms"`
+	AvgTps              float64                 `json:"avg_tps"`
+	RecentRequestCount  int64                   `json:"recent_request_count"`
+	RecentSuccessRate   float64                 `json:"recent_success_rate"`
+	RecentWindowMinutes int                     `json:"recent_window_minutes"`
+	Buckets             []PerfGroupHealthBucket `json:"buckets"`
 }
 
 type PerfGroupHealthSummary struct {
@@ -133,6 +136,12 @@ type perfMetricKey struct {
 	group         string
 }
 
+type perfRecentMetricSample struct {
+	Timestamp int64
+	Group     string
+	Success   bool
+}
+
 type perfAccumulator struct {
 	requestCount      int64
 	successCount      int64
@@ -147,7 +156,10 @@ type perfAccumulator struct {
 var (
 	perfMetricsMu      sync.Mutex
 	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
+	recentPerfMetrics  []perfRecentMetricSample
 )
+
+const perfRecentMetricRetentionSeconds = 30 * 60
 
 func RecordPerfMetricSample(sample PerfMetricSample) {
 	config := common.GetPerfMetricsConfig()
@@ -208,6 +220,12 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 		}
 	}
 	pendingPerfMetrics[key] = acc
+	recentPerfMetrics = append(recentPerfMetrics, perfRecentMetricSample{
+		Timestamp: sample.Timestamp,
+		Group:     group,
+		Success:   sample.Success,
+	})
+	pruneRecentPerfMetricsLocked(sample.Timestamp - perfRecentMetricRetentionSeconds)
 	perfMetricsMu.Unlock()
 }
 
@@ -291,6 +309,7 @@ func CleanupPerfMetrics(retentionDays int) error {
 func ResetPerfMetricsForTest() {
 	perfMetricsMu.Lock()
 	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
+	recentPerfMetrics = nil
 	perfMetricsMu.Unlock()
 }
 
@@ -329,6 +348,90 @@ func snapshotPendingPerfMetrics() map[perfMetricKey]perfAccumulator {
 		snapshot[key] = acc
 	}
 	return snapshot
+}
+
+func snapshotRecentPerfMetrics() []perfRecentMetricSample {
+	perfMetricsMu.Lock()
+	defer perfMetricsMu.Unlock()
+	if len(recentPerfMetrics) == 0 {
+		return nil
+	}
+	snapshot := make([]perfRecentMetricSample, len(recentPerfMetrics))
+	copy(snapshot, recentPerfMetrics)
+	return snapshot
+}
+
+func pruneRecentPerfMetricsLocked(cutoff int64) {
+	if cutoff <= 0 || len(recentPerfMetrics) == 0 {
+		return
+	}
+	kept := recentPerfMetrics[:0]
+	for _, sample := range recentPerfMetrics {
+		if sample.Timestamp >= cutoff {
+			kept = append(kept, sample)
+		}
+	}
+	recentPerfMetrics = kept
+}
+
+type perfRecentWindowAccumulator struct {
+	requestCount int64
+	successCount int64
+}
+
+type perfRecentGroupWindowStats struct {
+	TenMinutes    perfRecentWindowAccumulator
+	TwentyMinutes perfRecentWindowAccumulator
+}
+
+func buildRecentGroupWindowStats(
+	samples []perfRecentMetricSample,
+	tenMinuteCutoff int64,
+	twentyMinuteCutoff int64,
+) map[string]perfRecentGroupWindowStats {
+	if len(samples) == 0 {
+		return nil
+	}
+	stats := make(map[string]perfRecentGroupWindowStats)
+	for _, sample := range samples {
+		group := strings.TrimSpace(sample.Group)
+		if group == "" {
+			group = "default"
+		}
+		if sample.Timestamp < twentyMinuteCutoff {
+			continue
+		}
+		stat := stats[group]
+		stat.TwentyMinutes.requestCount++
+		if sample.Success {
+			stat.TwentyMinutes.successCount++
+		}
+		if sample.Timestamp >= tenMinuteCutoff {
+			stat.TenMinutes.requestCount++
+			if sample.Success {
+				stat.TenMinutes.successCount++
+			}
+		}
+		stats[group] = stat
+	}
+	return stats
+}
+
+func chooseRecentWindowSummary(stat perfRecentGroupWindowStats) (requestCount int64, successRate float64, windowMinutes int) {
+	if stat.TenMinutes.requestCount > 0 {
+		return stat.TenMinutes.requestCount, recentWindowSuccessRate(stat.TenMinutes), 10
+	}
+	if stat.TwentyMinutes.requestCount > 0 {
+		return stat.TwentyMinutes.requestCount, recentWindowSuccessRate(stat.TwentyMinutes), 20
+	}
+	return 0, 0, 20
+}
+
+func recentWindowSuccessRate(acc perfRecentWindowAccumulator) float64 {
+	if acc.requestCount <= 0 {
+		return 0
+	}
+	return roundFloat(float64(acc.successCount)/float64(acc.requestCount)*100, 2)
 }
 
 func upsertPerfMetricBucket(tx *gorm.DB, key perfMetricKey, acc perfAccumulator, now int64) error {
@@ -499,6 +602,11 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	endBucketStart := now - now%intervalSeconds
 	startBucket := endBucketStart - int64(bucketCount-1)*intervalSeconds
 	endExclusive := endBucketStart + intervalSeconds
+	recentStats := buildRecentGroupWindowStats(
+		snapshotRecentPerfMetrics(),
+		now-10*60,
+		now-20*60,
+	)
 
 	type groupedAccumulator struct {
 		total  perfAccumulator
@@ -637,6 +745,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if !ok {
 			ratio = 1
 		}
+		recentRequestCount, recentSuccessRate, recentWindowMinutes := chooseRecentWindowSummary(
+			recentStats[groupName],
+		)
 
 		buckets := make([]PerfGroupHealthBucket, 0, bucketCount)
 		for i := 0; i < bucketCount; i++ {
@@ -665,21 +776,24 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		}
 
 		resultGroups = append(resultGroups, PerfGroupHealth{
-			Group:         groupName,
-			Ratio:         ratio,
-			ProviderCount: stats.ProviderCount,
-			BalanceLevel:  perfGroupBalanceLevel(stats.MinBalance),
-			RequestCount:  group.total.requestCount,
-			SuccessRate:   successRate,
-			AvgTTFTMs:     avgTTFTMs,
-			AvgLatencyMs:  avgLatencyMs,
-			AvgTps:        avgTps,
-			Buckets:       buckets,
+			Group:               groupName,
+			Ratio:               ratio,
+			ProviderCount:       stats.ProviderCount,
+			BalanceLevel:        perfGroupBalanceLevel(stats.MinBalance),
+			RequestCount:        group.total.requestCount,
+			SuccessRate:         successRate,
+			AvgTTFTMs:           avgTTFTMs,
+			AvgLatencyMs:        avgLatencyMs,
+			AvgTps:              avgTps,
+			RecentRequestCount:  recentRequestCount,
+			RecentSuccessRate:   recentSuccessRate,
+			RecentWindowMinutes: recentWindowMinutes,
+			Buckets:             buckets,
 		})
 	}
 	sort.SliceStable(resultGroups, func(i, j int) bool {
-		leftRate, leftRequests := perfGroupRecentSuccessRate(resultGroups[i].Buckets, 2, intervalMinutes)
-		rightRate, rightRequests := perfGroupRecentSuccessRate(resultGroups[j].Buckets, 2, intervalMinutes)
+		leftRequests := resultGroups[i].RecentRequestCount
+		rightRequests := resultGroups[j].RecentRequestCount
 		if leftRequests != rightRequests {
 			if leftRequests == 0 {
 				return false
@@ -688,8 +802,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 				return true
 			}
 		}
-		if leftRate != rightRate {
-			return leftRate > rightRate
+		if resultGroups[i].RecentSuccessRate != resultGroups[j].RecentSuccessRate {
+			return resultGroups[i].RecentSuccessRate > resultGroups[j].RecentSuccessRate
 		}
 		if resultGroups[i].Ratio != resultGroups[j].Ratio {
 			return resultGroups[i].Ratio < resultGroups[j].Ratio

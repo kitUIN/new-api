@@ -82,7 +82,6 @@ import type {
 
 const HEALTH_WINDOW_HOURS = 24
 const HEALTH_BAR_WINDOW_HOURS = 6
-const HEALTH_RECENT_WINDOW_HOURS = 2
 const HEALTH_TRAFFIC_SHARE_WINDOW_HOURS = 1
 const HEALTH_INTERVAL_MINUTES = 10
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
@@ -269,14 +268,8 @@ function compareGroupHealth(
   left: PerfGroupHealth,
   right: PerfGroupHealth
 ): number {
-  const leftRecent = calculateRecentSuccessRate(
-    left.buckets,
-    HEALTH_RECENT_WINDOW_HOURS
-  )
-  const rightRecent = calculateRecentSuccessRate(
-    right.buckets,
-    HEALTH_RECENT_WINDOW_HOURS
-  )
+  const leftRecent = getRecentGroupHealth(left)
+  const rightRecent = getRecentGroupHealth(right)
 
   if (leftRecent.requestCount !== rightRecent.requestCount) {
     if (leftRecent.requestCount === 0) return 1
@@ -292,6 +285,22 @@ function compareGroupHealth(
     return right.provider_count - left.provider_count
   }
   return left.group.localeCompare(right.group)
+}
+
+function getRecentGroupHealth(group: PerfGroupHealth) {
+  if (typeof group.recent_request_count === 'number') {
+    return {
+      requestCount: group.recent_request_count,
+      successRate: group.recent_success_rate ?? 0,
+      windowMinutes: group.recent_window_minutes === 20 ? 20 : 10,
+    }
+  }
+
+  const fallback = calculateRecentSuccessRate(group.buckets, 2)
+  return {
+    ...fallback,
+    windowMinutes: 120,
+  }
 }
 
 function useElementWidth<T extends HTMLElement>() {
@@ -671,10 +680,13 @@ function GroupHealthCard(props: {
       )
     : Math.min(group.buckets.length, defaultVisibleBucketCount)
   const visibleBuckets = group.buckets.slice(-visibleBucketCount)
-  const recentHealth = calculateRecentSuccessRate(
-    group.buckets,
-    HEALTH_RECENT_WINDOW_HOURS
-  )
+  const recentHealth = getRecentGroupHealth(group)
+  const recentHealthLabel =
+    recentHealth.windowMinutes === 20
+      ? t('20m success rate')
+      : recentHealth.windowMinutes === 10
+        ? t('10m success rate')
+        : t('2h success rate')
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
@@ -721,7 +733,7 @@ function GroupHealthCard(props: {
           </div>
           <div>
             <div className='text-muted-foreground text-[11px] leading-none'>
-              {t('2h success rate')}
+              {recentHealthLabel}
             </div>
             <div
               className={cn(

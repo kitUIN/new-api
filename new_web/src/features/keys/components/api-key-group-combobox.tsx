@@ -132,11 +132,11 @@ function GroupHealthBadges({ health }: { health?: ApiKeyGroupHealth }) {
   const recentWindowLabel = health?.recentWindowMinutes === 20 ? '20m' : '10m'
 
   return (
-    <div className='flex flex-wrap gap-1.5'>
+    <div className='flex flex-col gap-1'>
       <Badge
         variant='outline'
         className={cn(
-          'max-w-28 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
+          'w-full justify-center truncate text-[10px] sm:text-xs',
           getAvailabilityBadgeClassName(health?.availability24h)
         )}
       >
@@ -145,7 +145,7 @@ function GroupHealthBadges({ health }: { health?: ApiKeyGroupHealth }) {
       <Badge
         variant='outline'
         className={cn(
-          'max-w-28 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
+          'w-full justify-center truncate text-[10px] sm:text-xs',
           getAvailabilityBadgeClassName(health?.recentAvailability)
         )}
       >
@@ -208,7 +208,7 @@ export function ApiKeyGroupCombobox({
           />
         }
       >
-        <span className='flex min-w-0 flex-1 items-start justify-between gap-2 sm:gap-3'>
+        <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0 flex-1'>
             <span className='block truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
@@ -218,13 +218,13 @@ export function ApiKeyGroupCombobox({
                 {selectedOption.desc}
               </span>
             )}
-            <span className='mt-1 flex flex-wrap gap-1.5'>
-              <GroupRatioBadge ratio={selectedOption?.ratio} />
-              <GroupHealthBadges health={selectedOption?.health} />
-            </span>
+          </span>
+          <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center gap-1'>
+            <GroupRatioBadge ratio={selectedOption?.ratio} />
+            <GroupHealthBadges health={selectedOption?.health} />
           </span>
         </span>
-        <ChevronsUpDown className='mt-1 h-4 w-4 shrink-0 opacity-50' />
+        <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
       </PopoverTrigger>
       <PopoverContent
         className='data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--anchor-width)] overflow-hidden rounded-xl p-0 shadow-lg data-closed:duration-75 data-open:duration-100'
@@ -246,11 +246,11 @@ export function ApiKeyGroupCombobox({
                   key={option.value}
                   value={option.value}
                   onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+                  className='data-[selected=true]:bg-muted items-stretch gap-3 rounded-lg px-3 py-3 transition-colors'
                 >
                   <Check
                     className={cn(
-                      'mt-0.5 h-4 w-4',
+                      'mt-0.5 h-4 w-4 shrink-0',
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
@@ -263,10 +263,10 @@ export function ApiKeyGroupCombobox({
                         {option.desc}
                       </span>
                     )}
-                    <span className='mt-1 flex flex-wrap gap-1.5'>
-                      <GroupRatioBadge ratio={option.ratio} />
-                      <GroupHealthBadges health={option.health} />
-                    </span>
+                  </span>
+                  <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center gap-1'>
+                    <GroupRatioBadge ratio={option.ratio} />
+                    <GroupHealthBadges health={option.health} />
                   </span>
                 </CommandItem>
               ))}

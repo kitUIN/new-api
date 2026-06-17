@@ -83,6 +83,9 @@ export type PerfGroupHealth = {
   avg_ttft_ms: number
   avg_latency_ms: number
   avg_tps: number
+  recent_request_count?: number
+  recent_success_rate?: number
+  recent_window_minutes?: number
   buckets: PerfGroupHealthBucket[]
 }
 

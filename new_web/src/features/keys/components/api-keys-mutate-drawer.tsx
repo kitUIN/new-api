@@ -120,6 +120,15 @@ function calculateBucketAvailability(buckets: PerfGroupHealthBucket[]) {
 }
 
 function calculateRecentAvailability(group?: PerfGroupHealth) {
+  if (group && typeof group.recent_request_count === 'number') {
+    return {
+      recentAvailability:
+        group.recent_request_count > 0 ? group.recent_success_rate : null,
+      recentWindowMinutes:
+        group.recent_window_minutes === 20 ? (20 as const) : (10 as const),
+    }
+  }
+
   const buckets = group?.buckets ?? []
   const lastBucket = buckets.at(-1)
   if (lastBucket && lastBucket.request_count > 0) {
