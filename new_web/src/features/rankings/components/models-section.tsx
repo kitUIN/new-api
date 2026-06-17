@@ -68,6 +68,16 @@ export function ModelsSection(props: ModelsSectionProps) {
     () => props.rows.reduce((s, r) => s + r.total_tokens, 0),
     [props.rows]
   )
+  const chartDataSignature = useMemo(
+    () =>
+      [
+        props.history.buckets,
+        props.history.models.length,
+        orderedPoints.length,
+        orderedPoints.map((p) => `${p.ts}:${p.model}:${p.tokens}`).join('|'),
+      ].join(':'),
+    [orderedPoints, props.history.buckets, props.history.models.length]
+  )
 
   const spec = useMemo(() => {
     if (orderedPoints.length === 0) return null
@@ -180,7 +190,7 @@ export function ModelsSection(props: ModelsSectionProps) {
         <div className='h-60 sm:h-72'>
           {themeReady && spec ? (
             <VChart
-              key={`models-history-${resolvedTheme}-${props.period}`}
+              key={`models-history-${resolvedTheme}-${props.period}-${chartDataSignature}`}
               spec={{
                 ...spec,
                 theme: resolvedTheme === 'dark' ? 'dark' : 'light',

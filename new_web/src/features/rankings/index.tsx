@@ -64,7 +64,9 @@ export function Rankings() {
     useState<UserRankingMetric>(initialUserMetric)
 
   const rankingsQuery = useRankings(period, userMetric)
-  const snapshot = rankingsQuery.data?.data
+  const isRankingsLoading =
+    rankingsQuery.isLoading || rankingsQuery.isPlaceholderData
+  const snapshot = isRankingsLoading ? undefined : rankingsQuery.data?.data
   const rankingPrivacyMutation = useMutation({
     mutationFn: updateRankingPrivacy,
     onSuccess: () => {
@@ -107,7 +109,7 @@ export function Rankings() {
         <PageTransition className='relative mx-auto w-full max-w-[1280px] space-y-8 px-3 pt-16 pb-10 sm:px-6 sm:pt-20 sm:pb-12 xl:px-8'>
           <RankingsHero period={period} onPeriodChange={handlePeriodChange} />
 
-          {rankingsQuery.isLoading ? (
+          {isRankingsLoading ? (
             <RankingsLoading />
           ) : !snapshot ? (
             <RankingsError

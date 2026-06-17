@@ -126,6 +126,16 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       return (order.get(a.vendor) ?? 999) - (order.get(b.vendor) ?? 999)
     })
   }, [props.history])
+  const chartDataSignature = useMemo(
+    () =>
+      [
+        props.history.buckets,
+        props.history.vendors.length,
+        orderedPoints.length,
+        orderedPoints.map((p) => `${p.ts}:${p.vendor}:${p.share}`).join('|'),
+      ].join(':'),
+    [orderedPoints, props.history.buckets, props.history.vendors.length]
+  )
 
   const spec = useMemo(() => {
     if (orderedPoints.length === 0) return null
@@ -227,7 +237,7 @@ export function MarketShareSection(props: MarketShareSectionProps) {
         <div className='h-60 sm:h-72'>
           {themeReady && spec ? (
             <VChart
-              key={`vendor-share-${resolvedTheme}-${props.period}`}
+              key={`vendor-share-${resolvedTheme}-${props.period}-${chartDataSignature}`}
               spec={{
                 ...spec,
                 theme: resolvedTheme === 'dark' ? 'dark' : 'light',
