@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
@@ -26,14 +26,8 @@ import {
   RefreshCw,
   Timer,
 } from 'lucide-react'
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import { useTranslation } from 'react-i18next'
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import dayjs from '@/lib/dayjs'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -52,13 +46,15 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
@@ -81,9 +77,11 @@ import type {
 } from '@/features/performance-metrics/types'
 
 const HEALTH_WINDOW_HOURS = 24
+const HEALTH_7D_WINDOW_HOURS = 168
 const HEALTH_BAR_WINDOW_HOURS = 6
 const HEALTH_TRAFFIC_SHARE_WINDOW_HOURS = 1
 const HEALTH_INTERVAL_MINUTES = 10
+const HEALTH_7D_INTERVAL_MINUTES = 60
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
 const HEALTH_DOT_SIZE_PX = 10
 const HEALTH_DOT_GAP_PX = 4
@@ -103,6 +101,22 @@ type RatioChartPoint = {
   ratio: number
   source?: string
 }
+
+type SuccessRateSummary = {
+  requestCount: number
+  successRate: number
+}
+
+type GroupSortMode = 'ratio' | 'success'
+
+type IdleWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions
+    ) => number
+    cancelIdleCallback?: (handle: number) => void
+  }
 
 const ratioChartConfig = {
   ratio: {
@@ -155,10 +169,7 @@ function balanceDotClassName(level: PerfGroupHealth['balance_level']): string {
 
 function formatRatio(ratio: number): string {
   if (!Number.isFinite(ratio)) return 'x1'
-  return `x${ratio
-    .toFixed(3)
-    .replace(/0+$/, '')
-    .replace(/\.$/, '')}`
+  return `x${ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}`
 }
 
 function formatWindow(bucket: PerfGroupHealthBucket): string {
@@ -254,15 +265,7 @@ function calculateRecentRequestCount(
   const bucketCount = Math.ceil((hours * 60) / HEALTH_INTERVAL_MINUTES)
   return buckets
     .slice(-bucketCount)
-    .reduce(
-      (total, bucket) =>
-        total +
-        Math.max(
-          0,
-          (bucket.request_count || 0) - (bucket.test_request_count || 0)
-        ),
-      0
-    )
+    .reduce((total, bucket) => total + (bucket.non_test_request_count || 0), 0)
 }
 
 function formatSharePct(value: number): string {
@@ -274,41 +277,51 @@ function formatSharePct(value: number): string {
 
 function compareGroupHealth(
   left: PerfGroupHealth,
-  right: PerfGroupHealth
+  right: PerfGroupHealth,
+  sortMode: GroupSortMode
 ): number {
-  const leftRecent = getRecentGroupHealth(left)
-  const rightRecent = getRecentGroupHealth(right)
+  const leftRecent = getTwoHourGroupHealth(left)
+  const rightRecent = getTwoHourGroupHealth(right)
 
   if (leftRecent.requestCount !== rightRecent.requestCount) {
     if (leftRecent.requestCount === 0) return 1
     if (rightRecent.requestCount === 0) return -1
   }
-  if (leftRecent.successRate !== rightRecent.successRate) {
-    return rightRecent.successRate - leftRecent.successRate
-  }
-  if (left.ratio !== right.ratio) {
-    return left.ratio - right.ratio
-  }
+  const primaryDiff =
+    sortMode === 'ratio'
+      ? left.ratio - right.ratio
+      : rightRecent.successRate - leftRecent.successRate
+  if (primaryDiff !== 0) return primaryDiff
+
+  const secondaryDiff =
+    sortMode === 'ratio'
+      ? rightRecent.successRate - leftRecent.successRate
+      : left.ratio - right.ratio
+  if (secondaryDiff !== 0) return secondaryDiff
+
   if (left.provider_count !== right.provider_count) {
     return right.provider_count - left.provider_count
   }
   return left.group.localeCompare(right.group)
 }
 
-function getRecentGroupHealth(group: PerfGroupHealth) {
-  if (typeof group.recent_request_count === 'number') {
-    return {
-      requestCount: group.recent_request_count,
-      successRate: group.recent_success_rate ?? 0,
-      windowMinutes: group.recent_window_minutes === 20 ? 20 : 10,
-    }
-  }
+function getTwoHourGroupHealth(group: PerfGroupHealth) {
+  return calculateRecentSuccessRate(group.buckets, 2)
+}
 
-  const fallback = calculateRecentSuccessRate(group.buckets, 2)
-  return {
-    ...fallback,
-    windowMinutes: 120,
+function getTenMinuteGroupHealth(group: PerfGroupHealth) {
+  return calculateRecentSuccessRate(group.buckets, HEALTH_INTERVAL_MINUTES / 60)
+}
+
+function buildSuccessRateSummaryMap(groups: PerfGroupHealth[]) {
+  const map = new Map<string, SuccessRateSummary>()
+  for (const group of groups) {
+    map.set(group.group, {
+      requestCount: group.request_count,
+      successRate: group.success_rate,
+    })
   }
+  return map
 }
 
 function useElementWidth<T extends HTMLElement>() {
@@ -331,9 +344,69 @@ function useElementWidth<T extends HTMLElement>() {
   return [ref, width] as const
 }
 
+function useDeferredVisibleRender<T extends HTMLElement>(enabled: boolean) {
+  const ref = useRef<T | null>(null)
+  const [shouldRender, setShouldRender] = useState(false)
+
+  useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
+    const element = ref.current
+    if (!element) return
+
+    let cancelled = false
+    let idleHandle: number | null = null
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+    const idleWindow = window as IdleWindow
+
+    const scheduleRender = () => {
+      if (cancelled) return
+      if (idleWindow.requestIdleCallback) {
+        idleHandle = idleWindow.requestIdleCallback(
+          () => {
+            if (!cancelled) setShouldRender(true)
+          },
+          { timeout: 600 }
+        )
+        return
+      }
+      timeoutHandle = setTimeout(() => {
+        if (!cancelled) setShouldRender(true)
+      }, 0)
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        observer.disconnect()
+        scheduleRender()
+      },
+      { rootMargin: '240px' }
+    )
+    observer.observe(element)
+
+    return () => {
+      cancelled = true
+      observer.disconnect()
+      if (idleHandle !== null && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleHandle)
+      }
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle)
+      }
+    }
+  }, [enabled])
+
+  return [ref, shouldRender] as const
+}
+
 export function GroupHealthGrid() {
   const { t } = useTranslation()
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [showRatioHistory, setShowRatioHistory] = useState(false)
+  const [sortMode, setSortMode] = useState<GroupSortMode>('ratio')
   const [ratioRange, setRatioRange] = useState<RatioHistoryRange>(
     getDefaultRatioHistoryRange
   )
@@ -352,17 +425,29 @@ export function GroupHealthGrid() {
     staleTime: 0,
     retry: false,
   })
-  const ratioHistoryQuery = useQuery({
+  const sevenDayHealthQuery = useQuery({
     queryKey: [
-      'group-ratio-history',
-      ratioRange.startTs,
-      ratioRange.endTs,
+      'perf-group-health',
+      HEALTH_7D_WINDOW_HOURS,
+      HEALTH_7D_INTERVAL_MINUTES,
     ],
+    queryFn: () =>
+      getPerfGroupHealth(HEALTH_7D_WINDOW_HOURS, HEALTH_7D_INTERVAL_MINUTES),
+    refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
+    refetchOnMount: 'always',
+    refetchOnReconnect: 'always',
+    refetchOnWindowFocus: 'always',
+    staleTime: 0,
+    retry: false,
+  })
+  const ratioHistoryQuery = useQuery({
+    queryKey: ['group-ratio-history', ratioRange.startTs, ratioRange.endTs],
     queryFn: () =>
       getGroupRatioHistory({
         start_ts: ratioRange.startTs,
         end_ts: ratioRange.endTs,
       }),
+    enabled: showRatioHistory,
     refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
     refetchOnMount: 'always',
     refetchOnReconnect: 'always',
@@ -372,8 +457,11 @@ export function GroupHealthGrid() {
   })
 
   const groups = useMemo(
-    () => [...(healthQuery.data?.data.groups ?? [])].sort(compareGroupHealth),
-    [healthQuery.data]
+    () =>
+      [...(healthQuery.data?.data.groups ?? [])].sort((left, right) =>
+        compareGroupHealth(left, right, sortMode)
+      ),
+    [healthQuery.data, sortMode]
   )
   const trafficShareMap = useMemo(() => {
     const counts = new Map<string, number>()
@@ -403,22 +491,39 @@ export function GroupHealthGrid() {
     }
     return map
   }, [ratioHistoryQuery.data])
+  const sevenDayHealthMap = useMemo(
+    () =>
+      buildSuccessRateSummaryMap(sevenDayHealthQuery.data?.data.groups ?? []),
+    [sevenDayHealthQuery.data]
+  )
   const refetchAll = () => {
     healthQuery.refetch()
-    ratioHistoryQuery.refetch()
+    sevenDayHealthQuery.refetch()
+    if (showRatioHistory) {
+      ratioHistoryQuery.refetch()
+    }
+  }
+  const toolbarProps = {
+    ratioRange,
+    autoRefresh,
+    showRatioHistory,
+    sortMode,
+    isFetching:
+      healthQuery.isFetching ||
+      sevenDayHealthQuery.isFetching ||
+      ratioHistoryQuery.isFetching,
+    onRatioRangeChange: setRatioRange,
+    onRefresh: refetchAll,
+    onToggleAutoRefresh: () => setAutoRefresh((value) => !value),
+    onToggleRatioHistory: () =>
+      startTransition(() => setShowRatioHistory((value) => !value)),
+    onSortModeChange: (mode: GroupSortMode) => setSortMode(mode),
   }
 
   if (healthQuery.isLoading) {
     return (
       <div className='flex flex-col gap-3'>
-        <GroupHealthToolbar
-          ratioRange={ratioRange}
-          autoRefresh={autoRefresh}
-          isFetching={healthQuery.isFetching || ratioHistoryQuery.isFetching}
-          onRatioRangeChange={setRatioRange}
-          onRefresh={refetchAll}
-          onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
-        />
+        <GroupHealthToolbar {...toolbarProps} />
         <GroupHealthSkeleton />
       </div>
     )
@@ -427,14 +532,7 @@ export function GroupHealthGrid() {
   if (!groups.length) {
     return (
       <div className='flex flex-col gap-3'>
-        <GroupHealthToolbar
-          ratioRange={ratioRange}
-          autoRefresh={autoRefresh}
-          isFetching={healthQuery.isFetching || ratioHistoryQuery.isFetching}
-          onRatioRangeChange={setRatioRange}
-          onRefresh={refetchAll}
-          onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
-        />
+        <GroupHealthToolbar {...toolbarProps} />
         <Empty className='min-h-72 border'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -452,14 +550,7 @@ export function GroupHealthGrid() {
 
   return (
     <div className='flex flex-col gap-3'>
-      <GroupHealthToolbar
-        ratioRange={ratioRange}
-        autoRefresh={autoRefresh}
-        isFetching={healthQuery.isFetching || ratioHistoryQuery.isFetching}
-        onRatioRangeChange={setRatioRange}
-        onRefresh={refetchAll}
-        onToggleAutoRefresh={() => setAutoRefresh((value) => !value)}
-      />
+      <GroupHealthToolbar {...toolbarProps} />
       <TrafficShareHint />
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3'>
         {groups.map((group) => (
@@ -469,6 +560,8 @@ export function GroupHealthGrid() {
             trafficShare={trafficShareMap.get(group.group) ?? 0}
             ratioHistory={ratioHistoryMap.get(group.group)}
             ratioRange={ratioRange}
+            showRatioHistory={showRatioHistory}
+            sevenDayHealth={sevenDayHealthMap.get(group.group)}
           />
         ))}
       </div>
@@ -480,62 +573,108 @@ export function GroupHealthGrid() {
 function GroupHealthToolbar(props: {
   ratioRange: RatioHistoryRange
   autoRefresh: boolean
+  showRatioHistory: boolean
+  sortMode: GroupSortMode
   isFetching: boolean
   onRatioRangeChange: (range: RatioHistoryRange) => void
   onRefresh: () => void
   onToggleAutoRefresh: () => void
+  onToggleRatioHistory: () => void
+  onSortModeChange: (mode: GroupSortMode) => void
 }) {
   const { t } = useTranslation()
 
   return (
     <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-      <RatioHistoryRangePicker
-        range={props.ratioRange}
-        onChange={props.onRatioRangeChange}
-      />
-      <div className='flex justify-end gap-2'>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={props.onRefresh}
-              disabled={props.isFetching}
-            >
-              <RefreshCw
-                data-icon='inline-start'
-                className={cn(props.isFetching && 'animate-spin')}
-                aria-hidden='true'
-              />
-              {t('Refresh')}
-            </Button>
-          }
-        />
-        <TooltipContent>{t('Refresh group health data')}</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type='button'
-              variant={props.autoRefresh ? 'default' : 'outline'}
-              size='sm'
-              onClick={props.onToggleAutoRefresh}
-              aria-pressed={props.autoRefresh}
-            >
-              <RefreshCw data-icon='inline-start' aria-hidden='true' />
-              {t('Auto refresh')} (1m)
-            </Button>
-          }
-        />
-        <TooltipContent>
-          {props.autoRefresh
-            ? t('Auto refresh is on')
-            : t('Auto refresh is off')}
-        </TooltipContent>
-      </Tooltip>
+      <div className='flex flex-wrap items-center gap-2'>
+        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+          <Switch
+            id='group-ratio-history-toggle'
+            size='sm'
+            checked={props.showRatioHistory}
+            onCheckedChange={props.onToggleRatioHistory}
+          />
+          <label
+            htmlFor='group-ratio-history-toggle'
+            className='cursor-pointer text-sm font-medium'
+          >
+            {t('Ratio history')}
+          </label>
+        </div>
+        {props.showRatioHistory && (
+          <RatioHistoryRangePicker
+            range={props.ratioRange}
+            onChange={props.onRatioRangeChange}
+          />
+        )}
+      </div>
+      <div className='flex flex-wrap items-center justify-end gap-2'>
+        <ToggleGroup
+          value={[props.sortMode]}
+          variant='outline'
+          size='sm'
+          onValueChange={(nextValue) => {
+            const mode = nextValue[0]
+            if (mode === 'ratio' || mode === 'success') {
+              props.onSortModeChange(mode)
+            }
+          }}
+          className='flex flex-wrap justify-end gap-1.5'
+          aria-label={t('Sort')}
+        >
+          <ToggleGroupItem value='ratio'>
+            {t('Priority ratio (low to high)')}
+          </ToggleGroupItem>
+          <ToggleGroupItem value='success'>
+            {t('Priority success rate (high to low)')}
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={props.onRefresh}
+                disabled={props.isFetching}
+              >
+                <RefreshCw
+                  data-icon='inline-start'
+                  className={cn(props.isFetching && 'animate-spin')}
+                  aria-hidden='true'
+                />
+                {t('Refresh')}
+              </Button>
+            }
+          />
+          <TooltipContent>{t('Refresh group health data')}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type='button'
+                variant={props.autoRefresh ? 'default' : 'outline'}
+                size='sm'
+                onClick={props.onToggleAutoRefresh}
+                aria-pressed={props.autoRefresh}
+              >
+                <RefreshCw
+                  data-icon='inline-start'
+                  className={cn(props.autoRefresh && 'animate-spin')}
+                  aria-hidden='true'
+                />
+                {t('Auto refresh')} (1m)
+              </Button>
+            }
+          />
+          <TooltipContent>
+            {props.autoRefresh
+              ? t('Auto refresh is on')
+              : t('Auto refresh is off')}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )
@@ -547,7 +686,9 @@ function RatioHistoryRangePicker(props: {
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [draftStart, setDraftStart] = useState(toInputValue(props.range.startTs))
+  const [draftStart, setDraftStart] = useState(
+    toInputValue(props.range.startTs)
+  )
   const [draftEnd, setDraftEnd] = useState(toInputValue(props.range.endTs))
 
   const handlePreset = (mode: Exclude<RatioHistoryRangeMode, 'custom'>) => {
@@ -667,6 +808,8 @@ function GroupHealthCard(props: {
   trafficShare: number
   ratioHistory: GroupRatioHistorySeries | undefined
   ratioRange: RatioHistoryRange
+  showRatioHistory: boolean
+  sevenDayHealth: SuccessRateSummary | undefined
 }) {
   const { t } = useTranslation()
   const group = props.group
@@ -688,13 +831,10 @@ function GroupHealthCard(props: {
       )
     : Math.min(group.buckets.length, defaultVisibleBucketCount)
   const visibleBuckets = group.buckets.slice(-visibleBucketCount)
-  const recentHealth = getRecentGroupHealth(group)
-  const recentHealthLabel =
-    recentHealth.windowMinutes === 20
-      ? t('20m success rate')
-      : recentHealth.windowMinutes === 10
-        ? t('10m success rate')
-        : t('2h success rate')
+  const twoHourHealth = getTwoHourGroupHealth(group)
+  const tenMinuteHealth = getTenMinuteGroupHealth(group)
+  const [ratioChartHostRef, shouldRenderRatioChart] =
+    useDeferredVisibleRender<HTMLDivElement>(props.showRatioHistory)
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
@@ -705,7 +845,9 @@ function GroupHealthCard(props: {
               <span className='flex size-5 shrink-0 items-center justify-center'>
                 {getGroupProviderIcon(group.group)}
               </span>
-              <div className='truncate text-sm font-semibold'>{group.group}</div>
+              <div className='truncate text-sm font-semibold'>
+                {group.group}
+              </div>
             </div>
             <TrafficShareRing percent={props.trafficShare} />
           </div>
@@ -725,35 +867,22 @@ function GroupHealthCard(props: {
             </Badge>
           </div>
         </div>
-        <div className='grid shrink-0 grid-cols-[auto_auto] items-start gap-6 text-right'>
-          <div>
-            <div className='text-muted-foreground text-[10px] leading-none'>
-              {t('24h success rate')}
-            </div>
-            <div
-              className={cn(
-                'mt-1 font-mono text-xs font-semibold tabular-nums',
-                statusTextClassName(group.success_rate, group.request_count)
-              )}
-            >
-              {hasSamples ? formatUptimePct(group.success_rate) : '—'}
-            </div>
-          </div>
+        <div className='shrink-0 text-right'>
           <div>
             <div className='text-muted-foreground text-[11px] leading-none'>
-              {recentHealthLabel}
+              {t('2h success rate')}
             </div>
             <div
               className={cn(
                 'mt-1 font-mono text-xl font-semibold tabular-nums',
                 statusTextClassName(
-                  recentHealth.successRate,
-                  recentHealth.requestCount
+                  twoHourHealth.successRate,
+                  twoHourHealth.requestCount
                 )
               )}
             >
-              {recentHealth.requestCount > 0
-                ? formatUptimePct(recentHealth.successRate)
+              {twoHourHealth.requestCount > 0
+                ? formatUptimePct(twoHourHealth.successRate)
                 : '—'}
             </div>
           </div>
@@ -778,6 +907,43 @@ function GroupHealthCard(props: {
             value={formatThroughput(group.avg_tps)}
           />
         </div>
+        <div className='grid grid-cols-3 gap-2'>
+          <MetricCell
+            icon={HeartPulse}
+            label={t('7d success rate')}
+            value={
+              props.sevenDayHealth?.requestCount
+                ? formatUptimePct(props.sevenDayHealth.successRate)
+                : '—'
+            }
+            valueClassName={statusTextClassName(
+              props.sevenDayHealth?.successRate ?? 0,
+              props.sevenDayHealth?.requestCount ?? 0
+            )}
+          />
+          <MetricCell
+            icon={HeartPulse}
+            label={t('24h success rate')}
+            value={hasSamples ? formatUptimePct(group.success_rate) : '—'}
+            valueClassName={statusTextClassName(
+              group.success_rate,
+              group.request_count
+            )}
+          />
+          <MetricCell
+            icon={HeartPulse}
+            label={t('10m success rate')}
+            value={
+              tenMinuteHealth.requestCount > 0
+                ? formatUptimePct(tenMinuteHealth.successRate)
+                : '—'
+            }
+            valueClassName={statusTextClassName(
+              tenMinuteHealth.successRate,
+              tenMinuteHealth.requestCount
+            )}
+          />
+        </div>
 
         <div
           ref={bucketBarRef}
@@ -793,11 +959,20 @@ function GroupHealthCard(props: {
           ))}
         </div>
 
-        <RatioHistoryChart
-          currentRatio={group.ratio}
-          history={props.ratioHistory}
-          range={props.ratioRange}
-        />
+        <div
+          ref={ratioChartHostRef}
+          className={cn(!props.showRatioHistory && 'hidden')}
+        >
+          {shouldRenderRatioChart ? (
+            <RatioHistoryChart
+              currentRatio={group.ratio}
+              history={props.ratioHistory}
+              range={props.ratioRange}
+            />
+          ) : props.showRatioHistory ? (
+            <Skeleton className='h-28 rounded-md' />
+          ) : null}
+        </div>
       </div>
     </section>
   )
@@ -807,7 +982,7 @@ function TrafficShareHint() {
   const { t } = useTranslation()
   return (
     <div className='text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-xs'>
-      <span className='border-primary/35 inline-flex size-3.5 shrink-0 rounded-full border-2 border-t-primary' />
+      <span className='border-primary/35 border-t-primary inline-flex size-3.5 shrink-0 rounded-full border-2' />
       <span>{t('小圆环表示过去1小时内请求占比。')}</span>
     </div>
   )
@@ -818,8 +993,7 @@ function TrafficShareRing(props: { percent: number }) {
   if (!Number.isFinite(props.percent) || props.percent <= 0) return null
 
   const percent = Math.min(100, Math.max(0, props.percent))
-  const dashOffset =
-    TRAFFIC_SHARE_RING_CIRCUMFERENCE * (1 - percent / 100)
+  const dashOffset = TRAFFIC_SHARE_RING_CIRCUMFERENCE * (1 - percent / 100)
 
   return (
     <Tooltip>
@@ -913,7 +1087,7 @@ function RatioHistoryChart(props: {
   const changedCount = Math.max(0, data.length - 2)
 
   return (
-    <div className='rounded-md border bg-muted/20 px-2.5 py-2'>
+    <div className='bg-muted/20 rounded-md border px-2.5 py-2'>
       <div className='mb-1 flex items-center justify-between gap-2'>
         <div className='text-muted-foreground truncate text-[10px] font-medium'>
           {t('Ratio history')}
@@ -926,10 +1100,13 @@ function RatioHistoryChart(props: {
       </div>
       <ChartContainer
         config={ratioChartConfig}
-        className='h-24 w-full aspect-auto'
+        className='aspect-auto h-24 w-full'
         initialDimension={{ width: 320, height: 96 }}
       >
-        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <LineChart
+          data={data}
+          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+        >
           <CartesianGrid vertical={false} strokeDasharray='3 3' />
           <XAxis
             dataKey='ts'
@@ -989,6 +1166,7 @@ function MetricCell(props: {
   icon: React.ComponentType<{ className?: string }>
   label: string
   value: string
+  valueClassName?: string
 }) {
   const Icon = props.icon
   return (
@@ -998,7 +1176,7 @@ function MetricCell(props: {
         <span className='truncate'>{props.label}</span>
       </div>
       <div className='mt-1 truncate font-mono text-xs font-semibold tabular-nums'>
-        {props.value}
+        <span className={props.valueClassName}>{props.value}</span>
       </div>
     </div>
   )

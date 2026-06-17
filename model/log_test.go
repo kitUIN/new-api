@@ -82,6 +82,8 @@ func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {
 	require.Equal(t, 0.0, defaultGroup.AvgLatencyMs)
 	require.Equal(t, 0.0, defaultGroup.AvgTTFTMs)
 	require.Equal(t, 0.0, defaultGroup.AvgTps)
+	require.Zero(t, defaultGroup.RecentRequestCount)
+	require.EqualValues(t, 0, defaultGroup.Buckets[len(defaultGroup.Buckets)-1].NonTestRequestCount)
 }
 
 func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {

@@ -64,16 +64,17 @@ type PerfMetricsSummary struct {
 }
 
 type PerfGroupHealthBucket struct {
-	Ts               int64   `json:"ts"`
-	EndTs            int64   `json:"end_ts"`
-	RequestCount     int64   `json:"request_count"`
-	SuccessCount     int64   `json:"success_count"`
-	TestRequestCount int64   `json:"test_request_count"`
-	SuccessRate      float64 `json:"success_rate"`
-	AvgTTFTMs        float64 `json:"avg_ttft_ms"`
-	AvgLatencyMs     float64 `json:"avg_latency_ms"`
-	AvgTps           float64 `json:"avg_tps"`
-	Status           string  `json:"status"`
+	Ts                  int64   `json:"ts"`
+	EndTs               int64   `json:"end_ts"`
+	RequestCount        int64   `json:"request_count"`
+	SuccessCount        int64   `json:"success_count"`
+	TestRequestCount    int64   `json:"test_request_count"`
+	NonTestRequestCount int64   `json:"non_test_request_count"`
+	SuccessRate         float64 `json:"success_rate"`
+	AvgTTFTMs           float64 `json:"avg_ttft_ms"`
+	AvgLatencyMs        float64 `json:"avg_latency_ms"`
+	AvgTps              float64 `json:"avg_tps"`
+	Status              string  `json:"status"`
 }
 
 type PerfGroupHealth struct {
@@ -143,6 +144,7 @@ type perfRecentMetricSample struct {
 	Timestamp int64
 	Group     string
 	Success   bool
+	IsTestRequest bool
 }
 
 type perfAccumulator struct {
@@ -228,9 +230,10 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 	}
 	pendingPerfMetrics[key] = acc
 	recentPerfMetrics = append(recentPerfMetrics, perfRecentMetricSample{
-		Timestamp: sample.Timestamp,
-		Group:     group,
-		Success:   sample.Success,
+		Timestamp:     sample.Timestamp,
+		Group:         group,
+		Success:       sample.Success,
+		IsTestRequest: sample.IsTestRequest,
 	})
 	pruneRecentPerfMetricsLocked(sample.Timestamp - perfRecentMetricRetentionSeconds)
 	perfMetricsMu.Unlock()
@@ -406,6 +409,9 @@ func buildRecentGroupWindowStats(
 			group = "default"
 		}
 		if sample.Timestamp < twentyMinuteCutoff {
+			continue
+		}
+		if sample.IsTestRequest {
 			continue
 		}
 		stat := stats[group]
@@ -776,17 +782,22 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 				continue
 			}
 			bucketLatencyMs, bucketTTFTMs, bucketSuccessRate, bucketTps := acc.summary()
+			nonTestRequestCount := acc.requestCount - acc.testRequestCount
+			if nonTestRequestCount < 0 {
+				nonTestRequestCount = 0
+			}
 			buckets = append(buckets, PerfGroupHealthBucket{
-				Ts:               bucketTs,
-				EndTs:            bucketTs + intervalSeconds,
-				RequestCount:     acc.requestCount,
-				SuccessCount:     acc.successCount,
-				TestRequestCount: acc.testRequestCount,
-				SuccessRate:      bucketSuccessRate,
-				AvgTTFTMs:        bucketTTFTMs,
-				AvgLatencyMs:     bucketLatencyMs,
-				AvgTps:           bucketTps,
-				Status:           perfGroupHealthStatus(acc.requestCount, bucketSuccessRate),
+				Ts:                  bucketTs,
+				EndTs:               bucketTs + intervalSeconds,
+				RequestCount:        acc.requestCount,
+				SuccessCount:        acc.successCount,
+				TestRequestCount:    acc.testRequestCount,
+				NonTestRequestCount: nonTestRequestCount,
+				SuccessRate:         bucketSuccessRate,
+				AvgTTFTMs:           bucketTTFTMs,
+				AvgLatencyMs:        bucketLatencyMs,
+				AvgTps:              bucketTps,
+				Status:              perfGroupHealthStatus(acc.requestCount, bucketSuccessRate),
 			})
 		}
 

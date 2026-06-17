@@ -67,6 +67,7 @@ export type PerfGroupHealthBucket = {
   request_count: number
   success_count: number
   test_request_count?: number
+  non_test_request_count?: number
   success_rate: number
   avg_ttft_ms: number
   avg_latency_ms: number
