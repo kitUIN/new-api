@@ -27,6 +27,7 @@ type PerfMetricBucket struct {
 	Group             string `json:"group" gorm:"size:191;uniqueIndex:idx_perf_metric_bucket;index"`
 	RequestCount      int64  `json:"request_count" gorm:"bigint;default:0"`
 	SuccessCount      int64  `json:"success_count" gorm:"bigint;default:0"`
+	LatencyCount      int64  `json:"latency_count" gorm:"bigint;default:0"`
 	TotalLatencyMs    int64  `json:"total_latency_ms" gorm:"bigint;default:0"`
 	TotalTTFTMs       int64  `json:"total_ttft_ms" gorm:"bigint;default:0"`
 	TTFTCount         int64  `json:"ttft_count" gorm:"bigint;default:0"`
@@ -45,6 +46,7 @@ type PerfMetricSample struct {
 	TTFTMs           int64
 	CompletionTokens int64
 	TPSLatencyMs     int64
+	CountLatency     bool
 }
 
 type PerfModelSummary struct {
@@ -134,6 +136,7 @@ type perfMetricKey struct {
 type perfAccumulator struct {
 	requestCount      int64
 	successCount      int64
+	latencyCount      int64
 	totalLatencyMs    int64
 	totalTTFTMs       int64
 	ttftCount         int64
@@ -191,14 +194,17 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 	acc.requestCount++
 	if sample.Success {
 		acc.successCount++
-		acc.totalLatencyMs += sample.LatencyMs
-		if sample.TTFTMs > 0 {
-			acc.totalTTFTMs += sample.TTFTMs
-			acc.ttftCount++
-		}
-		if sample.CompletionTokens > 0 && sample.TPSLatencyMs > 0 {
-			acc.completionTokens += sample.CompletionTokens
-			acc.totalTPSLatencyMs += sample.TPSLatencyMs
+		if sample.CountLatency {
+			acc.latencyCount++
+			acc.totalLatencyMs += sample.LatencyMs
+			if sample.TTFTMs > 0 {
+				acc.totalTTFTMs += sample.TTFTMs
+				acc.ttftCount++
+			}
+			if sample.CompletionTokens > 0 && sample.TPSLatencyMs > 0 {
+				acc.completionTokens += sample.CompletionTokens
+				acc.totalTPSLatencyMs += sample.TPSLatencyMs
+			}
 		}
 	}
 	pendingPerfMetrics[key] = acc
