@@ -75,6 +75,11 @@ import {
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { MultiSelect } from '@/components/multi-select'
+import { getPerfGroupHealth } from '@/features/performance-metrics/api'
+import type {
+  PerfGroupHealth,
+  PerfGroupHealthBucket,
+} from '@/features/performance-metrics/types'
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -91,10 +96,44 @@ import {
 } from './api-key-group-combobox'
 import { useApiKeys } from './api-keys-provider'
 
+const GROUP_HEALTH_WINDOW_HOURS = 24
+const GROUP_HEALTH_INTERVAL_MINUTES = 10
+
 type ApiKeyMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: ApiKey
+}
+
+function calculateBucketAvailability(buckets: PerfGroupHealthBucket[]) {
+  const totals = buckets.reduce(
+    (acc, bucket) => {
+      acc.requests += bucket.request_count || 0
+      acc.successes += bucket.success_count || 0
+      return acc
+    },
+    { requests: 0, successes: 0 }
+  )
+
+  if (totals.requests <= 0) return null
+  return (totals.successes / totals.requests) * 100
+}
+
+function calculateRecentAvailability(group?: PerfGroupHealth) {
+  const buckets = group?.buckets ?? []
+  const lastBucket = buckets.at(-1)
+  if (lastBucket && lastBucket.request_count > 0) {
+    return {
+      recentAvailability: lastBucket.success_rate,
+      recentWindowMinutes: 10 as const,
+    }
+  }
+
+  const fallbackRate = calculateBucketAvailability(buckets.slice(-2))
+  return {
+    recentAvailability: fallbackRate,
+    recentWindowMinutes: 20 as const,
+  }
 }
 
 export function ApiKeysMutateDrawer({
@@ -124,15 +163,45 @@ export function ApiKeysMutateDrawer({
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: groupHealthData } = useQuery({
+    queryKey: [
+      'perf-group-health',
+      GROUP_HEALTH_WINDOW_HOURS,
+      GROUP_HEALTH_INTERVAL_MINUTES,
+    ],
+    queryFn: () =>
+      getPerfGroupHealth(
+        GROUP_HEALTH_WINDOW_HOURS,
+        GROUP_HEALTH_INTERVAL_MINUTES
+      ),
+    enabled: open,
+    refetchOnMount: 'always',
+    refetchOnReconnect: 'always',
+    refetchOnWindowFocus: true,
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
   const models = modelsData?.data || []
   const groupsRaw = groupsData?.data || {}
+  const groupHealthMap = new Map(
+    (groupHealthData?.data.groups ?? []).map((group) => [group.group, group])
+  )
   const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
-    ([key, info]) => ({
-      value: key,
-      label: key,
-      desc: info.desc || key,
-      ratio: info.ratio,
-    })
+    ([key, info]) => {
+      const health = groupHealthMap.get(key)
+      return {
+        value: key,
+        label: key,
+        desc: info.desc || key,
+        ratio: info.ratio,
+        health: {
+          availability24h:
+            health && health.request_count > 0 ? health.success_rate : null,
+          ...calculateRecentAvailability(health),
+        },
+      }
+    }
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const concreteGroups = groups.filter((g) => g.value !== 'auto')
@@ -256,9 +325,7 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
-  const sessionFailoverEnabled = form.watch(
-    'session_group_failover_enabled'
-  )
+  const sessionFailoverEnabled = form.watch('session_group_failover_enabled')
   const sessionFailoverGroups = form.watch('session_failover_groups') || []
 
   const setFailoverGroups = (nextGroups: string[]) => {
@@ -559,7 +626,9 @@ export function ApiKeysMutateDrawer({
                     name='session_failover_threshold'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Consecutive failure threshold')}</FormLabel>
+                        <FormLabel>
+                          {t('Consecutive failure threshold')}
+                        </FormLabel>
                         <FormControl>
                           <Input
                             {...field}

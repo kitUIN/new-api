@@ -35,12 +35,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { formatUptimePct } from '@/features/performance-metrics/lib/format'
+
+export type ApiKeyGroupHealth = {
+  availability24h?: number | null
+  recentAvailability?: number | null
+  recentWindowMinutes?: 10 | 20 | null
+}
 
 export type ApiKeyGroupOption = {
   value: string
   label: string
   desc?: string
   ratio?: number | string
+  health?: ApiKeyGroupHealth
 }
 
 type ApiKeyGroupComboboxProps = {
@@ -95,6 +103,58 @@ function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
   )
 }
 
+function getAvailabilityBadgeClassName(rate: number | null | undefined) {
+  if (rate === undefined || rate === null || !Number.isFinite(rate)) {
+    return 'border-border bg-muted/40 text-muted-foreground'
+  }
+
+  if (rate >= 99) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+  }
+  if (rate >= 95) {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300'
+  }
+  return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300'
+}
+
+function formatAvailabilityLabel(
+  windowLabel: string,
+  rate: number | null | undefined
+) {
+  const value =
+    rate === undefined || rate === null || !Number.isFinite(rate)
+      ? 'N/A'
+      : formatUptimePct(rate)
+  return `${windowLabel} ${value}`
+}
+
+function GroupHealthBadges({ health }: { health?: ApiKeyGroupHealth }) {
+  const recentWindowLabel = health?.recentWindowMinutes === 20 ? '20m' : '10m'
+
+  return (
+    <div className='flex flex-wrap gap-1.5'>
+      <Badge
+        variant='outline'
+        className={cn(
+          'max-w-28 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
+          getAvailabilityBadgeClassName(health?.availability24h)
+        )}
+      >
+        {formatAvailabilityLabel('24h', health?.availability24h)}
+      </Badge>
+      <Badge
+        variant='outline'
+        className={cn(
+          'max-w-28 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
+          getAvailabilityBadgeClassName(health?.recentAvailability)
+        )}
+      >
+        {formatAvailabilityLabel(recentWindowLabel, health?.recentAvailability)}
+      </Badge>
+    </div>
+  )
+}
+
 export function ApiKeyGroupCombobox({
   options,
   value,
@@ -117,7 +177,13 @@ export function ApiKeyGroupCombobox({
         option.value.toLowerCase().includes(search) ||
         option.label.toLowerCase().includes(search) ||
         option.desc?.toLowerCase().includes(search) ||
-        ratioText.includes(search)
+        ratioText.includes(search) ||
+        String(option.health?.availability24h ?? '')
+          .toLowerCase()
+          .includes(search) ||
+        String(option.health?.recentAvailability ?? '')
+          .toLowerCase()
+          .includes(search)
       )
     })
   }, [options, searchValue])
@@ -138,12 +204,12 @@ export function ApiKeyGroupCombobox({
             role='combobox'
             aria-expanded={open}
             disabled={disabled}
-            className='border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3'
+            className='border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 h-auto min-h-16 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-24 sm:gap-3 sm:px-4 sm:py-3'
           />
         }
       >
-        <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
-          <span className='min-w-0'>
+        <span className='flex min-w-0 flex-1 items-start justify-between gap-2 sm:gap-3'>
+          <span className='min-w-0 flex-1'>
             <span className='block truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
@@ -152,12 +218,13 @@ export function ApiKeyGroupCombobox({
                 {selectedOption.desc}
               </span>
             )}
-          </span>
-          <span className='hidden sm:block'>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
+            <span className='mt-1 flex flex-wrap gap-1.5'>
+              <GroupRatioBadge ratio={selectedOption?.ratio} />
+              <GroupHealthBadges health={selectedOption?.health} />
+            </span>
           </span>
         </span>
-        <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
+        <ChevronsUpDown className='mt-1 h-4 w-4 shrink-0 opacity-50' />
       </PopoverTrigger>
       <PopoverContent
         className='data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--anchor-width)] overflow-hidden rounded-xl p-0 shadow-lg data-closed:duration-75 data-open:duration-100'
@@ -196,8 +263,11 @@ export function ApiKeyGroupCombobox({
                         {option.desc}
                       </span>
                     )}
+                    <span className='mt-1 flex flex-wrap gap-1.5'>
+                      <GroupRatioBadge ratio={option.ratio} />
+                      <GroupHealthBadges health={option.health} />
+                    </span>
                   </span>
-                  <GroupRatioBadge ratio={option.ratio} />
                 </CommandItem>
               ))}
             </CommandGroup>
