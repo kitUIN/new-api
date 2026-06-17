@@ -255,6 +255,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := migratePerfMetricBucketTestRequestCount(); err != nil {
+		return err
+	}
 	if err := migratePerfMetricBucketLatencyCount(); err != nil {
 		return err
 	}
@@ -310,6 +313,9 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	if err := migratePerfMetricBucketTestRequestCount(); err != nil {
+		return err
+	}
 	if err := migratePerfMetricBucketLatencyCount(); err != nil {
 		return err
 	}
@@ -391,11 +397,33 @@ func migrateDBFast() error {
 
 func migrateLOGDB() error {
 	var err error
+	if err = migratePerfMetricBucketTestRequestCount(); err != nil {
+		return err
+	}
 	if err = migratePerfMetricBucketLatencyCount(); err != nil {
 		return err
 	}
 	if err = LOG_DB.AutoMigrate(&Log{}, &RequestDetail{}, &PerfMetricBucket{}); err != nil {
 		return err
+	}
+	return nil
+}
+
+func migratePerfMetricBucketTestRequestCount() error {
+	dbs := []*gorm.DB{DB}
+	if LOG_DB != nil && LOG_DB != DB {
+		dbs = append(dbs, LOG_DB)
+	}
+	for _, db := range dbs {
+		if db == nil || !db.Migrator().HasTable(&PerfMetricBucket{}) {
+			continue
+		}
+		if db.Migrator().HasColumn(&PerfMetricBucket{}, "test_request_count") {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&PerfMetricBucket{}, "TestRequestCount"); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -357,6 +357,7 @@ func RecordChannelTestPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInf
 	if relayInfo == nil || relayInfo.IsPlayground || relayInfo.TaskRelayInfo != nil {
 		return
 	}
+	sample.IsTestRequest = true
 	sample.SkipLatencyMetrics = true
 	recordRelayPerfMetric(c, relayInfo, sample)
 }

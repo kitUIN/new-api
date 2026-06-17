@@ -27,6 +27,7 @@ type PerfMetricBucket struct {
 	Group             string `json:"group" gorm:"size:191;uniqueIndex:idx_perf_metric_bucket;index"`
 	RequestCount      int64  `json:"request_count" gorm:"bigint;default:0"`
 	SuccessCount      int64  `json:"success_count" gorm:"bigint;default:0"`
+	TestRequestCount  int64  `json:"test_request_count" gorm:"bigint;default:0"`
 	LatencyCount      int64  `json:"latency_count" gorm:"bigint;default:0"`
 	TotalLatencyMs    int64  `json:"total_latency_ms" gorm:"bigint;default:0"`
 	TotalTTFTMs       int64  `json:"total_ttft_ms" gorm:"bigint;default:0"`
@@ -46,6 +47,7 @@ type PerfMetricSample struct {
 	TTFTMs             int64
 	CompletionTokens   int64
 	TPSLatencyMs       int64
+	IsTestRequest      bool
 	SkipLatencyMetrics bool
 }
 
@@ -62,15 +64,16 @@ type PerfMetricsSummary struct {
 }
 
 type PerfGroupHealthBucket struct {
-	Ts           int64   `json:"ts"`
-	EndTs        int64   `json:"end_ts"`
-	RequestCount int64   `json:"request_count"`
-	SuccessCount int64   `json:"success_count"`
-	SuccessRate  float64 `json:"success_rate"`
-	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
-	AvgLatencyMs float64 `json:"avg_latency_ms"`
-	AvgTps       float64 `json:"avg_tps"`
-	Status       string  `json:"status"`
+	Ts               int64   `json:"ts"`
+	EndTs            int64   `json:"end_ts"`
+	RequestCount     int64   `json:"request_count"`
+	SuccessCount     int64   `json:"success_count"`
+	TestRequestCount int64   `json:"test_request_count"`
+	SuccessRate      float64 `json:"success_rate"`
+	AvgTTFTMs        float64 `json:"avg_ttft_ms"`
+	AvgLatencyMs     float64 `json:"avg_latency_ms"`
+	AvgTps           float64 `json:"avg_tps"`
+	Status           string  `json:"status"`
 }
 
 type PerfGroupHealth struct {
@@ -145,6 +148,7 @@ type perfRecentMetricSample struct {
 type perfAccumulator struct {
 	requestCount      int64
 	successCount      int64
+	testRequestCount  int64
 	latencyCount      int64
 	totalLatencyMs    int64
 	totalTTFTMs       int64
@@ -204,6 +208,9 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 	perfMetricsMu.Lock()
 	acc := pendingPerfMetrics[key]
 	acc.requestCount++
+	if sample.IsTestRequest {
+		acc.testRequestCount++
+	}
 	if sample.Success {
 		acc.successCount++
 		if !sample.SkipLatencyMetrics {
@@ -454,6 +461,7 @@ func upsertPerfMetricBucket(tx *gorm.DB, key perfMetricKey, acc perfAccumulator,
 			Group:             key.group,
 			RequestCount:      acc.requestCount,
 			SuccessCount:      acc.successCount,
+			TestRequestCount:  acc.testRequestCount,
 			LatencyCount:      acc.latencyCount,
 			TotalLatencyMs:    acc.totalLatencyMs,
 			TotalTTFTMs:       acc.totalTTFTMs,
@@ -467,6 +475,7 @@ func upsertPerfMetricBucket(tx *gorm.DB, key perfMetricKey, acc perfAccumulator,
 	return tx.Model(&bucket).Updates(map[string]interface{}{
 		"request_count":        gorm.Expr("request_count + ?", acc.requestCount),
 		"success_count":        gorm.Expr("success_count + ?", acc.successCount),
+		"test_request_count":   gorm.Expr("test_request_count + ?", acc.testRequestCount),
 		"latency_count":        gorm.Expr("latency_count + ?", acc.latencyCount),
 		"total_latency_ms":     gorm.Expr("total_latency_ms + ?", acc.totalLatencyMs),
 		"total_ttft_ms":        gorm.Expr("total_ttft_ms + ?", acc.totalTTFTMs),
@@ -484,6 +493,7 @@ type perfMetricAggregateRow struct {
 	BucketSeconds     int64
 	RequestCount      int64
 	SuccessCount      int64
+	TestRequestCount  int64
 	LatencyCount      int64
 	TotalLatencyMs    int64
 	TotalTTFTMs       int64
@@ -510,6 +520,7 @@ func pendingPerfMetricRows(startTimestamp int64, modelName string) []perfMetricA
 			BucketSeconds:     key.bucketSeconds,
 			RequestCount:      acc.requestCount,
 			SuccessCount:      acc.successCount,
+			TestRequestCount:  acc.testRequestCount,
 			LatencyCount:      acc.latencyCount,
 			TotalLatencyMs:    acc.totalLatencyMs,
 			TotalTTFTMs:       acc.totalTTFTMs,
@@ -532,6 +543,7 @@ func GetPerfMetricsSummary(hours int, limit int) (PerfMetricsSummary, error) {
 		Select(`model_name,
 			SUM(request_count) AS request_count,
 			SUM(success_count) AS success_count,
+			SUM(test_request_count) AS test_request_count,
 			SUM(latency_count) AS latency_count,
 			SUM(total_latency_ms) AS total_latency_ms,
 			SUM(total_ttft_ms) AS total_ttft_ms,
@@ -663,6 +675,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			`+groupCol+` AS group_name,
 			SUM(request_count) AS request_count,
 			SUM(success_count) AS success_count,
+			SUM(test_request_count) AS test_request_count,
 			SUM(latency_count) AS latency_count,
 			SUM(total_latency_ms) AS total_latency_ms,
 			SUM(total_ttft_ms) AS total_ttft_ms,
@@ -687,6 +700,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			BucketSeconds:     key.bucketSeconds,
 			RequestCount:      acc.requestCount,
 			SuccessCount:      acc.successCount,
+			TestRequestCount:  acc.testRequestCount,
 			LatencyCount:      acc.latencyCount,
 			TotalLatencyMs:    acc.totalLatencyMs,
 			TotalTTFTMs:       acc.totalTTFTMs,
@@ -763,15 +777,16 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			}
 			bucketLatencyMs, bucketTTFTMs, bucketSuccessRate, bucketTps := acc.summary()
 			buckets = append(buckets, PerfGroupHealthBucket{
-				Ts:           bucketTs,
-				EndTs:        bucketTs + intervalSeconds,
-				RequestCount: acc.requestCount,
-				SuccessCount: acc.successCount,
-				SuccessRate:  bucketSuccessRate,
-				AvgTTFTMs:    bucketTTFTMs,
-				AvgLatencyMs: bucketLatencyMs,
-				AvgTps:       bucketTps,
-				Status:       perfGroupHealthStatus(acc.requestCount, bucketSuccessRate),
+				Ts:               bucketTs,
+				EndTs:            bucketTs + intervalSeconds,
+				RequestCount:     acc.requestCount,
+				SuccessCount:     acc.successCount,
+				TestRequestCount: acc.testRequestCount,
+				SuccessRate:      bucketSuccessRate,
+				AvgTTFTMs:        bucketTTFTMs,
+				AvgLatencyMs:     bucketLatencyMs,
+				AvgTps:           bucketTps,
+				Status:           perfGroupHealthStatus(acc.requestCount, bucketSuccessRate),
 			})
 		}
 
@@ -965,6 +980,7 @@ func GetRankingGroupPerfStats(startTime int64, endTime int64) ([]RankingGroupPer
 			Select(groupExpr + ` AS group_name,
 				SUM(request_count) AS request_count,
 				SUM(success_count) AS success_count,
+				SUM(test_request_count) AS test_request_count,
 				SUM(latency_count) AS latency_count,
 				SUM(total_latency_ms) AS total_latency_ms,
 				SUM(total_ttft_ms) AS total_ttft_ms,
@@ -1036,6 +1052,7 @@ func GetPerformanceMetrics(modelName string, hours int) (PerformanceMetrics, err
 			`+groupCol+` AS group_name,
 			SUM(request_count) AS request_count,
 			SUM(success_count) AS success_count,
+			SUM(test_request_count) AS test_request_count,
 			SUM(latency_count) AS latency_count,
 			SUM(total_latency_ms) AS total_latency_ms,
 			SUM(total_ttft_ms) AS total_ttft_ms,
@@ -1131,6 +1148,7 @@ func accumulatorFromRow(row perfMetricAggregateRow) perfAccumulator {
 	return perfAccumulator{
 		requestCount:      row.RequestCount,
 		successCount:      row.SuccessCount,
+		testRequestCount:  row.TestRequestCount,
 		latencyCount:      perfMetricLatencyCountFromRow(row),
 		totalLatencyMs:    row.TotalLatencyMs,
 		totalTTFTMs:       row.TotalTTFTMs,
@@ -1150,6 +1168,7 @@ func perfMetricLatencyCountFromRow(row perfMetricAggregateRow) int64 {
 func (a *perfAccumulator) add(other perfAccumulator) {
 	a.requestCount += other.requestCount
 	a.successCount += other.successCount
+	a.testRequestCount += other.testRequestCount
 	a.latencyCount += other.latencyCount
 	a.totalLatencyMs += other.totalLatencyMs
 	a.totalTTFTMs += other.totalTTFTMs

@@ -121,6 +121,7 @@ func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {
 	require.NoError(t, LOG_DB.Where("model_name = ?", "channel-test-flush-model").First(&bucket).Error)
 	require.EqualValues(t, 1, bucket.RequestCount)
 	require.EqualValues(t, 1, bucket.SuccessCount)
+	require.EqualValues(t, 1, bucket.TestRequestCount)
 	require.Zero(t, bucket.LatencyCount)
 	require.Zero(t, bucket.TotalLatencyMs)
 	require.Zero(t, bucket.TTFTCount)

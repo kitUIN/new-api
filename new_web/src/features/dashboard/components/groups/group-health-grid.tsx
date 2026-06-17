@@ -87,7 +87,7 @@ const HEALTH_INTERVAL_MINUTES = 10
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
 const HEALTH_DOT_SIZE_PX = 10
 const HEALTH_DOT_GAP_PX = 4
-const TRAFFIC_SHARE_RING_RADIUS = 8
+const TRAFFIC_SHARE_RING_RADIUS = 6.5
 const TRAFFIC_SHARE_RING_CIRCUMFERENCE = 2 * Math.PI * TRAFFIC_SHARE_RING_RADIUS
 const DEFAULT_RATIO_HISTORY_DAYS = 7
 type RatioHistoryRangeMode = '7d' | 'week' | 'month' | 'custom'
@@ -254,7 +254,15 @@ function calculateRecentRequestCount(
   const bucketCount = Math.ceil((hours * 60) / HEALTH_INTERVAL_MINUTES)
   return buckets
     .slice(-bucketCount)
-    .reduce((total, bucket) => total + (bucket.request_count || 0), 0)
+    .reduce(
+      (total, bucket) =>
+        total +
+        Math.max(
+          0,
+          (bucket.request_count || 0) - (bucket.test_request_count || 0)
+        ),
+      0
+    )
 }
 
 function formatSharePct(value: number): string {
@@ -799,7 +807,7 @@ function TrafficShareHint() {
   const { t } = useTranslation()
   return (
     <div className='text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-xs'>
-      <span className='border-primary/35 inline-flex size-4 shrink-0 rounded-full border-2 border-t-primary' />
+      <span className='border-primary/35 inline-flex size-3.5 shrink-0 rounded-full border-2 border-t-primary' />
       <span>{t('小圆环表示过去1小时内请求占比。')}</span>
     </div>
   )
@@ -817,10 +825,14 @@ function TrafficShareRing(props: { percent: number }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span className='inline-flex shrink-0 items-center gap-1.5'>
+          <button
+            type='button'
+            className='focus-visible:ring-ring inline-flex shrink-0 items-center gap-1.5 rounded-sm focus-visible:ring-2 focus-visible:outline-none'
+            aria-label={t('过去1小时内请求占比')}
+          >
             <svg
               viewBox='0 0 20 20'
-              className='size-5 -rotate-90'
+              className='size-4 -rotate-90'
               aria-hidden='true'
             >
               <circle
@@ -829,7 +841,7 @@ function TrafficShareRing(props: { percent: number }) {
                 r={TRAFFIC_SHARE_RING_RADIUS}
                 fill='none'
                 stroke='currentColor'
-                strokeWidth='2.5'
+                strokeWidth='4'
                 className='text-primary/20'
               />
               <circle
@@ -838,7 +850,7 @@ function TrafficShareRing(props: { percent: number }) {
                 r={TRAFFIC_SHARE_RING_RADIUS}
                 fill='none'
                 stroke='currentColor'
-                strokeWidth='2.5'
+                strokeWidth='4'
                 strokeLinecap='round'
                 strokeDasharray={TRAFFIC_SHARE_RING_CIRCUMFERENCE}
                 strokeDashoffset={dashOffset}
@@ -848,7 +860,7 @@ function TrafficShareRing(props: { percent: number }) {
             <span className='text-primary font-mono text-[11px] font-semibold tabular-nums'>
               {formatSharePct(percent)}
             </span>
-          </span>
+          </button>
         }
       />
       <TooltipContent>{t('过去1小时内请求占比')}</TooltipContent>

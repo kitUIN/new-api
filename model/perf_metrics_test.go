@@ -198,6 +198,7 @@ func TestPerfMetricSampleCanSkipLatencyMetrics(t *testing.T) {
 		TTFTMs:             3000,
 		CompletionTokens:   900,
 		TPSLatencyMs:       9000,
+		IsTestRequest:      true,
 		SkipLatencyMetrics: true,
 	})
 	require.NoError(t, FlushPerfMetrics())
@@ -223,6 +224,7 @@ func TestPerfMetricSampleCanSkipLatencyMetrics(t *testing.T) {
 	require.NoError(t, LOG_DB.Where("model_name = ?", "skip-latency").First(&bucket).Error)
 	require.EqualValues(t, 2, bucket.RequestCount)
 	require.EqualValues(t, 2, bucket.SuccessCount)
+	require.EqualValues(t, 1, bucket.TestRequestCount)
 	require.EqualValues(t, 1, bucket.LatencyCount)
 	require.EqualValues(t, 1000, bucket.TotalLatencyMs)
 }
