@@ -520,6 +520,11 @@ export function RatioSettingsCard({
       ).filter(
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
+      updates.sort((left, right) => {
+        if (left === 'UserUsableGroups') return -1
+        if (right === 'UserUsableGroups') return 1
+        return 0
+      })
 
       for (const key of updates) {
         const apiKey = apiKeyMap[key] || key

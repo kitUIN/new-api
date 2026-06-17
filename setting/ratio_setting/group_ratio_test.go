@@ -156,6 +156,31 @@ func TestCompareGroupRatioChangesIgnoresEqualMaps(t *testing.T) {
 	require.Empty(t, FormatGroupRatioChangeMessage(changes))
 }
 
+func TestFilterGroupRatioChangesByEnabledGroups(t *testing.T) {
+	changes := []GroupRatioChange{
+		{Type: GroupRatioChangeUpdated, Group: "default", OldRatio: 1, NewRatio: 0.9},
+		{Type: GroupRatioChangeUpdated, Group: "disabled", OldRatio: 1, NewRatio: 0.8},
+		{Type: GroupRatioChangeDeleted, Group: "old", OldRatio: 0.5},
+	}
+
+	filtered := FilterGroupRatioChangesByEnabledGroups(
+		changes,
+		map[string]string{
+			"default": "默认分组",
+			"old":     "旧分组",
+		},
+	)
+
+	require.Equal(t, []GroupRatioChange{
+		{Type: GroupRatioChangeUpdated, Group: "default", OldRatio: 1, NewRatio: 0.9},
+		{Type: GroupRatioChangeDeleted, Group: "old", OldRatio: 0.5},
+	}, filtered)
+	require.Equal(t, []string{
+		"* default: 1 -> 0.9",
+		"- old: 原倍率 0.5",
+	}, FormatGroupRatioChangeLines(filtered))
+}
+
 func TestCompareUpstreamGroupRatioBindingChanges(t *testing.T) {
 	changes := CompareUpstreamGroupRatioBindingChanges(
 		map[string]UpstreamGroupRatioBinding{

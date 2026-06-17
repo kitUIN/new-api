@@ -89,6 +89,28 @@ func FormatGroupRatioChangeMessage(changes []GroupRatioChange) string {
 	return "分组倍率发生变化：\n" + strings.Join(lines, "\n")
 }
 
+func FilterGroupRatioChangesByEnabledGroups(
+	changes []GroupRatioChange,
+	enabledGroups map[string]string,
+) []GroupRatioChange {
+	if len(changes) == 0 || len(enabledGroups) == 0 {
+		return nil
+	}
+
+	filtered := make([]GroupRatioChange, 0, len(changes))
+	for _, change := range changes {
+		group := strings.TrimSpace(change.Group)
+		if group == "" {
+			continue
+		}
+		if _, ok := enabledGroups[group]; !ok {
+			continue
+		}
+		filtered = append(filtered, change)
+	}
+	return filtered
+}
+
 type UpstreamGroupRatioBindingChangeType string
 
 const (
