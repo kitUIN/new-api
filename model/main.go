@@ -255,6 +255,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := migratePerfMetricBucketLatencyCount(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -291,9 +294,6 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
-	if err := migratePerfMetricBucketLatencyCount(); err != nil {
-		return err
-	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -310,6 +310,9 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	if err := migratePerfMetricBucketLatencyCount(); err != nil {
+		return err
+	}
 
 	var wg sync.WaitGroup
 
@@ -382,19 +385,16 @@ func migrateDBFast() error {
 	if err := MigrateChannelProviders(); err != nil {
 		return err
 	}
-	if err := migratePerfMetricBucketLatencyCount(); err != nil {
-		return err
-	}
 	common.SysLog("database migrated")
 	return nil
 }
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}, &RequestDetail{}, &PerfMetricBucket{}); err != nil {
+	if err = migratePerfMetricBucketLatencyCount(); err != nil {
 		return err
 	}
-	if err = migratePerfMetricBucketLatencyCount(); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &RequestDetail{}, &PerfMetricBucket{}); err != nil {
 		return err
 	}
 	return nil
@@ -409,10 +409,11 @@ func migratePerfMetricBucketLatencyCount() error {
 		if db == nil || !db.Migrator().HasTable(&PerfMetricBucket{}) {
 			continue
 		}
-		if !db.Migrator().HasColumn(&PerfMetricBucket{}, "latency_count") {
-			if err := db.Migrator().AddColumn(&PerfMetricBucket{}, "LatencyCount"); err != nil {
-				return err
-			}
+		if db.Migrator().HasColumn(&PerfMetricBucket{}, "latency_count") {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&PerfMetricBucket{}, "LatencyCount"); err != nil {
+			return err
 		}
 		if err := db.Model(&PerfMetricBucket{}).
 			Where("latency_count = 0 AND success_count > 0").

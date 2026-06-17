@@ -1131,13 +1131,20 @@ func accumulatorFromRow(row perfMetricAggregateRow) perfAccumulator {
 	return perfAccumulator{
 		requestCount:      row.RequestCount,
 		successCount:      row.SuccessCount,
-		latencyCount:      row.LatencyCount,
+		latencyCount:      perfMetricLatencyCountFromRow(row),
 		totalLatencyMs:    row.TotalLatencyMs,
 		totalTTFTMs:       row.TotalTTFTMs,
 		ttftCount:         row.TTFTCount,
 		completionTokens:  row.CompletionTokens,
 		totalTPSLatencyMs: row.TotalTPSLatencyMs,
 	}
+}
+
+func perfMetricLatencyCountFromRow(row perfMetricAggregateRow) int64 {
+	if row.LatencyCount > 0 || row.TotalLatencyMs <= 0 {
+		return row.LatencyCount
+	}
+	return row.SuccessCount
 }
 
 func (a *perfAccumulator) add(other perfAccumulator) {

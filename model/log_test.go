@@ -81,6 +81,7 @@ func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {
 	require.Equal(t, 100.0, defaultGroup.SuccessRate)
 	require.Equal(t, 0.0, defaultGroup.AvgLatencyMs)
 	require.Equal(t, 0.0, defaultGroup.AvgTTFTMs)
+	require.Equal(t, 0.0, defaultGroup.AvgTps)
 }
 
 func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {
@@ -112,4 +113,17 @@ func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {
 	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
 	require.EqualValues(t, 1, defaultGroup.RequestCount)
 	require.Equal(t, 100.0, defaultGroup.SuccessRate)
+	require.Equal(t, 0.0, defaultGroup.AvgLatencyMs)
+	require.Equal(t, 0.0, defaultGroup.AvgTTFTMs)
+	require.Equal(t, 0.0, defaultGroup.AvgTps)
+
+	var bucket PerfMetricBucket
+	require.NoError(t, LOG_DB.Where("model_name = ?", "channel-test-flush-model").First(&bucket).Error)
+	require.EqualValues(t, 1, bucket.RequestCount)
+	require.EqualValues(t, 1, bucket.SuccessCount)
+	require.Zero(t, bucket.LatencyCount)
+	require.Zero(t, bucket.TotalLatencyMs)
+	require.Zero(t, bucket.TTFTCount)
+	require.Zero(t, bucket.CompletionTokens)
+	require.Zero(t, bucket.TotalTPSLatencyMs)
 }

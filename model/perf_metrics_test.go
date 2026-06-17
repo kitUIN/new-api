@@ -168,6 +168,65 @@ func TestGetPerfMetricsSummaryIncludesPendingSamples(t *testing.T) {
 	require.Equal(t, 20.0, summary.Models[0].AvgTps)
 }
 
+func TestPerfMetricSampleCanSkipLatencyMetrics(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+	insertEnabledChannel(t, 1, "default")
+
+	now := time.Now().Unix()
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:        now,
+		ModelName:        "skip-latency",
+		Group:            "default",
+		Success:          true,
+		LatencyMs:        1000,
+		TTFTMs:           200,
+		CompletionTokens: 20,
+		TPSLatencyMs:     1000,
+	})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp:          now,
+		ModelName:          "skip-latency",
+		Group:              "default",
+		Success:            true,
+		LatencyMs:          9000,
+		TTFTMs:             3000,
+		CompletionTokens:   900,
+		TPSLatencyMs:       9000,
+		SkipLatencyMetrics: true,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	summary, err := GetPerfMetricsSummary(24, 10)
+	require.NoError(t, err)
+	require.Len(t, summary.Models, 1)
+	require.EqualValues(t, 2, summary.Models[0].RequestCount)
+	require.Equal(t, 100.0, summary.Models[0].SuccessRate)
+	require.Equal(t, 1000.0, summary.Models[0].AvgLatencyMs)
+	require.Equal(t, 20.0, summary.Models[0].AvgTps)
+
+	groupSummary, err := GetPerfGroupHealthSummary(1, 10)
+	require.NoError(t, err)
+	defaultGroup := requirePerfGroupHealth(t, groupSummary.Groups, "default")
+	require.EqualValues(t, 2, defaultGroup.RequestCount)
+	require.Equal(t, 100.0, defaultGroup.SuccessRate)
+	require.Equal(t, 1000.0, defaultGroup.AvgLatencyMs)
+	require.Equal(t, 200.0, defaultGroup.AvgTTFTMs)
+	require.Equal(t, 20.0, defaultGroup.AvgTps)
+
+	var bucket PerfMetricBucket
+	require.NoError(t, LOG_DB.Where("model_name = ?", "skip-latency").First(&bucket).Error)
+	require.EqualValues(t, 2, bucket.RequestCount)
+	require.EqualValues(t, 2, bucket.SuccessCount)
+	require.EqualValues(t, 1, bucket.LatencyCount)
+	require.EqualValues(t, 1000, bucket.TotalLatencyMs)
+}
+
 func TestGetPerformanceMetricsGroupsAndBuckets(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
