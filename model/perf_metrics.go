@@ -141,9 +141,9 @@ type perfMetricKey struct {
 }
 
 type perfRecentMetricSample struct {
-	Timestamp int64
-	Group     string
-	Success   bool
+	Timestamp     int64
+	Group         string
+	Success       bool
 	IsTestRequest bool
 }
 
@@ -620,8 +620,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	endBucketStart := now - now%intervalSeconds
 	startBucket := endBucketStart - int64(bucketCount-1)*intervalSeconds
 	endExclusive := endBucketStart + intervalSeconds
+	recentSamples := snapshotRecentPerfMetrics()
 	recentStats := buildRecentGroupWindowStats(
-		snapshotRecentPerfMetrics(),
+		recentSamples,
 		now-10*60,
 		now-20*60,
 	)
@@ -724,7 +725,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if !shouldShowGroup(row.Group) {
 			continue
 		}
-		group := ensureGroup(row.Group)
+		groupName := normalizePerfMetricGroupName(row.Group)
+		group := ensureGroup(groupName)
 		acc := accumulatorFromRow(row)
 		group.total.add(acc)
 		bucket := group.series[bucketTs]
@@ -733,6 +735,17 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			group.series[bucketTs] = bucket
 		}
 		bucket.add(acc)
+	}
+
+	for groupName, acc := range currentGroupHealthBucketFallbacks(recentSamples, endBucketStart, endExclusive) {
+		if acc.requestCount <= 0 || !shouldShowGroup(groupName) {
+			continue
+		}
+		group := ensureGroup(groupName)
+		if bucket := group.series[endBucketStart]; bucket != nil && bucket.requestCount > 0 {
+			continue
+		}
+		group.series[endBucketStart] = &acc
 	}
 
 	providerStats, err := GetGroupProviderStats()
@@ -888,6 +901,37 @@ func perfGroupRecentSuccessRate(buckets []PerfGroupHealthBucket, hours int, inte
 		return 0, 0
 	}
 	return roundFloat(float64(successes)/float64(requests)*100, 2), requests
+}
+
+func currentGroupHealthBucketFallbacks(samples []perfRecentMetricSample, bucketStart int64, bucketEnd int64) map[string]perfAccumulator {
+	if len(samples) == 0 || bucketEnd <= bucketStart {
+		return nil
+	}
+	fallbacks := make(map[string]perfAccumulator)
+	for _, sample := range samples {
+		if sample.Timestamp < bucketStart || sample.Timestamp >= bucketEnd {
+			continue
+		}
+		groupName := normalizePerfMetricGroupName(sample.Group)
+		acc := fallbacks[groupName]
+		acc.requestCount++
+		if sample.Success {
+			acc.successCount++
+		}
+		if sample.IsTestRequest {
+			acc.testRequestCount++
+		}
+		fallbacks[groupName] = acc
+	}
+	return fallbacks
+}
+
+func normalizePerfMetricGroupName(groupName string) string {
+	groupName = strings.TrimSpace(groupName)
+	if groupName == "" {
+		return "default"
+	}
+	return groupName
 }
 
 func GetGroupProviderCounts() (map[string]int, error) {

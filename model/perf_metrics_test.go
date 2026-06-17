@@ -432,6 +432,48 @@ func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {
 	require.Equal(t, "ok", bucket.Status)
 }
 
+func TestGetPerfGroupHealthSummaryUsesRecentSamplesForCurrentEmptyBucket(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "hour",
+		FlushInterval: 5,
+	})
+	insertEnabledChannel(t, 1, "default")
+
+	now := time.Now().Unix()
+	currentBucket := now - now%600
+	perfMetricsMu.Lock()
+	pendingPerfMetrics[perfMetricKey{
+		bucketStart:   currentBucket - 3600,
+		bucketSeconds: 3600,
+		modelName:     "current-empty-bucket",
+		group:         "default",
+	}] = perfAccumulator{
+		requestCount: 1,
+		successCount: 1,
+	}
+	recentPerfMetrics = append(recentPerfMetrics, perfRecentMetricSample{
+		Timestamp: now,
+		Group:     "default",
+		Success:   true,
+	})
+	perfMetricsMu.Unlock()
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 1, defaultGroup.RequestCount)
+	require.Equal(t, 100.0, defaultGroup.SuccessRate)
+
+	current := requirePerfGroupHealthBucket(t, defaultGroup.Buckets, currentBucket)
+	require.EqualValues(t, 1, current.RequestCount)
+	require.EqualValues(t, 1, current.SuccessCount)
+	require.Equal(t, 100.0, current.SuccessRate)
+	require.Equal(t, "ok", current.Status)
+}
+
 func TestGetPerfGroupHealthSummaryUsesRecentInMemorySamples(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
