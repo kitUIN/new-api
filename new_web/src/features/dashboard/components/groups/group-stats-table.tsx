@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuotaWithCurrency } from '@/lib/currency'
+import { formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -230,6 +231,10 @@ function SummaryItem(props: {
 
 function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
   const cacheTokens = props.stats.cacheReadTokens + props.stats.cacheWriteTokens
+  const cacheRatio =
+    props.stats.promptTokens > 0
+      ? (props.stats.cacheReadTokens / props.stats.promptTokens) * 100
+      : 0
 
   return (
     <>
@@ -249,6 +254,7 @@ function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
         {formatInt(props.stats.completionTokens)}
       </TableCell>
       <TableCell className='text-right'>{formatInt(cacheTokens)}</TableCell>
+      <TableCell className='text-right'>{formatPercent(cacheRatio)}</TableCell>
     </>
   )
 }
@@ -258,7 +264,7 @@ function TableSkeletonRows() {
     <>
       {Array.from({ length: 6 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 7 }).map((__, cellIndex) => (
+          {Array.from({ length: 8 }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className='h-4 w-full' />
             </TableCell>
@@ -424,6 +430,7 @@ export function GroupStatsTable() {
               <TableHead className='text-right'>{t('Input tokens')}</TableHead>
               <TableHead className='text-right'>{t('Output tokens')}</TableHead>
               <TableHead className='text-right'>{t('Cache tokens')}</TableHead>
+              <TableHead className='text-right'>{t('Cache ratio')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -432,7 +439,7 @@ export function GroupStatsTable() {
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className='text-muted-foreground h-32 text-center'
                 >
                   {t('No data available')}
