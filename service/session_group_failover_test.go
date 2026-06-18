@@ -3,8 +3,13 @@ package service
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestNormalizeTokenSessionFailoverRejectsInvalidGroups(t *testing.T) {
@@ -124,4 +129,69 @@ func TestNextSessionGroupFailoverState(t *testing.T) {
 	require.False(t, switched)
 	require.Equal(t, 2, next.LevelIndex)
 	require.Equal(t, 1, next.FailureCount)
+}
+
+func TestSelectAvailableSessionFailoverLevelSkipsClosedCurrentGroup(t *testing.T) {
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+	})
+
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","backup":"Backup"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1,"backup":1}`))
+
+	level, ok := selectAvailableSessionFailoverLevel([]string{"default", "vip", "backup"}, 1, "", "")
+
+	require.True(t, ok)
+	require.Equal(t, 2, level)
+}
+
+func TestSelectAvailableSessionFailoverLevelSkipsGroupWithoutModelChannel(t *testing.T) {
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalDB := model.DB
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		model.DB = originalDB
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+	})
+
+	common.MemoryCacheEnabled = false
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+	require.NoError(t, db.AutoMigrate(&model.Ability{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}))
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "vip",
+		Model:     "gpt-test",
+		ChannelId: 2,
+		Enabled:   false,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "backup",
+		Model:     "gpt-test",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","backup":"Backup"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1,"backup":1}`))
+
+	level, ok := selectAvailableSessionFailoverLevel([]string{"default", "vip", "backup"}, 1, "", "gpt-test")
+
+	require.True(t, ok)
+	require.Equal(t, 2, level)
 }

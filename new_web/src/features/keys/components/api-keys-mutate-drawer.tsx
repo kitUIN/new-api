@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type DragEvent } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
@@ -24,6 +24,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  GripVertical,
   KeyRound,
   Plus,
   RotateCcw,
@@ -102,6 +103,8 @@ import { useApiKeys } from './api-keys-provider'
 const GROUP_HEALTH_WINDOW_HOURS = 24
 const GROUP_HEALTH_INTERVAL_MINUTES = 10
 
+type FailoverDragPosition = 'before' | 'after'
+
 type ApiKeyMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -137,6 +140,14 @@ export function ApiKeysMutateDrawer({
   const [editingApiKey, setEditingApiKey] = useState<ApiKey | undefined>(
     currentRow
   )
+  const [draggedFailoverIndex, setDraggedFailoverIndex] = useState<
+    number | null
+  >(null)
+  const [dragOverFailoverIndex, setDragOverFailoverIndex] = useState<
+    number | null
+  >(null)
+  const [dragOverFailoverPosition, setDragOverFailoverPosition] =
+    useState<FailoverDragPosition>('before')
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
@@ -394,6 +405,68 @@ export function ApiKeysMutateDrawer({
     setFailoverGroups(next)
   }
 
+  const resetFailoverDragState = () => {
+    setDraggedFailoverIndex(null)
+    setDragOverFailoverIndex(null)
+    setDragOverFailoverPosition('before')
+  }
+
+  const handleFailoverDragStart = (
+    event: DragEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    setDraggedFailoverIndex(index)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+
+  const handleFailoverDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    index: number
+  ) => {
+    if (draggedFailoverIndex === null || draggedFailoverIndex === index) {
+      return
+    }
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const position: FailoverDragPosition =
+      event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    setDragOverFailoverIndex(index)
+    setDragOverFailoverPosition(position)
+  }
+
+  const handleFailoverDrop = (
+    event: DragEvent<HTMLDivElement>,
+    index: number
+  ) => {
+    event.preventDefault()
+    if (draggedFailoverIndex === null || draggedFailoverIndex === index) {
+      resetFailoverDragState()
+      return
+    }
+
+    const next = [...sessionFailoverGroups]
+    const [draggedGroup] = next.splice(draggedFailoverIndex, 1)
+    if (!draggedGroup) {
+      resetFailoverDragState()
+      return
+    }
+
+    let targetIndex = dragOverFailoverPosition === 'after' ? index + 1 : index
+    if (draggedFailoverIndex < targetIndex) {
+      targetIndex -= 1
+    }
+    next.splice(
+      Math.max(0, Math.min(targetIndex, next.length)),
+      0,
+      draggedGroup
+    )
+    setFailoverGroups(next)
+    resetFailoverDragState()
+  }
+
   const handleRemoveFailoverGroup = (index: number) => {
     setFailoverGroups(
       sessionFailoverGroups.filter((_, groupIndex) => groupIndex !== index)
@@ -606,15 +679,57 @@ export function ApiKeysMutateDrawer({
                             const isCurrent =
                               index === currentFailoverLevel &&
                               hasFailoverRuntime
+                            const isDragging = draggedFailoverIndex === index
+                            const isDragOver =
+                              dragOverFailoverIndex === index &&
+                              draggedFailoverIndex !== null &&
+                              draggedFailoverIndex !== index
                             return (
                               <div
-                                key={`${group}-${index}`}
+                                key={index}
+                                onDragOver={(event) =>
+                                  handleFailoverDragOver(event, index)
+                                }
+                                onDrop={(event) =>
+                                  handleFailoverDrop(event, index)
+                                }
+                                onDragLeave={(event) => {
+                                  if (
+                                    !event.currentTarget.contains(
+                                      event.relatedTarget as Node | null
+                                    )
+                                  ) {
+                                    setDragOverFailoverIndex(null)
+                                  }
+                                }}
                                 className={cn(
-                                  'border-border bg-muted/20 flex items-center gap-2 rounded-md border p-2',
+                                  'border-border bg-muted/20 relative flex items-center gap-2 rounded-md border p-2 transition-[opacity,box-shadow,border-color,background-color]',
                                   isCurrent &&
-                                    'border-success/70 bg-success/5 ring-success/25 ring-1'
+                                    'border-success/70 bg-success/5 ring-success/25 ring-1',
+                                  isDragging && 'opacity-50',
+                                  isDragOver &&
+                                    dragOverFailoverPosition === 'before' &&
+                                    'before:bg-primary before:absolute before:-top-1 before:right-2 before:left-2 before:h-0.5 before:rounded-full',
+                                  isDragOver &&
+                                    dragOverFailoverPosition === 'after' &&
+                                    'after:bg-primary after:absolute after:-right-2 after:-bottom-1 after:left-2 after:h-0.5 after:rounded-full'
                                 )}
                               >
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  draggable={sessionFailoverGroups.length > 1}
+                                  onDragStart={(event) =>
+                                    handleFailoverDragStart(event, index)
+                                  }
+                                  onDragEnd={resetFailoverDragState}
+                                  disabled={sessionFailoverGroups.length <= 1}
+                                  className='cursor-grab active:cursor-grabbing'
+                                  aria-label={t('Drag to reorder')}
+                                >
+                                  <GripVertical className='size-4' />
+                                </Button>
                                 <div className='flex w-10 shrink-0 flex-col items-stretch gap-1'>
                                   <Badge
                                     variant='outline'

@@ -8,11 +8,13 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
 const apiKeyGroupFailoverNamespace = "new-api:api_key_group_failover:v1"
+const apiKeyGroupFailoverUnavailableGroup = "__api_key_group_failover_unavailable__"
 
 type SessionGroupFailoverState struct {
 	LevelIndex   int      `json:"level_index"`
@@ -64,10 +66,9 @@ func encodeSessionFailoverGroups(groups []string) (string, error) {
 	return string(data), nil
 }
 
-func normalizeSessionFailoverGroups(groups []string, userGroup string) ([]string, error) {
+func normalizeSessionFailoverGroupNames(groups []string, userGroup string) ([]string, error) {
 	normalized := make([]string, 0, len(groups))
 	seen := map[string]struct{}{}
-	usableGroups := GetUserUsableGroups(userGroup)
 
 	for _, group := range groups {
 		group = strings.TrimSpace(group)
@@ -83,16 +84,77 @@ func normalizeSessionFailoverGroups(groups []string, userGroup string) ([]string
 		if _, ok := seen[group]; ok {
 			return nil, fmt.Errorf("故障转移分组重复: %s", group)
 		}
+		seen[group] = struct{}{}
+		normalized = append(normalized, group)
+	}
+	return normalized, nil
+}
+
+func normalizeSessionFailoverGroups(groups []string, userGroup string) ([]string, error) {
+	normalized, err := normalizeSessionFailoverGroupNames(groups, userGroup)
+	if err != nil {
+		return nil, err
+	}
+	usableGroups := GetUserUsableGroups(userGroup)
+	for _, group := range normalized {
 		if _, ok := usableGroups[group]; !ok {
 			return nil, fmt.Errorf("无权访问 %s 分组", group)
 		}
 		if !ratio_setting.ContainsGroupRatio(group) {
 			return nil, fmt.Errorf("分组 %s 已被弃用", group)
 		}
-		seen[group] = struct{}{}
-		normalized = append(normalized, group)
 	}
 	return normalized, nil
+}
+
+func getRuntimeSessionFailoverUsableGroups(userGroup string) map[string]string {
+	groupsCopy := setting.GetUserUsableGroupsCopy()
+	if userGroup == "" {
+		return groupsCopy
+	}
+	if specialSettings, ok := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup); ok {
+		for specialGroup, desc := range specialSettings {
+			if strings.HasPrefix(specialGroup, "-:") {
+				delete(groupsCopy, strings.TrimPrefix(specialGroup, "-:"))
+			} else if strings.HasPrefix(specialGroup, "+:") {
+				groupsCopy[strings.TrimPrefix(specialGroup, "+:")] = desc
+			} else {
+				groupsCopy[specialGroup] = desc
+			}
+		}
+	}
+	return groupsCopy
+}
+
+func isSessionFailoverGroupRuntimeAvailable(group string, userGroup string, modelName string) bool {
+	if group == "" {
+		return false
+	}
+	if _, ok := getRuntimeSessionFailoverUsableGroups(userGroup)[group]; !ok {
+		return false
+	}
+	if !ratio_setting.ContainsGroupRatio(group) {
+		return false
+	}
+	if strings.TrimSpace(modelName) == "" {
+		return true
+	}
+	return model.HasAvailableChannelForGroupModel(group, modelName)
+}
+
+func selectAvailableSessionFailoverLevel(groups []string, currentLevel int, userGroup string, modelName string) (int, bool) {
+	if len(groups) == 0 {
+		return 0, false
+	}
+	if currentLevel < 0 || currentLevel >= len(groups) {
+		currentLevel = 0
+	}
+	for i := currentLevel; i < len(groups); i++ {
+		if isSessionFailoverGroupRuntimeAvailable(groups[i], userGroup, modelName) {
+			return i, true
+		}
+	}
+	return currentLevel, false
 }
 
 func NormalizeTokenSessionFailover(token *model.Token, userGroup string) error {
@@ -227,7 +289,7 @@ func getSessionGroupFailoverContext(c *gin.Context) (*SessionGroupFailoverContex
 	return info, true
 }
 
-func ApplySessionGroupFailover(c *gin.Context, _ string) {
+func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 	if c == nil || !common.GetContextKeyBool(c, constant.ContextKeyTokenSessionGroupFailoverEnabled) {
 		return
 	}
@@ -241,7 +303,7 @@ func ApplySessionGroupFailover(c *gin.Context, _ string) {
 		return
 	}
 	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-	groups, err = normalizeSessionFailoverGroups(groups, userGroup)
+	groups, err = normalizeSessionFailoverGroupNames(groups, userGroup)
 	if err != nil || len(groups) < 2 {
 		if err != nil {
 			common.SysLog("api key group failover groups invalid: " + err.Error())
@@ -271,6 +333,37 @@ func ApplySessionGroupFailover(c *gin.Context, _ string) {
 		level = 0
 		failureCount = 0
 	}
+	selectedLevel, available := selectAvailableSessionFailoverLevel(groups, level, userGroup, modelName)
+	switched := selectedLevel != level
+	if !available {
+		common.SysLog(fmt.Sprintf("api key group failover has no available group for model %s", modelName))
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, apiKeyGroupFailoverUnavailableGroup)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, apiKeyGroupFailoverUnavailableGroup)
+		common.SetContextKey(c, constant.ContextKeySessionGroupFailover, &SessionGroupFailoverContext{
+			Enabled:       true,
+			Groups:        groups,
+			CurrentLevel:  level,
+			SelectedGroup: "",
+			FailureCount:  failureCount,
+			Threshold:     threshold,
+			Scope:         "api_key",
+			RedisKey:      redisKey,
+		})
+		return
+	}
+	if switched {
+		level = selectedLevel
+		failureCount = 0
+		state = SessionGroupFailoverState{
+			LevelIndex:   level,
+			FailureCount: failureCount,
+			Groups:       groups,
+		}
+		if err := writeSessionGroupFailoverState(redisKey, state); err != nil {
+			common.SysLog("failed to advance api key group failover state after unavailable group: " + err.Error())
+		}
+		common.SysLog(fmt.Sprintf("api key group failover skipped unavailable group and selected P%d(%s) for model %s", level, groups[level], modelName))
+	}
 	selectedGroup := groups[level]
 	common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, selectedGroup)
@@ -281,6 +374,7 @@ func ApplySessionGroupFailover(c *gin.Context, _ string) {
 		SelectedGroup: selectedGroup,
 		FailureCount:  failureCount,
 		Threshold:     threshold,
+		Switched:      switched,
 		Scope:         "api_key",
 		RedisKey:      redisKey,
 	})
