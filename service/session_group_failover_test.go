@@ -58,6 +58,10 @@ func TestApiKeyGroupFailoverRedisKeyIsTokenScoped(t *testing.T) {
 	require.Equal(t, "new-api:api_key_group_failover:v1:123", apiKeyGroupFailoverRedisKey(123))
 }
 
+func TestResetApiKeyGroupFailoverStateNoopsWithoutRedis(t *testing.T) {
+	require.NoError(t, ResetApiKeyGroupFailoverState(123))
+}
+
 func TestSameFailoverGroups(t *testing.T) {
 	require.True(t, sameFailoverGroups([]string{"default", "vip"}, []string{"default", "vip"}))
 	require.False(t, sameFailoverGroups([]string{"default", "vip"}, []string{"default", "backup"}))

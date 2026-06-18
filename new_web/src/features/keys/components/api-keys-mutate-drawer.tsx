@@ -26,6 +26,7 @@ import {
   ChevronDown,
   KeyRound,
   Plus,
+  RotateCcw,
   Settings2,
   Trash2,
   WalletCards,
@@ -76,11 +77,13 @@ import {
 } from '@/components/drawer-layout'
 import { MultiSelect } from '@/components/multi-select'
 import { getPerfGroupHealth } from '@/features/performance-metrics/api'
-import type {
-  PerfGroupHealth,
-  PerfGroupHealthBucket,
-} from '@/features/performance-metrics/types'
-import { createApiKey, updateApiKey, getApiKey } from '../api'
+import type { PerfGroupHealth } from '@/features/performance-metrics/types'
+import {
+  createApiKey,
+  updateApiKey,
+  getApiKey,
+  resetApiKeyFailoverToP0,
+} from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   getApiKeyFormSchema,
@@ -105,43 +108,18 @@ type ApiKeyMutateDrawerProps = {
   currentRow?: ApiKey
 }
 
-function calculateBucketAvailability(buckets: PerfGroupHealthBucket[]) {
-  const totals = buckets.reduce(
-    (acc, bucket) => {
-      acc.requests += bucket.request_count || 0
-      acc.successes += bucket.success_count || 0
-      return acc
-    },
-    { requests: 0, successes: 0 }
-  )
-
-  if (totals.requests <= 0) return null
-  return (totals.successes / totals.requests) * 100
-}
-
 function calculateRecentAvailability(group?: PerfGroupHealth) {
-  if (group && typeof group.recent_request_count === 'number') {
-    return {
-      recentAvailability:
-        group.recent_request_count > 0 ? group.recent_success_rate : null,
-      recentWindowMinutes:
-        group.recent_window_minutes === 20 ? (20 as const) : (10 as const),
-    }
-  }
-
-  const buckets = group?.buckets ?? []
-  const lastBucket = buckets.at(-1)
-  if (lastBucket && lastBucket.request_count > 0) {
+  const lastBucket = group?.buckets.at(-1)
+  if (lastBucket?.request_count && lastBucket.request_count > 0) {
     return {
       recentAvailability: lastBucket.success_rate,
       recentWindowMinutes: 10 as const,
     }
   }
 
-  const fallbackRate = calculateBucketAvailability(buckets.slice(-2))
   return {
-    recentAvailability: fallbackRate,
-    recentWindowMinutes: 20 as const,
+    recentAvailability: null,
+    recentWindowMinutes: 10 as const,
   }
 }
 
@@ -155,6 +133,10 @@ export function ApiKeysMutateDrawer({
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isResettingFailover, setIsResettingFailover] = useState(false)
+  const [editingApiKey, setEditingApiKey] = useState<ApiKey | undefined>(
+    currentRow
+  )
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
@@ -224,15 +206,20 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (open && isUpdate && currentRow) {
+      setEditingApiKey(currentRow)
       getApiKey(currentRow.id).then((result) => {
         if (result.success && result.data) {
+          setEditingApiKey(result.data)
           form.reset(transformApiKeyToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
+      setEditingApiKey(undefined)
       form.reset(
         getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
       )
+    } else if (!open) {
+      setEditingApiKey(undefined)
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
 
@@ -336,6 +323,18 @@ export function ApiKeysMutateDrawer({
   const unlimitedQuota = form.watch('unlimited_quota')
   const sessionFailoverEnabled = form.watch('session_group_failover_enabled')
   const sessionFailoverGroups = form.watch('session_failover_groups') || []
+  const failoverRuntime =
+    editingApiKey?.api_key_group_failover_runtime ??
+    currentRow?.api_key_group_failover_runtime
+  const hasFailoverRuntime = isUpdate && sessionFailoverEnabled
+  const currentFailoverLevel =
+    hasFailoverRuntime && failoverRuntime?.current_level !== undefined
+      ? Math.max(0, failoverRuntime.current_level)
+      : 0
+  const currentFailoverFailureCount =
+    hasFailoverRuntime && failoverRuntime?.failure_count !== undefined
+      ? Math.max(0, failoverRuntime.failure_count)
+      : 0
 
   const setFailoverGroups = (nextGroups: string[]) => {
     form.setValue('session_failover_groups', nextGroups, {
@@ -399,6 +398,28 @@ export function ApiKeysMutateDrawer({
     setFailoverGroups(
       sessionFailoverGroups.filter((_, groupIndex) => groupIndex !== index)
     )
+  }
+
+  const handleResetFailoverToP0 = async () => {
+    if (!currentRow) return
+
+    setIsResettingFailover(true)
+    try {
+      const result = await resetApiKeyFailoverToP0(currentRow.id)
+      if (result.success) {
+        if (result.data) {
+          setEditingApiKey(result.data)
+        }
+        toast.success(`${t('Reset')} P0`)
+        triggerRefresh()
+      } else {
+        toast.error(result.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+      }
+    } catch (_error) {
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } finally {
+      setIsResettingFailover(false)
+    }
   }
 
   useEffect(() => {
@@ -543,82 +564,130 @@ export function ApiKeysMutateDrawer({
                       <FormItem>
                         <div className='flex items-center justify-between gap-3'>
                           <FormLabel>{t('Failover group chain')}</FormLabel>
-                          <Button
-                            type='button'
-                            variant='outline'
-                            size='sm'
-                            onClick={handleAddFailoverGroup}
-                            disabled={
-                              sessionFailoverGroups.length >=
-                              concreteGroups.length
-                            }
-                          >
-                            <Plus className='size-4' />
-                            {t('Add group')}
-                          </Button>
+                          <div className='flex shrink-0 items-center gap-2'>
+                            {isUpdate && (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={handleResetFailoverToP0}
+                                disabled={
+                                  isResettingFailover ||
+                                  (currentFailoverLevel === 0 &&
+                                    currentFailoverFailureCount === 0)
+                                }
+                              >
+                                <RotateCcw
+                                  className={cn(
+                                    'size-4',
+                                    isResettingFailover && 'animate-spin'
+                                  )}
+                                />
+                                {t('Reset')} P0
+                              </Button>
+                            )}
+                            <Button
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              onClick={handleAddFailoverGroup}
+                              disabled={
+                                sessionFailoverGroups.length >=
+                                concreteGroups.length
+                              }
+                            >
+                              <Plus className='size-4' />
+                              {t('Add group')}
+                            </Button>
+                          </div>
                         </div>
                         <div className='flex flex-col gap-2'>
-                          {sessionFailoverGroups.map((group, index) => (
-                            <div
-                              key={`${group}-${index}`}
-                              className='border-border bg-muted/20 flex items-center gap-2 rounded-md border p-2'
-                            >
-                              <Badge variant='outline' className='w-10'>
-                                P{index}
-                              </Badge>
-                              <div className='min-w-0 flex-1'>
-                                <ApiKeyGroupCombobox
-                                  options={getFailoverOptions(index)}
-                                  value={group}
-                                  onValueChange={(value) => {
-                                    const next = [...sessionFailoverGroups]
-                                    next[index] = value
-                                    setFailoverGroups(next)
-                                  }}
-                                  placeholder={t('Select a group')}
-                                />
+                          {sessionFailoverGroups.map((group, index) => {
+                            const isCurrent =
+                              index === currentFailoverLevel &&
+                              hasFailoverRuntime
+                            return (
+                              <div
+                                key={`${group}-${index}`}
+                                className={cn(
+                                  'border-border bg-muted/20 flex items-center gap-2 rounded-md border p-2',
+                                  isCurrent &&
+                                    'border-success/70 bg-success/5 ring-success/25 ring-1'
+                                )}
+                              >
+                                <div className='flex w-10 shrink-0 flex-col items-stretch gap-1'>
+                                  <Badge
+                                    variant='outline'
+                                    className={cn(
+                                      'w-full',
+                                      isCurrent && 'border-success text-success'
+                                    )}
+                                  >
+                                    P{index}
+                                  </Badge>
+                                  {isCurrent && (
+                                    <Badge
+                                      variant='outline'
+                                      className='border-success bg-success/10 text-success w-full px-1 text-[10px]'
+                                    >
+                                      {t('Current')}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className='min-w-0 flex-1'>
+                                  <ApiKeyGroupCombobox
+                                    options={getFailoverOptions(index)}
+                                    value={group}
+                                    onValueChange={(value) => {
+                                      const next = [...sessionFailoverGroups]
+                                      next[index] = value
+                                      setFailoverGroups(next)
+                                    }}
+                                    placeholder={t('Select a group')}
+                                  />
+                                </div>
+                                <div className='flex shrink-0 items-center gap-1'>
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    size='icon'
+                                    onClick={() =>
+                                      handleMoveFailoverGroup(index, -1)
+                                    }
+                                    disabled={index === 0}
+                                    aria-label={t('Move up')}
+                                  >
+                                    <ArrowUp className='size-4' />
+                                  </Button>
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    size='icon'
+                                    onClick={() =>
+                                      handleMoveFailoverGroup(index, 1)
+                                    }
+                                    disabled={
+                                      index === sessionFailoverGroups.length - 1
+                                    }
+                                    aria-label={t('Move down')}
+                                  >
+                                    <ArrowDown className='size-4' />
+                                  </Button>
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    size='icon'
+                                    onClick={() =>
+                                      handleRemoveFailoverGroup(index)
+                                    }
+                                    aria-label={t('Remove')}
+                                  >
+                                    <Trash2 className='size-4' />
+                                  </Button>
+                                </div>
                               </div>
-                              <div className='flex shrink-0 items-center gap-1'>
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  size='icon'
-                                  onClick={() =>
-                                    handleMoveFailoverGroup(index, -1)
-                                  }
-                                  disabled={index === 0}
-                                  aria-label={t('Move up')}
-                                >
-                                  <ArrowUp className='size-4' />
-                                </Button>
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  size='icon'
-                                  onClick={() =>
-                                    handleMoveFailoverGroup(index, 1)
-                                  }
-                                  disabled={
-                                    index === sessionFailoverGroups.length - 1
-                                  }
-                                  aria-label={t('Move down')}
-                                >
-                                  <ArrowDown className='size-4' />
-                                </Button>
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  size='icon'
-                                  onClick={() =>
-                                    handleRemoveFailoverGroup(index)
-                                  }
-                                  aria-label={t('Remove')}
-                                >
-                                  <Trash2 className='size-4' />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                         <FormDescription>
                           {t(

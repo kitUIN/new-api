@@ -133,6 +133,13 @@ func apiKeyGroupFailoverRedisKey(tokenID int) string {
 	return fmt.Sprintf("%s:%d", apiKeyGroupFailoverNamespace, tokenID)
 }
 
+func ResetApiKeyGroupFailoverState(tokenID int) error {
+	if tokenID <= 0 || !common.RedisEnabled || common.RDB == nil {
+		return nil
+	}
+	return common.RedisDel(apiKeyGroupFailoverRedisKey(tokenID))
+}
+
 func sameFailoverGroups(a []string, b []string) bool {
 	if len(a) != len(b) {
 		return false

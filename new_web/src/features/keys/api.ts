@@ -75,6 +75,13 @@ export async function updateApiKey(
   return res.data
 }
 
+export async function resetApiKeyFailoverToP0(
+  id: number
+): Promise<ApiResponse<ApiKey>> {
+  const res = await api.post(`/api/token/${id}/failover/reset`)
+  return res.data
+}
+
 // Delete a single API key
 export async function deleteApiKey(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/token/${id}/`)

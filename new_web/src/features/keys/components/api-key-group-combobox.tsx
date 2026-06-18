@@ -40,7 +40,7 @@ import { formatUptimePct } from '@/features/performance-metrics/lib/format'
 export type ApiKeyGroupHealth = {
   availability24h?: number | null
   recentAvailability?: number | null
-  recentWindowMinutes?: 10 | 20 | null
+  recentWindowMinutes?: 10 | null
 }
 
 export type ApiKeyGroupOption = {
@@ -129,8 +129,6 @@ function formatAvailabilityLabel(
 }
 
 function GroupHealthBadges({ health }: { health?: ApiKeyGroupHealth }) {
-  const recentWindowLabel = health?.recentWindowMinutes === 20 ? '20m' : '10m'
-
   return (
     <div className='flex flex-col gap-1'>
       <Badge
@@ -149,7 +147,7 @@ function GroupHealthBadges({ health }: { health?: ApiKeyGroupHealth }) {
           getAvailabilityBadgeClassName(health?.recentAvailability)
         )}
       >
-        {formatAvailabilityLabel(recentWindowLabel, health?.recentAvailability)}
+        {formatAvailabilityLabel('10m', health?.recentAvailability)}
       </Badge>
     </div>
   )

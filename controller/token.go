@@ -111,6 +111,25 @@ func GetTokenKey(c *gin.Context) {
 	})
 }
 
+func ResetTokenFailover(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	userId := c.GetInt("id")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	token, err := model.GetTokenByIds(id, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.ResetApiKeyGroupFailoverState(token.Id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, buildMaskedTokenResponse(token))
+}
+
 func GetTokenStatus(c *gin.Context) {
 	tokenId := c.GetInt("token_id")
 	userId := c.GetInt("id")
