@@ -2265,6 +2265,7 @@
     "Manage Vendors": "ベンダーの管理",
     "Manage your security settings and account access": "セキュリティ設定とアカウントアクセスを管理する",
     "Manual Disabled": "手動無効",
+    "Mapped": "マッピング済み",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "ユーザー情報レスポンスのフィールドをローカルユーザー属性にマッピングします。ネストされたパスをサポートします (例: ocs.data.id)。",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "モデル識別子をGemini APIバージョンにマッピングします。特定の一致が見つからない場合は、`default`エントリが適用されます。",
     "Map request model names to actual provider model names (JSON format)": "リクエストのモデル名を実際のプロバイダーのモデル名にマッピング (JSON 形式)",

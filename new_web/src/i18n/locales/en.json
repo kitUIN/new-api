@@ -2319,6 +2319,7 @@
     "Manage Vendors": "Manage Vendors",
     "Manage your security settings and account access": "Manage your security settings and account access",
     "Manual Disabled": "Manual Disabled",
+    "Mapped": "Mapped",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.",
     "Map request model names to actual provider model names (JSON format)": "Map request model names to actual provider model names (JSON format)",

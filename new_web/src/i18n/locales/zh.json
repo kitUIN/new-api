@@ -2319,6 +2319,7 @@
     "Manage Vendors": "管理供应商",
     "Manage your security settings and account access": "管理您的安全设置和账户访问",
     "Manual Disabled": "手动禁用",
+    "Mapped": "已映射",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "将用户信息响应中的字段映射到本地用户属性。支持嵌套路径（例如 ocs.data.id）。",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "将模型标识符映射到 Gemini API 版本。当未找到特定匹配项时，将应用 `default` 条目。",
     "Map request model names to actual provider model names (JSON format)": "将请求模型名称映射到实际提供商模型名称 (JSON 格式)",

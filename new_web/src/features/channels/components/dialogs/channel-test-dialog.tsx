@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -93,6 +94,7 @@ type ChannelTestDialogProps = {
 
 type ModelRow = {
   model: string
+  isMappedTarget: boolean
 }
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
@@ -214,6 +216,26 @@ function getTestTableColumnClass(columnId: string) {
   }
 }
 
+function extractMappedTargetModels(modelMapping?: string | null) {
+  const rawMapping = modelMapping?.trim()
+  if (!rawMapping || rawMapping === '{}') return []
+
+  try {
+    const parsed = JSON.parse(rawMapping)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return []
+    }
+
+    const values = Object.values(parsed)
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter(Boolean)
+
+    return Array.from(new Set(values))
+  } catch {
+    return []
+  }
+}
+
 export function ChannelTestDialog({
   open,
   onOpenChange,
@@ -266,6 +288,10 @@ export function ChannelTestDialog({
 
   const modelsValue = currentRow?.models ?? ''
   const defaultTestModel = currentRow?.test_model?.trim()
+  const mappedTargetModels = useMemo(
+    () => extractMappedTargetModels(currentRow?.model_mapping),
+    [currentRow?.model_mapping]
+  )
 
   const models = useMemo(() => {
     if (!modelsValue) return []
@@ -275,20 +301,38 @@ export function ChannelTestDialog({
       .filter(Boolean)
   }, [modelsValue])
 
+  const testableModels = useMemo(() => {
+    const modelSet = new Set(models)
+    const mergedModels = models.map((model) => ({
+      model,
+      isMappedTarget: false,
+    }))
+
+    for (const mappedModel of mappedTargetModels) {
+      if (modelSet.has(mappedModel)) continue
+      mergedModels.push({
+        model: mappedModel,
+        isMappedTarget: true,
+      })
+      modelSet.add(mappedModel)
+    }
+
+    return mergedModels
+  }, [mappedTargetModels, models])
+
   const filteredModels = useMemo(() => {
-    if (!searchTerm) return models
+    if (!searchTerm) return testableModels
     const keyword = searchTerm.toLowerCase()
-    return models.filter((model) => model.toLowerCase().includes(keyword))
-  }, [models, searchTerm])
+    return testableModels.filter((row) =>
+      row.model.toLowerCase().includes(keyword)
+    )
+  }, [searchTerm, testableModels])
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-  }, [searchTerm, modelsValue])
+  }, [searchTerm, modelsValue, mappedTargetModels])
 
-  const tableData = useMemo<ModelRow[]>(
-    () => filteredModels.map((model) => ({ model })),
-    [filteredModels]
-  )
+  const tableData = useMemo<ModelRow[]>(() => filteredModels, [filteredModels])
 
   const markModelTesting = useCallback((key: string, isTesting: boolean) => {
     setTestingModels((prev) => {
@@ -456,6 +500,11 @@ export function ChannelTestDialog({
                   size='sm'
                   copyable={false}
                 />
+              )}
+              {row.original.isMappedTarget && (
+                <Badge variant='secondary' className='shrink-0'>
+                  {t('Mapped')}
+                </Badge>
               )}
             </div>
           )
@@ -678,7 +727,7 @@ export function ChannelTestDialog({
                               colSpan={table.getVisibleLeafColumns().length}
                               className='text-muted-foreground h-16 text-center text-sm'
                             >
-                              {models.length
+                              {testableModels.length
                                 ? 'No models matched your search.'
                                 : 'This channel has no configured models.'}
                             </TableCell>

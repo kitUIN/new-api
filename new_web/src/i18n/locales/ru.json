@@ -2265,6 +2265,7 @@
     "Manage Vendors": "Управление поставщиками",
     "Manage your security settings and account access": "Управление настройками безопасности и доступом к аккаунту",
     "Manual Disabled": "Ручное отключение",
+    "Mapped": "Сопоставлено",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "Сопоставление полей из ответа информации о пользователе с локальными атрибутами пользователя. Поддерживает вложенные пути (например, ocs.data.id).",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "Сопоставьте идентификаторы моделей с версиями Gemini API. Запись `default` применяется, если не найдено конкретного совпадения.",
     "Map request model names to actual provider model names (JSON format)": "Сопоставление имён моделей запроса реальным именам моделей провайдера (формат JSON)",

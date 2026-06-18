@@ -2265,6 +2265,7 @@
     "Manage Vendors": "Quản lý Nhà cung cấp",
     "Manage your security settings and account access": "Quản lý cài đặt bảo mật và quyền truy cập tài khoản của bạn",
     "Manual Disabled": "Vô hiệu hóa thủ công",
+    "Mapped": "Đã ánh xạ",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "Ánh xạ các trường từ phản hồi thông tin người dùng sang thuộc tính người dùng cục bộ. Hỗ trợ đường dẫn lồng nhau (ví dụ: ocs.data.id).",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "Ánh xạ các mã định danh mô hình với các phiên bản API Gemini. Một mục `default` áp dụng khi không tìm thấy kết quả khớp cụ thể nào.",
     "Map request model names to actual provider model names (JSON format)": "Ánh xạ tên mô hình yêu cầu đến tên mô hình thực tế của nhà cung cấp (định dạng JSON)",

@@ -80,6 +80,93 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
+func normalizeChannelTestModelName(channel *model.Channel, testModel string) string {
+	testModel = strings.TrimSpace(testModel)
+	if channel == nil || testModel == "" {
+		return testModel
+	}
+
+	models := channel.GetModels()
+	if common.StringsContains(models, testModel) {
+		return testModel
+	}
+
+	lookupModel := testModel
+	hasCompactSuffix := strings.HasSuffix(lookupModel, ratio_setting.CompactModelSuffix)
+	if hasCompactSuffix {
+		lookupModel = strings.TrimSuffix(lookupModel, ratio_setting.CompactModelSuffix)
+	}
+
+	modelMapping := strings.TrimSpace(channel.GetModelMapping())
+	if modelMapping == "" || modelMapping == "{}" {
+		return testModel
+	}
+
+	modelMap := make(map[string]string)
+	if err := common.UnmarshalJsonStr(modelMapping, &modelMap); err != nil {
+		return testModel
+	}
+
+	candidateSources := make([]string, 0, len(models)+len(modelMap))
+	seenSources := make(map[string]struct{}, len(models)+len(modelMap))
+	for _, modelName := range models {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		candidateSources = append(candidateSources, modelName)
+		seenSources[modelName] = struct{}{}
+	}
+	for source := range modelMap {
+		source = strings.TrimSpace(source)
+		if source == "" {
+			continue
+		}
+		if _, ok := seenSources[source]; ok {
+			continue
+		}
+		candidateSources = append(candidateSources, source)
+		seenSources[source] = struct{}{}
+	}
+
+	for _, sourceModel := range candidateSources {
+		for _, mappedModel := range resolveChannelTestModelMappingChain(sourceModel, modelMap) {
+			if mappedModel != lookupModel {
+				continue
+			}
+			if hasCompactSuffix {
+				return ratio_setting.WithCompactModelSuffix(sourceModel)
+			}
+			return sourceModel
+		}
+	}
+
+	return testModel
+}
+
+func resolveChannelTestModelMappingChain(sourceModel string, modelMap map[string]string) []string {
+	sourceModel = strings.TrimSpace(sourceModel)
+	if sourceModel == "" {
+		return nil
+	}
+
+	currentModel := sourceModel
+	visitedModels := map[string]bool{currentModel: true}
+	mappedModels := make([]string, 0)
+	for {
+		mappedModel := strings.TrimSpace(modelMap[currentModel])
+		if mappedModel == "" {
+			return mappedModels
+		}
+		mappedModels = append(mappedModels, mappedModel)
+		if visitedModels[mappedModel] {
+			return mappedModels
+		}
+		visitedModels[mappedModel] = true
+		currentModel = mappedModel
+	}
+}
+
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
 	return testChannelWithGroup(channel, testModel, endpointType, isStream, "")
 }
@@ -134,6 +221,7 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 			}
 		}
 	}
+	testModel = normalizeChannelTestModelName(channel, testModel)
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
 

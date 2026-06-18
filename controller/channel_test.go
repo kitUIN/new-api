@@ -78,6 +78,72 @@ func TestNormalizeChannelTestEndpointOpenAIUsesResponses(t *testing.T) {
 	}
 }
 
+func TestNormalizeChannelTestModelNameUsesMappedTarget(t *testing.T) {
+	modelMapping := `{"gpt-4o":"vendor-gpt-4o"}`
+	channel := &model.Channel{
+		Models:       "gpt-4o,claude-3-5-sonnet",
+		ModelMapping: &modelMapping,
+	}
+
+	got := normalizeChannelTestModelName(channel, "vendor-gpt-4o")
+	if got != "gpt-4o" {
+		t.Fatalf("normalizeChannelTestModelName() = %q, want %q", got, "gpt-4o")
+	}
+}
+
+func TestNormalizeChannelTestModelNamePreservesConfiguredModel(t *testing.T) {
+	modelMapping := `{"gpt-4o":"vendor-gpt-4o"}`
+	channel := &model.Channel{
+		Models:       "gpt-4o,vendor-gpt-4o",
+		ModelMapping: &modelMapping,
+	}
+
+	got := normalizeChannelTestModelName(channel, "vendor-gpt-4o")
+	if got != "vendor-gpt-4o" {
+		t.Fatalf("normalizeChannelTestModelName() = %q, want %q", got, "vendor-gpt-4o")
+	}
+}
+
+func TestNormalizeChannelTestModelNameUsesChainedMappedTarget(t *testing.T) {
+	modelMapping := `{"gpt-4o":"vendor-alias","vendor-alias":"vendor-final"}`
+	channel := &model.Channel{
+		Models:       "gpt-4o",
+		ModelMapping: &modelMapping,
+	}
+
+	got := normalizeChannelTestModelName(channel, "vendor-final")
+	if got != "gpt-4o" {
+		t.Fatalf("normalizeChannelTestModelName() = %q, want %q", got, "gpt-4o")
+	}
+}
+
+func TestNormalizeChannelTestModelNamePreservesCompactSuffixForMappedTarget(t *testing.T) {
+	modelMapping := `{"gpt-4o":"vendor-gpt-4o"}`
+	channel := &model.Channel{
+		Models:       "gpt-4o",
+		ModelMapping: &modelMapping,
+	}
+
+	got := normalizeChannelTestModelName(channel, "vendor-gpt-4o-openai-compact")
+	want := "gpt-4o-openai-compact"
+	if got != want {
+		t.Fatalf("normalizeChannelTestModelName() = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeChannelTestModelNameIgnoresInvalidMapping(t *testing.T) {
+	modelMapping := `{`
+	channel := &model.Channel{
+		Models:       "gpt-4o",
+		ModelMapping: &modelMapping,
+	}
+
+	got := normalizeChannelTestModelName(channel, "vendor-gpt-4o")
+	if got != "vendor-gpt-4o" {
+		t.Fatalf("normalizeChannelTestModelName() = %q, want %q", got, "vendor-gpt-4o")
+	}
+}
+
 func TestNextAlignedChannelTestTimeUsesWallClockBuckets(t *testing.T) {
 	now := time.Date(2026, 6, 12, 1, 23, 45, 0, time.Local)
 	got := nextAlignedChannelTestTime(now)

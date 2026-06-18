@@ -2265,6 +2265,7 @@
     "Manage Vendors": "Gérer les fournisseurs",
     "Manage your security settings and account access": "Gérer vos paramètres de sécurité et l'accès à votre compte",
     "Manual Disabled": "Désactivé manuellement",
+    "Mapped": "Mappé",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "Mapper les champs de la réponse des informations utilisateur vers les attributs utilisateur locaux. Supporte les chemins imbriqués (par exemple ocs.data.id).",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "Mapper les identifiants de modèle aux versions de l'API Gemini. Une entrée `default` s'applique lorsqu'aucune correspondance spécifique n'est trouvée.",
     "Map request model names to actual provider model names (JSON format)": "Mapper les noms de modèles de requête aux noms réels de modèles du fournisseur (format JSON)",
