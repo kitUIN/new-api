@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -39,6 +40,7 @@ import { formatUptimePct } from '@/features/performance-metrics/lib/format'
 
 export type ApiKeyGroupHealth = {
   availability24h?: number | null
+  availability2h?: number | null
   recentAvailability?: number | null
   recentWindowMinutes?: 10 | null
 }
@@ -59,12 +61,9 @@ type ApiKeyGroupComboboxProps = {
   disabled?: boolean
 }
 
-function formatGroupRatio(
-  ratio: ApiKeyGroupOption['ratio'],
-  ratioLabel: string
-) {
+function formatGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
   if (ratio === undefined || ratio === null || ratio === '') return null
-  return `${ratio}x ${ratioLabel}`
+  return `${ratio}x`
 }
 
 function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
@@ -85,8 +84,7 @@ function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
 }
 
 function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
-  const { t } = useTranslation()
-  const label = formatGroupRatio(ratio, t('Ratio'))
+  const label = formatGroupRatio(ratio)
 
   if (!label) return null
 
@@ -144,6 +142,15 @@ function GroupHealthBadges({ health }: { health?: ApiKeyGroupHealth }) {
         variant='outline'
         className={cn(
           'w-full justify-center truncate text-[10px] sm:text-xs',
+          getAvailabilityBadgeClassName(health?.availability2h)
+        )}
+      >
+        {formatAvailabilityLabel('2h', health?.availability2h)}
+      </Badge>
+      <Badge
+        variant='outline'
+        className={cn(
+          'w-full justify-center truncate text-[10px] sm:text-xs',
           getAvailabilityBadgeClassName(health?.recentAvailability)
         )}
       >
@@ -163,6 +170,8 @@ export function ApiKeyGroupCombobox({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
+  const popoverActionsRef = useRef<PopoverPrimitive.Root.Actions | null>(null)
+  const clearSearchTimerRef = useRef<number | null>(null)
   const selectedOption = options.find((option) => option.value === value)
 
   const filteredOptions = useMemo(() => {
@@ -179,6 +188,9 @@ export function ApiKeyGroupCombobox({
         String(option.health?.availability24h ?? '')
           .toLowerCase()
           .includes(search) ||
+        String(option.health?.availability2h ?? '')
+          .toLowerCase()
+          .includes(search) ||
         String(option.health?.recentAvailability ?? '')
           .toLowerCase()
           .includes(search)
@@ -186,14 +198,45 @@ export function ApiKeyGroupCombobox({
     })
   }, [options, searchValue])
 
-  const handleSelect = (selectedValue: string) => {
-    onValueChange(selectedValue)
-    setOpen(false)
-    setSearchValue('')
+  const clearPendingSearchReset = () => {
+    if (clearSearchTimerRef.current !== null) {
+      window.clearTimeout(clearSearchTimerRef.current)
+      clearSearchTimerRef.current = null
+    }
   }
 
+  const closePopover = () => {
+    clearPendingSearchReset()
+    setOpen(false)
+    popoverActionsRef.current?.unmount()
+    clearSearchTimerRef.current = window.setTimeout(() => {
+      setSearchValue('')
+      clearSearchTimerRef.current = null
+    }, 0)
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      clearPendingSearchReset()
+      setOpen(true)
+      return
+    }
+    closePopover()
+  }
+
+  const handleSelect = (selectedValue: string) => {
+    closePopover()
+    onValueChange(selectedValue)
+  }
+
+  useEffect(() => clearPendingSearchReset, [])
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={handleOpenChange}
+      actionsRef={popoverActionsRef}
+    >
       <PopoverTrigger
         render={
           <Button
@@ -207,7 +250,7 @@ export function ApiKeyGroupCombobox({
         }
       >
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
-          <span className='min-w-0 flex-1'>
+          <span className='flex min-w-0 flex-1 flex-col justify-center'>
             <span className='block truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
@@ -216,9 +259,11 @@ export function ApiKeyGroupCombobox({
                 {selectedOption.desc}
               </span>
             )}
+            <span className='mt-1 flex min-w-0'>
+              <GroupRatioBadge ratio={selectedOption?.ratio} />
+            </span>
           </span>
-          <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center gap-1'>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
+          <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center'>
             <GroupHealthBadges health={selectedOption?.health} />
           </span>
         </span>
@@ -252,7 +297,7 @@ export function ApiKeyGroupCombobox({
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <span className='min-w-0 flex-1'>
+                  <span className='flex min-w-0 flex-1 flex-col justify-center'>
                     <span className='block truncate font-medium'>
                       {option.label}
                     </span>
@@ -261,9 +306,11 @@ export function ApiKeyGroupCombobox({
                         {option.desc}
                       </span>
                     )}
+                    <span className='mt-1 flex min-w-0'>
+                      <GroupRatioBadge ratio={option.ratio} />
+                    </span>
                   </span>
-                  <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center gap-1'>
-                    <GroupRatioBadge ratio={option.ratio} />
+                  <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center'>
                     <GroupHealthBadges health={option.health} />
                   </span>
                 </CommandItem>

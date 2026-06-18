@@ -126,6 +126,36 @@ function calculateRecentAvailability(group?: PerfGroupHealth) {
   }
 }
 
+function calculateWindowAvailability(
+  group: PerfGroupHealth | undefined,
+  windowMinutes: number
+) {
+  const buckets = group?.buckets ?? []
+  const latestEndTs = buckets.at(-1)?.end_ts
+  if (!latestEndTs) return null
+
+  const cutoffTs = latestEndTs - windowMinutes * 60
+  const totals = buckets
+    .filter((bucket) => bucket.end_ts > cutoffTs)
+    .reduce(
+      (acc, bucket) => {
+        acc.requests += bucket.request_count
+        acc.successes += bucket.success_count
+        return acc
+      },
+      { requests: 0, successes: 0 }
+    )
+
+  if (totals.requests <= 0) return null
+  return (totals.successes / totals.requests) * 100
+}
+
+function getSortableGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
+  if (typeof ratio === 'number' && Number.isFinite(ratio)) return ratio
+  const parsedRatio = Number(ratio)
+  return Number.isFinite(parsedRatio) ? parsedRatio : Number.POSITIVE_INFINITY
+}
+
 export function ApiKeysMutateDrawer({
   open,
   onOpenChange,
@@ -189,8 +219,8 @@ export function ApiKeysMutateDrawer({
   const groupHealthMap = new Map(
     (groupHealthData?.data.groups ?? []).map((group) => [group.group, group])
   )
-  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
-    ([key, info]) => {
+  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw)
+    .map(([key, info]) => {
       const health = groupHealthMap.get(key)
       return {
         value: key,
@@ -200,11 +230,17 @@ export function ApiKeysMutateDrawer({
         health: {
           availability24h:
             health && health.request_count > 0 ? health.success_rate : null,
+          availability2h: calculateWindowAvailability(health, 120),
           ...calculateRecentAvailability(health),
         },
       }
-    }
-  )
+    })
+    .sort((a, b) => {
+      const ratioDiff =
+        getSortableGroupRatio(a.ratio) - getSortableGroupRatio(b.ratio)
+      if (ratioDiff !== 0) return ratioDiff
+      return a.label.localeCompare(b.label)
+    })
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const concreteGroups = groups.filter((g) => g.value !== 'auto')
   const schema = getApiKeyFormSchema(t)
