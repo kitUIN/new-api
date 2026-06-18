@@ -693,8 +693,7 @@ func (user *User) FillUserByQQId() error {
 	if user.QQId == "" {
 		return errors.New("QQ id 为空！")
 	}
-	DB.Where(User{QQId: user.QQId}).First(user)
-	return nil
+	return DB.Where(User{QQId: user.QQId}).First(user).Error
 }
 
 func (user *User) FillUserByTelegramId() error {

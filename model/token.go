@@ -89,6 +89,15 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	return tokens, err
 }
 
+func GetTokensByUserId(userId int) ([]*Token, error) {
+	if userId == 0 {
+		return nil, errors.New("userId 为空！")
+	}
+	var tokens []*Token
+	err := DB.Where("user_id = ?", userId).Order("id desc").Find(&tokens).Error
+	return tokens, err
+}
+
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
 // 规则：
 //  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite）
@@ -254,6 +263,26 @@ func GetTokenById(id int) (*Token, error) {
 		})
 	}
 	return &token, err
+}
+
+func UpdateTokenGroupByIds(id int, userId int, group string) (token *Token, err error) {
+	token, err = GetTokenByIds(id, userId)
+	if err != nil {
+		return nil, err
+	}
+	token.Group = group
+	err = DB.Model(token).Select("group").Updates(token).Error
+	if err != nil {
+		return nil, err
+	}
+	if common.RedisEnabled && token.Key != "" {
+		gopool.Go(func() {
+			if err := cacheSetToken(*token); err != nil {
+				common.SysLog("failed to update token cache: " + err.Error())
+			}
+		})
+	}
+	return token, nil
 }
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {

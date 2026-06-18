@@ -51,6 +51,12 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
 		apiRouter.POST("/oauth/qq/create", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.QQCreate)
 		apiRouter.POST("/oauth/qq/bind", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.QQBind)
+		qqOpenRoute := apiRouter.Group("/qq/users/:qq_id")
+		{
+			qqOpenRoute.GET("/tokens", controller.GetQQUserTokens)
+			qqOpenRoute.GET("/groups", controller.GetQQUserGroups)
+			qqOpenRoute.PUT("/tokens/:token_id/group", controller.UpdateQQUserTokenGroup)
+		}
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), controller.TelegramLogin)
 		apiRouter.GET("/oauth/telegram/bind", middleware.CriticalRateLimit(), controller.TelegramBind)
 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
