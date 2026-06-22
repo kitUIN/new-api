@@ -51,7 +51,6 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
 		apiRouter.POST("/oauth/qq/create", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.QQCreate)
 		apiRouter.POST("/oauth/qq/bind", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.QQBind)
-		apiRouter.GET("/qq/group-health", controller.GetQQGroupHealthSummary)
 		qqOpenRoute := apiRouter.Group("/qq/users/:qq_id")
 		{
 			qqOpenRoute.GET("/tokens", controller.GetQQUserTokens)

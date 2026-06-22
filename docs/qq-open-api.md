@@ -234,7 +234,7 @@ curl -X PUT "https://example.com/api/qq/users/123456/tokens/10/group" \
 ## 4. 查询分组成功率
 
 ```http
-GET /api/qq/group-health
+GET /api/perf-metrics/groups
 ```
 
 该接口返回当前系统分组维度的成功率和健康状态，数据来源与后台分组健康/性能指标一致。
@@ -245,6 +245,7 @@ GET /api/qq/group-health
 | --- | --- | --- | --- | --- | --- |
 | `hours` | number | 否 | `24` | `168` | 统计窗口，单位为小时 |
 | `interval_minutes` | number | 否 | `10` | `60` | 分桶间隔，单位为分钟 |
+| `qq_accesstoken` | string | 是 | - | - | QQ 服务 accessToken |
 
 ### 响应字段
 
@@ -337,6 +338,5 @@ GET /api/qq/group-health
 ### curl 示例
 
 ```bash
-curl -X GET "https://example.com/api/qq/group-health?hours=24&interval_minutes=10" \
-  -H "X-Access-Token: <QQCallbackAccessToken>"
+curl -X GET "https://example.com/api/perf-metrics/groups?hours=24&interval_minutes=10&qq_accesstoken=<QQCallbackAccessToken>"
 ```
