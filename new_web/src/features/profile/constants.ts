@@ -21,17 +21,27 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 /**
- * Default quota warning threshold (500,000 = $1)
+ * Quota unit conversion (500,000 = $1)
  */
-export const DEFAULT_QUOTA_WARNING_THRESHOLD = 500000
+export const QUOTA_UNITS_PER_USD = 500000
+
+/**
+ * Default quota warning threshold in USD
+ */
+export const DEFAULT_QUOTA_WARNING_THRESHOLD_USD = 1
+
+/**
+ * Default duplicate warning suppression window in minutes
+ */
+export const DEFAULT_QUOTA_WARNING_REPEAT_MINUTES = 10
 
 /**
  * Notification methods
  */
 export const NOTIFICATION_METHODS = [
+  { value: 'qq' as const, label: 'QQ' },
   { value: 'email' as const, label: 'Email' },
   { value: 'webhook' as const, label: 'Webhook' },
   { value: 'bark' as const, label: 'Bark' },
   { value: 'gotify' as const, label: 'Gotify' },
-  { value: 'qq' as const, label: 'QQ' },
 ] as const

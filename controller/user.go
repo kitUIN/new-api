@@ -1186,6 +1186,7 @@ func TopUp(c *gin.Context) {
 type UpdateUserSettingRequest struct {
 	QuotaWarningType                 string  `json:"notify_type"`
 	QuotaWarningThreshold            float64 `json:"quota_warning_threshold"`
+	QuotaWarningRepeatMinutes        int     `json:"quota_warning_repeat_minutes,omitempty"`
 	WebhookUrl                       string  `json:"webhook_url,omitempty"`
 	WebhookSecret                    string  `json:"webhook_secret,omitempty"`
 	NotificationEmail                string  `json:"notification_email,omitempty"`
@@ -1213,6 +1214,10 @@ func UpdateUserSetting(c *gin.Context) {
 	// 验证预警阈值
 	if req.QuotaWarningThreshold <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgQuotaThresholdGtZero)
+		return
+	}
+	if req.QuotaWarningRepeatMinutes < 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
@@ -1307,6 +1312,7 @@ func UpdateUserSetting(c *gin.Context) {
 	settings := dto.UserSetting{
 		NotifyType:                       req.QuotaWarningType,
 		QuotaWarningThreshold:            req.QuotaWarningThreshold,
+		QuotaWarningRepeatMinutes:        req.QuotaWarningRepeatMinutes,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 	}

@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,6 +24,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
+
+var quotaWarningCooldownStore sync.Map
 
 type TokenDetails struct {
 	TextTokens  int
@@ -427,6 +430,9 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			quotaTooLow = true
 		}
 		if quotaTooLow {
+			if !shouldSendQuotaWarning(relayInfo.UserId, userSetting, "wallet") {
+				return
+			}
 			prompt := "您的额度即将用尽"
 			topUpLink := fmt.Sprintf("%s/console/topup", system_setting.ServerAddress)
 
@@ -481,6 +487,9 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 			return
 		}
 
+		if !shouldSendQuotaWarning(relayInfo.UserId, userSetting, "subscription") {
+			return
+		}
 		prompt := "您的订阅额度即将用尽"
 		topUpLink := fmt.Sprintf("%s/console/topup", system_setting.ServerAddress)
 
@@ -506,4 +515,35 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})
+}
+
+func shouldSendQuotaWarning(userId int, userSetting dto.UserSetting, scope string) bool {
+	minutes := userSetting.QuotaWarningRepeatMinutes
+	if minutes == 0 {
+		minutes = constant.NotificationLimitDurationMinute
+	}
+	if minutes <= 0 {
+		return true
+	}
+
+	key := fmt.Sprintf("quota_warning_notify:%d:%s", userId, scope)
+	cooldown := time.Duration(minutes) * time.Minute
+	if common.RedisEnabled {
+		if _, err := common.RedisGet(key); err == nil {
+			return false
+		}
+		if err := common.RedisSet(key, "1", cooldown); err != nil {
+			common.SysError(fmt.Sprintf("failed to set quota warning notify redis key for user %d: %s", userId, err.Error()))
+		}
+		return true
+	}
+
+	now := time.Now()
+	if value, ok := quotaWarningCooldownStore.Load(key); ok {
+		if limit, ok := value.(limitCount); ok && now.Sub(limit.Timestamp) < cooldown {
+			return false
+		}
+	}
+	quotaWarningCooldownStore.Store(key, limitCount{Count: 1, Timestamp: now})
+	return true
 }

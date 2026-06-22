@@ -46,8 +46,10 @@ import { Switch } from '@/components/ui/switch'
 import { PasswordInput } from '@/components/password-input'
 import { updateUserSettings } from '../../api'
 import {
-  DEFAULT_QUOTA_WARNING_THRESHOLD,
+  DEFAULT_QUOTA_WARNING_REPEAT_MINUTES,
+  DEFAULT_QUOTA_WARNING_THRESHOLD_USD,
   NOTIFICATION_METHODS,
+  QUOTA_UNITS_PER_USD,
 } from '../../constants'
 import { parseUserSettings } from '../../lib'
 import type { UserProfile, UserSettings, NotifyType } from '../../types'
@@ -76,8 +78,10 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const [loading, setLoading] = useState(false)
   const [qqFriendDialogOpen, setQQFriendDialogOpen] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
-    notify_type: 'email',
-    quota_warning_threshold: DEFAULT_QUOTA_WARNING_THRESHOLD,
+    notify_type: 'qq',
+    quota_warning_threshold:
+      DEFAULT_QUOTA_WARNING_THRESHOLD_USD * QUOTA_UNITS_PER_USD,
+    quota_warning_repeat_minutes: DEFAULT_QUOTA_WARNING_REPEAT_MINUTES,
     notification_email: '',
     webhook_url: '',
     webhook_secret: '',
@@ -86,9 +90,10 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     gotify_token: '',
     gotify_priority: 5,
     accept_unset_model_ratio_model: false,
-    record_ip_log: false,
     upstream_model_update_notify_enabled: false,
   })
+  const quotaWarningThresholdUsd =
+    (settings.quota_warning_threshold ?? 0) / QUOTA_UNITS_PER_USD
 
   // Update form field helper
   const updateField = useCallback(
@@ -102,9 +107,15 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     if (profile?.setting) {
       const parsed = parseUserSettings(profile.setting)
       setSettings({
-        notify_type: parsed.notify_type || 'email',
+        notify_type: parsed.notify_type || 'qq',
         quota_warning_threshold:
-          parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
+          parsed.quota_warning_threshold ??
+          DEFAULT_QUOTA_WARNING_THRESHOLD_USD * QUOTA_UNITS_PER_USD,
+        quota_warning_repeat_minutes:
+          parsed.quota_warning_repeat_minutes &&
+          parsed.quota_warning_repeat_minutes > 0
+            ? parsed.quota_warning_repeat_minutes
+            : DEFAULT_QUOTA_WARNING_REPEAT_MINUTES,
         notification_email: parsed.notification_email ?? '',
         webhook_url: parsed.webhook_url ?? '',
         webhook_secret: parsed.webhook_secret ?? '',
@@ -114,7 +125,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         gotify_priority: parsed.gotify_priority ?? 5,
         accept_unset_model_ratio_model:
           parsed.accept_unset_model_ratio_model || false,
-        record_ip_log: parsed.record_ip_log || false,
         upstream_model_update_notify_enabled:
           parsed.upstream_model_update_notify_enabled || false,
       })
@@ -134,7 +144,12 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const handleSave = async () => {
     try {
       setLoading(true)
-      const response = await updateUserSettings(settings)
+      const response = await updateUserSettings({
+        ...settings,
+        quota_warning_repeat_minutes:
+          settings.quota_warning_repeat_minutes ??
+          DEFAULT_QUOTA_WARNING_REPEAT_MINUTES,
+      })
 
       if (response.success) {
         toast.success(t('Settings updated successfully'))
@@ -199,21 +214,51 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       </div>
 
       {/* Warning Threshold */}
-      <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
-        <Input
-          id='threshold'
-          type='number'
-          className='h-9'
-          value={settings.quota_warning_threshold}
-          onChange={(e) =>
-            updateField('quota_warning_threshold', Number(e.target.value))
-          }
-          placeholder={t('Enter threshold')}
-        />
-        <p className='text-muted-foreground text-xs'>
-          {t('Get notified when balance falls below this value')}
-        </p>
+      <div className='grid gap-3 md:grid-cols-2'>
+        <div className='space-y-1.5'>
+          <Label htmlFor='threshold'>{t('Balance warning threshold')}</Label>
+          <Input
+            id='threshold'
+            type='number'
+            className='h-9'
+            min='0'
+            step='0.01'
+            value={quotaWarningThresholdUsd}
+            onChange={(e) =>
+              updateField(
+                'quota_warning_threshold',
+                Number(e.target.value) * QUOTA_UNITS_PER_USD
+              )
+            }
+            placeholder={t('Enter USD amount')}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Push a warning when balance is below this USD amount')}
+          </p>
+        </div>
+        <div className='space-y-1.5'>
+          <Label htmlFor='repeatMinutes'>
+            {t('Duplicate warning interval')}
+          </Label>
+          <Input
+            id='repeatMinutes'
+            type='number'
+            className='h-9'
+            min='1'
+            step='1'
+            value={settings.quota_warning_repeat_minutes}
+            onChange={(e) =>
+              updateField(
+                'quota_warning_repeat_minutes',
+                Number(e.target.value)
+              )
+            }
+            placeholder={String(DEFAULT_QUOTA_WARNING_REPEAT_MINUTES)}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Do not send another balance warning within these minutes')}
+          </p>
+        </div>
       </div>
 
       {/* Email Settings */}
@@ -404,21 +449,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           />
         </div>
 
-        {/* Record IP Log */}
-        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-          <div className='space-y-0.5'>
-            <Label htmlFor='recordIp'>{t('Record IP Address')}</Label>
-            <p className='text-muted-foreground text-xs sm:text-sm'>
-              {t('Log IP address for usage and error logs')}
-            </p>
-          </div>
-          <Switch
-            id='recordIp'
-            className='shrink-0'
-            checked={settings.record_ip_log}
-            onCheckedChange={(checked) => updateField('record_ip_log', checked)}
-          />
-        </div>
       </div>
 
       {/* Save Button */}

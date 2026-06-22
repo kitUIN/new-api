@@ -98,6 +98,8 @@ export interface UserSettings {
   notify_type?: NotifyType
   /** Quota warning threshold */
   quota_warning_threshold?: number
+  /** Suppress duplicate quota warnings for this many minutes */
+  quota_warning_repeat_minutes?: number
   /** Webhook URL */
   webhook_url?: string
   /** Webhook secret */
@@ -114,8 +116,6 @@ export interface UserSettings {
   gotify_priority?: number
   /** Accept unset model ratio model */
   accept_unset_model_ratio_model?: boolean
-  /** Record IP log */
-  record_ip_log?: boolean
   /** Receive upstream model update notifications (admin only) */
   upstream_model_update_notify_enabled?: boolean
   /** Preferred interface/API response language */
@@ -137,6 +137,7 @@ export interface UpdateUserRequest {
 export interface UpdateUserSettingsRequest {
   notify_type?: string
   quota_warning_threshold?: number
+  quota_warning_repeat_minutes?: number
   webhook_url?: string
   webhook_secret?: string
   notification_email?: string
@@ -145,7 +146,6 @@ export interface UpdateUserSettingsRequest {
   gotify_token?: string
   gotify_priority?: number
   accept_unset_model_ratio_model?: boolean
-  record_ip_log?: boolean
   upstream_model_update_notify_enabled?: boolean
 }
 
