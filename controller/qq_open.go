@@ -9,8 +9,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -108,26 +106,6 @@ func buildQQOpenTokenResponses(tokens []*model.Token) []qqOpenTokenResponse {
 	return responses
 }
 
-func buildQQOpenUserGroups(userGroup string) map[string]map[string]interface{} {
-	usableGroups := make(map[string]map[string]interface{})
-	userUsableGroups := service.GetUserUsableGroups(userGroup)
-	for groupName := range ratio_setting.GetGroupRatioCopy() {
-		if desc, ok := userUsableGroups[groupName]; ok {
-			usableGroups[groupName] = map[string]interface{}{
-				"ratio": service.GetUserGroupRatio(userGroup, groupName),
-				"desc":  desc,
-			}
-		}
-	}
-	if _, ok := userUsableGroups["auto"]; ok {
-		usableGroups["auto"] = map[string]interface{}{
-			"ratio": "自动",
-			"desc":  setting.GetUsableGroupDescription("auto"),
-		}
-	}
-	return usableGroups
-}
-
 func GetQQUserTokens(c *gin.Context) {
 	user, ok := getQQOpenUser(c)
 	if !ok {
@@ -150,11 +128,17 @@ func GetQQUserGroups(c *gin.Context) {
 	if !ok {
 		return
 	}
+	groups, err := service.GetSortedUserUsableGroupInfos(user.Group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, gin.H{
 		"qq_id":         user.QQId,
 		"user_id":       user.Id,
 		"user_group":    user.Group,
-		"usable_groups": buildQQOpenUserGroups(user.Group),
+		"usable_groups": service.UserUsableGroupInfosToMap(groups),
+		"groups":        groups,
 	})
 }
 

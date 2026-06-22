@@ -105,6 +105,11 @@ const GROUP_HEALTH_INTERVAL_MINUTES = 10
 
 type FailoverDragPosition = 'before' | 'after'
 
+type GroupSourceEntry = [
+  string,
+  { desc: string; ratio: ApiKeyGroupOption['ratio'] },
+]
+
 type ApiKeyMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -154,6 +159,16 @@ function getSortableGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
   if (typeof ratio === 'number' && Number.isFinite(ratio)) return ratio
   const parsedRatio = Number(ratio)
   return Number.isFinite(parsedRatio) ? parsedRatio : Number.POSITIVE_INFINITY
+}
+
+function compareGroupOptionsByRatio(
+  a: ApiKeyGroupOption,
+  b: ApiKeyGroupOption
+) {
+  const ratioDiff =
+    getSortableGroupRatio(a.ratio) - getSortableGroupRatio(b.ratio)
+  if (ratioDiff !== 0) return ratioDiff
+  return a.label.localeCompare(b.label)
 }
 
 export function ApiKeysMutateDrawer({
@@ -219,28 +234,32 @@ export function ApiKeysMutateDrawer({
   const groupHealthMap = new Map(
     (groupHealthData?.data.groups ?? []).map((group) => [group.group, group])
   )
-  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw)
-    .map(([key, info]) => {
-      const health = groupHealthMap.get(key)
-      return {
-        value: key,
-        label: key,
-        desc: info.desc || key,
-        ratio: info.ratio,
-        health: {
-          availability24h:
-            health && health.request_count > 0 ? health.success_rate : null,
-          availability2h: calculateWindowAvailability(health, 120),
-          ...calculateRecentAvailability(health),
-        },
-      }
-    })
-    .sort((a, b) => {
-      const ratioDiff =
-        getSortableGroupRatio(a.ratio) - getSortableGroupRatio(b.ratio)
-      if (ratioDiff !== 0) return ratioDiff
-      return a.label.localeCompare(b.label)
-    })
+  const groupsSource: GroupSourceEntry[] = Array.isArray(groupsData?.groups)
+    ? groupsData.groups.map((group) => [
+        group.name,
+        { desc: group.desc, ratio: group.ratio },
+      ])
+    : Object.entries(groupsRaw).sort(([aKey, a], [bKey, b]) =>
+        compareGroupOptionsByRatio(
+          { value: aKey, label: aKey, ratio: a.ratio },
+          { value: bKey, label: bKey, ratio: b.ratio }
+        )
+      )
+  const groups: ApiKeyGroupOption[] = groupsSource.map(([key, info]) => {
+    const health = groupHealthMap.get(key)
+    return {
+      value: key,
+      label: key,
+      desc: info.desc || key,
+      ratio: info.ratio,
+      health: {
+        availability24h:
+          health && health.request_count > 0 ? health.success_rate : null,
+        availability2h: calculateWindowAvailability(health, 120),
+        ...calculateRecentAvailability(health),
+      },
+    }
+  })
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const concreteGroups = groups.filter((g) => g.value !== 'auto')
   const schema = getApiKeyFormSchema(t)

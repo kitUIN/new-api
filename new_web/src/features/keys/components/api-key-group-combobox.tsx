@@ -249,8 +249,8 @@ export function ApiKeyGroupCombobox({
           />
         }
       >
-        <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
-          <span className='flex min-w-0 flex-1 flex-col justify-center'>
+        <span className='flex min-h-full min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
+          <span className='flex min-h-full min-w-0 flex-1 flex-col justify-center'>
             <span className='block truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
@@ -293,11 +293,11 @@ export function ApiKeyGroupCombobox({
                 >
                   <Check
                     className={cn(
-                      'mt-0.5 h-4 w-4 shrink-0',
+                      'h-4 w-4 shrink-0 self-center',
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <span className='flex min-w-0 flex-1 flex-col justify-center'>
+                  <span className='flex min-h-full min-w-0 flex-1 flex-col justify-center self-stretch'>
                     <span className='block truncate font-medium'>
                       {option.label}
                     </span>

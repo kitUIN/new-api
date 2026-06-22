@@ -1,11 +1,19 @@
 package service
 
 import (
+	"sort"
 	"strings"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
+
+type UserUsableGroupInfo struct {
+	Name  string      `json:"name"`
+	Ratio interface{} `json:"ratio"`
+	Desc  string      `json:"desc"`
+}
 
 func GetUserUsableGroups(userGroup string) map[string]string {
 	groupsCopy := setting.GetUserUsableGroupsCopy()
@@ -34,6 +42,58 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 		}
 	}
 	return groupsCopy
+}
+
+func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, error) {
+	userUsableGroups := GetUserUsableGroups(userGroup)
+	groupRatios := ratio_setting.GetGroupRatioCopy()
+	enabledChannelGroups, err := model.GetEnabledChannelGroupSet()
+	if err != nil {
+		return nil, err
+	}
+
+	groups := make([]UserUsableGroupInfo, 0, len(groupRatios)+1)
+	for groupName := range groupRatios {
+		desc, ok := userUsableGroups[groupName]
+		if !ok || !enabledChannelGroups[groupName] {
+			continue
+		}
+		groups = append(groups, UserUsableGroupInfo{
+			Name:  groupName,
+			Ratio: GetUserGroupRatio(userGroup, groupName),
+			Desc:  desc,
+		})
+	}
+
+	sort.SliceStable(groups, func(i, j int) bool {
+		leftRatio, leftOk := groups[i].Ratio.(float64)
+		rightRatio, rightOk := groups[j].Ratio.(float64)
+		if leftOk && rightOk && leftRatio != rightRatio {
+			return leftRatio < rightRatio
+		}
+		return groups[i].Name < groups[j].Name
+	})
+
+	if _, ok := userUsableGroups["auto"]; ok && len(groups) > 0 {
+		groups = append(groups, UserUsableGroupInfo{
+			Name:  "auto",
+			Ratio: "自动",
+			Desc:  setting.GetUsableGroupDescription("auto"),
+		})
+	}
+
+	return groups, nil
+}
+
+func UserUsableGroupInfosToMap(groups []UserUsableGroupInfo) map[string]map[string]interface{} {
+	usableGroups := make(map[string]map[string]interface{}, len(groups))
+	for _, group := range groups {
+		usableGroups[group.Name] = map[string]interface{}{
+			"ratio": group.Ratio,
+			"desc":  group.Desc,
+		}
+	}
+	return usableGroups
 }
 
 func GroupInUserUsableGroups(userGroup, groupName string) bool {

@@ -149,6 +149,16 @@ func TestGetQQUserTokensMasksKeysAndUsesBoundQQ(t *testing.T) {
 func TestGetQQUserGroupsReturnsCurrentUsableGroups(t *testing.T) {
 	db := setupQQOpenControllerTestDB(t)
 	user := seedQQOpenUser(t, db, 1, "10002", "default")
+	if err := db.Create(&model.Channel{
+		Type:   1,
+		Name:   "default-channel",
+		Key:    "channel-key",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "gpt-test",
+	}).Error; err != nil {
+		t.Fatalf("failed to seed channel: %v", err)
+	}
 
 	ctx, recorder := newQQOpenContext(t, http.MethodGet, "/api/qq/users/10002/groups", nil, gin.Params{{Key: "qq_id", Value: user.QQId}})
 	GetQQUserGroups(ctx)
@@ -162,6 +172,32 @@ func TestGetQQUserGroupsReturnsCurrentUsableGroups(t *testing.T) {
 	}
 	if _, ok := response.Data.UsableGroups["default"]; !ok {
 		t.Fatalf("expected default group to be usable, got %+v", response.Data.UsableGroups)
+	}
+}
+
+func TestGetQQUserGroupsSkipsGroupsWithoutEnabledChannels(t *testing.T) {
+	db := setupQQOpenControllerTestDB(t)
+	user := seedQQOpenUser(t, db, 1, "100021", "default")
+	if err := db.Create(&model.Channel{
+		Type:   1,
+		Name:   "disabled-channel",
+		Key:    "channel-key",
+		Status: common.ChannelStatusManuallyDisabled,
+		Group:  "default",
+		Models: "gpt-test",
+	}).Error; err != nil {
+		t.Fatalf("failed to seed channel: %v", err)
+	}
+
+	ctx, recorder := newQQOpenContext(t, http.MethodGet, "/api/qq/users/100021/groups", nil, gin.Params{{Key: "qq_id", Value: user.QQId}})
+	GetQQUserGroups(ctx)
+
+	response := decodeQQOpenAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+	if _, ok := response.Data.UsableGroups["default"]; ok {
+		t.Fatalf("expected default group to be skipped without enabled channels, got %+v", response.Data.UsableGroups)
 	}
 }
 

@@ -105,6 +105,28 @@ func GetEnabledGroupChannels() ([]EnabledGroupChannel, error) {
 	return result, nil
 }
 
+func GetEnabledChannelGroupSet() (map[string]bool, error) {
+	var channels []Channel
+	err := DB.Model(&Channel{}).
+		Select(channelSatisfyGroupCol()).
+		Where("status = ?", common.ChannelStatusEnabled).
+		Find(&channels).Error
+	if err != nil {
+		return nil, err
+	}
+
+	groups := make(map[string]bool)
+	for _, channel := range channels {
+		for _, group := range strings.Split(channel.Group, ",") {
+			group = strings.TrimSpace(group)
+			if group != "" {
+				groups[group] = true
+			}
+		}
+	}
+	return groups, nil
+}
+
 func GetGroupEnabledModels(group string) []string {
 	var models []string
 	// Find distinct models
