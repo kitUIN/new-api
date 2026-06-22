@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -26,6 +27,7 @@ type qqOpenAPIResponse struct {
 		Tokens       []qqOpenTokenResponse     `json:"tokens"`
 		Token        qqOpenTokenResponse       `json:"token"`
 		UsableGroups map[string]map[string]any `json:"usable_groups"`
+		Groups       []model.PerfGroupHealth   `json:"groups"`
 	} `json:"data"`
 }
 
@@ -52,7 +54,7 @@ func setupQQOpenControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.User{}, &model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.PerfMetricBucket{}); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}
 
@@ -227,5 +229,61 @@ func TestUpdateQQUserTokenGroupUpdatesOwnedToken(t *testing.T) {
 	}
 	if reloaded.Group != "default" {
 		t.Fatalf("expected token group default, got %q", reloaded.Group)
+	}
+}
+
+func TestGetQQGroupHealthSummaryUsesQQOpenAuth(t *testing.T) {
+	db := setupQQOpenControllerTestDB(t)
+	channel := &model.Channel{
+		Type:    1,
+		Name:    "default-channel",
+		Key:     "channel-key",
+		Status:  common.ChannelStatusEnabled,
+		Group:   "default",
+		Balance: 10,
+	}
+	if err := db.Create(channel).Error; err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	now := time.Now().Unix()
+	bucketStart := now - now%600
+	bucket := &model.PerfMetricBucket{
+		BucketStart:      bucketStart,
+		BucketSeconds:    600,
+		ModelName:        "gpt-test",
+		Group:            "default",
+		RequestCount:     10,
+		SuccessCount:     9,
+		LatencyCount:     9,
+		TotalLatencyMs:   900,
+		TotalTTFTMs:      450,
+		TTFTCount:        9,
+		CompletionTokens: 90,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := db.Create(bucket).Error; err != nil {
+		t.Fatalf("failed to create perf bucket: %v", err)
+	}
+
+	ctx, recorder := newQQOpenContext(t, http.MethodGet, "/api/qq/group-health?hours=1&interval_minutes=10", nil, nil)
+	GetQQGroupHealthSummary(ctx)
+
+	response := decodeQQOpenAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+	var defaultGroup *model.PerfGroupHealth
+	for i := range response.Data.Groups {
+		if response.Data.Groups[i].Group == "default" {
+			defaultGroup = &response.Data.Groups[i]
+			break
+		}
+	}
+	if defaultGroup == nil {
+		t.Fatalf("expected default group health in response: %+v", response.Data.Groups)
+	}
+	if defaultGroup.SuccessRate != 90 {
+		t.Fatalf("expected default group success rate 90, got %v", defaultGroup.SuccessRate)
 	}
 }

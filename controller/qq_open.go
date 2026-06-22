@@ -158,6 +158,20 @@ func GetQQUserGroups(c *gin.Context) {
 	})
 }
 
+func GetQQGroupHealthSummary(c *gin.Context) {
+	if !requireQQOpenAccess(c) {
+		return
+	}
+	hours := getPerfMetricsHours(c)
+	intervalMinutes := getPerfMetricsGroupIntervalMinutes(c)
+	summary, err := model.GetPerfGroupHealthSummary(hours, intervalMinutes)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, summary)
+}
+
 func UpdateQQUserTokenGroup(c *gin.Context) {
 	user, ok := getQQOpenUser(c)
 	if !ok {
