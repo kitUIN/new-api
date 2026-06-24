@@ -1063,6 +1063,10 @@ func testIdleEnabledGroups(interval time.Duration) error {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
 				continue
 			}
+			if !channel.IsAutoTestEnabled() {
+				common.SysLog(fmt.Sprintf("skip automatic channel test for channel #%d (%s): disabled in channel settings", channel.Id, channel.Name))
+				continue
+			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
 			result := testChannelWithGroup(channel, "", "", defaultChannelTestStream, group)

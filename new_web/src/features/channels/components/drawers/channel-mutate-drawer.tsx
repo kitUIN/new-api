@@ -2856,6 +2856,31 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        <FormField
+                          control={form.control}
+                          name='auto_test_enabled'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between'>
+                              <div className='space-y-0.5'>
+                                <FormLabel>
+                                  {t('Scheduled Automatic Test')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Include this channel in scheduled automatic tests'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value !== false}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
                       </div>
 
                       <div className='flex flex-col gap-4 border-t pt-4'>

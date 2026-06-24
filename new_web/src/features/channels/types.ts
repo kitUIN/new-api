@@ -221,6 +221,7 @@ export interface ChannelOtherSettings {
   allow_safety_identifier?: boolean
   allow_include_obfuscation?: boolean
   disable_responses_image_generation_tool_filter?: boolean
+  auto_test_enabled?: boolean
   allow_inference_geo?: boolean
   allow_speed?: boolean
   claude_beta_query?: boolean
@@ -466,6 +467,7 @@ export interface ChannelFormData {
   weight?: number
   test_model?: string
   auto_ban?: number
+  auto_test_enabled?: boolean
   status: number
   status_code_mapping?: string
   tag?: string

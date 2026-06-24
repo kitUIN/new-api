@@ -290,6 +290,7 @@ export const channelFormSchema = z
     weight: z.number().optional(),
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
+    auto_test_enabled: z.boolean().optional(),
     status: z.number(),
     status_code_mapping: z
       .string()
@@ -492,6 +493,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   weight: 0,
   test_model: '',
   auto_ban: 1,
+  auto_test_enabled: true,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
   tag: '',
@@ -785,6 +787,7 @@ export function transformChannelToFormDefaults(
   let allowSafetyIdentifier = false
   let allowIncludeObfuscation = false
   let responsesImageGenerationToolFilterEnabled = true
+  let autoTestEnabled = true
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
@@ -809,6 +812,7 @@ export function transformChannelToFormDefaults(
     allowIncludeObfuscation = parsed.allow_include_obfuscation === true
     responsesImageGenerationToolFilterEnabled =
       parsed.disable_responses_image_generation_tool_filter !== true
+    autoTestEnabled = parsed.auto_test_enabled !== false
     allowInferenceGeo = parsed.allow_inference_geo === true
     allowSpeed = parsed.allow_speed === true
     claudeBetaQuery = parsed.claude_beta_query === true
@@ -847,6 +851,7 @@ export function transformChannelToFormDefaults(
     weight: channel.weight || 0,
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
+    auto_test_enabled: autoTestEnabled,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
     tag: channel.tag || '',
@@ -984,6 +989,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       formData.responses_image_generation_tool_filter_enabled !== true
   } else if ('disable_responses_image_generation_tool_filter' in settingsObj) {
     delete settingsObj.disable_responses_image_generation_tool_filter
+  }
+
+  if (formData.auto_test_enabled === false) {
+    settingsObj.auto_test_enabled = false
+  } else if ('auto_test_enabled' in settingsObj) {
+    delete settingsObj.auto_test_enabled
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed

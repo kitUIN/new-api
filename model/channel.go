@@ -251,6 +251,11 @@ func (channel *Channel) GetAutoBan() bool {
 	return *channel.AutoBan == 1
 }
 
+func (channel *Channel) IsAutoTestEnabled() bool {
+	settings := channel.GetOtherSettings()
+	return settings.IsAutoTestEnabled()
+}
+
 func (channel *Channel) Save() error {
 	return DB.Save(channel).Error
 }
