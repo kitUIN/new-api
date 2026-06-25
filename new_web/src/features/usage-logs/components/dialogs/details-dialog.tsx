@@ -441,7 +441,11 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const { t } = useTranslation()
   const { log, other } = props
 
-  const promptTokens = log.prompt_tokens || 0
+  const rawPromptTokens = log.prompt_tokens || 0
+  const promptTokens =
+    other.input_tokens_total && other.input_tokens_total > 0
+      ? other.input_tokens_total
+      : rawPromptTokens
   const completionTokens = log.completion_tokens || 0
   const cacheRead = other.cache_tokens || 0
   const cacheWrite = other.cache_creation_tokens || 0

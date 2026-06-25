@@ -157,12 +157,17 @@ function getPrimaryInputTokens(
   other: LogOtherData | null
 ): number {
   const explicitTotalInputTokens = toPositiveNumber(other?.input_tokens_total)
-  const inputTokens =
-    explicitTotalInputTokens > 0
-      ? explicitTotalInputTokens
-      : toPositiveNumber(log.prompt_tokens)
-  const cacheTokens =
-    getCacheReadTokens(log, other) + getCacheWriteTokens(log, other)
+  return explicitTotalInputTokens > 0
+    ? explicitTotalInputTokens
+    : toPositiveNumber(log.prompt_tokens)
+}
+
+function getBillableInputTokens(
+  log: UsageLog,
+  other: LogOtherData | null
+): number {
+  const inputTokens = getPrimaryInputTokens(log, other)
+  const cacheTokens = getCacheReadTokens(log, other) + getCacheWriteTokens(log, other)
 
   if (inputTokens <= 0 || cacheTokens <= 0) return inputTokens
   return inputTokens >= cacheTokens ? inputTokens - cacheTokens : inputTokens
@@ -448,7 +453,7 @@ function buildCostDetail(
   const cacheWriteUnitPrice = inputUnitPrice * cacheCreationRatio
   const cacheWriteUnitPrice5m = inputUnitPrice * cacheCreationRatio5m
   const cacheWriteUnitPrice1h = inputUnitPrice * cacheCreationRatio1h
-  const inputTokens = getPrimaryInputTokens(log, other)
+  const inputTokens = getBillableInputTokens(log, other)
   const outputTokens = toPositiveNumber(log.completion_tokens)
   const cacheReadTokens = getCacheReadTokens(log, other)
   const cacheWriteBreakdown = getCacheWriteBreakdown(log, other)

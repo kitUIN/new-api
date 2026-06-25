@@ -479,6 +479,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// reliable total input value and tagged the usage source. Do not infer it from
 		// prompt/cache fields here, otherwise old upstream payloads may be double-counted.
 		other["input_tokens_total"] = usage.InputTokens
+	} else if summary.IsClaudeUsageSemantic {
+		totalInput := summary.PromptTokens + summary.CacheTokens + cacheWriteTokens
+		if totalInput > summary.PromptTokens {
+			other["input_tokens_total"] = totalInput
+		}
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
