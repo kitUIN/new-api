@@ -141,6 +141,43 @@ export function processChartData(
     }
   }
 
+  const makeTokenTooltipContent = () => [
+    {
+      key: () => tt('Model'),
+      value: (datum: Record<string, unknown>) => String(datum?.Model || ''),
+    },
+    {
+      key: () => tt('Total tokens'),
+      value: (datum: Record<string, unknown>) =>
+        formatInt(Number(datum?.Tokens) || 0),
+    },
+    {
+      key: () => tt('Total input'),
+      value: (datum: Record<string, unknown>) =>
+        formatInt(Number(datum?.PromptTokens) || 0),
+    },
+    {
+      key: () => tt('Cache Read'),
+      value: (datum: Record<string, unknown>) =>
+        formatInt(Number(datum?.CacheReadTokens) || 0),
+    },
+    {
+      key: () => tt('Cache Write'),
+      value: (datum: Record<string, unknown>) =>
+        formatInt(Number(datum?.CacheWriteTokens) || 0),
+    },
+    {
+      key: () => tt('Output Tokens'),
+      value: (datum: Record<string, unknown>) =>
+        formatInt(Number(datum?.CompletionTokens) || 0),
+    },
+    {
+      key: () => tt('Total cost'),
+      value: (datum: Record<string, unknown>) =>
+        formatQuotaValue(Number(datum?.rawQuota) || 0),
+    },
+  ]
+
   if (!data || data.length === 0) {
     return {
       spec_pie: {
@@ -564,41 +601,7 @@ export function processChartData(
       },
       tooltip: {
         mark: {
-          content: [
-            {
-              key: () => tt('Total tokens'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.Tokens) || 0),
-            },
-            {
-              key: () => tt('Total input'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.PromptTokens) || 0),
-            },
-            {
-              key: () => tt('Input (cached)'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.CacheReadTokens) || 0),
-            },
-            {
-              key: () => tt('Total output'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(
-                  (Number(datum?.CompletionTokens) || 0) +
-                    (Number(datum?.CacheWriteTokens) || 0)
-                ),
-            },
-            {
-              key: () => tt('Output (cached)'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.CacheWriteTokens) || 0),
-            },
-            {
-              key: () => tt('Total cost'),
-              value: (datum: Record<string, unknown>) =>
-                formatQuotaValue(Number(datum?.rawQuota) || 0),
-            },
-          ],
+          content: makeTokenTooltipContent(),
         },
         dimension: {
           content: [
@@ -630,41 +633,7 @@ export function processChartData(
       },
       tooltip: {
         mark: {
-          content: [
-            {
-              key: () => tt('Total tokens'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.Tokens) || 0),
-            },
-            {
-              key: () => tt('Total input'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.PromptTokens) || 0),
-            },
-            {
-              key: () => tt('Input (cached)'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.CacheReadTokens) || 0),
-            },
-            {
-              key: () => tt('Total output'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(
-                  (Number(datum?.CompletionTokens) || 0) +
-                    (Number(datum?.CacheWriteTokens) || 0)
-                ),
-            },
-            {
-              key: () => tt('Output (cached)'),
-              value: (datum: Record<string, unknown>) =>
-                formatInt(Number(datum?.CacheWriteTokens) || 0),
-            },
-            {
-              key: () => tt('Total cost'),
-              value: (datum: Record<string, unknown>) =>
-                formatQuotaValue(Number(datum?.rawQuota) || 0),
-            },
-          ],
+          content: makeTokenTooltipContent(),
         },
         dimension: {
           content: [
