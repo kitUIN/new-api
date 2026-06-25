@@ -114,7 +114,8 @@ function getTokenTotal(item: GroupQuotaDataItem) {
   const completionTokens = Number(item.completion_tokens) || 0
   const cacheWriteTokens = Number(item.cache_write_tokens) || 0
   const breakdownTotal = promptTokens + completionTokens + cacheWriteTokens
-  return breakdownTotal || Number(item.token_used) || 0
+  const tokenUsed = Number(item.token_used) || 0
+  return tokenUsed > 0 ? tokenUsed : breakdownTotal
 }
 
 function emptyModelStats(model: string): GroupModelStats {

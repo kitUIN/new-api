@@ -65,6 +65,19 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	return summary.CacheCreationTokens
 }
 
+func totalInputTokensForLog(summary textQuotaSummary, usage *dto.Usage) int {
+	if usage != nil && usage.UsageSource == "anthropic" && usage.InputTokens > 0 {
+		return usage.InputTokens
+	}
+	if summary.IsClaudeUsageSemantic {
+		totalInput := summary.PromptTokens + summary.CacheTokens + cacheWriteTokensTotal(summary)
+		if totalInput > 0 {
+			return totalInput
+		}
+	}
+	return summary.PromptTokens
+}
+
 func calculateTieredToolSurchargeQuota(summary textQuotaSummary) int {
 	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
@@ -402,6 +415,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	logContent := strings.Join(extraContent, ", ")
+	logPromptTokens := totalInputTokensForLog(summary, usage)
+	logTokenUsed := logPromptTokens + summary.CompletionTokens
 	var other map[string]interface{}
 	if summary.IsClaudeUsageSemantic {
 		other = GenerateClaudeOtherInfo(ctx, relayInfo,
@@ -473,22 +488,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// to cache_creation_tokens.
 		other["cache_write_tokens"] = cacheWriteTokens
 	}
-	if relayInfo.GetFinalRequestRelayFormat() != types.RelayFormatClaude && usage != nil && usage.UsageSource != "" && usage.InputTokens > 0 {
+	if logPromptTokens > summary.PromptTokens {
 		// input_tokens_total: explicit normalized total input used by the usage log UI.
-		// Only write this field when upstream/current conversion has already provided a
-		// reliable total input value and tagged the usage source. Do not infer it from
-		// prompt/cache fields here, otherwise old upstream payloads may be double-counted.
-		other["input_tokens_total"] = usage.InputTokens
-	} else if summary.IsClaudeUsageSemantic {
-		totalInput := summary.PromptTokens + summary.CacheTokens + cacheWriteTokens
-		if totalInput > summary.PromptTokens {
-			other["input_tokens_total"] = totalInput
-		}
+		other["input_tokens_total"] = logPromptTokens
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:           relayInfo.ChannelId,
-		PromptTokens:        summary.PromptTokens,
+		PromptTokens:        logPromptTokens,
 		CompletionTokens:    summary.CompletionTokens,
 		CacheTokens:         summary.CacheTokens,
 		CacheCreationTokens: summary.CacheCreationTokens,
@@ -502,5 +509,6 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		Group:               relayInfo.UsingGroup,
 		Other:               other,
 		RelayInfo:           relayInfo,
+		TokenUsed:           logTokenUsed,
 	})
 }

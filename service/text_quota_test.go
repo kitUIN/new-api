@@ -316,3 +316,51 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	require.Equal(t, 172, summary.PromptTokens)
 	require.Equal(t, 798, summary.Quota)
 }
+
+func TestTotalInputTokensForLogUsesClaudePromptPlusCache(t *testing.T) {
+	summary := textQuotaSummary{
+		PromptTokens:          2,
+		CacheTokens:           31001,
+		CacheCreationTokens:   1207,
+		IsClaudeUsageSemantic: true,
+	}
+
+	got := totalInputTokensForLog(summary, &dto.Usage{UsageSemantic: "anthropic"})
+
+	require.Equal(t, 32210, got)
+}
+
+func TestTotalInputTokensForLogPrefersAnthropicNormalizedInputTokens(t *testing.T) {
+	summary := textQuotaSummary{
+		PromptTokens:          2,
+		CacheTokens:           31001,
+		CacheCreationTokens:   1207,
+		IsClaudeUsageSemantic: true,
+	}
+	usage := &dto.Usage{
+		InputTokens:  32210,
+		UsageSource:  "anthropic",
+		UsageSemantic: "openai",
+	}
+
+	got := totalInputTokensForLog(summary, usage)
+
+	require.Equal(t, 32210, got)
+}
+
+func TestTotalInputTokensForLogDoesNotReuseNonAnthropicInputTokens(t *testing.T) {
+	summary := textQuotaSummary{
+		PromptTokens:          50,
+		CacheTokens:           10,
+		CacheCreationTokens:   5,
+		IsClaudeUsageSemantic: false,
+	}
+	usage := &dto.Usage{
+		InputTokens: 999,
+		UsageSource: "other",
+	}
+
+	got := totalInputTokensForLog(summary, usage)
+
+	require.Equal(t, 50, got)
+}

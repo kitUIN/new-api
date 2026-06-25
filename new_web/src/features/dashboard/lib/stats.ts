@@ -33,9 +33,9 @@ export function getQuotaDataTokenBreakdown(item: QuotaDataItem) {
   const cacheWriteTokens = Number(item.cache_write_tokens) || 0
   const rawTokenUsed = Number(item.token_used) || 0
   const breakdownTotal = promptTokens + completionTokens + cacheWriteTokens
-  const tokenUsed = breakdownTotal || rawTokenUsed
+  const tokenUsed = rawTokenUsed > 0 ? rawTokenUsed : breakdownTotal
 
-  if (breakdownTotal === 0 && rawTokenUsed > 0) {
+  if (promptTokens === 0 && rawTokenUsed > 0) {
     promptTokens = rawTokenUsed
   }
 
