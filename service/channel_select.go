@@ -11,12 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RetryParam is request-scoped relay retry state and must not be shared across goroutines.
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx                *gin.Context
+	TokenGroup         string
+	ModelName          string
+	Retry              *int
+	ExcludedChannelIDs []int
+	resetNextTry       bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -43,6 +45,28 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func (p *RetryParam) ExcludeChannel(channelID int) {
+	if channelID <= 0 {
+		return
+	}
+	for _, id := range p.ExcludedChannelIDs {
+		if id == channelID {
+			return
+		}
+	}
+	p.ExcludedChannelIDs = append(p.ExcludedChannelIDs, channelID)
+}
+
+func (p *RetryParam) nextChannelWithRetryExclusions(group string, retry int) (*model.Channel, error) {
+	for {
+		channel, err := model.GetRandomSatisfiedChannelWithExclusions(group, p.ModelName, retry, p.ExcludedChannelIDs)
+		if channel != nil || err != nil || len(p.ExcludedChannelIDs) == 0 {
+			return channel, err
+		}
+		p.ExcludedChannelIDs = p.ExcludedChannelIDs[1:]
+	}
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -115,7 +139,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = param.nextChannelWithRetryExclusions(autoGroup, priorityRetry)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +177,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = param.nextChannelWithRetryExclusions(param.TokenGroup, param.GetRetry())
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

@@ -239,6 +239,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetryNow {
 			break
 		}
+		retryParam.ExcludeChannel(channel.Id)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -592,6 +593,7 @@ func RelayTask(c *gin.Context) {
 		if !shouldRetryNow {
 			break
 		}
+		retryParam.ExcludeChannel(channel.Id)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")

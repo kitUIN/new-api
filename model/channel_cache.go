@@ -94,9 +94,13 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+	return GetRandomSatisfiedChannelWithExclusions(group, model, retry, nil)
+}
+
+func GetRandomSatisfiedChannelWithExclusions(group string, model string, retry int, excludedChannelIDs []int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannelWithExclusions(group, model, retry, excludedChannelIDs)
 	}
 
 	channelSyncLock.RLock()
@@ -111,6 +115,26 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		channels = group2model2channels[group][normalizedModel]
 	}
 
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	excludedSet := buildExcludedChannelIDSet(excludedChannelIDs)
+	candidateIDs := make([]int, 0, len(channels))
+	for _, channelID := range channels {
+		channel, ok := channelsIDM[channelID]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelID)
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if _, excluded := excludedSet[channelID]; excluded {
+			continue
+		}
+		candidateIDs = append(candidateIDs, channelID)
+	}
+	channels = candidateIDs
 	if len(channels) == 0 {
 		return nil, nil
 	}
@@ -190,6 +214,19 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	return nil, errors.New("channel not found")
 }
 
+func buildExcludedChannelIDSet(excludedChannelIDs []int) map[int]struct{} {
+	if len(excludedChannelIDs) == 0 {
+		return nil
+	}
+	excludedSet := make(map[int]struct{}, len(excludedChannelIDs))
+	for _, channelID := range excludedChannelIDs {
+		if channelID > 0 {
+			excludedSet[channelID] = struct{}{}
+		}
+	}
+	return excludedSet
+}
+
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)
@@ -256,10 +293,5 @@ func CacheUpdateChannel(channel *Channel) {
 	if channel == nil {
 		return
 	}
-
-	println("CacheUpdateChannel:", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
-
-	println("before:", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
 	channelsIDM[channel.Id] = channel
-	println("after :", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
 }
