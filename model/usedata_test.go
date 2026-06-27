@@ -162,6 +162,92 @@ func TestGetQuotaDataGroupByGroupModel(t *testing.T) {
 	require.Equal(t, 400, vipModel.TokenUsed)
 }
 
+func TestGetQuotaDataGroupByUserGroupModel(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&QuotaData{
+		UserID:           8,
+		Username:         "henry",
+		ModelName:        "gpt-a",
+		Group:            "default",
+		CreatedAt:        1710000000,
+		Count:            1,
+		Quota:            100,
+		TokenUsed:        80,
+		PromptTokens:     50,
+		CompletionTokens: 20,
+		CacheReadTokens:  5,
+		CacheWriteTokens: 5,
+	}).Error)
+	require.NoError(t, DB.Create(&QuotaData{
+		UserID:           8,
+		Username:         "henry",
+		ModelName:        "gpt-a",
+		Group:            "default",
+		CreatedAt:        1710003600,
+		Count:            2,
+		Quota:            300,
+		TokenUsed:        240,
+		PromptTokens:     150,
+		CompletionTokens: 60,
+		CacheReadTokens:  20,
+		CacheWriteTokens: 10,
+	}).Error)
+	require.NoError(t, DB.Create(&QuotaData{
+		UserID:           9,
+		Username:         "irene",
+		ModelName:        "gpt-a",
+		Group:            "default",
+		CreatedAt:        1710000000,
+		Count:            10,
+		Quota:            900,
+		TokenUsed:        700,
+		PromptTokens:     400,
+		CompletionTokens: 200,
+		CacheReadTokens:  50,
+		CacheWriteTokens: 50,
+	}).Error)
+	require.NoError(t, DB.Create(&QuotaData{
+		UserID:           8,
+		Username:         "henry",
+		ModelName:        "gpt-b",
+		Group:            "vip",
+		CreatedAt:        1710000000,
+		Count:            1,
+		Quota:            500,
+		TokenUsed:        400,
+		PromptTokens:     250,
+		CompletionTokens: 100,
+		CacheReadTokens:  30,
+		CacheWriteTokens: 20,
+	}).Error)
+
+	rows, err := GetQuotaDataGroupByUserGroupModel(8, 1709990000, 1710010000)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	byKey := make(map[string]*QuotaData)
+	for _, row := range rows {
+		byKey[row.Group+"|"+row.ModelName] = row
+	}
+
+	defaultModel := byKey["default|gpt-a"]
+	require.NotNil(t, defaultModel)
+	require.Equal(t, 3, defaultModel.Count)
+	require.Equal(t, 400, defaultModel.Quota)
+	require.Equal(t, 320, defaultModel.TokenUsed)
+	require.Equal(t, 200, defaultModel.PromptTokens)
+	require.Equal(t, 80, defaultModel.CompletionTokens)
+	require.Equal(t, 25, defaultModel.CacheReadTokens)
+	require.Equal(t, 15, defaultModel.CacheWriteTokens)
+
+	vipModel := byKey["vip|gpt-b"]
+	require.NotNil(t, vipModel)
+	require.Equal(t, 1, vipModel.Count)
+	require.Equal(t, 500, vipModel.Quota)
+	require.Equal(t, 400, vipModel.TokenUsed)
+}
+
 func TestGetAllQuotaDatesReturnsZeroBreakdownForLegacyRows(t *testing.T) {
 	truncateTables(t)
 

@@ -207,10 +207,7 @@ export function Dashboard() {
     () =>
       DASHBOARD_SECTION_IDS.filter(
         (section) =>
-          ((section !== 'users' &&
-            section !== 'groups' &&
-            section !== 'group-health') ||
-            isAdmin)
+          (section !== 'users' && section !== 'group-health') || isAdmin
       ),
     [isAdmin]
   )
@@ -320,7 +317,7 @@ export function Dashboard() {
           {activeSection === 'groups' && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
-                <LazyGroupStatsTable />
+                <LazyGroupStatsTable isAdmin={isAdmin} />
               </Suspense>
             </FadeIn>
           )}

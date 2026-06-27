@@ -276,7 +276,11 @@ function TableSkeletonRows() {
   )
 }
 
-export function GroupStatsTable() {
+interface GroupStatsTableProps {
+  isAdmin?: boolean
+}
+
+export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
   const { t } = useTranslation()
   const [selectedRange, setSelectedRange] = useState<string>('7')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -323,8 +327,8 @@ export function GroupStatsTable() {
   )
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['dashboard', 'group-quota', timeRange],
-    queryFn: () => getGroupQuotaData(timeRange),
+    queryKey: ['dashboard', 'group-quota', isAdmin, timeRange],
+    queryFn: () => getGroupQuotaData(timeRange, isAdmin),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })

@@ -65,12 +65,16 @@ export async function getUserQuotaDataByUsers(params: {
   return res.data
 }
 
-export async function getGroupQuotaData(params: {
-  start_timestamp: number
-  end_timestamp: number
-}) {
+export async function getGroupQuotaData(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data/groups' : '/api/data/self/groups'
   const res = await api.get<{ success: boolean; data: GroupQuotaDataItem[] }>(
-    '/api/data/groups',
+    endpoint,
     { params }
   )
   return res.data

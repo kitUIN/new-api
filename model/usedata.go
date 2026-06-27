@@ -153,6 +153,16 @@ func GetQuotaDataGroupByGroupModel(startTime int64, endTime int64) (quotaData []
 	return quotaDatas, err
 }
 
+func GetQuotaDataGroupByUserGroupModel(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	var quotaDatas []*QuotaData
+	err = DB.Table("quota_data").
+		Select(commonGroupCol+" as "+commonGroupCol+", model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(completion_tokens) as completion_tokens, sum(cache_read_tokens) as cache_read_tokens, sum(cache_write_tokens) as cache_write_tokens").
+		Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).
+		Group(commonGroupCol + ", model_name").
+		Find(&quotaDatas).Error
+	return quotaDatas, err
+}
+
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
 	if username != "" {
 		return GetQuotaDataByUsername(username, startTime, endTime)
