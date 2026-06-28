@@ -52,5 +52,6 @@ export interface ChannelAffinitySettings {
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.max_entries': number
   'channel_affinity_setting.default_ttl_seconds': number
+  'channel_affinity_setting.auto_group_reset_seconds': number
   'channel_affinity_setting.rules': string
 }

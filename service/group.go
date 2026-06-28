@@ -110,6 +110,16 @@ func GetUserAutoGroup(userGroup string) []string {
 			autoGroups = append(autoGroups, group)
 		}
 	}
+	if setting.GetAutoGroupOrderType() == setting.AutoGroupOrderTypeRatioAsc {
+		sort.SliceStable(autoGroups, func(i, j int) bool {
+			leftRatio := GetUserGroupRatio(userGroup, autoGroups[i])
+			rightRatio := GetUserGroupRatio(userGroup, autoGroups[j])
+			if leftRatio != rightRatio {
+				return leftRatio < rightRatio
+			}
+			return autoGroups[i] < autoGroups[j]
+		})
+	}
 	return autoGroups
 }
 

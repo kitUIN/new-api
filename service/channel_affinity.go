@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -388,7 +389,11 @@ func resolveChannelAffinityMeta(c *gin.Context, modelName string, usingGroup str
 
 		ttlSeconds := rule.TTLSeconds
 		if ttlSeconds <= 0 {
-			ttlSeconds = setting.DefaultTTLSeconds
+			if usingGroup == "auto" && setting.AutoGroupResetSeconds > 0 {
+				ttlSeconds = setting.AutoGroupResetSeconds
+			} else {
+				ttlSeconds = setting.DefaultTTLSeconds
+			}
 		}
 		if ttlSeconds <= 0 {
 			ttlSeconds = 3600
@@ -663,6 +668,9 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	if meta.SessionKeyOnly {
 		return false
 	}
+	if common.GetContextKeyString(c, constant.ContextKeyUsingGroup) == "auto" || meta.UsingGroup == "auto" {
+		return false
+	}
 	return meta.SkipRetry
 }
 
@@ -690,6 +698,45 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int
 		"key_fp":         meta.KeyFingerprint,
 	}
 	c.Set(ginKeyChannelAffinityLogInfo, info)
+}
+
+func SetAutoGroupAffinityIndex(c *gin.Context, selectedGroup string, index int) {
+	if c == nil || selectedGroup == "" || index < 0 {
+		return
+	}
+	common.SetContextKey(c, constant.ContextKeyAutoGroup, selectedGroup)
+	common.SetContextKey(c, constant.ContextKeyAutoGroupIndex, index)
+	common.SetContextKey(c, constant.ContextKeyAutoGroupRetryIndex, 0)
+}
+
+func PrepareAutoGroupAffinityFailover(c *gin.Context, retryParam *RetryParam) bool {
+	if c == nil || retryParam == nil || retryParam.TokenGroup != "auto" {
+		return false
+	}
+	meta, ok := getChannelAffinityMeta(c)
+	if !ok || meta.SessionKeyOnly {
+		return false
+	}
+	currentGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if currentGroup == "" {
+		return false
+	}
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	autoGroups := GetUserAutoGroup(userGroup)
+	for index, group := range autoGroups {
+		if group != currentGroup {
+			continue
+		}
+		if index+1 >= len(autoGroups) {
+			return false
+		}
+		common.SetContextKey(c, constant.ContextKeyAutoGroupIndex, index+1)
+		common.SetContextKey(c, constant.ContextKeyAutoGroupRetryIndex, 0)
+		retryParam.SetRetry(0)
+		retryParam.ResetRetryNextTry()
+		return true
+	}
+	return false
 }
 
 func channelAffinitySessionKeyLogInfo(meta channelAffinityMeta) map[string]interface{} {

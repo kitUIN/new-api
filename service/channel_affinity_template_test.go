@@ -8,8 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -226,6 +230,75 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			require.Equal(t, tt.want, ShouldSkipRetryAfterChannelAffinityFailure(tt.ctx()))
 		})
 	}
+}
+
+func TestShouldSkipRetryAfterChannelAffinityFailureAllowsAutoGroupFailover(t *testing.T) {
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-skip-retry",
+		SkipRetry:  true,
+		UsingGroup: "auto",
+		ModelName:  "gpt-5",
+	})
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "auto")
+
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+}
+
+func TestPrepareAutoGroupAffinityFailoverAdvancesToNextGroup(t *testing.T) {
+	originalAutoGroups := setting.AutoGroups2JsonString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(originalAutoGroups))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+	})
+
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"g1":"G1","g2":"G2"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"g1":1,"g2":2}`))
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["g1","g2"]`))
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-auto",
+		UsingGroup: "auto",
+		ModelName:  "gpt-5",
+	})
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "auto")
+	common.SetContextKey(ctx, constant.ContextKeyAutoGroup, "g1")
+
+	retry := 1
+	retryParam := &RetryParam{
+		Ctx:        ctx,
+		TokenGroup: "auto",
+		ModelName:  "gpt-5",
+		Retry:      &retry,
+	}
+
+	require.True(t, PrepareAutoGroupAffinityFailover(ctx, retryParam))
+	require.Equal(t, 0, retryParam.GetRetry())
+	require.Equal(t, 1, common.GetContextKeyInt(ctx, constant.ContextKeyAutoGroupIndex))
+}
+
+func TestAutoGroupAffinityUsesResetSecondsAsDefaultTTL(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	originalDefaultTTL := setting.DefaultTTLSeconds
+	originalAutoReset := setting.AutoGroupResetSeconds
+	t.Cleanup(func() {
+		setting.DefaultTTLSeconds = originalDefaultTTL
+		setting.AutoGroupResetSeconds = originalAutoReset
+	})
+	setting.DefaultTTLSeconds = 3600
+	setting.AutoGroupResetSeconds = 18000
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"prompt_cache_key":"session-abc"}`))
+
+	EnsureChannelAffinitySessionKey(ctx, "gpt-5", "auto")
+	_, ttlSeconds, ok := getChannelAffinityContext(ctx)
+
+	require.True(t, ok)
+	require.Equal(t, 18000, ttlSeconds)
 }
 
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {

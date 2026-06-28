@@ -239,6 +239,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetryNow {
 			break
 		}
+		service.PrepareAutoGroupAffinityFailover(c, retryParam)
 		retryParam.ExcludeChannel(channel.Id)
 	}
 
@@ -593,6 +594,7 @@ func RelayTask(c *gin.Context) {
 		if !shouldRetryNow {
 			break
 		}
+		service.PrepareAutoGroupAffinityFailover(c, retryParam)
 		retryParam.ExcludeChannel(channel.Id)
 	}
 

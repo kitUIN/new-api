@@ -185,6 +185,7 @@ export type ModelSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
   'group_ratio_setting.upstream_group_ratio_bindings': string
@@ -192,6 +193,7 @@ export type ModelSettings = {
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.max_entries': number
   'channel_affinity_setting.default_ttl_seconds': number
+  'channel_affinity_setting.auto_group_reset_seconds': number
   'channel_affinity_setting.rules': string
   'model_deployment.ionet.api_key': string
   'model_deployment.ionet.enabled': boolean
@@ -229,6 +231,7 @@ export type BillingSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
   'group_ratio_setting.upstream_group_ratio_bindings': string

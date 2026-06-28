@@ -43,6 +43,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -65,6 +73,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
   UpstreamGroupRatioBindings: string
@@ -156,6 +165,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 handleFieldChange('GroupSpecialUsableGroup', value)
               }
             />
+
+            <AutoGroupOrderTypeField form={form} />
 
             <FormField
               control={form.control}
@@ -318,6 +329,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               )}
             />
 
+            <AutoGroupOrderTypeField form={form} />
+
             <FormField
               control={form.control}
               name='DefaultUseAutoGroup'
@@ -346,6 +359,52 @@ export const GroupRatioForm = memo(function GroupRatioForm({
     </div>
   )
 })
+
+function AutoGroupOrderTypeField(props: {
+  form: UseFormReturn<GroupFormValues>
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={props.form.control}
+      name='AutoGroupOrderType'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Auto group order type')}</FormLabel>
+          <Select
+            items={[
+              { value: 'priority', label: t('Priority order') },
+              { value: 'ratio_asc', label: t('Ratio ascending') },
+            ]}
+            value={field.value}
+            onValueChange={field.onChange}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue placeholder={t('Select order type')} />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                <SelectItem value='priority'>{t('Priority order')}</SelectItem>
+                <SelectItem value='ratio_asc'>
+                  {t('Ratio ascending')}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            {t(
+              'Priority order uses the configured list order. Ratio ascending automatically tries lower effective group ratios first.'
+            )}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
 
 type GroupPricingGuideProps = {
   open: boolean
