@@ -36,6 +36,16 @@ export interface QuotaDataItem {
   cache_write_tokens?: number
   count?: number
   quota?: number
+  perf_request_count?: number
+  latency_count?: number
+  total_latency_ms?: number
+  total_ttft_ms?: number
+  ttft_count?: number
+  perf_completion_tokens?: number
+  total_tps_latency_ms?: number
+  avg_ttft_ms?: number
+  avg_latency_ms?: number
+  avg_tps?: number
 }
 
 export interface GroupQuotaDataItem {
@@ -48,6 +58,16 @@ export interface GroupQuotaDataItem {
   cache_write_tokens?: number
   count?: number
   quota?: number
+  perf_request_count?: number
+  latency_count?: number
+  total_latency_ms?: number
+  total_ttft_ms?: number
+  ttft_count?: number
+  perf_completion_tokens?: number
+  total_tps_latency_ms?: number
+  avg_ttft_ms?: number
+  avg_latency_ms?: number
+  avg_tps?: number
 }
 
 // ============================================================================

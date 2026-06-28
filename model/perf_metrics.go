@@ -110,6 +110,21 @@ type RankingGroupPerfStat struct {
 	AvgTps       float64 `json:"avg_tps"`
 }
 
+type GroupModelPerfStat struct {
+	Group             string  `json:"group"`
+	ModelName         string  `json:"model_name"`
+	RequestCount      int64   `json:"request_count"`
+	LatencyCount      int64   `json:"latency_count"`
+	TotalLatencyMs    int64   `json:"total_latency_ms"`
+	TotalTTFTMs       int64   `json:"total_ttft_ms"`
+	TTFTCount         int64   `json:"ttft_count"`
+	CompletionTokens  int64   `json:"completion_tokens"`
+	TotalTPSLatencyMs int64   `json:"total_tps_latency_ms"`
+	AvgTTFTMs         float64 `json:"avg_ttft_ms"`
+	AvgLatencyMs      float64 `json:"avg_latency_ms"`
+	AvgTps            float64 `json:"avg_tps"`
+}
+
 type PerformanceSeriesPoint struct {
 	Ts           int64   `json:"ts"`
 	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
@@ -138,6 +153,22 @@ type perfMetricKey struct {
 	bucketSeconds int64
 	modelName     string
 	group         string
+}
+
+type groupModelPerfKey struct {
+	group string
+	model string
+}
+
+func groupModelPerfKeyFromValues(groupName string, modelName string) groupModelPerfKey {
+	groupName = strings.TrimSpace(groupName)
+	if groupName == "" {
+		groupName = "default"
+	}
+	return groupModelPerfKey{
+		group: strings.TrimSpace(groupName),
+		model: strings.TrimSpace(modelName),
+	}
 }
 
 type perfRecentMetricSample struct {
@@ -1090,6 +1121,91 @@ func GetRankingGroupPerfStats(startTime int64, endTime int64) ([]RankingGroupPer
 			AvgTTFTMs:    avgTTFTMs,
 			AvgLatencyMs: avgLatencyMs,
 			AvgTps:       avgTps,
+		})
+	}
+	return stats, nil
+}
+
+func GetGroupModelPerfStats(startTime int64, endTime int64) ([]GroupModelPerfStat, error) {
+	aggregates := make(map[groupModelPerfKey]perfAccumulator)
+	if LOG_DB != nil {
+		var rows []perfMetricAggregateRow
+		groupExpr := fmt.Sprintf("COALESCE(NULLIF(%s, ''), 'default')", perfMetricGroupCol())
+		query := LOG_DB.Model(&PerfMetricBucket{}).
+			Select(groupExpr + ` AS group_name,
+				model_name,
+				SUM(request_count) AS request_count,
+				SUM(success_count) AS success_count,
+				SUM(test_request_count) AS test_request_count,
+				SUM(latency_count) AS latency_count,
+				SUM(total_latency_ms) AS total_latency_ms,
+				SUM(total_ttft_ms) AS total_ttft_ms,
+				SUM(ttft_count) AS ttft_count,
+				SUM(completion_tokens) AS completion_tokens,
+				SUM(total_tps_latency_ms) AS total_tps_latency_ms`).
+			Where("model_name <> ''").
+			Group(groupExpr + ", model_name")
+		if startTime > 0 {
+			query = query.Where("bucket_start >= ?", startTime)
+		}
+		if endTime > 0 {
+			query = query.Where("bucket_start <= ?", endTime)
+		}
+		if err := query.Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			key := groupModelPerfKeyFromValues(row.Group, row.ModelName)
+			existing := aggregates[key]
+			existing.add(accumulatorFromRow(row))
+			aggregates[key] = existing
+		}
+	}
+
+	for key, acc := range snapshotPendingPerfMetrics() {
+		if startTime > 0 && key.bucketStart < startTime {
+			continue
+		}
+		if endTime > 0 && key.bucketStart > endTime {
+			continue
+		}
+		if strings.TrimSpace(key.modelName) == "" {
+			continue
+		}
+		perfKey := groupModelPerfKeyFromValues(key.group, key.modelName)
+		existing := aggregates[perfKey]
+		existing.add(acc)
+		aggregates[perfKey] = existing
+	}
+
+	keys := make([]groupModelPerfKey, 0, len(aggregates))
+	for key := range aggregates {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].group == keys[j].group {
+			return keys[i].model < keys[j].model
+		}
+		return keys[i].group < keys[j].group
+	})
+
+	stats := make([]GroupModelPerfStat, 0, len(keys))
+	for _, key := range keys {
+		acc := aggregates[key]
+		avgLatencyMs, avgTTFTMs, _, avgTps := acc.summary()
+		stats = append(stats, GroupModelPerfStat{
+			Group:             key.group,
+			ModelName:         key.model,
+			RequestCount:      acc.requestCount,
+			LatencyCount:      acc.latencyCount,
+			TotalLatencyMs:    acc.totalLatencyMs,
+			TotalTTFTMs:       acc.totalTTFTMs,
+			TTFTCount:         acc.ttftCount,
+			CompletionTokens:  acc.completionTokens,
+			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
+			AvgTTFTMs:         avgTTFTMs,
+			AvgLatencyMs:      avgLatencyMs,
+			AvgTps:            avgTps,
 		})
 	}
 	return stats, nil

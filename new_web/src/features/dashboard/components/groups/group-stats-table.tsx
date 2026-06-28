@@ -54,6 +54,10 @@ import {
   toUnixTimeRange,
 } from '@/features/dashboard/lib'
 import type { GroupQuotaDataItem } from '@/features/dashboard/types'
+import {
+  formatLatency,
+  formatThroughput,
+} from '@/features/performance-metrics/lib/format'
 
 interface GroupModelStats {
   model: string
@@ -64,6 +68,13 @@ interface GroupModelStats {
   completionTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  perfRequestCount: number
+  latencyCount: number
+  totalLatencyMs: number
+  totalTTFTMs: number
+  ttftCount: number
+  perfCompletionTokens: number
+  totalTPSLatencyMs: number
 }
 
 interface GroupStats {
@@ -75,6 +86,13 @@ interface GroupStats {
   completionTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  perfRequestCount: number
+  latencyCount: number
+  totalLatencyMs: number
+  totalTTFTMs: number
+  ttftCount: number
+  perfCompletionTokens: number
+  totalTPSLatencyMs: number
   models: GroupModelStats[]
 }
 
@@ -128,6 +146,13 @@ function emptyModelStats(model: string): GroupModelStats {
     completionTokens: 0,
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
+    perfRequestCount: 0,
+    latencyCount: 0,
+    totalLatencyMs: 0,
+    totalTTFTMs: 0,
+    ttftCount: 0,
+    perfCompletionTokens: 0,
+    totalTPSLatencyMs: 0,
   }
 }
 
@@ -141,8 +166,28 @@ function emptyGroupStats(group: string): GroupStats {
     completionTokens: 0,
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
+    perfRequestCount: 0,
+    latencyCount: 0,
+    totalLatencyMs: 0,
+    totalTTFTMs: 0,
+    ttftCount: 0,
+    perfCompletionTokens: 0,
+    totalTPSLatencyMs: 0,
     models: [],
   }
+}
+
+function getPerformanceSummary(stats: GroupStats | GroupModelStats) {
+  const avgTTFTMs =
+    stats.ttftCount > 0 ? stats.totalTTFTMs / stats.ttftCount : 0
+  const avgLatencyMs =
+    stats.latencyCount > 0 ? stats.totalLatencyMs / stats.latencyCount : 0
+  const avgTps =
+    stats.totalTPSLatencyMs > 0
+      ? stats.perfCompletionTokens / (stats.totalTPSLatencyMs / 1000)
+      : 0
+
+  return { avgTTFTMs, avgLatencyMs, avgTps }
 }
 
 function processGroupStats(data: GroupQuotaDataItem[]) {
@@ -159,6 +204,13 @@ function processGroupStats(data: GroupQuotaDataItem[]) {
     const completionTokens = Number(item.completion_tokens) || 0
     const cacheReadTokens = Number(item.cache_read_tokens) || 0
     const cacheWriteTokens = Number(item.cache_write_tokens) || 0
+    const perfRequestCount = Number(item.perf_request_count) || 0
+    const latencyCount = Number(item.latency_count) || 0
+    const totalLatencyMs = Number(item.total_latency_ms) || 0
+    const totalTTFTMs = Number(item.total_ttft_ms) || 0
+    const ttftCount = Number(item.ttft_count) || 0
+    const perfCompletionTokens = Number(item.perf_completion_tokens) || 0
+    const totalTPSLatencyMs = Number(item.total_tps_latency_ms) || 0
 
     const groupStats = groups.get(group) ?? emptyGroupStats(group)
     groupStats.quota += quota
@@ -168,6 +220,13 @@ function processGroupStats(data: GroupQuotaDataItem[]) {
     groupStats.completionTokens += completionTokens
     groupStats.cacheReadTokens += cacheReadTokens
     groupStats.cacheWriteTokens += cacheWriteTokens
+    groupStats.perfRequestCount += perfRequestCount
+    groupStats.latencyCount += latencyCount
+    groupStats.totalLatencyMs += totalLatencyMs
+    groupStats.totalTTFTMs += totalTTFTMs
+    groupStats.ttftCount += ttftCount
+    groupStats.perfCompletionTokens += perfCompletionTokens
+    groupStats.totalTPSLatencyMs += totalTPSLatencyMs
     groups.set(group, groupStats)
 
     if (!groupModels.has(group)) groupModels.set(group, new Map())
@@ -180,6 +239,13 @@ function processGroupStats(data: GroupQuotaDataItem[]) {
     modelStats.completionTokens += completionTokens
     modelStats.cacheReadTokens += cacheReadTokens
     modelStats.cacheWriteTokens += cacheWriteTokens
+    modelStats.perfRequestCount += perfRequestCount
+    modelStats.latencyCount += latencyCount
+    modelStats.totalLatencyMs += totalLatencyMs
+    modelStats.totalTTFTMs += totalTTFTMs
+    modelStats.ttftCount += ttftCount
+    modelStats.perfCompletionTokens += perfCompletionTokens
+    modelStats.totalTPSLatencyMs += totalTPSLatencyMs
     modelMap.set(model, modelStats)
   })
 
@@ -236,6 +302,7 @@ function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
     props.stats.promptTokens > 0
       ? (props.stats.cacheReadTokens / props.stats.promptTokens) * 100
       : 0
+  const perf = getPerformanceSummary(props.stats)
 
   return (
     <>
@@ -249,13 +316,24 @@ function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
         {formatInt(props.stats.count)}
       </TableCell>
       <TableCell className='text-right'>
-        {formatInt(props.stats.promptTokens)}
+        {formatLatency(perf.avgTTFTMs)}
+      </TableCell>
+      <TableCell className='text-right'>
+        {formatLatency(perf.avgLatencyMs)}
+      </TableCell>
+      <TableCell className='text-right'>
+        {formatThroughput(perf.avgTps)}
+      </TableCell>
+      <TableCell className='text-right'>
+        <span>{formatInt(props.stats.promptTokens)}</span>
+        <span className='text-muted-foreground ml-1'>
+          ({formatPercent(cacheRatio)})
+        </span>
       </TableCell>
       <TableCell className='text-right'>
         {formatInt(props.stats.completionTokens)}
       </TableCell>
       <TableCell className='text-right'>{formatInt(cacheTokens)}</TableCell>
-      <TableCell className='text-right'>{formatPercent(cacheRatio)}</TableCell>
     </>
   )
 }
@@ -265,7 +343,7 @@ function TableSkeletonRows() {
     <>
       {Array.from({ length: 6 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 8 }).map((__, cellIndex) => (
+          {Array.from({ length: 10 }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className='h-4 w-full' />
             </TableCell>
@@ -432,10 +510,18 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
               <TableHead className='text-right'>{t('Cost')}</TableHead>
               <TableHead className='text-right'>{t('Tokens')}</TableHead>
               <TableHead className='text-right'>{t('Calls')}</TableHead>
+              <TableHead className='text-right'>
+                {t('First-token latency')}
+              </TableHead>
+              <TableHead className='text-right'>
+                {t('Average latency')}
+              </TableHead>
+              <TableHead className='text-right'>
+                {t('Average token/s')}
+              </TableHead>
               <TableHead className='text-right'>{t('Input tokens')}</TableHead>
               <TableHead className='text-right'>{t('Output tokens')}</TableHead>
               <TableHead className='text-right'>{t('Cache tokens')}</TableHead>
-              <TableHead className='text-right'>{t('Cache ratio')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -444,7 +530,7 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={10}
                   className='text-muted-foreground h-32 text-center'
                 >
                   {t('No data available')}

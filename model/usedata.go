@@ -24,6 +24,17 @@ type QuotaData struct {
 	CacheWriteTokens int    `json:"cache_write_tokens" gorm:"default:0"`
 	Count            int    `json:"count" gorm:"default:0"`
 	Quota            int    `json:"quota" gorm:"default:0"`
+
+	PerfRequestCount     int64   `json:"perf_request_count,omitempty" gorm:"-"`
+	LatencyCount         int64   `json:"latency_count,omitempty" gorm:"-"`
+	TotalLatencyMs       int64   `json:"total_latency_ms,omitempty" gorm:"-"`
+	TotalTTFTMs          int64   `json:"total_ttft_ms,omitempty" gorm:"-"`
+	TTFTCount            int64   `json:"ttft_count,omitempty" gorm:"-"`
+	PerfCompletionTokens int64   `json:"perf_completion_tokens,omitempty" gorm:"-"`
+	TotalTPSLatencyMs    int64   `json:"total_tps_latency_ms,omitempty" gorm:"-"`
+	AvgTTFTMs            float64 `json:"avg_ttft_ms,omitempty" gorm:"-"`
+	AvgLatencyMs         float64 `json:"avg_latency_ms,omitempty" gorm:"-"`
+	AvgTps               float64 `json:"avg_tps,omitempty" gorm:"-"`
 }
 
 func UpdateQuotaData() {
@@ -150,6 +161,10 @@ func GetQuotaDataGroupByGroupModel(startTime int64, endTime int64) (quotaData []
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
 		Group(commonGroupCol + ", model_name").
 		Find(&quotaDatas).Error
+	if err != nil {
+		return quotaDatas, err
+	}
+	err = attachGroupModelPerfStats(quotaDatas, startTime, endTime)
 	return quotaDatas, err
 }
 
@@ -161,6 +176,40 @@ func GetQuotaDataGroupByUserGroupModel(userId int, startTime int64, endTime int6
 		Group(commonGroupCol + ", model_name").
 		Find(&quotaDatas).Error
 	return quotaDatas, err
+}
+
+func attachGroupModelPerfStats(quotaDatas []*QuotaData, startTime int64, endTime int64) error {
+	if len(quotaDatas) == 0 {
+		return nil
+	}
+	perfStats, err := GetGroupModelPerfStats(startTime, endTime)
+	if err != nil {
+		return err
+	}
+	if len(perfStats) == 0 {
+		return nil
+	}
+	statsByKey := make(map[groupModelPerfKey]GroupModelPerfStat, len(perfStats))
+	for _, stat := range perfStats {
+		statsByKey[groupModelPerfKeyFromValues(stat.Group, stat.ModelName)] = stat
+	}
+	for _, quotaData := range quotaDatas {
+		stat, ok := statsByKey[groupModelPerfKeyFromValues(quotaData.Group, quotaData.ModelName)]
+		if !ok {
+			continue
+		}
+		quotaData.PerfRequestCount = stat.RequestCount
+		quotaData.LatencyCount = stat.LatencyCount
+		quotaData.TotalLatencyMs = stat.TotalLatencyMs
+		quotaData.TotalTTFTMs = stat.TotalTTFTMs
+		quotaData.TTFTCount = stat.TTFTCount
+		quotaData.PerfCompletionTokens = stat.CompletionTokens
+		quotaData.TotalTPSLatencyMs = stat.TotalTPSLatencyMs
+		quotaData.AvgTTFTMs = stat.AvgTTFTMs
+		quotaData.AvgLatencyMs = stat.AvgLatencyMs
+		quotaData.AvgTps = stat.AvgTps
+	}
+	return nil
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
