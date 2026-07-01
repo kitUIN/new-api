@@ -300,7 +300,7 @@ func updateUserUsableGroupsOption(value string) error {
 	}
 
 	changes := setting.CompareUserUsableGroupChanges(previousGroups, currentGroups)
-	message := setting.FormatUserUsableGroupChangeMessage(changes)
+	message := setting.FormatUserUsableGroupChangeMessage(changes, ratio_setting.GetGroupRatioCopy())
 	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventUserUsableGroup, message, "user usable group change notify")
 	return nil
 }
@@ -324,9 +324,6 @@ func updateUpstreamGroupRatioBindingsOption(value string) error {
 }
 
 func updateGroupSpecialUsableGroupOption(value string) error {
-	ratioSetting := ratio_setting.GetGroupRatioSetting()
-	previousRules := ratioSetting.GroupSpecialUsableGroup.ReadAll()
-
 	option := Option{
 		Key: "group_ratio_setting.group_special_usable_group",
 	}
@@ -336,9 +333,6 @@ func updateGroupSpecialUsableGroupOption(value string) error {
 		return err
 	}
 
-	changes := ratio_setting.CompareGroupSpecialUsableChanges(previousRules, ratioSetting.GroupSpecialUsableGroup.ReadAll())
-	message := ratio_setting.FormatGroupSpecialUsableChangeMessage(changes)
-	common.SendQQNotificationGroupMessage(message, "group special usable change notify")
 	return nil
 }
 

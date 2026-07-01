@@ -114,21 +114,29 @@ func CompareUserUsableGroupChanges(previous, current map[string]string) []UserUs
 	return changes
 }
 
-func FormatUserUsableGroupChangeLines(changes []UserUsableGroupChange) []string {
+func userUsableGroupRatio(ratios map[string]float64, group string) float64 {
+	if ratio, ok := ratios[group]; ok {
+		return ratio
+	}
+	return 1
+}
+
+func FormatUserUsableGroupChangeLines(changes []UserUsableGroupChange, ratios map[string]float64) []string {
 	lines := make([]string, 0, len(changes))
 	for _, change := range changes {
 		switch change.Type {
 		case UserUsableGroupChangeAdded:
 			if change.NewDisabled {
-				lines = append(lines, fmt.Sprintf("+ %s: 关闭，描述 %s", change.Group, change.NewDesc))
-			} else {
-				lines = append(lines, fmt.Sprintf("+ %s: 开启，描述 %s", change.Group, change.NewDesc))
+				// 新建非可见分组不通知
+				continue
 			}
+			lines = append(lines, fmt.Sprintf("+ %s: 开启，描述 %s，倍率 %g", change.Group, change.NewDesc, userUsableGroupRatio(ratios, change.Group)))
 		case UserUsableGroupChangeUpdated:
 			if change.NewDisabled {
 				lines = append(lines, fmt.Sprintf("* %s: 开启 -> 关闭", change.Group))
 			} else {
-				lines = append(lines, fmt.Sprintf("* %s: 关闭 -> 开启", change.Group))
+				// 开启分组时附带描述和倍率
+				lines = append(lines, fmt.Sprintf("* %s: 关闭 -> 开启，描述 %s，倍率 %g", change.Group, change.NewDesc, userUsableGroupRatio(ratios, change.Group)))
 			}
 		case UserUsableGroupChangeDeleted:
 			if change.OldDisabled {
@@ -137,14 +145,18 @@ func FormatUserUsableGroupChangeLines(changes []UserUsableGroupChange) []string 
 				lines = append(lines, fmt.Sprintf("- %s: 关闭", change.Group))
 			}
 		case UserUsableGroupChangeDescription:
+			if change.NewDisabled {
+				// 修改非可见分组描述不通知
+				continue
+			}
 			lines = append(lines, fmt.Sprintf("* %s: 描述 %s -> %s", change.Group, change.OldDesc, change.NewDesc))
 		}
 	}
 	return lines
 }
 
-func FormatUserUsableGroupChangeMessage(changes []UserUsableGroupChange) string {
-	lines := FormatUserUsableGroupChangeLines(changes)
+func FormatUserUsableGroupChangeMessage(changes []UserUsableGroupChange, ratios map[string]float64) string {
+	lines := FormatUserUsableGroupChangeLines(changes, ratios)
 	if len(lines) == 0 {
 		return ""
 	}
