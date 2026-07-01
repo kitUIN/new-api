@@ -1269,10 +1269,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const outputTokens = toPositiveNumber(log.completion_tokens)
         const cacheReadTokens = getCacheReadTokens(log, other)
         const cacheWriteTokens = getCacheWriteTokens(log, other)
-        const totalTokens =
-          inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+        const totalTokens = inputTokens + outputTokens
+        const hasAnyTokens =
+          totalTokens > 0 || cacheReadTokens > 0 || cacheWriteTokens > 0
 
-        if (totalTokens === 0) {
+        if (!hasAnyTokens) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
@@ -1317,7 +1318,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {t('Token Breakdown')}
                   </p>
                   <div className={DETAIL_TOOLTIP_ROW_CLASS}>
-                    <span>{t('Input Tokens')}</span>
+                    <span>{t('Total Input Tokens')}</span>
                     <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
                       {formatTokenCount(inputTokens)}
                     </span>
