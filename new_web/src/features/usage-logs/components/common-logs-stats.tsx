@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { formatLogQuota } from '@/lib/format'
+import { formatCompactNumber, formatLogQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -76,13 +76,27 @@ export function CommonLogsStats() {
 
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Skeleton className='h-7 w-[150px] rounded-md' />
         <Skeleton className='h-7 w-[100px] rounded-md' />
         <Skeleton className='h-7 w-[120px] rounded-md' />
+        <Skeleton className='h-7 w-[130px] rounded-md' />
+        <Skeleton className='h-7 w-[130px] rounded-md' />
+        <Skeleton className='h-7 w-[130px] rounded-md' />
+        <Skeleton className='h-7 w-[120px] rounded-md' />
+        <Skeleton className='h-7 w-[120px] rounded-md' />
+        <Skeleton className='h-7 w-[110px] rounded-md' />
       </div>
     )
   }
+
+  const promptTokens = stats?.prompt_tokens || 0
+  const completionTokens = stats?.completion_tokens || 0
+  const cacheTokens = stats?.cache_tokens || 0
+  const cacheCreationTokens = stats?.cache_creation_tokens || 0
+  const totalTokens = promptTokens + completionTokens
+  const cacheRatio =
+    promptTokens > 0 ? (cacheTokens / promptTokens) * 100 : 0
 
   return (
     <div className='flex flex-wrap items-center gap-2'>
@@ -100,6 +114,36 @@ export function CommonLogsStats() {
         label={t('TPM')}
         value={stats?.tpm || 0}
         accent='bg-slate-400/70'
+      />
+      <StatBadge
+        label={t('Total Tokens')}
+        value={formatCompactNumber(totalTokens)}
+        accent='bg-indigo-500/70'
+      />
+      <StatBadge
+        label={t('Input Tokens')}
+        value={formatCompactNumber(promptTokens)}
+        accent='bg-emerald-500/70'
+      />
+      <StatBadge
+        label={t('Output Tokens')}
+        value={formatCompactNumber(completionTokens)}
+        accent='bg-amber-500/70'
+      />
+      <StatBadge
+        label={t('Cache Hit')}
+        value={formatCompactNumber(cacheTokens)}
+        accent='bg-teal-500/70'
+      />
+      <StatBadge
+        label={t('Cache Write')}
+        value={formatCompactNumber(cacheCreationTokens)}
+        accent='bg-violet-500/70'
+      />
+      <StatBadge
+        label={t('Cache Ratio')}
+        value={`${cacheRatio.toFixed(2)}%`}
+        accent='bg-fuchsia-500/70'
       />
     </div>
   )

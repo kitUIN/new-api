@@ -20,27 +20,29 @@ import (
 )
 
 type Log struct {
-	Id               int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
-	UserId           int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
-	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
-	Content          string `json:"content"`
-	Username         string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
-	TokenName        string `json:"token_name" gorm:"index;default:''"`
-	ModelName        string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
-	Quota            int    `json:"quota" gorm:"default:0"`
-	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
-	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
-	UseTime          int    `json:"use_time" gorm:"default:0"`
-	IsStream         bool   `json:"is_stream"`
-	ChannelId        int    `json:"channel" gorm:"index"`
-	ChannelName      string `json:"channel_name" gorm:"->"`
-	QQId             string `json:"qq_id,omitempty" gorm:"-"`
-	TokenId          int    `json:"token_id" gorm:"default:0;index"`
-	Group            string `json:"group" gorm:"index"`
-	Ip               string `json:"ip" gorm:"index;default:''"`
-	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
-	Other            string `json:"other"`
+	Id                  int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
+	UserId              int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
+	CreatedAt           int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
+	Type                int    `json:"type" gorm:"index:idx_created_at_type"`
+	Content             string `json:"content"`
+	Username            string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
+	TokenName           string `json:"token_name" gorm:"index;default:''"`
+	ModelName           string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
+	Quota               int    `json:"quota" gorm:"default:0"`
+	PromptTokens        int    `json:"prompt_tokens" gorm:"default:0"`
+	CompletionTokens    int    `json:"completion_tokens" gorm:"default:0"`
+	CacheTokens         int    `json:"cache_read_tokens" gorm:"default:0"`
+	CacheCreationTokens int    `json:"cache_write_tokens" gorm:"default:0"`
+	UseTime             int    `json:"use_time" gorm:"default:0"`
+	IsStream            bool   `json:"is_stream"`
+	ChannelId           int    `json:"channel" gorm:"index"`
+	ChannelName         string `json:"channel_name" gorm:"->"`
+	QQId                string `json:"qq_id,omitempty" gorm:"-"`
+	TokenId             int    `json:"token_id" gorm:"default:0;index"`
+	Group               string `json:"group" gorm:"index"`
+	Ip                  string `json:"ip" gorm:"index;default:''"`
+	RequestId           string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
+	Other               string `json:"other"`
 }
 
 // don't use iota, avoid change log type value
@@ -305,24 +307,26 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
 	log := &Log{
-		UserId:           userId,
-		Username:         username,
-		CreatedAt:        common.GetTimestamp(),
-		Type:             LogTypeConsume,
-		Content:          params.Content,
-		PromptTokens:     params.PromptTokens,
-		CompletionTokens: params.CompletionTokens,
-		TokenName:        params.TokenName,
-		ModelName:        params.ModelName,
-		Quota:            params.Quota,
-		ChannelId:        params.ChannelId,
-		TokenId:          params.TokenId,
-		UseTime:          params.UseTimeSeconds,
-		IsStream:         params.IsStream,
-		Group:            params.Group,
-		Ip:               c.ClientIP(),
-		RequestId:        requestId,
-		Other:            otherStr,
+		UserId:              userId,
+		Username:            username,
+		CreatedAt:           common.GetTimestamp(),
+		Type:                LogTypeConsume,
+		Content:             params.Content,
+		PromptTokens:        params.PromptTokens,
+		CompletionTokens:    params.CompletionTokens,
+		CacheTokens:         params.CacheTokens,
+		CacheCreationTokens: params.CacheCreationTokens,
+		TokenName:           params.TokenName,
+		ModelName:           params.ModelName,
+		Quota:               params.Quota,
+		ChannelId:           params.ChannelId,
+		TokenId:             params.TokenId,
+		UseTime:             params.UseTimeSeconds,
+		IsStream:            params.IsStream,
+		Group:               params.Group,
+		Ip:                  c.ClientIP(),
+		RequestId:           requestId,
+		Other:               otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -632,13 +636,17 @@ func fillLogQQIds(logs []*Log) error {
 }
 
 type Stat struct {
-	Quota int `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Quota               int `json:"quota"`
+	Rpm                 int `json:"rpm"`
+	Tpm                 int `json:"tpm"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	CacheTokens         int `json:"cache_tokens"`
+	CacheCreationTokens int `json:"cache_creation_tokens"`
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, channelAffinityKey string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+	tx := LOG_DB.Table("logs").Select("sum(quota) quota, sum(prompt_tokens) prompt_tokens, sum(completion_tokens) completion_tokens, sum(cache_tokens) cache_tokens, sum(cache_creation_tokens) cache_creation_tokens")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
