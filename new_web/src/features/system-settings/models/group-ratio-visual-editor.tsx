@@ -26,6 +26,7 @@ import {
   ChevronDown,
   Link2,
   Unlink,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -1069,6 +1070,17 @@ function GroupPricingTable({
 
   const visibleRows = rows.filter((row) => row.type === activeTab)
 
+  const handleMigrateGroup = useCallback(
+    (id: string) => {
+      const targetType = activeTab === 'billing' ? 'user' : 'billing'
+      const updatedRows = rows.map((row) =>
+        row._id === id ? { ...row, type: targetType } : row
+      )
+      emitRows(updatedRows)
+    },
+    [activeTab, emitRows, rows]
+  )
+
   return (
     <Card className={sectionCardClassName}>
       <CardHeader className={sectionHeaderClassName}>
@@ -1255,14 +1267,29 @@ function GroupPricingTable({
                           )}
                         </TableCell>
                         <TableCell className='text-right'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => removeRow(row._id)}
-                            aria-label={t('Delete')}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
+                          <div className='flex items-center justify-end gap-1'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => handleMigrateGroup(row._id)}
+                              aria-label={t('Migrate to {{target}}', {
+                                target:
+                                  activeTab === 'billing'
+                                    ? t('User groups')
+                                    : t('Billing groups'),
+                              })}
+                            >
+                              <ArrowRightLeft className='h-4 w-4' />
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => removeRow(row._id)}
+                              aria-label={t('Delete')}
+                            >
+                              <Trash2 className='h-4 w-4' />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
