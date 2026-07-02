@@ -47,6 +47,7 @@ import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
+import { Route as AuthenticatedGroupPricingIndexRouteImport } from './routes/_authenticated/group-pricing/index'
 import { Route as AuthenticatedDrawingIndexRouteImport } from './routes/_authenticated/drawing/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
@@ -268,6 +269,12 @@ const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   path: '/keys/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedGroupPricingIndexRoute =
+  AuthenticatedGroupPricingIndexRouteImport.update({
+    id: '/group-pricing/',
+    path: '/group-pricing/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDrawingIndexRoute =
   AuthenticatedDrawingIndexRouteImport.update({
     id: '/drawing/',
@@ -440,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/drawing/': typeof AuthenticatedDrawingIndexRoute
+  '/group-pricing/': typeof AuthenticatedGroupPricingIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
@@ -500,6 +508,7 @@ export interface FileRoutesByTo {
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/drawing': typeof AuthenticatedDrawingIndexRoute
+  '/group-pricing': typeof AuthenticatedGroupPricingIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
@@ -564,6 +573,7 @@ export interface FileRoutesById {
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/drawing/': typeof AuthenticatedDrawingIndexRoute
+  '/_authenticated/group-pricing/': typeof AuthenticatedGroupPricingIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
@@ -627,6 +637,7 @@ export interface FileRouteTypes {
     | '/channels/'
     | '/dashboard/'
     | '/drawing/'
+    | '/group-pricing/'
     | '/keys/'
     | '/models/'
     | '/playground/'
@@ -687,6 +698,7 @@ export interface FileRouteTypes {
     | '/channels'
     | '/dashboard'
     | '/drawing'
+    | '/group-pricing'
     | '/keys'
     | '/models'
     | '/playground'
@@ -750,6 +762,7 @@ export interface FileRouteTypes {
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/drawing/'
+    | '/_authenticated/group-pricing/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
     | '/_authenticated/playground/'
@@ -1067,6 +1080,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/group-pricing/': {
+      id: '/_authenticated/group-pricing/'
+      path: '/group-pricing'
+      fullPath: '/group-pricing/'
+      preLoaderRoute: typeof AuthenticatedGroupPricingIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/drawing/': {
       id: '/_authenticated/drawing/'
       path: '/drawing'
@@ -1325,6 +1345,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedDrawingIndexRoute: typeof AuthenticatedDrawingIndexRoute
+  AuthenticatedGroupPricingIndexRoute: typeof AuthenticatedGroupPricingIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
@@ -1348,6 +1369,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedDrawingIndexRoute: AuthenticatedDrawingIndexRoute,
+  AuthenticatedGroupPricingIndexRoute: AuthenticatedGroupPricingIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,

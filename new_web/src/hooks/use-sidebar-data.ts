@@ -33,6 +33,7 @@ import {
   User,
   Users,
   Wallet,
+  ReceiptText,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type SidebarData } from '@/components/layout/types'
@@ -146,6 +147,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Group Pricing'),
+            url: '/group-pricing',
+            icon: ReceiptText,
           },
           {
             title: t('System Settings'),

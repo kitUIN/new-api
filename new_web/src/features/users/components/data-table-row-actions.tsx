@@ -30,6 +30,8 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  Coins,
+  Users,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -54,6 +56,8 @@ import {
 import { getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
+import { UserGroupDialog } from './dialogs/user-group-dialog'
+import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
 interface DataTableRowActionsProps {
@@ -68,6 +72,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
+  const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
+  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false)
+  const [enableConfirmOpen, setEnableConfirmOpen] = useState(false)
+  const [promoteConfirmOpen, setPromoteConfirmOpen] = useState(false)
+  const [demoteConfirmOpen, setDemoteConfirmOpen] = useState(false)
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -79,7 +89,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setOpen('delete')
   }
 
-  const handleManage = async (action: Exclude<ManageUserAction, 'delete'>) => {
+  const handleManage = async (action: Exclude<ManageUserAction, 'delete' | 'add_quota'>) => {
     try {
       const result = await manageUser(user.id, action)
       if (result.success) {
@@ -127,6 +137,26 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     }
   }
 
+  const handleDisable = async () => {
+    await handleManage('disable')
+    setDisableConfirmOpen(false)
+  }
+
+  const handleEnable = async () => {
+    await handleManage('enable')
+    setEnableConfirmOpen(false)
+  }
+
+  const handlePromote = async () => {
+    await handleManage('promote')
+    setPromoteConfirmOpen(false)
+  }
+
+  const handleDemote = async () => {
+    await handleManage('demote')
+    setDemoteConfirmOpen(false)
+  }
+
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
@@ -160,7 +190,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <DropdownMenuSeparator />
 
           {isDisabled ? (
-            <DropdownMenuItem onClick={() => handleManage('enable')}>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setEnableConfirmOpen(true)
+              }}
+            >
               {t('Enable')}
               <DropdownMenuShortcut>
                 <Power size={16} />
@@ -168,7 +203,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
-              onClick={() => handleManage('disable')}
+              onSelect={(event) => {
+                event.preventDefault()
+                setDisableConfirmOpen(true)
+              }}
               disabled={isRoot}
             >
               {t('Disable')}
@@ -179,7 +217,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           )}
 
           {isAdmin && !isRoot && (
-            <DropdownMenuItem onClick={() => handleManage('demote')}>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setDemoteConfirmOpen(true)
+              }}
+            >
               {t('Demote')}
               <DropdownMenuShortcut>
                 <ArrowDown size={16} />
@@ -188,13 +231,42 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           )}
 
           {!isAdmin && (
-            <DropdownMenuItem onClick={() => handleManage('promote')}>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setPromoteConfirmOpen(true)
+              }}
+            >
               {t('Promote')}
               <DropdownMenuShortcut>
                 <ArrowUp size={16} />
               </DropdownMenuShortcut>
             </DropdownMenuItem>
           )}
+
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setQuotaDialogOpen(true)
+            }}
+          >
+            {t('Adjust Quota')}
+            <DropdownMenuShortcut>
+              <Coins size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setGroupDialogOpen(true)
+            }}
+          >
+            {t('Adjust Group')}
+            <DropdownMenuShortcut>
+              <Users size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
 
           <DropdownMenuItem
             onSelect={(event) => {
@@ -281,6 +353,42 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         handleConfirm={handleResetTwoFA}
       />
 
+      <ConfirmDialog
+        open={disableConfirmOpen}
+        onOpenChange={setDisableConfirmOpen}
+        title={t('Disable User')}
+        desc={`Are you sure you want to disable user ${user.username}? The user will not be able to access the system.`}
+        confirmText={t('Disable')}
+        handleConfirm={handleDisable}
+      />
+
+      <ConfirmDialog
+        open={enableConfirmOpen}
+        onOpenChange={setEnableConfirmOpen}
+        title={t('Enable User')}
+        desc={`Are you sure you want to enable user ${user.username}?`}
+        confirmText={t('Enable')}
+        handleConfirm={handleEnable}
+      />
+
+      <ConfirmDialog
+        open={promoteConfirmOpen}
+        onOpenChange={setPromoteConfirmOpen}
+        title={t('Promote User')}
+        desc={`Are you sure you want to promote user ${user.username} to administrator? This will grant elevated privileges.`}
+        confirmText={t('Promote')}
+        handleConfirm={handlePromote}
+      />
+
+      <ConfirmDialog
+        open={demoteConfirmOpen}
+        onOpenChange={setDemoteConfirmOpen}
+        title={t('Demote User')}
+        desc={`Are you sure you want to demote user ${user.username}? This will remove administrator privileges.`}
+        confirmText={t('Demote')}
+        handleConfirm={handleDemote}
+      />
+
       <UserBindingDialog
         open={bindingDialogOpen}
         onOpenChange={setBindingDialogOpen}
@@ -292,6 +400,23 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         open={subscriptionsDialogOpen}
         onOpenChange={setSubscriptionsDialogOpen}
         user={{ id: user.id, username: user.username }}
+        onSuccess={triggerRefresh}
+      />
+
+      <UserQuotaDialog
+        open={quotaDialogOpen}
+        onOpenChange={setQuotaDialogOpen}
+        userId={user.id}
+        currentQuota={user.quota}
+        onSuccess={triggerRefresh}
+      />
+
+      <UserGroupDialog
+        open={groupDialogOpen}
+        onOpenChange={setGroupDialogOpen}
+        userId={user.id}
+        username={user.username}
+        currentGroup={user.group}
         onSuccess={triggerRefresh}
       />
     </>
