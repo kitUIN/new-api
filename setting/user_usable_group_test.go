@@ -106,9 +106,8 @@ func TestCompareUserUsableGroupChanges(t *testing.T) {
 	}, changes)
 	require.Equal(t, []string{
 		"* default: 描述 Default -> Default Plus",
-		"* disabled: 关闭 -> 开启",
-		"+ hidden: 关闭，描述 Hidden",
+		"* disabled: 关闭 -> 开启，描述 Disabled，倍率 2",
 		"- removed: 关闭",
 		"* vip: 开启 -> 关闭",
-	}, FormatUserUsableGroupChangeLines(changes))
+	}, FormatUserUsableGroupChangeLines(changes, map[string]float64{"disabled": 2}))
 }
