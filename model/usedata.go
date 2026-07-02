@@ -175,6 +175,10 @@ func GetQuotaDataGroupByUserGroupModel(userId int, startTime int64, endTime int6
 		Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).
 		Group(commonGroupCol + ", model_name").
 		Find(&quotaDatas).Error
+	if err != nil {
+		return quotaDatas, err
+	}
+	err = attachGroupModelPerfStats(quotaDatas, startTime, endTime)
 	return quotaDatas, err
 }
 
