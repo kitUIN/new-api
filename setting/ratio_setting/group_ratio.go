@@ -96,6 +96,13 @@ func (binding UpstreamGroupRatioBinding) MarshalJSON() ([]byte, error) {
 
 var upstreamGroupRatioBindingMap = types.NewRWMap[string, UpstreamGroupRatioBinding]()
 
+const (
+	GroupTypeBilling = "billing"
+	GroupTypeUser    = "user"
+)
+
+var groupTypesMap = types.NewRWMap[string, string]()
+
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 	"vip": {
 		"append_1":   "vip_special_group_1",
@@ -108,6 +115,7 @@ type GroupRatioSetting struct {
 	GroupGroupRatio            *types.RWMap[string, map[string]float64]        `json:"group_group_ratio"`
 	GroupSpecialUsableGroup    *types.RWMap[string, map[string]string]         `json:"group_special_usable_group"`
 	UpstreamGroupRatioBindings *types.RWMap[string, UpstreamGroupRatioBinding] `json:"upstream_group_ratio_bindings"`
+	GroupTypes                 *types.RWMap[string, string]                    `json:"group_types"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -124,6 +132,7 @@ func init() {
 		GroupRatio:                 groupRatioMap,
 		GroupGroupRatio:            groupGroupRatioMap,
 		UpstreamGroupRatioBindings: upstreamGroupRatioBindingMap,
+		GroupTypes:                 groupTypesMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -137,7 +146,42 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 	if groupRatioSetting.UpstreamGroupRatioBindings == nil {
 		groupRatioSetting.UpstreamGroupRatioBindings = upstreamGroupRatioBindingMap
 	}
+	if groupRatioSetting.GroupTypes == nil {
+		groupRatioSetting.GroupTypes = groupTypesMap
+	}
 	return &groupRatioSetting
+}
+
+func GetGroupType(name string) string {
+	if groupRatioSetting.GroupTypes == nil {
+		return GroupTypeBilling
+	}
+	t, ok := groupRatioSetting.GroupTypes.Get(name)
+	if !ok {
+		return GroupTypeBilling
+	}
+	return t
+}
+
+func GetGroupTypesCopy() map[string]string {
+	if groupRatioSetting.GroupTypes == nil {
+		return map[string]string{}
+	}
+	return groupRatioSetting.GroupTypes.ReadAll()
+}
+
+func GroupTypes2JSONString() string {
+	if groupRatioSetting.GroupTypes == nil {
+		return "{}"
+	}
+	return groupRatioSetting.GroupTypes.MarshalJSONString()
+}
+
+func UpdateGroupTypesByJSONString(jsonStr string) error {
+	if groupRatioSetting.GroupTypes == nil {
+		groupRatioSetting.GroupTypes = groupTypesMap
+	}
+	return types.LoadFromJsonString(groupRatioSetting.GroupTypes, jsonStr)
 }
 
 func GetGroupRatioCopy() map[string]float64 {

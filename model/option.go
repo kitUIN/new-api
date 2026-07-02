@@ -161,6 +161,7 @@ func InitOptionMap() {
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
+	common.OptionMap["GroupTypes"] = ratio_setting.GroupTypes2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
 	common.OptionMap["AudioRatio"] = ratio_setting.AudioRatio2JSONString()
@@ -225,6 +226,8 @@ func UpdateOption(key string, value string) error {
 		return updateGroupRatioOption(value)
 	case "UserUsableGroups":
 		return updateUserUsableGroupsOption(value)
+	case "GroupTypes":
+		return ratio_setting.UpdateGroupTypesByJSONString(value)
 	case "group_ratio_setting.upstream_group_ratio_bindings":
 		return updateUpstreamGroupRatioBindingsOption(value)
 	case "group_ratio_setting.group_special_usable_group":

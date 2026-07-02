@@ -72,6 +72,7 @@ type GroupFormValues = {
   TopupGroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
+  GroupTypes: string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
@@ -150,6 +151,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               topupGroupRatio={form.watch('TopupGroupRatio')}
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
+              groupTypes={form.watch('GroupTypes')}
               autoGroups={form.watch('AutoGroups')}
               upstreamGroupRatioBindings={form.watch(
                 'UpstreamGroupRatioBindings'

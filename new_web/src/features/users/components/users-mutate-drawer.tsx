@@ -100,8 +100,8 @@ export function UsersMutateDrawer({
 
   // Fetch groups
   const { data: groupsData } = useQuery({
-    queryKey: ['groups'],
-    queryFn: getGroups,
+    queryKey: ['groups', 'user'],
+    queryFn: () => getGroups({ type: 'user' }),
     staleTime: 5 * 60 * 1000,
   })
 

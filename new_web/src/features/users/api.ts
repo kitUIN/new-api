@@ -142,10 +142,15 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
 }
 
 /**
- * Get all available groups
+ * Get all available groups, optionally filtered by type ('billing' | 'user')
  */
-export async function getGroups(): Promise<ApiResponse<string[]>> {
-  const res = await api.get('/api/group/')
+export async function getGroups(params?: {
+  type?: 'billing' | 'user'
+}): Promise<ApiResponse<string[]>> {
+  const url = params?.type
+    ? `/api/group/?type=${params.type}`
+    : '/api/group/'
+  const res = await api.get(url)
   return res.data
 }
 

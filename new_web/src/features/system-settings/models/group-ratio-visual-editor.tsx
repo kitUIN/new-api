@@ -69,6 +69,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getGroupQuerySources } from '../api'
 import type {
   GroupQuerySource,
@@ -82,6 +83,7 @@ type GroupRatioVisualEditorProps = {
   topupGroupRatio: string
   userUsableGroups: string
   groupGroupRatio: string
+  groupTypes: string
   autoGroups: string
   upstreamGroupRatioBindings: string
   onChange: (field: string, value: string) => void
@@ -98,6 +100,7 @@ type GroupPricingRow = {
   ratio: number
   selectable: boolean
   description: string
+  type: 'billing' | 'user'
 }
 
 type GroupOverride = {
@@ -216,7 +219,8 @@ function calculateFinalRatio(
 
 function buildGroupPricingRows(
   groupRatio: string,
-  userUsableGroups: string
+  userUsableGroups: string,
+  groupTypes: string
 ): GroupPricingRow[] {
   const ratioMap = safeJsonParse<Record<string, number>>(groupRatio, {
     fallback: {},
@@ -225,6 +229,10 @@ function buildGroupPricingRows(
   const usableMap = safeJsonParse<Record<string, string>>(userUsableGroups, {
     fallback: {},
     context: 'user usable groups',
+  })
+  const typesMap = safeJsonParse<Record<string, string>>(groupTypes, {
+    fallback: {},
+    context: 'group types',
   })
   const disabledDescriptionPrefix = '__disabled_description__:'
   const names = new Set([
@@ -243,12 +251,14 @@ function buildGroupPricingRows(
     description: String(
       usableMap[name] ?? usableMap[`${disabledDescriptionPrefix}${name}`] ?? ''
     ),
+    type: (typesMap[name] === 'user' ? 'user' : 'billing') as 'billing' | 'user',
   }))
 }
 
 function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
+  const groupTypes: Record<string, string> = {}
   const disabledDescriptionPrefix = '__disabled_description__:'
 
   for (const row of rows) {
@@ -260,11 +270,15 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     } else if (row.description.trim()) {
       userUsableGroups[`${disabledDescriptionPrefix}${name}`] = row.description
     }
+    if (row.type === 'user') {
+      groupTypes[name] = 'user'
+    }
   }
 
   return {
     GroupRatio: JSON.stringify(groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
+    GroupTypes: JSON.stringify(groupTypes, null, 2),
   }
 }
 
@@ -279,12 +293,17 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
       fallback: {},
       silent: true,
     }),
+    groupTypes: safeJsonParse(serialized.GroupTypes, {
+      fallback: {},
+      silent: true,
+    }),
   })
 }
 
 function sourceGroupPricingSignature(
   groupRatio: string,
-  userUsableGroups: string
+  userUsableGroups: string,
+  groupTypes: string
 ): string {
   return JSON.stringify({
     groupRatio: safeJsonParse(groupRatio, { fallback: {}, silent: true }),
@@ -292,6 +311,7 @@ function sourceGroupPricingSignature(
       fallback: {},
       silent: true,
     }),
+    groupTypes: safeJsonParse(groupTypes, { fallback: {}, silent: true }),
   })
 }
 
@@ -300,6 +320,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   topupGroupRatio,
   userUsableGroups,
   groupGroupRatio,
+  groupTypes,
   autoGroups,
   upstreamGroupRatioBindings,
   onChange,
@@ -545,6 +566,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       <GroupPricingTable
         groupRatio={groupRatio}
         userUsableGroups={userUsableGroups}
+        groupTypes={groupTypes}
         upstreamGroupRatioBindings={upstreamGroupRatioBindings}
         onChange={onChange}
       />
@@ -886,6 +908,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
+  groupTypes: string
   upstreamGroupRatioBindings: string
   onChange: (field: string, value: string) => void
 }
@@ -893,14 +916,16 @@ type GroupPricingTableProps = {
 function GroupPricingTable({
   groupRatio,
   userUsableGroups,
+  groupTypes,
   upstreamGroupRatioBindings,
   onChange,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState<'billing' | 'user'>('billing')
   const [bindingDialogRow, setBindingDialogRow] =
     useState<GroupPricingRow | null>(null)
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups)
+    buildGroupPricingRows(groupRatio, userUsableGroups, groupTypes)
   )
 
   const bindings = useMemo(
@@ -933,15 +958,16 @@ function GroupPricingTable({
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
       groupRatio,
-      userUsableGroups
+      userUsableGroups,
+      groupTypes
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
         return currentRows
       }
-      return buildGroupPricingRows(groupRatio, userUsableGroups)
+      return buildGroupPricingRows(groupRatio, userUsableGroups, groupTypes)
     })
-  }, [groupRatio, userUsableGroups])
+  }, [groupRatio, userUsableGroups, groupTypes])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -949,6 +975,7 @@ function GroupPricingTable({
       const serialized = serializeGroupPricingRows(nextRows)
       onChange('GroupRatio', serialized.GroupRatio)
       onChange('UserUsableGroups', serialized.UserUsableGroups)
+      onChange('GroupTypes', serialized.GroupTypes)
     },
     [onChange]
   )
@@ -1016,9 +1043,10 @@ function GroupPricingTable({
         ratio: 1,
         selectable: true,
         description: '',
+        type: activeTab,
       },
     ])
-  }, [emitRows, rows])
+  }, [activeTab, emitRows, rows])
 
   const removeRow = useCallback(
     (id: string) => {
@@ -1039,6 +1067,8 @@ function GroupPricingTable({
       .map(([name]) => name)
   }, [rows])
 
+  const visibleRows = rows.filter((row) => row.type === activeTab)
+
   return (
     <Card className={sectionCardClassName}>
       <CardHeader className={sectionHeaderClassName}>
@@ -1056,6 +1086,15 @@ function GroupPricingTable({
             {t('Add group')}
           </Button>
         </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as 'billing' | 'user')}
+        >
+          <TabsList>
+            <TabsTrigger value='billing'>{t('Billing groups')}</TabsTrigger>
+            <TabsTrigger value='user'>{t('User groups')}</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </CardHeader>
       <CardContent>
         <div className='space-y-3'>
@@ -1078,7 +1117,7 @@ function GroupPricingTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
+                {visibleRows.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={6}
@@ -1088,7 +1127,7 @@ function GroupPricingTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map((row) => {
+                  visibleRows.map((row) => {
                     const groupName = row.name.trim()
                     const binding = bindings[groupName]
                     const source = binding

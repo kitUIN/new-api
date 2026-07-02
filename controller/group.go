@@ -11,9 +11,12 @@ import (
 )
 
 func GetGroups(c *gin.Context) {
+	groupType := c.Query("type")
 	groupNames := make([]string, 0)
 	for groupName := range ratio_setting.GetGroupRatioCopy() {
-		groupNames = append(groupNames, groupName)
+		if groupType == "" || ratio_setting.GetGroupType(groupName) == groupType {
+			groupNames = append(groupNames, groupName)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
