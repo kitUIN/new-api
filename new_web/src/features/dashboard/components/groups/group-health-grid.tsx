@@ -551,7 +551,7 @@ export function GroupHealthGrid() {
   return (
     <div className='flex flex-col gap-3'>
       <GroupHealthToolbar {...toolbarProps} />
-      <TrafficShareHint />
+      <HealthHint />
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3'>
         {groups.map((group) => (
           <GroupHealthCard
@@ -565,7 +565,6 @@ export function GroupHealthGrid() {
           />
         ))}
       </div>
-      <HealthLegend />
     </div>
   )
 }
@@ -978,12 +977,31 @@ function GroupHealthCard(props: {
   )
 }
 
-function TrafficShareHint() {
+function HealthHint() {
   const { t } = useTranslation()
+  const legendItems: Array<{ label: string; status: PerfGroupHealthStatus }> = [
+    { label: t('Excellent >= 99%'), status: 'ok' },
+    { label: t('Warning 95%-99%'), status: 'warning' },
+    { label: t('Error < 95%'), status: 'error' },
+    { label: t('No data'), status: 'empty' },
+  ]
+
   return (
-    <div className='text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-xs'>
-      <span className='border-primary/35 border-t-primary inline-flex size-3.5 shrink-0 rounded-full border-2' />
-      <span>{t('小圆环表示过去1小时内请求占比。')}</span>
+    <div className='text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2 text-xs'>
+      <span className='inline-flex items-center gap-1.5'>
+        <span className='border-primary/35 border-t-primary inline-flex size-3.5 shrink-0 rounded-full border-2' />
+        <span>{t('小圆环表示过去1小时内请求占比。')}</span>
+      </span>
+      <span className='bg-border h-3 w-px shrink-0' />
+      {legendItems.map((item) => (
+        <span key={item.status} className='inline-flex items-center gap-1.5'>
+          <span
+            className={cn('size-2 rounded-full', statusDotClassName(item.status))}
+            aria-hidden='true'
+          />
+          {item.label}
+        </span>
+      ))}
     </div>
   )
 }
@@ -1274,33 +1292,6 @@ function BucketDetails(props: { bucket: PerfGroupHealthBucket }) {
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-function HealthLegend() {
-  const { t } = useTranslation()
-  const items: Array<{ label: string; status: PerfGroupHealthStatus }> = [
-    { label: t('Excellent >= 99%'), status: 'ok' },
-    { label: t('Warning 95%-99%'), status: 'warning' },
-    { label: t('Error < 95%'), status: 'error' },
-    { label: t('No data'), status: 'empty' },
-  ]
-
-  return (
-    <div className='text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2 text-xs'>
-      {items.map((item) => (
-        <span key={item.status} className='inline-flex items-center gap-1.5'>
-          <span
-            className={cn(
-              'size-2 rounded-full',
-              statusDotClassName(item.status)
-            )}
-            aria-hidden='true'
-          />
-          {item.label}
-        </span>
-      ))}
     </div>
   )
 }
