@@ -67,13 +67,13 @@ type Props = {
 }
 
 type FormState = {
+  access_token: string
+  refresh_token: string
+  user_id: string
   balance_enabled: boolean
   balance_template: string
   balance_interval_seconds: number
   balance_source_channel_id: number
-  balance_access_token: string
-  balance_refresh_token: string
-  balance_user_id: string
   balance_request_url: string
   balance_request_method: string
   balance_request_headers: string
@@ -93,9 +93,6 @@ type FormState = {
   group_template: string
   group_interval_seconds: number
   group_source_channel_id: number
-  group_access_token: string
-  group_refresh_token: string
-  group_user_id: string
   group_request_url: string
   group_request_method: string
   group_request_headers: string
@@ -157,14 +154,14 @@ function defaultState(provider: ProviderRow | null): FormState {
   const gTemplate = GROUP_QUERY_TEMPLATES[gTemplateKey]
 
   return {
+    access_token: b.access_token || g.access_token || '',
+    refresh_token: b.refresh_token || g.refresh_token || '',
+    user_id: b.user_id || g.user_id || '',
     balance_enabled: b.enabled === true,
     balance_template: bTemplateName,
     balance_interval_seconds: b.interval_seconds || 300,
     balance_source_channel_id:
       b.source_channel_id || provider?.children?.[0]?.id || 0,
-    balance_access_token: b.access_token || '',
-    balance_refresh_token: b.refresh_token || '',
-    balance_user_id: b.user_id || '',
     balance_request_url: b.request?.url || bTemplate.request.url,
     balance_request_method: b.request?.method || bTemplate.request.method,
     balance_request_headers: headers(
@@ -197,9 +194,6 @@ function defaultState(provider: ProviderRow | null): FormState {
     group_interval_seconds: g.interval_seconds || 300,
     group_source_channel_id:
       g.source_channel_id || provider?.children?.[0]?.id || 0,
-    group_access_token: g.access_token || '',
-    group_refresh_token: g.refresh_token || '',
-    group_user_id: g.user_id || '',
     group_request_url: g.request?.url || gTemplate.request.url,
     group_request_method: g.request?.method || gTemplate.request.method,
     group_request_headers: headers(
@@ -308,9 +302,9 @@ export function ProviderQuerySettingsDialog(props: Props) {
           Number(form.balance_interval_seconds)
         ),
         source_channel_id: Number(form.balance_source_channel_id) || 0,
-        access_token: form.balance_access_token,
-        refresh_token: form.balance_refresh_token,
-        user_id: form.balance_user_id,
+        access_token: form.access_token,
+        refresh_token: form.refresh_token,
+        user_id: form.user_id,
         request: {
           url: form.balance_request_url,
           method: form.balance_request_method || 'GET',
@@ -339,9 +333,9 @@ export function ProviderQuerySettingsDialog(props: Props) {
           Number(form.group_interval_seconds)
         ),
         source_channel_id: Number(form.group_source_channel_id) || 0,
-        access_token: form.group_access_token,
-        refresh_token: form.group_refresh_token,
-        user_id: form.group_user_id,
+        access_token: form.access_token,
+        refresh_token: form.refresh_token,
+        user_id: form.user_id,
         request: {
           url: form.group_request_url,
           method: form.group_request_method || 'GET',
@@ -408,6 +402,23 @@ export function ProviderQuerySettingsDialog(props: Props) {
         <DialogHeader>
           <DialogTitle>{t('Provider query settings')}</DialogTitle>
         </DialogHeader>
+        <div className='grid gap-3 sm:grid-cols-3'>
+          <TextField
+            label='Access Token'
+            value={form.access_token}
+            onChange={(v) => set('access_token', v)}
+          />
+          <TextField
+            label='Refresh Token'
+            value={form.refresh_token}
+            onChange={(v) => set('refresh_token', v)}
+          />
+          <TextField
+            label={t('User ID')}
+            value={form.user_id}
+            onChange={(v) => set('user_id', v)}
+          />
+        </div>
         <Tabs defaultValue='balance'>
           <TabsList>
             <TabsTrigger value='balance'>{t('Balance')}</TabsTrigger>
@@ -694,23 +705,6 @@ function RequestFields(props: {
   const p = props.prefix
   return (
     <>
-      <div className='grid gap-3 sm:grid-cols-3'>
-        <TextField
-          label='Access Token'
-          value={props.form[`${p}_access_token`]}
-          onChange={(v) => props.set(`${p}_access_token`, v)}
-        />
-        <TextField
-          label='Refresh Token'
-          value={props.form[`${p}_refresh_token`]}
-          onChange={(v) => props.set(`${p}_refresh_token`, v)}
-        />
-        <TextField
-          label={t('User ID')}
-          value={props.form[`${p}_user_id`]}
-          onChange={(v) => props.set(`${p}_user_id`, v)}
-        />
-      </div>
       <div className='grid gap-3 sm:grid-cols-[1fr_160px]'>
         <TextField
           label={t('Request URL')}
