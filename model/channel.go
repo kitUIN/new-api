@@ -286,7 +286,7 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool) ([]*Channel, erro
 	var channels []*Channel
 	order := "priority desc"
 	if idSort {
-		order = "id desc"
+		order = "CASE WHEN status = 1 THEN 0 ELSE 1 END ASC, id DESC"
 	}
 	query := DB.Where("tag = ?", tag).Order(order)
 	if !selectAll {

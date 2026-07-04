@@ -134,7 +134,7 @@ func GetAllChannels(c *gin.Context) {
 
 		order := "priority desc"
 		if idSort {
-			order = "id desc"
+			order = "CASE WHEN status = 1 THEN 0 ELSE 1 END ASC, id DESC"
 		}
 
 		query := baseQuery.Order(order).Omit("key")
