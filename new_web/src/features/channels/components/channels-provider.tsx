@@ -39,6 +39,7 @@ type DialogType =
   | 'edit-tag'
   | 'copy-channel'
   | 'provider-query-settings'
+  | 'edit-provider'
   | null
 
 type UpstreamUpdateState = ReturnType<typeof useChannelUpstreamUpdates>

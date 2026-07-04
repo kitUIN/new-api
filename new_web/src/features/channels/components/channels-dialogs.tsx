@@ -24,6 +24,7 @@ import { EditTagDialog } from './dialogs/edit-tag-dialog'
 import { FetchModelsDialog } from './dialogs/fetch-models-dialog'
 import { MultiKeyManageDialog } from './dialogs/multi-key-manage-dialog'
 import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
+import { EditProviderDialog } from './dialogs/edit-provider-dialog'
 import { ProviderQuerySettingsDialog } from './dialogs/provider-query-settings-dialog'
 import { TagBatchEditDialog } from './dialogs/tag-batch-edit-dialog'
 import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
@@ -57,6 +58,12 @@ export function ChannelsDialogs() {
         open={open === 'provider-query-settings'}
         onOpenChange={(v) => !v && setOpen(null)}
         provider={currentProvider}
+      />
+
+      {/* Edit Provider Dialog */}
+      <EditProviderDialog
+        open={open === 'edit-provider'}
+        onOpenChange={(v) => !v && setOpen(null)}
       />
 
       {/* Fetch Models Dialog */}

@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronRight,
   ListOrdered,
+  Pencil,
   Plus,
   Settings2,
   Shuffle,
@@ -769,6 +770,24 @@ function ProviderActionsCell({ provider }: { provider: ProviderRow }) {
             <TooltipContent>{t('Create Channel')}</TooltipContent>
           </Tooltip>
         )}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                aria-label={t('Edit Provider')}
+                onClick={() => {
+                  setCurrentProvider(provider)
+                  setOpen('edit-provider')
+                }}
+              />
+            }
+          >
+            <Pencil className='size-4' />
+          </TooltipTrigger>
+          <TooltipContent>{t('Edit Provider')}</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={
