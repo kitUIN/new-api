@@ -55,7 +55,7 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
-import { getCodexUsage, updateProviderBalance } from '../api'
+import { getCodexUsage, updateProviderBalance, updateProviderGroups } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
@@ -641,6 +641,8 @@ function BalanceCell({ channel }: { channel: ChannelRow | TagRow }) {
 
 function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [isUpdating, setIsUpdating] = useState(false)
 
   if (!isProviderRow(channel)) {
     return (
@@ -649,14 +651,63 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
   }
 
   const groupQuery = getGroupQueryMeta(channel)
-  if (!groupQuery?.enabled) {
+
+  // No settings configured at all — nothing to do
+  if (!groupQuery) {
     return (
-      <StatusBadge
-        label={t('Not enabled')}
-        variant='neutral'
-        size='sm'
-        copyable={false}
-      />
+      <StatusBadge label='-' variant='neutral' size='sm' copyable={false} />
+    )
+  }
+
+  const handleClickUpdate = async () => {
+    if (isUpdating) return
+    setIsUpdating(true)
+    try {
+      const res = await updateProviderGroups(channel.provider_id)
+      if (res.success) {
+        toast.success(t('Updated successfully'))
+        await queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      } else {
+        toast.error(res.message || t('Update failed'))
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t('Update failed'))
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const updatingBadge = (
+    <StatusBadge
+      label={t('Updating...')}
+      variant='neutral'
+      size='sm'
+      copyable={false}
+      className='cursor-wait'
+    />
+  )
+
+  if (!groupQuery.enabled) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              isUpdating ? updatingBadge : (
+                <StatusBadge
+                  label={t('Not enabled')}
+                  variant='neutral'
+                  size='sm'
+                  copyable={false}
+                  className='cursor-pointer'
+                  onClick={handleClickUpdate}
+                />
+              )
+            }
+          />
+          <TooltipContent>{t('Click to query groups manually')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -666,17 +717,21 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              <StatusBadge
-                label={t('Query failed')}
-                variant='danger'
-                size='sm'
-                copyable={false}
-                className='cursor-help'
-              />
+              isUpdating ? updatingBadge : (
+                <StatusBadge
+                  label={t('Query failed')}
+                  variant='danger'
+                  size='sm'
+                  copyable={false}
+                  className='cursor-pointer'
+                  onClick={handleClickUpdate}
+                />
+              )
             }
           />
           <TooltipContent side='top' className='max-w-xs'>
-            {groupQuery.last_error}
+            <p className='text-destructive'>{groupQuery.last_error}</p>
+            <p>{t('Click to retry')}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -686,12 +741,25 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
   const items = getGroupQueryItems(groupQuery)
   if (items.length === 0) {
     return (
-      <StatusBadge
-        label={t('Not cached')}
-        variant='neutral'
-        size='sm'
-        copyable={false}
-      />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              isUpdating ? updatingBadge : (
+                <StatusBadge
+                  label={t('Not cached')}
+                  variant='neutral'
+                  size='sm'
+                  copyable={false}
+                  className='cursor-pointer'
+                  onClick={handleClickUpdate}
+                />
+              )
+            }
+          />
+          <TooltipContent>{t('Click to query groups')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -710,13 +778,16 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
       <Tooltip>
         <TooltipTrigger
           render={
-            <StatusBadge
-              label={String(items.length)}
-              variant='cyan'
-              size='sm'
-              copyable={false}
-              className='cursor-help'
-            />
+            isUpdating ? updatingBadge : (
+              <StatusBadge
+                label={String(items.length)}
+                variant='cyan'
+                size='sm'
+                copyable={false}
+                className='cursor-pointer'
+                onClick={handleClickUpdate}
+              />
+            )
           }
         />
         <TooltipContent side='top' className='w-fit max-w-[calc(100vw-2rem)]'>
@@ -726,6 +797,7 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
               {formatTimestampToDate(groupQuery.last_check_time || 0)}
             </div>
             <div className='flex flex-wrap gap-1'>{groupBadges}</div>
+            <div className='text-muted-foreground text-xs'>{t('Click to update groups')}</div>
           </div>
         </TooltipContent>
       </Tooltip>
