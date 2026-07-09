@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { formatCompactNumber, formatLogQuota } from '@/lib/format'
+import { formatLogQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +29,27 @@ import { buildApiParams } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
+
+function formatTokenStat(value: number): string {
+  if (!Number.isFinite(value)) return '0'
+
+  const absValue = Math.abs(value)
+  const units = [
+    { threshold: 1_000_000_000, suffix: 'B' },
+    { threshold: 1_000_000, suffix: 'M' },
+    { threshold: 1_000, suffix: 'K' },
+  ]
+  const unit = units.find((item) => absValue >= item.threshold)
+
+  if (!unit) {
+    return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+      value
+    )
+  }
+
+  const formatted = (value / unit.threshold).toFixed(1).replace(/\.0$/, '')
+  return `${formatted}${unit.suffix}`
+}
 
 function StatBadge(props: {
   label: string
@@ -95,8 +116,7 @@ export function CommonLogsStats() {
   const cacheTokens = stats?.cache_tokens || 0
   const cacheCreationTokens = stats?.cache_creation_tokens || 0
   const totalTokens = promptTokens + completionTokens
-  const cacheRatio =
-    promptTokens > 0 ? (cacheTokens / promptTokens) * 100 : 0
+  const cacheRatio = promptTokens > 0 ? (cacheTokens / promptTokens) * 100 : 0
 
   return (
     <div className='flex flex-wrap items-center gap-2'>
@@ -117,27 +137,27 @@ export function CommonLogsStats() {
       />
       <StatBadge
         label={t('Total Tokens')}
-        value={formatCompactNumber(totalTokens)}
+        value={formatTokenStat(totalTokens)}
         accent='bg-indigo-500/70'
       />
       <StatBadge
         label={t('Input Tokens')}
-        value={formatCompactNumber(promptTokens)}
+        value={formatTokenStat(promptTokens)}
         accent='bg-emerald-500/70'
       />
       <StatBadge
         label={t('Output Tokens')}
-        value={formatCompactNumber(completionTokens)}
+        value={formatTokenStat(completionTokens)}
         accent='bg-amber-500/70'
       />
       <StatBadge
         label={t('Cache Hit')}
-        value={formatCompactNumber(cacheTokens)}
+        value={formatTokenStat(cacheTokens)}
         accent='bg-teal-500/70'
       />
       <StatBadge
         label={t('Cache Write')}
-        value={formatCompactNumber(cacheCreationTokens)}
+        value={formatTokenStat(cacheCreationTokens)}
         accent='bg-violet-500/70'
       />
       <StatBadge
