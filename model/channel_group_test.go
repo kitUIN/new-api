@@ -66,3 +66,40 @@ func TestGetEnabledChannelGroupSet(t *testing.T) {
 	require.True(t, groups["expensive"])
 	require.False(t, groups["disabled"])
 }
+
+func TestGetChannelGroupBindings(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&Channel{
+		Id:     1,
+		Name:   "primary",
+		Key:    "sk-primary",
+		Status: common.ChannelStatusEnabled,
+		Group:  " default, vip, vip ",
+	}).Error)
+	require.NoError(t, DB.Create(&Channel{
+		Id:     2,
+		Name:   "fallback",
+		Key:    "sk-fallback",
+		Status: common.ChannelStatusAutoDisabled,
+		Group:  "vip",
+	}).Error)
+	require.NoError(t, DB.Create(&Channel{
+		Id:     3,
+		Name:   "unbound",
+		Key:    "sk-unbound",
+		Status: common.ChannelStatusEnabled,
+		Group:  ",",
+	}).Error)
+
+	bindings, err := GetChannelGroupBindings()
+	require.NoError(t, err)
+	require.Equal(t, []GroupBoundChannel{
+		{Id: 1, Name: "primary", Status: common.ChannelStatusEnabled},
+	}, bindings["default"])
+	require.Equal(t, []GroupBoundChannel{
+		{Id: 1, Name: "primary", Status: common.ChannelStatusEnabled},
+		{Id: 2, Name: "fallback", Status: common.ChannelStatusAutoDisabled},
+	}, bindings["vip"])
+	require.NotContains(t, bindings, "")
+}

@@ -443,3 +443,15 @@ export type GroupQuerySourcesResponse = {
   message: string
   data: GroupQuerySource[]
 }
+
+export type GroupBoundChannel = {
+  id: number
+  name: string
+  status: number
+}
+
+export type ChannelGroupBindingsResponse = {
+  success: boolean
+  message: string
+  data: Record<string, GroupBoundChannel[]>
+}

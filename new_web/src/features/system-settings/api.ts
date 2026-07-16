@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  ChannelGroupBindingsResponse,
   ConfirmPaymentComplianceResponse,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
@@ -79,6 +80,13 @@ export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
 export async function getGroupQuerySources() {
   const res = await api.get<GroupQuerySourcesResponse>(
     '/api/channel/group_query_sources'
+  )
+  return res.data
+}
+
+export async function getChannelGroupBindings() {
+  const res = await api.get<ChannelGroupBindingsResponse>(
+    '/api/channel/group_bindings'
   )
   return res.data
 }

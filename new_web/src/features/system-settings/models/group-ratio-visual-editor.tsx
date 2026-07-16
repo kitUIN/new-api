@@ -55,6 +55,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -62,6 +67,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -71,8 +77,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getGroupQuerySources } from '../api'
+import { StatusBadge } from '@/components/status-badge'
+import {
+  CHANNEL_STATUS,
+  CHANNEL_STATUS_CONFIG,
+} from '@/features/channels/constants'
+import { getChannelGroupBindings, getGroupQuerySources } from '../api'
 import type {
+  GroupBoundChannel,
   GroupQuerySource,
   UpstreamGroupRatioBinding,
   UpstreamGroupRatioBindingSourceType,
@@ -252,7 +264,9 @@ function buildGroupPricingRows(
     description: String(
       usableMap[name] ?? usableMap[`${disabledDescriptionPrefix}${name}`] ?? ''
     ),
-    type: (typesMap[name] === 'user' ? 'user' : 'billing') as 'billing' | 'user',
+    type: (typesMap[name] === 'user' ? 'user' : 'billing') as
+      | 'billing'
+      | 'user',
   }))
 }
 
@@ -914,6 +928,138 @@ type GroupPricingTableProps = {
   onChange: (field: string, value: string) => void
 }
 
+function GroupChannelsCell({
+  channels,
+  isLoading,
+  isError,
+}: {
+  channels: GroupBoundChannel[]
+  isLoading: boolean
+  isError: boolean
+}) {
+  const { t } = useTranslation()
+  const sortedChannels = useMemo(
+    () =>
+      [...channels].sort((left, right) => {
+        if (
+          left.status === CHANNEL_STATUS.ENABLED &&
+          right.status !== CHANNEL_STATUS.ENABLED
+        )
+          return -1
+        if (
+          left.status !== CHANNEL_STATUS.ENABLED &&
+          right.status === CHANNEL_STATUS.ENABLED
+        )
+          return 1
+        return left.id - right.id
+      }),
+    [channels]
+  )
+
+  if (isLoading) {
+    return (
+      <div className='text-muted-foreground flex items-center gap-2 text-xs'>
+        <Spinner className='size-3.5' />
+        <span>{t('Loading...')}</span>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <span className='text-destructive text-xs'>{t('Failed to load')}</span>
+    )
+  }
+
+  if (sortedChannels.length === 0) {
+    return (
+      <span className='text-muted-foreground text-xs'>
+        {t('No channels found')}
+      </span>
+    )
+  }
+
+  const renderChannelBadge = (channel: GroupBoundChannel) => {
+    const config =
+      CHANNEL_STATUS_CONFIG[
+        channel.status as keyof typeof CHANNEL_STATUS_CONFIG
+      ] ?? CHANNEL_STATUS_CONFIG[0]
+    const statusLabel = t(config.label)
+
+    return (
+      <StatusBadge
+        key={channel.id}
+        variant={config.variant}
+        size='sm'
+        copyable={false}
+        className='max-w-40'
+        title={`${channel.name} (#${channel.id}) · ${statusLabel}`}
+      >
+        <span className='truncate'>{channel.name}</span>
+        <span className='opacity-65'>#{channel.id}</span>
+        <span className='sr-only'> · {statusLabel}</span>
+      </StatusBadge>
+    )
+  }
+
+  const visibleChannels = sortedChannels.slice(0, 2)
+  const remainingCount = sortedChannels.length - visibleChannels.length
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type='button'
+            className='hover:bg-muted/60 focus-visible:ring-ring flex max-w-full cursor-pointer flex-wrap items-center gap-1 rounded-md p-0.5 text-left transition-colors outline-none focus-visible:ring-2'
+            aria-label={`${t('Channels')} (${sortedChannels.length})`}
+          />
+        }
+      >
+        {visibleChannels.map(renderChannelBadge)}
+        {remainingCount > 0 && (
+          <Badge variant='outline' className='h-5 rounded-full px-2 text-xs'>
+            +{remainingCount}
+          </Badge>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align='start' className='w-80'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='font-medium'>{t('Channels')}</span>
+          <Badge variant='secondary'>{sortedChannels.length}</Badge>
+        </div>
+        <div className='max-h-64 space-y-1 overflow-y-auto pr-1'>
+          {sortedChannels.map((channel) => {
+            const config =
+              CHANNEL_STATUS_CONFIG[
+                channel.status as keyof typeof CHANNEL_STATUS_CONFIG
+              ] ?? CHANNEL_STATUS_CONFIG[0]
+            return (
+              <div
+                key={channel.id}
+                className='hover:bg-muted/60 flex items-center justify-between gap-3 rounded-md px-2 py-1.5'
+              >
+                <span className='min-w-0 truncate text-sm'>
+                  {channel.name}
+                  <span className='text-muted-foreground ml-1 text-xs'>
+                    #{channel.id}
+                  </span>
+                </span>
+                <StatusBadge
+                  label={t(config.label)}
+                  variant={config.variant}
+                  size='sm'
+                  copyable={false}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function GroupPricingTable({
   groupRatio,
   userUsableGroups,
@@ -945,6 +1091,17 @@ function GroupPricingTable({
     queryKey: ['group-query-sources'],
     queryFn: getGroupQuerySources,
   })
+
+  const {
+    data: channelBindingsData,
+    isLoading: channelBindingsLoading,
+    isError: channelBindingsError,
+  } = useQuery({
+    queryKey: ['channel-group-bindings'],
+    queryFn: getChannelGroupBindings,
+  })
+
+  const channelBindings = channelBindingsData?.data ?? {}
 
   const sources = useMemo(() => sourcesData?.data ?? [], [sourcesData?.data])
 
@@ -1112,7 +1269,7 @@ function GroupPricingTable({
       <CardContent>
         <div className='space-y-3'>
           <div className='rounded-md border'>
-            <Table className='min-w-[920px] table-fixed'>
+            <Table className='min-w-[1220px] table-fixed'>
               <TableHeader>
                 <TableRow>
                   <TableHead className='w-44'>{t('Group name')}</TableHead>
@@ -1121,6 +1278,7 @@ function GroupPricingTable({
                     {t('User selectable')}
                   </TableHead>
                   <TableHead className='w-60'>{t('Description')}</TableHead>
+                  <TableHead className='w-64'>{t('Channels')}</TableHead>
                   <TableHead className='w-80'>
                     {t('Upstream binding')}
                   </TableHead>
@@ -1133,7 +1291,7 @@ function GroupPricingTable({
                 {visibleRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className='text-muted-foreground h-20 text-center text-sm'
                     >
                       {t('No groups yet. Add a group to get started.')}
@@ -1206,6 +1364,13 @@ function GroupPricingTable({
                                 event.target.value
                               )
                             }
+                          />
+                        </TableCell>
+                        <TableCell className='w-64'>
+                          <GroupChannelsCell
+                            channels={channelBindings[groupName] ?? []}
+                            isLoading={channelBindingsLoading}
+                            isError={channelBindingsError}
                           />
                         </TableCell>
                         <TableCell className='w-80'>
@@ -1419,7 +1584,10 @@ function GroupBindingDialog({
   const finalRatio =
     selectedItem && Number.isFinite(Number(selectedItem.ratio))
       ? (() => {
-          const value = evaluateOffsetExpression(offset, Number(selectedItem.ratio))
+          const value = evaluateOffsetExpression(
+            offset,
+            Number(selectedItem.ratio)
+          )
           return value === null ? null : Math.max(0, value)
         })()
       : null
