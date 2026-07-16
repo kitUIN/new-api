@@ -270,7 +270,10 @@ export interface ChannelTestResponse {
   success: boolean
   message?: string
   error_code?: string
+  /** Test duration returned by the channel test endpoint, in seconds. */
+  time?: number
   data?: {
+    /** Backward-compatible response time returned by older deployments, in milliseconds. */
     response_time?: number
     error?: string
   }

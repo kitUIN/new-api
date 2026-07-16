@@ -800,7 +800,7 @@ function TestStatusCell({
         <StatusBadge label={t('Success')} variant='success' copyable={false} />
         {typeof result.responseTime === 'number' && (
           <span className='text-muted-foreground truncate'>
-            {formatResponseTime(result.responseTime, t)}
+            {t('Latency')}: {formatResponseTime(result.responseTime, t)}
           </span>
         )}
       </div>
@@ -844,6 +844,11 @@ function FailureStatusContent({
       <p className='text-muted-foreground line-clamp-2 min-w-0 leading-snug wrap-break-word'>
         {summary}
       </p>
+      {typeof result.responseTime === 'number' && result.responseTime > 0 && (
+        <p className='text-muted-foreground min-w-0 truncate'>
+          {t('Latency')}: {formatResponseTime(result.responseTime, t)}
+        </p>
+      )}
       <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
         {isModelPriceError && (
           <Button

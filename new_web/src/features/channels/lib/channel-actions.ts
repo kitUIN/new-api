@@ -232,16 +232,25 @@ export async function handleTestChannel(
 
   try {
     const response = await testChannel(id, payload)
+    const responseTime =
+      typeof response.time === 'number'
+        ? Math.round(response.time * 1000)
+        : response.data?.response_time
     if (response.success) {
       if (!options?.silent) {
         toast.success(i18next.t(SUCCESS_MESSAGES.TESTED))
       }
-      onTestComplete?.(true, response.data?.response_time)
+      onTestComplete?.(true, responseTime)
     } else {
       if (!options?.silent) {
         toast.error(response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED))
       }
-      onTestComplete?.(false, undefined, response.message, response.error_code)
+      onTestComplete?.(
+        false,
+        responseTime,
+        response.message,
+        response.error_code
+      )
     }
   } catch (_error: unknown) {
     const err = _error as { response?: { data?: { message?: string } } }
