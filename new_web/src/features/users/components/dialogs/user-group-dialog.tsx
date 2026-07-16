@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -117,7 +117,12 @@ export function UserGroupDialog(props: UserGroupDialogProps) {
         <div className='space-y-4'>
           <div className='space-y-2'>
             <Label>{t('Group')}</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+            <Select
+              value={selectedGroup}
+              onValueChange={(value) => {
+                if (value !== null) setSelectedGroup(value)
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={t('Select a group')} />
               </SelectTrigger>

@@ -16,13 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
+import { SaveIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { PageTransition } from '@/components/page-transition'
 import { useSystemOptions } from '@/features/system-settings/hooks/use-system-options'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
@@ -117,7 +121,10 @@ function preserveBoundGroupRatios(
   bindings: string
 ): string {
   try {
-    const ratioMap = JSON.parse(nextGroupRatio || '{}') as Record<string, number>
+    const ratioMap = JSON.parse(nextGroupRatio || '{}') as Record<
+      string,
+      number
+    >
     const bindingMap = JSON.parse(bindings || '{}') as Record<string, unknown>
     const currentMap = JSON.parse(currentGroupRatio || '{}') as Record<
       string,
@@ -142,13 +149,13 @@ export function GroupPricingPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   const getValue = useCallback(
-    (key: string, defaultValue: string | boolean = '') => {
+    <T extends string | boolean>(key: string, defaultValue: T): T => {
       if (!settings?.data) return defaultValue
       const option = settings.data.find((opt) => opt.key === key)
       if (typeof defaultValue === 'boolean') {
-        return option?.value === 'true' || option?.value === '1'
+        return (option?.value === 'true' || option?.value === '1') as T
       }
-      return option?.value ?? defaultValue
+      return (option?.value ?? defaultValue) as T
     },
     [settings]
   )
@@ -287,6 +294,19 @@ export function GroupPricingPage() {
               {t('Configure group-based pricing multipliers and settings')}
             </p>
           </div>
+          <Button
+            type='button'
+            size='sm'
+            onClick={groupForm.handleSubmit(saveGroupRatios)}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <Spinner data-icon='inline-start' />
+            ) : (
+              <HugeiconsIcon icon={SaveIcon} data-icon='inline-start' />
+            )}
+            <span>{isSaving ? t('Saving...') : t('Save group ratios')}</span>
+          </Button>
         </div>
       </div>
 

@@ -70,8 +70,8 @@ export function TagBatchEditDialog({
 
   // Fetch available groups
   const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
-    queryKey: ['groups'],
-    queryFn: getGroups,
+    queryKey: ['groups', 'billing'],
+    queryFn: () => getGroups({ type: 'billing' }),
   })
 
   // Transform groups to multi-select options

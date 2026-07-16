@@ -59,6 +59,7 @@ const defaultModelSettings: ModelSettings = {
   GroupRatio: '',
   UserUsableGroups: '',
   GroupGroupRatio: '',
+  GroupTypes: '{}',
   AutoGroups: '',
   AutoGroupOrderType: 'priority',
   DefaultUseAutoGroup: false,

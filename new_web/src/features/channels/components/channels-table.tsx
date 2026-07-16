@@ -178,8 +178,8 @@ export function ChannelsTable() {
 
   // Fetch groups for filter
   const { data: groupsData } = useQuery({
-    queryKey: ['groups'],
-    queryFn: getGroups,
+    queryKey: ['groups', 'billing'],
+    queryFn: () => getGroups({ type: 'billing' }),
   })
 
   const groupOptions = useMemo(

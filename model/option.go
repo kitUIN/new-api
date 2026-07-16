@@ -227,7 +227,7 @@ func UpdateOption(key string, value string) error {
 	case "UserUsableGroups":
 		return updateUserUsableGroupsOption(value)
 	case "GroupTypes":
-		return ratio_setting.UpdateGroupTypesByJSONString(value)
+		return updateGroupTypesOption(value)
 	case "group_ratio_setting.upstream_group_ratio_bindings":
 		return updateUpstreamGroupRatioBindingsOption(value)
 	case "group_ratio_setting.group_special_usable_group":
@@ -306,6 +306,15 @@ func updateUserUsableGroupsOption(value string) error {
 	message := setting.FormatUserUsableGroupChangeMessage(changes, ratio_setting.GetGroupRatioCopy())
 	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventUserUsableGroup, message, "user usable group change notify")
 	return nil
+}
+
+func updateGroupTypesOption(value string) error {
+	option := Option{
+		Key: "GroupTypes",
+	}
+	saveOptionValue(&option, "GroupTypes", value)
+
+	return updateOptionMap("GroupTypes", value)
 }
 
 func updateUpstreamGroupRatioBindingsOption(value string) error {
@@ -638,6 +647,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateGroupRatioByJSONString(value)
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
+	case "GroupTypes":
+		err = ratio_setting.UpdateGroupTypesByJSONString(value)
 	case "UserUsableGroups":
 		err = setting.UpdateUserUsableGroupsByJSONString(value)
 	case "CompletionRatio":

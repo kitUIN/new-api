@@ -89,8 +89,8 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
   // Fetch groups
   const { data: groupsData } = useQuery({
-    queryKey: ['groups'],
-    queryFn: getGroups,
+    queryKey: ['groups', 'billing'],
+    queryFn: () => getGroups({ type: 'billing' }),
     enabled: open,
   })
 

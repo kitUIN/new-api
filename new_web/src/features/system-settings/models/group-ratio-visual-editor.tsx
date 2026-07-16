@@ -1072,7 +1072,8 @@ function GroupPricingTable({
 
   const handleMigrateGroup = useCallback(
     (id: string) => {
-      const targetType = activeTab === 'billing' ? 'user' : 'billing'
+      const targetType: GroupPricingRow['type'] =
+        activeTab === 'billing' ? 'user' : 'billing'
       const updatedRows = rows.map((row) =>
         row._id === id ? { ...row, type: targetType } : row
       )
