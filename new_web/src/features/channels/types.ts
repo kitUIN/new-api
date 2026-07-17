@@ -211,6 +211,13 @@ export type GroupQueryConfig = {
   last_error?: string
 }
 
+export type ChannelProviderSettings = {
+  sub2api_email?: string
+  sub2api_password?: string
+  balance_query?: BalanceQueryConfig
+  group_query?: GroupQueryConfig
+}
+
 export interface ChannelOtherSettings {
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'

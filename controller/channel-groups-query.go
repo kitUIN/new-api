@@ -547,27 +547,30 @@ func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSe
 	}
 	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
 	if err != nil {
-		if shouldRefreshSub2APIToken(config.Template, config.RefreshToken, err) {
-			tokens, refreshErr := refreshSub2APIQueryToken(channel, config.RefreshToken)
-			if refreshErr == nil {
-				providerSettings = updateProviderGroupQueryTokens(provider, providerSettings, tokens)
-				config.AccessToken = tokens.AccessToken
-				config.RefreshToken = tokens.RefreshToken
-				headers = http.Header{}
-				for key, value := range config.Request.Headers {
-					if strings.TrimSpace(key) == "" {
-						continue
-					}
-					headers.Set(key, replaceGroupQueryVars(value, channel, config))
+		retryWithTokens := func(tokens sub2APIAuthTokens) ([]byte, error) {
+			config.AccessToken = tokens.AccessToken
+			config.RefreshToken = tokens.RefreshToken
+			headers = http.Header{}
+			for key, value := range config.Request.Headers {
+				if strings.TrimSpace(key) == "" {
+					continue
 				}
-				requestBody = replaceGroupQueryVars(config.Request.Body, channel, config)
-				debugInfo.Headers = balanceQueryHeadersToMap(headers)
-				debugInfo.Body = requestBody
-				body, err = GetResponseBodyWithBody(method, url, requestBody, channel, headers)
-			} else {
-				err = fmt.Errorf("上游分组查询 401 后刷新 token 失败: %w", refreshErr)
+				headers.Set(key, replaceGroupQueryVars(value, channel, config))
 			}
+			requestBody = replaceGroupQueryVars(config.Request.Body, channel, config)
+			debugInfo.Headers = balanceQueryHeadersToMap(headers)
+			debugInfo.Body = requestBody
+			return GetResponseBodyWithBody(method, url, requestBody, channel, headers)
 		}
+		body, providerSettings, err = recoverSub2APIProviderQuery(
+			channel,
+			provider,
+			providerSettings,
+			config.Template,
+			config.RefreshToken,
+			err,
+			retryWithTokens,
+		)
 	}
 	if err != nil {
 		debugInfo.Error = err.Error()

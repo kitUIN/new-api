@@ -46,4 +46,5 @@ func TestUpdateOptionPersistsGroupTypes(t *testing.T) {
 	common.OptionMapRWMutex.RLock()
 	assert.JSONEq(t, value, common.OptionMap["GroupTypes"])
 	common.OptionMapRWMutex.RUnlock()
+	assert.Equal(t, ratio_setting.GroupTypeBilling, ratio_setting.GetGroupType("missing"))
 }

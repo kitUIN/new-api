@@ -416,7 +416,7 @@ func (e *responseStatusError) Error() string {
 	return fmt.Sprintf("status code: %d", e.StatusCode)
 }
 
-type sub2APIAuthRefreshResponse struct {
+type sub2APIAuthResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    struct {
@@ -593,22 +593,16 @@ func getQueryBaseURL(channel *model.Channel) string {
 	return baseURL
 }
 
-func refreshSub2APIQueryToken(channel *model.Channel, refreshToken string) (sub2APIAuthTokens, error) {
-	refreshToken = strings.TrimSpace(refreshToken)
-	if refreshToken == "" {
-		return sub2APIAuthTokens{}, errors.New("refresh_token 不能为空")
-	}
+func requestSub2APIAuthTokens(channel *model.Channel, path string, payload map[string]string, action string) (sub2APIAuthTokens, error) {
 	baseURL := getQueryBaseURL(channel)
 	if baseURL == "" {
-		return sub2APIAuthTokens{}, errors.New("刷新 token 请求地址不能为空")
+		return sub2APIAuthTokens{}, fmt.Errorf("%s请求地址不能为空", action)
 	}
-	payload, err := common.Marshal(map[string]string{
-		"refresh_token": refreshToken,
-	})
+	body, err := common.Marshal(payload)
 	if err != nil {
 		return sub2APIAuthTokens{}, err
 	}
-	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/auth/refresh", bytes.NewReader(payload))
+	req, err := http.NewRequest(http.MethodPost, baseURL+path, bytes.NewReader(body))
 	if err != nil {
 		return sub2APIAuthTokens{}, err
 	}
@@ -625,11 +619,11 @@ func refreshSub2APIQueryToken(channel *model.Channel, refreshToken string) (sub2
 	if res.StatusCode != http.StatusOK {
 		return sub2APIAuthTokens{}, &responseStatusError{StatusCode: res.StatusCode}
 	}
-	body, err := io.ReadAll(res.Body)
+	body, err = io.ReadAll(res.Body)
 	if err != nil {
 		return sub2APIAuthTokens{}, err
 	}
-	response := sub2APIAuthRefreshResponse{}
+	response := sub2APIAuthResponse{}
 	if err := common.Unmarshal(body, &response); err != nil {
 		return sub2APIAuthTokens{}, err
 	}
@@ -637,16 +631,40 @@ func refreshSub2APIQueryToken(channel *model.Channel, refreshToken string) (sub2
 		if strings.TrimSpace(response.Message) != "" {
 			return sub2APIAuthTokens{}, errors.New(response.Message)
 		}
-		return sub2APIAuthTokens{}, fmt.Errorf("刷新 token 失败，code: %d", response.Code)
+		return sub2APIAuthTokens{}, fmt.Errorf("%s失败，code: %d", action, response.Code)
 	}
 	tokens := sub2APIAuthTokens{
 		AccessToken:  strings.TrimSpace(response.Data.AccessToken),
 		RefreshToken: strings.TrimSpace(response.Data.RefreshToken),
 	}
 	if tokens.AccessToken == "" || tokens.RefreshToken == "" {
-		return sub2APIAuthTokens{}, errors.New("刷新 token 响应缺少 access_token 或 refresh_token")
+		return sub2APIAuthTokens{}, fmt.Errorf("%s响应缺少 access_token 或 refresh_token", action)
 	}
 	return tokens, nil
+}
+
+func refreshSub2APIQueryToken(channel *model.Channel, refreshToken string) (sub2APIAuthTokens, error) {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return sub2APIAuthTokens{}, errors.New("refresh_token 不能为空")
+	}
+	return requestSub2APIAuthTokens(channel, "/api/v1/auth/refresh", map[string]string{
+		"refresh_token": refreshToken,
+	}, "刷新 token")
+}
+
+func loginSub2APIQueryToken(channel *model.Channel, email string, password string) (sub2APIAuthTokens, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return sub2APIAuthTokens{}, errors.New("sub2api 登录邮箱不能为空")
+	}
+	if password == "" {
+		return sub2APIAuthTokens{}, errors.New("sub2api 登录密码不能为空")
+	}
+	return requestSub2APIAuthTokens(channel, "/api/v1/auth/login", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "sub2api 登录")
 }
 
 func updateChannelBalanceQueryTokens(channel *model.Channel, settings dto.ChannelOtherSettings, tokens sub2APIAuthTokens) dto.ChannelOtherSettings {
@@ -658,7 +676,7 @@ func updateChannelBalanceQueryTokens(channel *model.Channel, settings dto.Channe
 	return settings
 }
 
-func updateProviderBalanceQueryTokens(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, tokens sub2APIAuthTokens) dto.ChannelProviderSettings {
+func updateProviderQueryTokens(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, tokens sub2APIAuthTokens) dto.ChannelProviderSettings {
 	settings.BalanceQuery.AccessToken = tokens.AccessToken
 	settings.BalanceQuery.RefreshToken = tokens.RefreshToken
 	settings.GroupQuery.AccessToken = tokens.AccessToken
@@ -676,13 +694,40 @@ func updateChannelGroupQueryTokens(channel *model.Channel, settings dto.ChannelO
 	return settings
 }
 
-func updateProviderGroupQueryTokens(provider *model.ChannelProvider, settings dto.ChannelProviderSettings, tokens sub2APIAuthTokens) dto.ChannelProviderSettings {
-	settings.BalanceQuery.AccessToken = tokens.AccessToken
-	settings.BalanceQuery.RefreshToken = tokens.RefreshToken
-	settings.GroupQuery.AccessToken = tokens.AccessToken
-	settings.GroupQuery.RefreshToken = tokens.RefreshToken
-	provider.SetOtherSettings(settings)
-	return settings
+func recoverSub2APIProviderQuery(
+	channel *model.Channel,
+	provider *model.ChannelProvider,
+	settings dto.ChannelProviderSettings,
+	template string,
+	refreshToken string,
+	queryErr error,
+	retry func(tokens sub2APIAuthTokens) ([]byte, error),
+) ([]byte, dto.ChannelProviderSettings, error) {
+	if !shouldRefreshSub2APIToken(template, refreshToken, queryErr) {
+		return nil, settings, queryErr
+	}
+
+	tokens, refreshErr := refreshSub2APIQueryToken(channel, refreshToken)
+	if refreshErr == nil {
+		settings = updateProviderQueryTokens(provider, settings, tokens)
+		body, err := retry(tokens)
+		if !isUnauthorizedStatus(err) {
+			return body, settings, err
+		}
+	} else if !isUnauthorizedStatus(refreshErr) {
+		return nil, settings, fmt.Errorf("401 后刷新 token 失败: %w", refreshErr)
+	}
+
+	tokens, loginErr := loginSub2APIQueryToken(channel, settings.Sub2APIEmail, settings.Sub2APIPassword)
+	if loginErr != nil {
+		return nil, settings, fmt.Errorf("刷新 token 后仍为 401，sub2api 登录失败: %w", loginErr)
+	}
+	settings = updateProviderQueryTokens(provider, settings, tokens)
+	body, err := retry(tokens)
+	if isUnauthorizedStatus(err) {
+		return nil, settings, fmt.Errorf("sub2api 登录后查询仍返回 401: %w", err)
+	}
+	return body, settings, err
 }
 
 func persistChannelSettingsOnly(channel *model.Channel, settings dto.ChannelOtherSettings) {
@@ -1138,27 +1183,30 @@ func executeProviderConfiguredBalance(provider *model.ChannelProvider, providerS
 	}
 	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
 	if err != nil {
-		if shouldRefreshSub2APIToken(config.Template, config.RefreshToken, err) {
-			tokens, refreshErr := refreshSub2APIQueryToken(channel, config.RefreshToken)
-			if refreshErr == nil {
-				providerSettings = updateProviderBalanceQueryTokens(provider, providerSettings, tokens)
-				config.AccessToken = tokens.AccessToken
-				config.RefreshToken = tokens.RefreshToken
-				headers = http.Header{}
-				for key, value := range config.Request.Headers {
-					if strings.TrimSpace(key) == "" {
-						continue
-					}
-					headers.Set(key, replaceBalanceQueryVars(value, channel, config))
+		retryWithTokens := func(tokens sub2APIAuthTokens) ([]byte, error) {
+			config.AccessToken = tokens.AccessToken
+			config.RefreshToken = tokens.RefreshToken
+			headers = http.Header{}
+			for key, value := range config.Request.Headers {
+				if strings.TrimSpace(key) == "" {
+					continue
 				}
-				requestBody = replaceBalanceQueryVars(config.Request.Body, channel, config)
-				debugInfo.Headers = balanceQueryHeadersToMap(headers)
-				debugInfo.Body = requestBody
-				body, err = GetResponseBodyWithBody(method, url, requestBody, channel, headers)
-			} else {
-				err = fmt.Errorf("余额查询 401 后刷新 token 失败: %w", refreshErr)
+				headers.Set(key, replaceBalanceQueryVars(value, channel, config))
 			}
+			requestBody = replaceBalanceQueryVars(config.Request.Body, channel, config)
+			debugInfo.Headers = balanceQueryHeadersToMap(headers)
+			debugInfo.Body = requestBody
+			return GetResponseBodyWithBody(method, url, requestBody, channel, headers)
 		}
+		body, providerSettings, err = recoverSub2APIProviderQuery(
+			channel,
+			provider,
+			providerSettings,
+			config.Template,
+			config.RefreshToken,
+			err,
+			retryWithTokens,
+		)
 	}
 	if err != nil {
 		debugInfo.Error = err.Error()

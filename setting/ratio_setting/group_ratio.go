@@ -177,7 +177,25 @@ func GroupTypes2JSONString() string {
 	return groupRatioSetting.GroupTypes.MarshalJSONString()
 }
 
+func CheckGroupTypes(jsonStr string) error {
+	groupTypes := make(map[string]string)
+	if err := common.Unmarshal([]byte(jsonStr), &groupTypes); err != nil {
+		return err
+	}
+	for group, groupType := range groupTypes {
+		switch groupType {
+		case GroupTypeBilling, GroupTypeUser:
+		default:
+			return fmt.Errorf("invalid group type for %s: %s", group, groupType)
+		}
+	}
+	return nil
+}
+
 func UpdateGroupTypesByJSONString(jsonStr string) error {
+	if err := CheckGroupTypes(jsonStr); err != nil {
+		return err
+	}
 	if groupRatioSetting.GroupTypes == nil {
 		groupRatioSetting.GroupTypes = groupTypesMap
 	}

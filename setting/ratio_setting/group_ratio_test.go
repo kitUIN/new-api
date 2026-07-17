@@ -114,6 +114,27 @@ func TestCheckGroupRatioRejectsNegative(t *testing.T) {
 	require.NoError(t, CheckGroupRatio(`{"default":0}`))
 }
 
+func TestCheckGroupTypes(t *testing.T) {
+	require.NoError(t, CheckGroupTypes(`{"default":"billing","vip":"user"}`))
+	require.NoError(t, CheckGroupTypes(`{}`))
+	require.Error(t, CheckGroupTypes(`{"default":"invalid"}`))
+	require.Error(t, CheckGroupTypes(`{"default":1}`))
+}
+
+func TestUpdateGroupTypesByJSONString(t *testing.T) {
+	originalGroupTypes := GroupTypes2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, UpdateGroupTypesByJSONString(originalGroupTypes))
+	})
+
+	require.NoError(t, UpdateGroupTypesByJSONString(`{"vip":"user"}`))
+	require.Equal(t, GroupTypeUser, GetGroupType("vip"))
+	require.Equal(t, GroupTypeBilling, GetGroupType("missing"))
+
+	require.Error(t, UpdateGroupTypesByJSONString(`{"vip":"invalid"}`))
+	require.Equal(t, GroupTypeUser, GetGroupType("vip"))
+}
+
 func TestCompareGroupRatioChanges(t *testing.T) {
 	changes := CompareGroupRatioChanges(
 		map[string]float64{

@@ -54,11 +54,7 @@ import {
   getBalanceQueryTemplateKey,
   normalizeBalanceQueryTemplate,
 } from '../../lib/channel-form'
-import type {
-  BalanceQueryConfig,
-  GroupQueryConfig,
-  ProviderRow,
-} from '../../types'
+import type { ChannelProviderSettings, ProviderRow } from '../../types'
 
 type Props = {
   open: boolean
@@ -70,6 +66,8 @@ type FormState = {
   access_token: string
   refresh_token: string
   user_id: string
+  sub2api_email: string
+  sub2api_password: string
   balance_enabled: boolean
   balance_template: string
   balance_interval_seconds: number
@@ -106,10 +104,7 @@ type FormState = {
   group_message_path: string
 }
 
-function parseSettings(settings?: string): {
-  balance_query?: BalanceQueryConfig
-  group_query?: GroupQueryConfig
-} {
+function parseSettings(settings?: string): ChannelProviderSettings {
   if (!settings) return {}
   try {
     const parsed = JSON.parse(settings)
@@ -157,6 +152,8 @@ function defaultState(provider: ProviderRow | null): FormState {
     access_token: b.access_token || g.access_token || '',
     refresh_token: b.refresh_token || g.refresh_token || '',
     user_id: b.user_id || g.user_id || '',
+    sub2api_email: settings.sub2api_email || '',
+    sub2api_password: settings.sub2api_password || '',
     balance_enabled: b.enabled === true,
     balance_template: bTemplateName,
     balance_interval_seconds: b.interval_seconds || 300,
@@ -224,6 +221,9 @@ export function ProviderQuerySettingsDialog(props: Props) {
     defaultState(props.provider)
   )
   const [saving, setSaving] = useState(false)
+  const isSub2API =
+    normalizeBalanceQueryTemplate(form.balance_template) === 'sub2api' ||
+    form.group_template === 'sub2api'
 
   useEffect(() => {
     if (props.open) setForm(defaultState(props.provider))
@@ -294,6 +294,8 @@ export function ProviderQuerySettingsDialog(props: Props) {
     const previous = parseSettings(props.provider?.settings)
     return JSON.stringify({
       ...previous,
+      sub2api_email: form.sub2api_email,
+      sub2api_password: form.sub2api_password,
       balance_query: {
         ...previous.balance_query,
         enabled: form.balance_enabled,
@@ -419,6 +421,21 @@ export function ProviderQuerySettingsDialog(props: Props) {
             onChange={(v) => set('user_id', v)}
           />
         </div>
+        {isSub2API && (
+          <div className='grid gap-3 sm:grid-cols-2'>
+            <TextField
+              label={t('Email')}
+              value={form.sub2api_email}
+              onChange={(v) => set('sub2api_email', v)}
+            />
+            <TextField
+              label={t('Password')}
+              type='password'
+              value={form.sub2api_password}
+              onChange={(v) => set('sub2api_password', v)}
+            />
+          </div>
+        )}
         <Tabs defaultValue='balance'>
           <TabsList>
             <TabsTrigger value='balance'>{t('Balance')}</TabsTrigger>
@@ -626,12 +643,14 @@ function Field(props: { label: string; children: React.ReactNode }) {
 
 function TextField(props: {
   label: string
+  type?: React.HTMLInputTypeAttribute
   value: string
   onChange: (v: string) => void
 }) {
   return (
     <Field label={props.label}>
       <Input
+        type={props.type}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
       />

@@ -309,12 +309,20 @@ func updateUserUsableGroupsOption(value string) error {
 }
 
 func updateGroupTypesOption(value string) error {
+	if err := ratio_setting.CheckGroupTypes(value); err != nil {
+		return err
+	}
+
 	option := Option{
 		Key: "GroupTypes",
 	}
 	saveOptionValue(&option, "GroupTypes", value)
 
-	return updateOptionMap("GroupTypes", value)
+	if err := updateOptionMap("GroupTypes", value); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func updateUpstreamGroupRatioBindingsOption(value string) error {

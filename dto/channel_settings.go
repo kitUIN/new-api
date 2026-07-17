@@ -48,8 +48,10 @@ type ChannelOtherSettings struct {
 }
 
 type ChannelProviderSettings struct {
-	BalanceQuery BalanceQuery `json:"balance_query,omitempty"` // 供应商余额查询配置
-	GroupQuery   GroupQuery   `json:"group_query,omitempty"`   // 供应商上游分组查询配置
+	Sub2APIEmail    string       `json:"sub2api_email,omitempty"`    // sub2api 登录邮箱
+	Sub2APIPassword string       `json:"sub2api_password,omitempty"` // sub2api 登录密码
+	BalanceQuery    BalanceQuery `json:"balance_query,omitempty"`    // 供应商余额查询配置
+	GroupQuery      GroupQuery   `json:"group_query,omitempty"`      // 供应商上游分组查询配置
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
