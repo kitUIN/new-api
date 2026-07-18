@@ -66,6 +66,7 @@ type FormState = {
   access_token: string
   refresh_token: string
   user_id: string
+  sub2api_auto_login_enabled: boolean
   sub2api_email: string
   sub2api_password: string
   balance_enabled: boolean
@@ -152,6 +153,7 @@ function defaultState(provider: ProviderRow | null): FormState {
     access_token: b.access_token || g.access_token || '',
     refresh_token: b.refresh_token || g.refresh_token || '',
     user_id: b.user_id || g.user_id || '',
+    sub2api_auto_login_enabled: settings.sub2api_auto_login_enabled === true,
     sub2api_email: settings.sub2api_email || '',
     sub2api_password: settings.sub2api_password || '',
     balance_enabled: b.enabled === true,
@@ -294,6 +296,7 @@ export function ProviderQuerySettingsDialog(props: Props) {
     const previous = parseSettings(props.provider?.settings)
     return JSON.stringify({
       ...previous,
+      sub2api_auto_login_enabled: form.sub2api_auto_login_enabled,
       sub2api_email: form.sub2api_email,
       sub2api_password: form.sub2api_password,
       balance_query: {
@@ -422,18 +425,27 @@ export function ProviderQuerySettingsDialog(props: Props) {
           />
         </div>
         {isSub2API && (
-          <div className='grid gap-3 sm:grid-cols-2'>
-            <TextField
-              label={t('Email')}
-              value={form.sub2api_email}
-              onChange={(v) => set('sub2api_email', v)}
+          <div className='space-y-3'>
+            <SwitchRow
+              label={t('Enable sub2api auto login')}
+              checked={form.sub2api_auto_login_enabled}
+              onCheckedChange={(v) => set('sub2api_auto_login_enabled', v)}
             />
-            <TextField
-              label={t('Password')}
-              type='password'
-              value={form.sub2api_password}
-              onChange={(v) => set('sub2api_password', v)}
-            />
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <TextField
+                label={t('Email')}
+                value={form.sub2api_email}
+                onChange={(v) => set('sub2api_email', v)}
+                disabled={!form.sub2api_auto_login_enabled}
+              />
+              <TextField
+                label={t('Password')}
+                type='password'
+                value={form.sub2api_password}
+                onChange={(v) => set('sub2api_password', v)}
+                disabled={!form.sub2api_auto_login_enabled}
+              />
+            </div>
           </div>
         )}
         <Tabs defaultValue='balance'>
@@ -646,6 +658,7 @@ function TextField(props: {
   type?: React.HTMLInputTypeAttribute
   value: string
   onChange: (v: string) => void
+  disabled?: boolean
 }) {
   return (
     <Field label={props.label}>
@@ -653,6 +666,7 @@ function TextField(props: {
         type={props.type}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
+        disabled={props.disabled}
       />
     </Field>
   )

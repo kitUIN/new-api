@@ -212,6 +212,7 @@ export type GroupQueryConfig = {
 }
 
 export type ChannelProviderSettings = {
+  sub2api_auto_login_enabled?: boolean
   sub2api_email?: string
   sub2api_password?: string
   balance_query?: BalanceQueryConfig

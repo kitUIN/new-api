@@ -1453,6 +1453,7 @@
     "Enable Passkey": "启用 Passkey",
     "Enable Performance Monitoring": "启用性能监控",
     "Enable rate limiting": "启用速率限制",
+    "Enable sub2api auto login": "启用 sub2api 自动登录",
     "Enable Request Passthrough": "启用请求透传",
     "Enable selected channels": "启用选定的渠道",
     "Enable selected models": "启用选定的模型",

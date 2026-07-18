@@ -1403,6 +1403,7 @@
     "Enable Passkey": "Passkeyを有効にする",
     "Enable Performance Monitoring": "パフォーマンス監視を有効にする",
     "Enable rate limiting": "レート制限を有効にする",
+    "Enable sub2api auto login": "sub2api の自動ログインを有効にする",
     "Enable Request Passthrough": "リクエストパススルーを有効にする",
     "Enable selected channels": "選択したチャネルを有効にする",
     "Enable selected models": "選択したモデルを有効にする",

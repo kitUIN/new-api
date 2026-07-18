@@ -1403,6 +1403,7 @@
     "Enable Passkey": "Activer Passkey",
     "Enable Performance Monitoring": "Activer la surveillance des performances",
     "Enable rate limiting": "Activer la limitation de débit",
+    "Enable sub2api auto login": "Activer la connexion automatique sub2api",
     "Enable Request Passthrough": "Activer le Passthrough de requêtes",
     "Enable selected channels": "Activer les canaux sélectionnés",
     "Enable selected models": "Activer les modèles sélectionnés",

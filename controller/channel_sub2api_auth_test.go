@@ -82,8 +82,9 @@ func TestRecoverSub2APIProviderQueryFallsBackToLogin(t *testing.T) {
 			channel := &model.Channel{BaseURL: &baseURL}
 			provider := &model.ChannelProvider{}
 			settings := dto.ChannelProviderSettings{
-				Sub2APIEmail:    " user@example.com ",
-				Sub2APIPassword: " secret ",
+				Sub2APIAutoLoginEnabled: true,
+				Sub2APIEmail:            " user@example.com ",
+				Sub2APIPassword:         " secret ",
 				BalanceQuery: dto.BalanceQuery{
 					AccessToken:  "old_balance_access",
 					RefreshToken: "old_refresh",
@@ -127,11 +128,88 @@ func TestRecoverSub2APIProviderQueryFallsBackToLogin(t *testing.T) {
 				t.Fatalf("group query tokens were not saved: %+v", updated.GroupQuery)
 			}
 			persisted := provider.GetOtherSettings()
+			if !persisted.Sub2APIAutoLoginEnabled {
+				t.Fatal("sub2api automatic login setting was not preserved")
+			}
 			if persisted.Sub2APIEmail != settings.Sub2APIEmail || persisted.Sub2APIPassword != settings.Sub2APIPassword {
 				t.Fatalf("sub2api credentials were not preserved: %+v", persisted)
 			}
 			if persisted.BalanceQuery.AccessToken != "login_access" || persisted.GroupQuery.RefreshToken != "login_refresh" {
 				t.Fatalf("provider tokens were not persisted in settings: %+v", persisted)
+			}
+		})
+	}
+}
+
+func TestRecoverSub2APIProviderQueryDoesNotLoginWhenDisabled(t *testing.T) {
+	tests := []struct {
+		name                string
+		refreshUnauthorized bool
+		expectedRetryCalls  int
+	}{
+		{name: "refreshed access token remains unauthorized", expectedRetryCalls: 1},
+		{name: "refresh endpoint returns unauthorized", refreshUnauthorized: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			refreshCalls := 0
+			loginCalls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/auth/refresh":
+					refreshCalls++
+					if test.refreshUnauthorized {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					body, err := common.Marshal(map[string]interface{}{
+						"code": 0,
+						"data": map[string]string{
+							"access_token":  "refreshed_access",
+							"refresh_token": "refreshed_refresh",
+						},
+					})
+					if err != nil {
+						t.Errorf("marshal response: %v", err)
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, _ = w.Write(body)
+				case "/api/v1/auth/login":
+					loginCalls++
+					w.WriteHeader(http.StatusInternalServerError)
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+
+			baseURL := server.URL
+			retryCalls := 0
+			_, _, err := recoverSub2APIProviderQuery(
+				&model.Channel{BaseURL: &baseURL},
+				&model.ChannelProvider{},
+				dto.ChannelProviderSettings{
+					Sub2APIEmail:    "user@example.com",
+					Sub2APIPassword: "password",
+				},
+				balanceQueryTemplateSub2API,
+				"old_refresh",
+				&responseStatusError{StatusCode: http.StatusUnauthorized},
+				func(tokens sub2APIAuthTokens) ([]byte, error) {
+					retryCalls++
+					return nil, &responseStatusError{StatusCode: http.StatusUnauthorized}
+				},
+			)
+			if err == nil {
+				t.Fatal("expected query recovery to fail")
+			}
+			if refreshCalls != 1 || retryCalls != test.expectedRetryCalls {
+				t.Fatalf("unexpected calls: refresh=%d retry=%d", refreshCalls, retryCalls)
+			}
+			if loginCalls != 0 {
+				t.Fatalf("automatic login is disabled, got %d login calls", loginCalls)
 			}
 		})
 	}

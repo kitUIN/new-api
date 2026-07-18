@@ -1403,6 +1403,7 @@
     "Enable Passkey": "Bật khóa truy cập",
     "Enable Performance Monitoring": "Bật giám sát hiệu suất",
     "Enable rate limiting": "Bật giới hạn tốc độ",
+    "Enable sub2api auto login": "Bật đăng nhập tự động sub2api",
     "Enable Request Passthrough": "Bật Truyền qua Yêu cầu",
     "Enable selected channels": "Kích hoạt các kênh đã chọn",
     "Enable selected models": "Kích hoạt các mô hình đã chọn",

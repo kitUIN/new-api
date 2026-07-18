@@ -714,7 +714,10 @@ func recoverSub2APIProviderQuery(
 		if !isUnauthorizedStatus(err) {
 			return body, settings, err
 		}
-	} else if !isUnauthorizedStatus(refreshErr) {
+		if !settings.Sub2APIAutoLoginEnabled {
+			return body, settings, err
+		}
+	} else if !settings.Sub2APIAutoLoginEnabled || !isUnauthorizedStatus(refreshErr) {
 		return nil, settings, fmt.Errorf("401 后刷新 token 失败: %w", refreshErr)
 	}
 
