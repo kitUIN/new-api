@@ -117,6 +117,9 @@ func ApplyXznPayEvent(input XznPayEventInput, callerIP string) (*XznPayEventResu
 	}
 	if !result.Duplicate {
 		message := fmt.Sprintf("XznPay 状态更新: %s，额度变动: %s", input.ProviderStatus, logger.FormatQuota(int(result.QuotaDelta)))
+		if input.ProviderStatus == "TRADE_SUCCESS" {
+			message = fmt.Sprintf("自助充值，额度变动: +%s", logger.FormatQuota(int(result.QuotaDelta)))
+		}
 		RecordTopupLog(result.UserID, message, callerIP, PaymentMethodXznPay, PaymentMethodXznPay)
 	}
 	return result, nil

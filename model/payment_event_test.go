@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,8 +14,13 @@ func setupXznPayTopUpTest(t *testing.T, userQuota int) *TopUp {
 	t.Helper()
 	truncateTables(t)
 	originalQuotaPerUnit := common.QuotaPerUnit
+	originalDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	common.QuotaPerUnit = 100
-	t.Cleanup(func() { common.QuotaPerUnit = originalQuotaPerUnit })
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	t.Cleanup(func() {
+		common.QuotaPerUnit = originalQuotaPerUnit
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+	})
 
 	user := &User{Id: 901, Username: "xzn_pay_user", Status: common.UserStatusEnabled, Quota: userQuota}
 	require.NoError(t, DB.Create(user).Error)
@@ -55,6 +61,9 @@ func TestApplyXznPayEventLifecycle(t *testing.T) {
 	assert.EqualValues(t, 1000, success.QuotaDelta)
 	assert.Equal(t, 1000, getUserQuotaForPaymentGuardTest(t, 901))
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "XZN-ORDER-1"))
+	var topupLog Log
+	require.NoError(t, LOG_DB.Where("user_id = ? AND type = ?", 901, LogTypeTopup).Order("id DESC").First(&topupLog).Error)
+	assert.Equal(t, "自助充值，额度变动: +＄10.000000", topupLog.Content)
 
 	duplicate := applyXznPayTestEvent(t, "success-1", "TRADE_SUCCESS", 0)
 	assert.True(t, duplicate.Duplicate)
