@@ -77,6 +77,13 @@ export const PAYMENT_METHOD_NAMES: Record<string, string> = {
   stripe: 'Stripe',
   alipay: 'Alipay',
   wxpay: 'WeChat Pay',
+  qqpay: 'QQ Wallet',
+  bank: 'Online Banking',
+  jdpay: 'JD Pay',
+  unionpay: 'UnionPay',
+  usdt: 'USDT',
+  paypal: 'PayPal',
+  douyinpay: 'Douyin Pay',
   waffo: 'Waffo',
   xzn_pay: 'XznPay',
 }

@@ -236,7 +236,11 @@ export function BillingHistoryDialog({
                               {t('Payment Method')}
                             </Label>
                             <div className='text-sm font-medium'>
-                              {getPaymentMethodName(record.payment_method, t)}
+                              {getPaymentMethodName(
+                                record.provider_pay_type ||
+                                  record.payment_method,
+                                t
+                              )}
                             </div>
                           </div>
                           <div className='space-y-1'>
