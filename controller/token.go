@@ -20,6 +20,9 @@ func buildMaskedTokenResponse(token *model.Token) *model.Token {
 		return nil
 	}
 	maskedToken := *token
+	if group := service.NormalizeRuleAutoGroupName(maskedToken.Group); group != "" {
+		maskedToken.Group = group
+	}
 	maskedToken.Key = token.GetMaskedKey()
 	maskedToken.ApiKeyGroupFailoverRuntime = service.GetApiKeyGroupFailoverRuntime(token)
 	return &maskedToken

@@ -19,6 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
+import {
+  isRuleAutoGroupName,
+  normalizeRuleAutoGroupName,
+} from '@/lib/rule-auto-groups'
 import { DEFAULT_GROUP } from '../constants'
 import { type ApiKeyFormData, type ApiKey } from '../types'
 
@@ -136,7 +140,8 @@ export function transformFormDataToPayload(
   )
   const failoverEnabled =
     !!data.session_group_failover_enabled && failoverGroups.length >= 2
-  const group = failoverEnabled ? failoverGroups[0] : data.group || ''
+  const requestedGroup = failoverEnabled ? failoverGroups[0] : data.group || ''
+  const group = normalizeRuleAutoGroupName(requestedGroup) ?? requestedGroup
 
   return {
     name: data.name,
@@ -154,7 +159,7 @@ export function transformFormDataToPayload(
     cross_group_retry:
       !failoverEnabled && group === 'auto' ? !!data.cross_group_retry : false,
     auto_group_mode:
-      !failoverEnabled && group.startsWith('auto:')
+      !failoverEnabled && isRuleAutoGroupName(group)
         ? data.auto_group_mode || 'low_ratio'
         : '',
     session_group_failover_enabled: failoverEnabled,
@@ -201,7 +206,10 @@ export function transformApiKeyToFormDefaults(
       ? apiKey.model_limits.split(',').filter(Boolean)
       : [],
     allow_ips: apiKey.allow_ips || '',
-    group: apiKey.group || DEFAULT_GROUP,
+    group:
+      normalizeRuleAutoGroupName(apiKey.group || '') ||
+      apiKey.group ||
+      DEFAULT_GROUP,
     cross_group_retry: !!apiKey.cross_group_retry,
     auto_group_mode:
       apiKey.auto_group_mode === 'balanced' ? 'balanced' : 'low_ratio',

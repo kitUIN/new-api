@@ -36,7 +36,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { getRuleAutoGroupLabel } from '@/lib/rule-auto-groups'
+import {
+  getRuleAutoGroupLabel,
+  isRuleAutoGroupName,
+} from '@/lib/rule-auto-groups'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Badge } from '@/components/ui/badge'
@@ -317,7 +320,7 @@ export function ApiKeysMutateDrawer({
         groups[0]?.value ??
         ''
       form.setValue('group', fallback)
-      if (currentGroup === 'auto' || currentGroup?.startsWith('auto:')) {
+      if (currentGroup === 'auto' || isRuleAutoGroupName(currentGroup || '')) {
         form.setValue('cross_group_retry', false)
         form.setValue('auto_group_mode', 'low_ratio')
       }

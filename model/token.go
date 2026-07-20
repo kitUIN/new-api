@@ -273,7 +273,8 @@ func UpdateTokenGroupByIds(id int, userId int, group string) (token *Token, err 
 		return nil, err
 	}
 	token.Group = group
-	if constant.IsRuleAutoGroup(group) {
+	if normalizedGroup := constant.NormalizeRuleAutoGroupName(group); normalizedGroup != "" {
+		token.Group = normalizedGroup
 		token.AutoGroupMode = constant.RuleAutoGroupModeLowRatio
 	} else {
 		token.AutoGroupMode = ""

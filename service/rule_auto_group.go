@@ -43,10 +43,12 @@ func NormalizeTokenRuleAutoGroup(token *model.Token, userGroup string) error {
 	if token == nil {
 		return fmt.Errorf("token is nil")
 	}
-	if !IsRuleAutoGroup(token.Group) {
+	selector := NormalizeRuleAutoGroupName(token.Group)
+	if selector == "" {
 		token.AutoGroupMode = ""
 		return nil
 	}
+	token.Group = selector
 	if len(GetRuleAutoGroupCandidates(userGroup, token.Group)) == 0 {
 		return fmt.Errorf("无权访问 %s 分组", token.Group)
 	}
@@ -77,7 +79,7 @@ type ruleAutoGroupDefinition struct {
 var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 	{
 		Name:          RuleAutoGroupCodexLow,
-		Label:         "codex低价分组",
+		Label:         RuleAutoGroupCodexLow,
 		Description:   "自动选择 codex 开头且有效倍率在 [0, 0.1) 的分组",
 		Prefix:        "codex",
 		AutoGroupType: "codex_low",
@@ -86,7 +88,7 @@ var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 			Max:          0.1,
 			MinInclusive: true,
 			MaxInclusive: false,
-			Display:      "[0, 0.1)",
+			Display:      formatRuleAutoGroupRatioRange(0, 0.1),
 		},
 		Match: func(group string, ratio float64) bool {
 			return strings.HasPrefix(group, "codex") && ratio >= 0 && ratio < 0.1
@@ -94,7 +96,7 @@ var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 	},
 	{
 		Name:          RuleAutoGroupCodexPro,
-		Label:         "codex-pro分组",
+		Label:         RuleAutoGroupCodexPro,
 		Description:   "自动选择 codex-pro 开头的分组",
 		Prefix:        "codex-pro",
 		AutoGroupType: "codex_pro",
@@ -104,7 +106,7 @@ var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 	},
 	{
 		Name:          RuleAutoGroupKiro,
-		Label:         "kiro分组",
+		Label:         RuleAutoGroupKiro,
 		Description:   "自动选择 cc-kiro 开头的分组",
 		Prefix:        "cc-kiro",
 		AutoGroupType: "kiro",
@@ -114,7 +116,7 @@ var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 	},
 	{
 		Name:          RuleAutoGroupGemini,
-		Label:         "gemini分组",
+		Label:         RuleAutoGroupGemini,
 		Description:   "自动选择 gemini 开头的分组",
 		Prefix:        "gemini",
 		AutoGroupType: "gemini",
@@ -126,6 +128,10 @@ var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 
 func IsRuleAutoGroup(group string) bool {
 	return constant.IsRuleAutoGroup(group)
+}
+
+func NormalizeRuleAutoGroupName(group string) string {
+	return constant.NormalizeRuleAutoGroupName(group)
 }
 
 func NormalizeRuleAutoGroupMode(mode string) (string, error) {
@@ -140,6 +146,7 @@ func NormalizeRuleAutoGroupMode(mode string) (string, error) {
 }
 
 func getRuleAutoGroupDefinition(group string) (ruleAutoGroupDefinition, bool) {
+	group = NormalizeRuleAutoGroupName(group)
 	for _, definition := range ruleAutoGroupDefinitions {
 		if definition.Name == group {
 			return definition, true
@@ -256,7 +263,7 @@ func buildRuleAutoGroupInfo(definition ruleAutoGroupDefinition, candidates []str
 			Max:          maxRatio,
 			MinInclusive: true,
 			MaxInclusive: true,
-			Display:      fmt.Sprintf("[%s, %s]", formatRuleAutoGroupRatio(minRatio), formatRuleAutoGroupRatio(maxRatio)),
+			Display:      formatRuleAutoGroupRatioRange(minRatio, maxRatio),
 		}
 	}
 	if ratioRange != nil {
@@ -279,4 +286,8 @@ func formatRuleAutoGroupRatio(ratio float64) string {
 		return "0"
 	}
 	return strconv.FormatFloat(ratio, 'f', -1, 64)
+}
+
+func formatRuleAutoGroupRatioRange(minRatio, maxRatio float64) string {
+	return fmt.Sprintf("%sx~%sx", formatRuleAutoGroupRatio(minRatio), formatRuleAutoGroupRatio(maxRatio))
 }

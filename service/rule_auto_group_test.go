@@ -24,6 +24,7 @@ func TestRuleAutoGroupCandidatesUseEffectiveRatioAndBoundaries(t *testing.T) {
 	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"vip":{"codex-c":0.03}}`))
 
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodexLow))
+	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", "auto:codex-low"))
 	require.Equal(t, []string{"codex-pro-a"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodexPro))
 	require.Equal(t, []string{"codex-c", "codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("vip", RuleAutoGroupCodexLow))
 }
@@ -38,8 +39,9 @@ func TestNormalizeTokenRuleAutoGroup(t *testing.T) {
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"gemini-a":"Gemini"}`))
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"gemini-a":0.2}`))
 
-	token := &model.Token{Group: RuleAutoGroupGemini, CrossGroupRetry: true}
+	token := &model.Token{Group: "auto:gemini", CrossGroupRetry: true}
 	require.NoError(t, NormalizeTokenRuleAutoGroup(token, ""))
+	require.Equal(t, RuleAutoGroupGemini, token.Group)
 	require.Equal(t, RuleAutoGroupModeLowRatio, token.AutoGroupMode)
 	require.False(t, token.CrossGroupRetry)
 
@@ -49,6 +51,28 @@ func TestNormalizeTokenRuleAutoGroup(t *testing.T) {
 
 	token.SessionGroupFailoverEnabled = true
 	require.Error(t, NormalizeTokenRuleAutoGroup(token, ""))
+}
+
+func TestRuleAutoGroupRatioRangeDisplay(t *testing.T) {
+	originalUsable := setting.UserUsableGroups2JSONString()
+	originalRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsable))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatio))
+	})
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"gemini-a":"A","gemini-b":"B"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"gemini-a":0.25,"gemini-b":0.3}`))
+
+	infos := GetRuleAutoGroupInfosForUser("", map[string]bool{"gemini-a": true, "gemini-b": true})
+	for _, info := range infos {
+		if info.Name != RuleAutoGroupGemini {
+			continue
+		}
+		require.NotNil(t, info.RatioRange)
+		require.Equal(t, "0.25x~0.3x", info.RatioRange.Display)
+		return
+	}
+	t.Fatal("gemini rule auto group not found")
 }
 
 func TestNextRuleAutoGroupState(t *testing.T) {

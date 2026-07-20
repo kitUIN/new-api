@@ -198,8 +198,8 @@ func ApplyRuleAutoGroup(c *gin.Context, modelName string) bool {
 	if c == nil {
 		return false
 	}
-	selector := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-	if !IsRuleAutoGroup(selector) {
+	selector := NormalizeRuleAutoGroupName(common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
+	if selector == "" {
 		return false
 	}
 	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
