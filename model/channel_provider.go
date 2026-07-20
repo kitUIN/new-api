@@ -602,11 +602,16 @@ func BuildChannelProviderTrees(channels []*Channel, offset int, limit int, idSor
 	}
 
 	sort.SliceStable(order, func(i, j int) bool {
+		left := treeMap[order[i]]
+		right := treeMap[order[j]]
+		leftEnabled := left.EnabledCount > 0
+		rightEnabled := right.EnabledCount > 0
+		if leftEnabled != rightEnabled {
+			return leftEnabled
+		}
 		if idSort {
 			return order[i] > order[j]
 		}
-		left := treeMap[order[i]]
-		right := treeMap[order[j]]
 		if left.EnabledCount != right.EnabledCount {
 			return left.EnabledCount > right.EnabledCount
 		}

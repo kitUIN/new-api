@@ -78,6 +78,21 @@ func TestRuleAutoGroupRatioRangeDisplay(t *testing.T) {
 	t.Fatal("gemini rule auto group not found")
 }
 
+func TestRuleAutoGroupAdminInfosOnlyIncludeEnabledGroups(t *testing.T) {
+	originalRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatio))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"codex-enabled":0.05,"codex-disabled":0.2,"gemini-disabled":0.3}`))
+
+	infos := GetRuleAutoGroupAdminInfos(map[string]bool{"codex-enabled": true})
+	require.NotEmpty(t, infos)
+	for _, info := range infos {
+		require.Equal(t, []string{"codex-enabled"}, info.MatchedGroups)
+		require.NotEqual(t, RuleAutoGroupGemini, info.Name)
+	}
+}
+
 func TestNextRuleAutoGroupState(t *testing.T) {
 	state := RuleAutoGroupState{Candidates: []string{"a", "b", "c"}, CandidateIndex: 0}
 

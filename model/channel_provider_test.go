@@ -125,3 +125,45 @@ func TestClearChannelQuerySettingsForProviderOnlyRemovesQueryFields(t *testing.T
 	require.False(t, settings.BalanceQuery.Enabled)
 	require.False(t, settings.GroupQuery.Enabled)
 }
+
+func TestBuildChannelProviderTreesPlacesEnabledProvidersFirst(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&ChannelProvider{
+		Id:      1,
+		Name:    "enabled-provider",
+		BaseURL: "https://enabled.example.com",
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, DB.Create(&ChannelProvider{
+		Id:      2,
+		Name:    "disabled-provider",
+		BaseURL: "https://disabled.example.com",
+		Status:  common.ChannelStatusEnabled,
+	}).Error)
+
+	channels := []*Channel{
+		{
+			Id:         1,
+			ProviderID: 1,
+			Name:       "enabled-channel",
+			Status:     common.ChannelStatusEnabled,
+			Group:      "default",
+		},
+		{
+			Id:         2,
+			ProviderID: 2,
+			Name:       "disabled-channel",
+			Status:     common.ChannelStatusManuallyDisabled,
+			Group:      "default",
+		},
+	}
+
+	trees, total := BuildChannelProviderTrees(channels, 0, 20, true)
+	require.Equal(t, int64(2), total)
+	require.Len(t, trees, 2)
+	require.Equal(t, 1, trees[0].ProviderID)
+	require.Equal(t, 1, trees[0].EnabledCount)
+	require.Equal(t, 2, trees[1].ProviderID)
+	require.Zero(t, trees[1].EnabledCount)
+}

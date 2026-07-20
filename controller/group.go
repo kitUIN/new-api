@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -18,11 +19,16 @@ func GetGroups(c *gin.Context) {
 			groupNames = append(groupNames, groupName)
 		}
 	}
+	enabledChannelGroups, err := model.GetEnabledChannelGroupSet()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success":     true,
 		"message":     "",
 		"data":        groupNames,
-		"auto_groups": service.GetRuleAutoGroupAdminInfos(),
+		"auto_groups": service.GetRuleAutoGroupAdminInfos(enabledChannelGroups),
 	})
 }
 

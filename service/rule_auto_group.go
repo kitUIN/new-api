@@ -221,15 +221,21 @@ func GetRuleAutoGroupInfosForUser(userGroup string, enabledGroups map[string]boo
 	return infos
 }
 
-func GetRuleAutoGroupAdminInfos() []RuleAutoGroupInfo {
+func GetRuleAutoGroupAdminInfos(enabledGroups map[string]bool) []RuleAutoGroupInfo {
 	infos := make([]RuleAutoGroupInfo, 0, len(ruleAutoGroupDefinitions))
 	groupRatios := ratio_setting.GetGroupRatioCopy()
 	for _, definition := range ruleAutoGroupDefinitions {
 		candidates := make([]string, 0)
 		for group, ratio := range groupRatios {
+			if enabledGroups != nil && !enabledGroups[group] {
+				continue
+			}
 			if definition.Match(group, ratio) {
 				candidates = append(candidates, group)
 			}
+		}
+		if enabledGroups != nil && len(candidates) == 0 {
+			continue
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
 			leftRatio := ratio_setting.GetGroupRatio(candidates[i])
