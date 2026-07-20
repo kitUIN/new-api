@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getRuleAutoGroupLabel } from '@/lib/rule-auto-groups'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Badge } from '@/components/ui/badge'
@@ -66,6 +67,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { DateTimePicker } from '@/components/datetime-picker'
 import {
   SideDrawerSection,
@@ -107,7 +109,13 @@ type FailoverDragPosition = 'before' | 'after'
 
 type GroupSourceEntry = [
   string,
-  { desc: string; ratio: ApiKeyGroupOption['ratio'] },
+  {
+    label?: string
+    desc: string
+    ratio: ApiKeyGroupOption['ratio']
+    is_auto_group?: boolean
+    auto_group_type?: string
+  },
 ]
 
 type ApiKeyMutateDrawerProps = {
@@ -237,21 +245,31 @@ export function ApiKeysMutateDrawer({
   const groupsSource: GroupSourceEntry[] = Array.isArray(groupsData?.groups)
     ? groupsData.groups.map((group) => [
         group.name,
-        { desc: group.desc, ratio: group.ratio },
+        {
+          label: group.label,
+          desc: group.desc,
+          ratio: group.ratio,
+          is_auto_group: group.is_auto_group,
+          auto_group_type: group.auto_group_type,
+        },
       ])
     : Object.entries(groupsRaw).sort(([aKey, a], [bKey, b]) =>
         compareGroupOptionsByRatio(
-          { value: aKey, label: aKey, ratio: a.ratio },
-          { value: bKey, label: bKey, ratio: b.ratio }
+          { value: aKey, label: a.label || aKey, ratio: a.ratio },
+          { value: bKey, label: b.label || bKey, ratio: b.ratio }
         )
       )
   const groups: ApiKeyGroupOption[] = groupsSource.map(([key, info]) => {
     const health = groupHealthMap.get(key)
     return {
       value: key,
-      label: key,
+      label: info.is_auto_group
+        ? getRuleAutoGroupLabel(key, info.label || key, t)
+        : info.label || key,
       desc: info.desc || key,
       ratio: info.ratio,
+      isAutoGroup: info.is_auto_group,
+      autoGroupType: info.auto_group_type,
       health: {
         availability24h:
           health && health.request_count > 0 ? health.success_rate : null,
@@ -261,7 +279,7 @@ export function ApiKeysMutateDrawer({
     }
   })
   const backendHasAuto = groups.some((g) => g.value === 'auto')
-  const concreteGroups = groups.filter((g) => g.value !== 'auto')
+  const concreteGroups = groups.filter((g) => !g.isAutoGroup)
   const schema = getApiKeyFormSchema(t)
 
   const form = useForm<ApiKeyFormValues>({
@@ -299,8 +317,9 @@ export function ApiKeysMutateDrawer({
         groups[0]?.value ??
         ''
       form.setValue('group', fallback)
-      if (currentGroup === 'auto') {
+      if (currentGroup === 'auto' || currentGroup?.startsWith('auto:')) {
         form.setValue('cross_group_retry', false)
+        form.setValue('auto_group_mode', 'low_ratio')
       }
     }
   }, [groups, form])
@@ -386,9 +405,24 @@ export function ApiKeysMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
+  const selectedGroupOption = groups.find(
+    (group) => group.value === selectedGroup
+  )
+  const selectedRuleAutoGroup =
+    !!selectedGroupOption?.isAutoGroup && selectedGroup !== 'auto'
+  const autoGroupMode = form.watch('auto_group_mode') || 'low_ratio'
   const unlimitedQuota = form.watch('unlimited_quota')
   const sessionFailoverEnabled = form.watch('session_group_failover_enabled')
   const sessionFailoverGroups = form.watch('session_failover_groups') || []
+
+  useEffect(() => {
+    if (!selectedRuleAutoGroup) return
+    form.setValue('cross_group_retry', false)
+    if (form.getValues('session_group_failover_enabled')) {
+      form.setValue('session_group_failover_enabled', false)
+      form.setValue('session_failover_groups', [])
+    }
+  }, [form, selectedRuleAutoGroup])
   const failoverRuntime =
     editingApiKey?.api_key_group_failover_runtime ??
     currentRow?.api_key_group_failover_runtime
@@ -433,7 +467,7 @@ export function ApiKeysMutateDrawer({
       return
     }
     const primary =
-      selectedGroup && selectedGroup !== 'auto'
+      selectedGroup && !selectedGroup.startsWith('auto')
         ? selectedGroup
         : concreteGroups[0]?.value
     const secondary = concreteGroups.find((group) => group.value !== primary)
@@ -658,6 +692,46 @@ export function ApiKeysMutateDrawer({
                 />
               )}
 
+              {selectedRuleAutoGroup && (
+                <FormField
+                  control={form.control}
+                  name='auto_group_mode'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Auto group mode')}</FormLabel>
+                      <FormControl>
+                        <ToggleGroup
+                          value={[autoGroupMode]}
+                          variant='outline'
+                          size='sm'
+                          onValueChange={(values) => {
+                            const next = values[0]
+                            if (next === 'low_ratio' || next === 'balanced') {
+                              field.onChange(next)
+                            }
+                          }}
+                          className='w-full'
+                          aria-label={t('Auto group mode')}
+                        >
+                          <ToggleGroupItem value='low_ratio' className='flex-1'>
+                            {t('Low ratio first')}
+                          </ToggleGroupItem>
+                          <ToggleGroupItem value='balanced' className='flex-1'>
+                            {t('Balanced mode')}
+                          </ToggleGroupItem>
+                        </ToggleGroup>
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Balanced mode switches after two consecutive first-token delays over 10 seconds.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name='session_group_failover_enabled'
@@ -677,6 +751,7 @@ export function ApiKeysMutateDrawer({
                       <Switch
                         checked={!!field.value}
                         onCheckedChange={handleFailoverEnabledChange}
+                        disabled={selectedRuleAutoGroup}
                       />
                     </FormControl>
                   </FormItem>

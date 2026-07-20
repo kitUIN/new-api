@@ -65,6 +65,7 @@ import { type ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import {
   FailoverGroupsCell,
+  useGroupMetadata,
   useApiKeysColumns,
   useGroupRatios,
 } from './api-keys-columns'
@@ -110,6 +111,7 @@ function ApiKeysMobileList({
 }) {
   const { t } = useTranslation()
   const groupRatios = useGroupRatios()
+  const groupMetadata = useGroupMetadata()
   const rows = table.getRowModel().rows
 
   if (isLoading) return <ApiKeysMobileSkeleton />
@@ -142,6 +144,7 @@ function ApiKeysMobileList({
         const total = apiKey.used_quota + apiKey.remain_quota
         const group = apiKey.group || ''
         const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+        const groupInfo = groupMetadata[group]
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
@@ -219,6 +222,32 @@ function ApiKeysMobileList({
                         <StatusBadge
                           label={t('Cross-group')}
                           variant='info'
+                          copyable={false}
+                        />
+                      )}
+                    </span>
+                  ) : groupInfo?.isAutoGroup ? (
+                    <span className='inline-flex flex-wrap justify-end gap-1.5'>
+                      <StatusBadge
+                        label={groupInfo.label}
+                        variant='neutral'
+                        copyable={false}
+                      />
+                      {groupInfo.ratio !== undefined && (
+                        <StatusBadge
+                          label={String(groupInfo.ratio)}
+                          variant='info'
+                          copyable={false}
+                        />
+                      )}
+                      {apiKey.auto_group_mode && (
+                        <StatusBadge
+                          label={
+                            apiKey.auto_group_mode === 'balanced'
+                              ? t('Balanced mode')
+                              : t('Low ratio first')
+                          }
+                          variant='neutral'
                           copyable={false}
                         />
                       )}

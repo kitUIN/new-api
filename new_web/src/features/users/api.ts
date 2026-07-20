@@ -144,12 +144,30 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
 /**
  * Get all available groups, optionally filtered by type ('billing' | 'user')
  */
+export type RuleAutoGroupInfo = {
+  name: string
+  label: string
+  description: string
+  prefix: string
+  auto_group_type: string
+  ratio_range?: {
+    min: number
+    max: number
+    min_inclusive: boolean
+    max_inclusive: boolean
+    display: string
+  }
+  matched_groups: string[]
+}
+
+export type GetGroupsResponse = ApiResponse<string[]> & {
+  auto_groups?: RuleAutoGroupInfo[]
+}
+
 export async function getGroups(params?: {
   type?: 'billing' | 'user'
-}): Promise<ApiResponse<string[]>> {
-  const url = params?.type
-    ? `/api/group/?type=${params.type}`
-    : '/api/group/'
+}): Promise<GetGroupsResponse> {
+  const url = params?.type ? `/api/group/?type=${params.type}` : '/api/group/'
   const res = await api.get(url)
   return res.data
 }

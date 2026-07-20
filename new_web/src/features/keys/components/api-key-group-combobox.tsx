@@ -50,6 +50,8 @@ export type ApiKeyGroupOption = {
   label: string
   desc?: string
   ratio?: number | string
+  isAutoGroup?: boolean
+  autoGroupType?: string
   health?: ApiKeyGroupHealth
 }
 
@@ -63,7 +65,7 @@ type ApiKeyGroupComboboxProps = {
 
 function formatGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
   if (ratio === undefined || ratio === null || ratio === '') return null
-  return `${ratio}x`
+  return typeof ratio === 'string' ? ratio : `${ratio}x`
 }
 
 function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {

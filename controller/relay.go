@@ -194,6 +194,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			if service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupFailure(channelErr, relayInfo), 0, false) {
+				retryParam.SetRetry(0)
+				retryParam.ResetRetryNextTry()
+				continue
+			}
 			break
 		}
 
@@ -223,6 +228,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			ttftMs, hasTTFT := relayTTFT(relayInfo)
+			service.RecordRuleAutoGroupResult(c, true, false, ttftMs, hasTTFT)
 			service.RecordSessionGroupFailoverResult(c, true)
 			return
 		}
@@ -231,15 +238,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.LastError = newAPIError
 
 		shouldRetryNow := shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
+		ruleAutoGroupSwitched := false
 		if !shouldRetryNow {
 			service.RecordSessionGroupFailoverResult(c, false)
+			if !relayInfo.HasSendResponse() {
+				ruleAutoGroupSwitched = service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupFailure(newAPIError, relayInfo), 0, false)
+			}
 		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
 
-		if !shouldRetryNow {
+		if !shouldRetryNow && !ruleAutoGroupSwitched {
 			break
 		}
-		service.PrepareAutoGroupAffinityFailover(c, retryParam)
+		if ruleAutoGroupSwitched {
+			retryParam.SetRetry(0)
+			retryParam.ResetRetryNextTry()
+		} else {
+			service.PrepareAutoGroupAffinityFailover(c, retryParam)
+		}
 		retryParam.ExcludeChannel(channel.Id)
 	}
 
@@ -306,6 +322,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+	if service.IsRuleAutoGroup(info.TokenGroup) {
+		service.ApplyRuleAutoGroup(c, info.OriginModelName)
+	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
@@ -354,6 +373,31 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+func relayTTFT(info *relaycommon.RelayInfo) (int64, bool) {
+	if info == nil || !info.FirstResponseTime.After(info.StartTime) {
+		return 0, false
+	}
+	return info.FirstResponseTime.Sub(info.StartTime).Milliseconds(), true
+}
+
+func shouldRecordRuleAutoGroupFailure(err *types.NewAPIError, info *relaycommon.RelayInfo) bool {
+	if err == nil || (info != nil && info.HasSendResponse()) {
+		return false
+	}
+	if types.IsChannelError(err) {
+		return true
+	}
+	if types.IsSkipRetryError(err) {
+		return false
+	}
+	statusCode := err.StatusCode
+	return statusCode == http.StatusUnauthorized ||
+		statusCode == http.StatusForbidden ||
+		statusCode == http.StatusRequestTimeout ||
+		statusCode == http.StatusTooManyRequests ||
+		statusCode >= http.StatusInternalServerError
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo ...*relaycommon.RelayInfo) {
@@ -407,6 +451,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		service.AppendChannelAffinitySessionKeyAdminInfo(c, adminInfo)
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
 		service.AppendSessionGroupFailoverAdminInfo(c, adminInfo)
+		service.AppendRuleAutoGroupAdminInfo(c, adminInfo)
 		if err.ResponseBody != "" {
 			adminInfo["upstream_error_body"] = truncateLogField(common.MaskSensitiveInfo(err.ResponseBody), 4096)
 		}
@@ -558,6 +603,11 @@ func RelayTask(c *gin.Context) {
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
 				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
+				if service.RecordRuleAutoGroupResult(c, false, true, 0, false) {
+					retryParam.SetRetry(0)
+					retryParam.ResetRetryNextTry()
+					continue
+				}
 				break
 			}
 		}
@@ -576,13 +626,16 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			service.RecordRuleAutoGroupResult(c, true, false, 0, false)
 			service.RecordSessionGroupFailoverResult(c, true)
 			break
 		}
 
 		shouldRetryNow := shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry())
+		ruleAutoGroupSwitched := false
 		if !shouldRetryNow {
 			service.RecordSessionGroupFailoverResult(c, false)
+			ruleAutoGroupSwitched = service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupTaskFailure(taskErr), 0, false)
 		}
 		if !taskErr.LocalError {
 			processChannelError(c,
@@ -591,10 +644,15 @@ func RelayTask(c *gin.Context) {
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
-		if !shouldRetryNow {
+		if !shouldRetryNow && !ruleAutoGroupSwitched {
 			break
 		}
-		service.PrepareAutoGroupAffinityFailover(c, retryParam)
+		if ruleAutoGroupSwitched {
+			retryParam.SetRetry(0)
+			retryParam.ResetRetryNextTry()
+		} else {
+			service.PrepareAutoGroupAffinityFailover(c, retryParam)
+		}
 		retryParam.ExcludeChannel(channel.Id)
 	}
 
@@ -685,4 +743,15 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 		return false
 	}
 	return true
+}
+
+func shouldRecordRuleAutoGroupTaskFailure(taskErr *dto.TaskError) bool {
+	if taskErr == nil || taskErr.LocalError {
+		return false
+	}
+	return taskErr.StatusCode == http.StatusUnauthorized ||
+		taskErr.StatusCode == http.StatusForbidden ||
+		taskErr.StatusCode == http.StatusRequestTimeout ||
+		taskErr.StatusCode == http.StatusTooManyRequests ||
+		taskErr.StatusCode >= http.StatusInternalServerError
 }

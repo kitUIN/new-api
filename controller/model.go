@@ -177,6 +177,15 @@ func ListModels(c *gin.Context, modelType int) {
 					}
 				}
 			}
+		} else if service.IsRuleAutoGroup(tokenGroup) {
+			for _, autoGroup := range service.GetRuleAutoGroupCandidates(userGroup, tokenGroup) {
+				groupModels := model.GetGroupEnabledModels(autoGroup)
+				for _, groupModel := range groupModels {
+					if !common.StringsContains(models, groupModel) {
+						models = append(models, groupModel)
+					}
+				}
+			}
 		} else {
 			models = model.GetGroupEnabledModels(group)
 		}

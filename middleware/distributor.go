@@ -99,14 +99,27 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				service.ApplySessionGroupFailover(c, modelRequest.Model)
-				usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+				if service.IsRuleAutoGroup(usingGroup) {
+					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+					service.ApplyRuleAutoGroup(c, modelRequest.Model)
+				} else {
+					service.ApplySessionGroupFailover(c, modelRequest.Model)
+					usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
-						if usingGroup == "auto" {
+						if service.IsRuleAutoGroup(usingGroup) {
+							runtime, runtimeOk := service.GetRuleAutoGroupRuntime(c)
+							if runtimeOk && runtime.SelectedGroup != "" && model.IsChannelEnabledForGroupModel(runtime.SelectedGroup, modelRequest.Model, preferred.Id) {
+								selectGroup = runtime.SelectedGroup
+								service.SetAutoGroupAffinityIndex(c, runtime.SelectedGroup, runtime.CurrentIndex)
+								channel = preferred
+								service.MarkChannelAffinityUsed(c, runtime.SelectedGroup, preferred.Id)
+							}
+						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
 							for idx, g := range autoGroups {
@@ -135,7 +148,7 @@ func Distribute() func(c *gin.Context) {
 					})
 					if err != nil {
 						showGroup := usingGroup
-						if usingGroup == "auto" {
+						if usingGroup == "auto" || service.IsRuleAutoGroup(usingGroup) {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
 						}
 						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})

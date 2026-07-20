@@ -1850,7 +1850,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4751,7 +4751,6 @@
     "Ratio range: this week": "本周",
     "Ratio range: this month": "本月",
     "Ratio history": "倍率变更",
-    "Sort": "排序",
     "Priority ratio (low to high)": "优先分组倍率（从小到大）",
     "Priority success rate (high to low)": "优先成功率（从大到小）",
     "{{count}} changes": "{{count}} 次变更",
@@ -4816,6 +4815,19 @@
     "Binding change push": "绑定变更推送",
     "Push when upstream group ratio bindings change": "上游分组倍率绑定变化时推送",
     "User group state change push": "分组状态变更推送",
-    "Push when groups are added, deleted, enabled, disabled, or descriptions change": "分组新增、删除、开启、关闭或描述变化时推送"
+    "Push when groups are added, deleted, enabled, disabled, or descriptions change": "分组新增、删除、开启、关闭或描述变化时推送",
+    "Auto group mode": "自动分组模式",
+    "Low ratio first": "低倍优先",
+    "Balanced mode": "平衡模式",
+    "Balanced mode switches after two consecutive first-token delays over 10 seconds.": "平衡模式下，首字延迟连续两次超过 10 秒后自动切换到下一个分组。",
+    "Rule-based auto groups": "规则型自动分组",
+    "These groups select matching concrete groups by effective ratio and apply per-session circuit breaking.": "这些自动分组按有效倍率选择匹配的实际分组，并按会话执行熔断。",
+    "No matching groups": "暂无匹配分组",
+    "Legacy auto group chain": "通用 auto 分组链",
+    "Priority order used only by the legacy auto group. Rule-based auto groups are configured separately.": "此优先级顺序仅用于原有通用 auto 分组；规则型自动分组使用独立规则。",
+    "Codex low-cost group": "codex低价分组",
+    "Codex Pro group": "codex-pro分组",
+    "Kiro group": "kiro分组",
+    "Gemini group": "gemini分组"
   }
 }

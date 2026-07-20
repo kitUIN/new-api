@@ -37,6 +37,7 @@ export function getApiKeyFormSchema(t: TFunction) {
       allow_ips: z.string().optional(),
       group: z.string().optional(),
       cross_group_retry: z.boolean().optional(),
+      auto_group_mode: z.enum(['low_ratio', 'balanced']).optional(),
       session_group_failover_enabled: z.boolean().optional(),
       session_failover_groups: z.array(z.string()),
       session_failover_threshold: z.number().min(1),
@@ -62,8 +63,7 @@ export function getApiKeyFormSchema(t: TFunction) {
         return
       }
 
-      const groups = data.session_failover_groups
-        .map((group) => group.trim())
+      const groups = data.session_failover_groups.map((group) => group.trim())
       const uniqueGroups = new Set(groups)
       if (groups.length < 2) {
         ctx.addIssue({
@@ -104,6 +104,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   allow_ips: '',
   group: DEFAULT_GROUP,
   cross_group_retry: true,
+  auto_group_mode: 'low_ratio',
   session_group_failover_enabled: false,
   session_failover_groups: [],
   session_failover_threshold: 3,
@@ -130,8 +131,9 @@ export function getApiKeyFormDefaultValues(
 export function transformFormDataToPayload(
   data: ApiKeyFormValues
 ): ApiKeyFormData {
-  const failoverGroups = data.session_failover_groups
-    .map((group) => group.trim())
+  const failoverGroups = data.session_failover_groups.map((group) =>
+    group.trim()
+  )
   const failoverEnabled =
     !!data.session_group_failover_enabled && failoverGroups.length >= 2
   const group = failoverEnabled ? failoverGroups[0] : data.group || ''
@@ -151,6 +153,10 @@ export function transformFormDataToPayload(
     group,
     cross_group_retry:
       !failoverEnabled && group === 'auto' ? !!data.cross_group_retry : false,
+    auto_group_mode:
+      !failoverEnabled && group.startsWith('auto:')
+        ? data.auto_group_mode || 'low_ratio'
+        : '',
     session_group_failover_enabled: failoverEnabled,
     session_failover_groups: failoverEnabled
       ? JSON.stringify(failoverGroups)
@@ -167,8 +173,9 @@ export function parseSessionFailoverGroups(raw?: string | null): string[] {
   try {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed
-      .map((group) => (typeof group === 'string' ? group.trim() : ''))
+    return parsed.map((group) =>
+      typeof group === 'string' ? group.trim() : ''
+    )
   } catch {
     return []
   }
@@ -196,8 +203,9 @@ export function transformApiKeyToFormDefaults(
     allow_ips: apiKey.allow_ips || '',
     group: apiKey.group || DEFAULT_GROUP,
     cross_group_retry: !!apiKey.cross_group_retry,
-    session_group_failover_enabled:
-      !!apiKey.session_group_failover_enabled,
+    auto_group_mode:
+      apiKey.auto_group_mode === 'balanced' ? 'balanced' : 'low_ratio',
+    session_group_failover_enabled: !!apiKey.session_group_failover_enabled,
     session_failover_groups: parseSessionFailoverGroups(
       apiKey.session_failover_groups
     ),

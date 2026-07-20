@@ -21,6 +21,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { getRuleAutoGroupLabel } from '@/lib/rule-auto-groups'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -62,6 +63,37 @@ export function useGroupRatios(): Record<string, number> {
         }
       }
       return ratios
+    },
+  })
+
+  return data ?? {}
+}
+
+export type ApiKeyGroupDisplayInfo = {
+  label: string
+  ratio?: number | string
+  isAutoGroup?: boolean
+}
+
+export function useGroupMetadata(): Record<string, ApiKeyGroupDisplayInfo> {
+  const { t } = useTranslation()
+  const { data } = useQuery({
+    queryKey: ['user-self-groups'],
+    queryFn: getUserGroups,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => {
+      if (!res.success || !res.data) return {}
+      const metadata: Record<string, ApiKeyGroupDisplayInfo> = {}
+      for (const [group, info] of Object.entries(res.data)) {
+        metadata[group] = {
+          label: info.is_auto_group
+            ? getRuleAutoGroupLabel(group, info.label || group, t)
+            : info.label || group,
+          ratio: info.ratio,
+          isAutoGroup: info.is_auto_group,
+        }
+      }
+      return metadata
     },
   })
 
@@ -121,6 +153,7 @@ export function FailoverGroupsCell({
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
   const groupRatios = useGroupRatios()
+  const groupMetadata = useGroupMetadata()
   return [
     {
       id: 'select',
@@ -265,6 +298,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const apiKey = row.original
         const group = row.getValue('group') as string
         const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+        const groupInfo = groupMetadata[group]
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
@@ -338,6 +372,35 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                 </span>
               </TooltipContent>
             </Tooltip>
+          )
+        }
+        if (groupInfo?.isAutoGroup) {
+          return (
+            <span className='inline-flex flex-wrap items-center gap-1.5 text-xs'>
+              <StatusBadge
+                label={groupInfo.label}
+                variant='neutral'
+                copyable={false}
+              />
+              {groupInfo.ratio !== undefined && (
+                <StatusBadge
+                  label={String(groupInfo.ratio)}
+                  variant='info'
+                  copyable={false}
+                />
+              )}
+              {apiKey.auto_group_mode && (
+                <StatusBadge
+                  label={
+                    apiKey.auto_group_mode === 'balanced'
+                      ? t('Balanced mode')
+                      : t('Low ratio first')
+                  }
+                  variant='neutral'
+                  copyable={false}
+                />
+              )}
+            </span>
           )
         }
         return <GroupBadge group={group} ratio={ratio} />

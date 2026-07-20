@@ -10,9 +10,13 @@ import (
 )
 
 type UserUsableGroupInfo struct {
-	Name  string      `json:"name"`
-	Ratio interface{} `json:"ratio"`
-	Desc  string      `json:"desc"`
+	Name          string                   `json:"name"`
+	Label         string                   `json:"label"`
+	Ratio         interface{}              `json:"ratio"`
+	Desc          string                   `json:"desc"`
+	IsAutoGroup   bool                     `json:"is_auto_group"`
+	AutoGroupType string                   `json:"auto_group_type,omitempty"`
+	RatioRange    *RuleAutoGroupRatioRange `json:"ratio_range,omitempty"`
 }
 
 func GetUserUsableGroups(userGroup string) map[string]string {
@@ -60,6 +64,7 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 		}
 		groups = append(groups, UserUsableGroupInfo{
 			Name:  groupName,
+			Label: groupName,
 			Ratio: GetUserGroupRatio(userGroup, groupName),
 			Desc:  desc,
 		})
@@ -76,9 +81,27 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 
 	if _, ok := userUsableGroups["auto"]; ok && len(groups) > 0 {
 		groups = append(groups, UserUsableGroupInfo{
-			Name:  "auto",
-			Ratio: "自动",
-			Desc:  setting.GetUsableGroupDescription("auto"),
+			Name:        "auto",
+			Label:       "auto",
+			Ratio:       "自动",
+			Desc:        setting.GetUsableGroupDescription("auto"),
+			IsAutoGroup: true,
+		})
+	}
+
+	for _, info := range GetRuleAutoGroupInfosForUser(userGroup, enabledChannelGroups) {
+		ratioDisplay := ""
+		if info.RatioRange != nil {
+			ratioDisplay = info.RatioRange.Display
+		}
+		groups = append(groups, UserUsableGroupInfo{
+			Name:          info.Name,
+			Label:         info.Label,
+			Ratio:         ratioDisplay,
+			Desc:          info.Description,
+			IsAutoGroup:   true,
+			AutoGroupType: info.AutoGroupType,
+			RatioRange:    info.RatioRange,
 		})
 	}
 
@@ -89,14 +112,21 @@ func UserUsableGroupInfosToMap(groups []UserUsableGroupInfo) map[string]map[stri
 	usableGroups := make(map[string]map[string]interface{}, len(groups))
 	for _, group := range groups {
 		usableGroups[group.Name] = map[string]interface{}{
-			"ratio": group.Ratio,
-			"desc":  group.Desc,
+			"label":           group.Label,
+			"ratio":           group.Ratio,
+			"desc":            group.Desc,
+			"is_auto_group":   group.IsAutoGroup,
+			"auto_group_type": group.AutoGroupType,
+			"ratio_range":     group.RatioRange,
 		}
 	}
 	return usableGroups
 }
 
 func GroupInUserUsableGroups(userGroup, groupName string) bool {
+	if IsRuleAutoGroup(groupName) {
+		return len(GetRuleAutoGroupCandidates(userGroup, groupName)) > 0
+	}
 	_, ok := GetUserUsableGroups(userGroup)[groupName]
 	return ok
 }

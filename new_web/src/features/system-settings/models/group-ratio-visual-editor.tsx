@@ -782,10 +782,10 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       {/* Auto Groups */}
       <Card className={sectionCardClassName}>
         <CardHeader className={sectionHeaderClassName}>
-          <CardTitle>{t('Auto assignment order')}</CardTitle>
+          <CardTitle>{t('Legacy auto group chain')}</CardTitle>
           <CardDescription>
             {t(
-              'Priority order for automatic group assignment. New tokens rotate through this list.'
+              'Priority order used only by the legacy auto group. Rule-based auto groups are configured separately.'
             )}
           </CardDescription>
         </CardHeader>

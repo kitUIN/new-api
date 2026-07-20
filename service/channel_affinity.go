@@ -389,7 +389,7 @@ func resolveChannelAffinityMeta(c *gin.Context, modelName string, usingGroup str
 
 		ttlSeconds := rule.TTLSeconds
 		if ttlSeconds <= 0 {
-			if usingGroup == "auto" && setting.AutoGroupResetSeconds > 0 {
+			if (usingGroup == "auto" || IsRuleAutoGroup(usingGroup)) && setting.AutoGroupResetSeconds > 0 {
 				ttlSeconds = setting.AutoGroupResetSeconds
 			} else {
 				ttlSeconds = setting.DefaultTTLSeconds
@@ -668,7 +668,8 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	if meta.SessionKeyOnly {
 		return false
 	}
-	if common.GetContextKeyString(c, constant.ContextKeyUsingGroup) == "auto" || meta.UsingGroup == "auto" {
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if usingGroup == "auto" || meta.UsingGroup == "auto" || IsRuleAutoGroup(usingGroup) || IsRuleAutoGroup(meta.UsingGroup) {
 		return false
 	}
 	return meta.SkipRetry

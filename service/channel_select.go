@@ -110,7 +110,21 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
-	if param.TokenGroup == "auto" {
+	if IsRuleAutoGroup(param.TokenGroup) {
+		runtime, ok := GetRuleAutoGroupRuntime(param.Ctx)
+		if !ok || runtime.SelectedGroup == "" || runtime.CurrentIndex >= len(runtime.Candidates) {
+			return nil, selectGroup, errors.New("rule auto group has no available candidate")
+		}
+		selectGroup = runtime.SelectedGroup
+		channel, err = param.nextChannelWithRetryExclusions(selectGroup, param.GetRetry())
+		if err != nil {
+			return nil, selectGroup, err
+		}
+		if channel != nil {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, selectGroup)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, runtime.CurrentIndex)
+		}
+	} else if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
 		}

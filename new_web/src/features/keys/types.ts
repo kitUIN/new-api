@@ -42,6 +42,7 @@ export const apiKeySchema = z.object({
     }, z.boolean())
     .optional()
     .default(false),
+  auto_group_mode: z.string().nullish().default(''),
   session_group_failover_enabled: z
     .preprocess((v) => {
       if (v === 1) return true
@@ -114,6 +115,7 @@ export interface ApiKeyFormData {
   allow_ips: string
   group: string
   cross_group_retry: boolean
+  auto_group_mode: string
   session_group_failover_enabled: boolean
   session_failover_groups: string
   session_failover_threshold: number

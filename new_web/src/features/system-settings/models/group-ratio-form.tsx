@@ -18,15 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { memo, useCallback, useState } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getRuleAutoGroupLabel } from '@/lib/rule-auto-groups'
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -37,13 +47,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -51,6 +54,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -58,6 +68,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { getGroups, type RuleAutoGroupInfo } from '@/features/users/api'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -94,6 +105,11 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
+  const { data: groupsResponse } = useQuery({
+    queryKey: ['groups', 'rule-auto-groups'],
+    queryFn: () => getGroups(),
+    staleTime: 5 * 60 * 1000,
+  })
 
   const handleFieldChange = useCallback(
     (field: keyof GroupFormValues, value: string) => {
@@ -132,6 +148,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
       </div>
 
       <GroupPricingGuide open={guideOpen} onOpenChange={setGuideOpen} />
+
+      <RuleAutoGroupsCard groups={groupsResponse?.auto_groups ?? []} />
 
       <Form {...form}>
         <SettingsPageActionsPortal>
@@ -361,6 +379,55 @@ export const GroupRatioForm = memo(function GroupRatioForm({
     </div>
   )
 })
+
+function RuleAutoGroupsCard(props: { groups: RuleAutoGroupInfo[] }) {
+  const { t } = useTranslation()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Rule-based auto groups')}</CardTitle>
+        <CardDescription>
+          {t(
+            'These groups select matching concrete groups by effective ratio and apply per-session circuit breaking.'
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className='grid gap-3 md:grid-cols-2'>
+          {props.groups.map((group) => (
+            <div key={group.name} className='space-y-2 rounded-md border p-3'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-medium'>
+                  {getRuleAutoGroupLabel(group.name, group.label, t)}
+                </span>
+                {group.ratio_range && (
+                  <Badge variant='outline'>{group.ratio_range.display}</Badge>
+                )}
+              </div>
+              <p className='text-muted-foreground text-sm'>
+                {group.description}
+              </p>
+              <div className='flex flex-wrap gap-1.5'>
+                {group.matched_groups.length > 0 ? (
+                  group.matched_groups.map((matchedGroup) => (
+                    <Badge key={matchedGroup} variant='secondary'>
+                      {matchedGroup}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className='text-muted-foreground text-xs'>
+                    {t('No matching groups')}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 function AutoGroupOrderTypeField(props: {
   form: UseFormReturn<GroupFormValues>

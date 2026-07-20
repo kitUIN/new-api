@@ -34,16 +34,17 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 }
 
 func normalizeTokenSessionFailoverForRequest(c *gin.Context, token *model.Token) error {
-	if token == nil || !token.SessionGroupFailoverEnabled {
-		return service.NormalizeTokenSessionFailover(token, c.GetString("group"))
-	}
 	userGroup := c.GetString("group")
-	if userGroup == "" {
+	needsUserGroup := token != nil && (token.SessionGroupFailoverEnabled || service.IsRuleAutoGroup(token.Group))
+	if userGroup == "" && needsUserGroup {
 		userCache, err := model.GetUserCache(c.GetInt("id"))
 		if err != nil {
 			return err
 		}
 		userGroup = userCache.Group
+	}
+	if err := service.NormalizeTokenRuleAutoGroup(token, userGroup); err != nil {
+		return err
 	}
 	return service.NormalizeTokenSessionFailover(token, userGroup)
 }
@@ -261,6 +262,7 @@ func AddToken(c *gin.Context) {
 		AllowIps:                    token.AllowIps,
 		Group:                       token.Group,
 		CrossGroupRetry:             token.CrossGroupRetry,
+		AutoGroupMode:               token.AutoGroupMode,
 		SessionGroupFailoverEnabled: token.SessionGroupFailoverEnabled,
 		SessionFailoverGroups:       token.SessionFailoverGroups,
 		SessionFailoverThreshold:    token.SessionFailoverThreshold,
@@ -346,6 +348,7 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.AutoGroupMode = token.AutoGroupMode
 		cleanToken.SessionGroupFailoverEnabled = token.SessionGroupFailoverEnabled
 		cleanToken.SessionFailoverGroups = token.SessionFailoverGroups
 		cleanToken.SessionFailoverThreshold = token.SessionFailoverThreshold

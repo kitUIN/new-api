@@ -389,7 +389,7 @@ func TokenAuth() func(c *gin.Context) {
 			}
 			// check group in common.GroupRatio
 			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
+				if tokenGroup != "auto" && !service.IsRuleAutoGroup(tokenGroup) {
 					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
 					return
 				}
@@ -426,6 +426,7 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
+	common.SetContextKey(c, constant.ContextKeyTokenAutoGroupMode, token.AutoGroupMode)
 	common.SetContextKey(c, constant.ContextKeyTokenSessionGroupFailoverEnabled, token.SessionGroupFailoverEnabled)
 	common.SetContextKey(c, constant.ContextKeyTokenSessionFailoverGroups, token.SessionFailoverGroups)
 	common.SetContextKey(c, constant.ContextKeyTokenSessionFailoverThreshold, token.SessionFailoverThreshold)

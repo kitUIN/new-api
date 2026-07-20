@@ -193,11 +193,37 @@ export async function getUserModels(): Promise<{
 export async function getUserGroups(): Promise<{
   success: boolean
   message?: string
-  data?: Record<string, { desc: string; ratio: number | string }>
-  groups?: { name: string; desc: string; ratio: number | string }[]
+  data?: Record<
+    string,
+    {
+      label?: string
+      desc: string
+      ratio: number | string
+      is_auto_group?: boolean
+      auto_group_type?: string
+      ratio_range?: GroupRatioRange
+    }
+  >
+  groups?: Array<{
+    name: string
+    label?: string
+    desc: string
+    ratio: number | string
+    is_auto_group?: boolean
+    auto_group_type?: string
+    ratio_range?: GroupRatioRange
+  }>
 }> {
   const res = await api.get('/api/user/self/groups')
   return res.data
+}
+
+export type GroupRatioRange = {
+  min: number
+  max: number
+  min_inclusive: boolean
+  max_inclusive: boolean
+  display: string
 }
 
 // ----------------------------------------------------------------------------

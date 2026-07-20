@@ -28,6 +28,7 @@ type qqOpenTokenResponse struct {
 	ModelLimits        string `json:"model_limits"`
 	Group              string `json:"group"`
 	CrossGroupRetry    bool   `json:"cross_group_retry"`
+	AutoGroupMode      string `json:"auto_group_mode"`
 }
 
 type qqOpenUpdateTokenGroupRequest struct {
@@ -95,6 +96,7 @@ func buildQQOpenTokenResponse(token *model.Token) qqOpenTokenResponse {
 		ModelLimits:        token.ModelLimits,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		AutoGroupMode:      token.AutoGroupMode,
 	}
 }
 
