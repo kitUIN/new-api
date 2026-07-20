@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
@@ -484,6 +485,69 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	return doRequest(c, req, info)
 }
+
+type upstreamFirstResponseTimeoutState struct {
+	timedOut atomic.Bool
+	timer    *time.Timer
+	cancel   context.CancelFunc
+}
+
+func startUpstreamFirstResponseTimeout(req *http.Request, timeout time.Duration) (*http.Request, *upstreamFirstResponseTimeoutState) {
+	ctx, cancel := context.WithCancel(req.Context())
+	state := &upstreamFirstResponseTimeoutState{cancel: cancel}
+	state.timer = time.AfterFunc(timeout, func() {
+		state.timedOut.Store(true)
+		cancel()
+	})
+	return req.WithContext(ctx), state
+}
+
+func (s *upstreamFirstResponseTimeoutState) markResponseReceived() {
+	if s != nil && s.timer != nil {
+		s.timer.Stop()
+	}
+}
+
+func (s *upstreamFirstResponseTimeoutState) close() {
+	if s == nil {
+		return
+	}
+	if s.timer != nil {
+		s.timer.Stop()
+	}
+	if s.cancel != nil {
+		s.cancel()
+	}
+}
+
+func (s *upstreamFirstResponseTimeoutState) normalizeError(err error) error {
+	if s != nil && s.timedOut.Load() {
+		return common.ErrUpstreamFirstResponseTimeout
+	}
+	return err
+}
+
+type upstreamFirstResponseTimeoutBody struct {
+	io.ReadCloser
+	state *upstreamFirstResponseTimeoutState
+}
+
+func (b *upstreamFirstResponseTimeoutBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if b.state != nil && b.state.timedOut.Load() {
+		return 0, common.ErrUpstreamFirstResponseTimeout
+	}
+	if n > 0 {
+		b.state.markResponseReceived()
+	}
+	return n, b.state.normalizeError(err)
+}
+
+func (b *upstreamFirstResponseTimeoutBody) Close() error {
+	b.state.close()
+	return b.ReadCloser.Close()
+}
+
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
@@ -518,18 +582,34 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	c.Set("upstream_request_headers", req.Header.Clone())
 
+	var firstResponseTimeoutState *upstreamFirstResponseTimeoutState
+	if timeout := operation_setting.GetUpstreamFirstResponseTimeout(); timeout > 0 {
+		req, firstResponseTimeoutState = startUpstreamFirstResponseTimeout(req, timeout)
+	}
+
 	info.MarkUpstreamRequestStart()
 	resp, err := client.Do(req)
 	if err != nil {
+		if firstResponseTimeoutState != nil {
+			err = firstResponseTimeoutState.normalizeError(err)
+			firstResponseTimeoutState.close()
+		}
 		info.MarkUpstreamRequestEnd()
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		firstResponseTimeoutState.close()
 		info.MarkUpstreamRequestEnd()
 		return nil, errors.New("resp is nil")
 	}
 	info.MarkUpstreamResponseHeader()
+	if firstResponseTimeoutState != nil {
+		resp.Body = &upstreamFirstResponseTimeoutBody{
+			ReadCloser: resp.Body,
+			state:      firstResponseTimeoutState,
+		}
+	}
 
 	if !info.IsStream {
 		var buf bytes.Buffer

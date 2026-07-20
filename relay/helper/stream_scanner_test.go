@@ -61,6 +61,14 @@ type slowReader struct {
 	delay time.Duration
 }
 
+type fixedErrorReader struct {
+	err error
+}
+
+func (r fixedErrorReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
 func (s *slowReader) Read(p []byte) (int, error) {
 	time.Sleep(s.delay)
 	return s.r.Read(p)
@@ -92,6 +100,17 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	})
 
 	assert.False(t, called.Load(), "handler should not be called for empty body")
+}
+
+func TestStreamScannerHandler_FirstResponseTimeout(t *testing.T) {
+	c, resp, info := setupStreamTest(t, fixedErrorReader{err: relaycommon.ErrUpstreamFirstResponseTimeout})
+
+	streamErr := StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	require.NotNil(t, streamErr)
+	require.ErrorIs(t, streamErr, relaycommon.ErrUpstreamFirstResponseTimeout)
+	require.Equal(t, http.StatusGatewayTimeout, streamErr.StatusCode)
+	require.Equal(t, relaycommon.StreamEndReasonFirstResponseTimeout, info.StreamStatus.EndReason)
 }
 
 func TestStreamScannerHandler_1000Chunks(t *testing.T) {

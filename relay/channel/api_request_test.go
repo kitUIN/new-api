@@ -1,9 +1,12 @@
 package channel
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
@@ -31,6 +34,43 @@ func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
 	require.Empty(t, headers)
+}
+
+func TestUpstreamFirstResponseTimeoutCancelsBeforeResponse(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
+	timedReq, state := startUpstreamFirstResponseTimeout(req, 20*time.Millisecond)
+	defer state.close()
+
+	select {
+	case <-timedReq.Context().Done():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for upstream request cancellation")
+	}
+
+	require.True(t, state.timedOut.Load())
+	require.ErrorIs(t, state.normalizeError(timedReq.Context().Err()), relaycommon.ErrUpstreamFirstResponseTimeout)
+}
+
+func TestUpstreamFirstResponseTimeoutStopsAfterFirstBodyByte(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
+	timedReq, state := startUpstreamFirstResponseTimeout(req, 40*time.Millisecond)
+	body := &upstreamFirstResponseTimeoutBody{
+		ReadCloser: io.NopCloser(strings.NewReader("data: first\n")),
+		state:      state,
+	}
+	defer body.Close()
+
+	buffer := make([]byte, 1)
+	_, err := body.Read(buffer)
+	require.NoError(t, err)
+	time.Sleep(80 * time.Millisecond)
+
+	require.False(t, state.timedOut.Load())
+	select {
+	case <-timedReq.Context().Done():
+		t.Fatal("request context was cancelled after the first response byte")
+	default:
+	}
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {

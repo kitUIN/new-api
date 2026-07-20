@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,16 +10,19 @@ import (
 
 type StreamEndReason string
 
+var ErrUpstreamFirstResponseTimeout = errors.New("upstream first response timeout")
+
 const (
-	StreamEndReasonNone        StreamEndReason = ""
-	StreamEndReasonDone        StreamEndReason = "done"
-	StreamEndReasonTimeout     StreamEndReason = "timeout"
-	StreamEndReasonClientGone  StreamEndReason = "client_gone"
-	StreamEndReasonScannerErr  StreamEndReason = "scanner_error"
-	StreamEndReasonHandlerStop StreamEndReason = "handler_stop"
-	StreamEndReasonEOF         StreamEndReason = "eof"
-	StreamEndReasonPanic       StreamEndReason = "panic"
-	StreamEndReasonPingFail    StreamEndReason = "ping_fail"
+	StreamEndReasonNone                 StreamEndReason = ""
+	StreamEndReasonDone                 StreamEndReason = "done"
+	StreamEndReasonTimeout              StreamEndReason = "timeout"
+	StreamEndReasonFirstResponseTimeout StreamEndReason = "first_response_timeout"
+	StreamEndReasonClientGone           StreamEndReason = "client_gone"
+	StreamEndReasonScannerErr           StreamEndReason = "scanner_error"
+	StreamEndReasonHandlerStop          StreamEndReason = "handler_stop"
+	StreamEndReasonEOF                  StreamEndReason = "eof"
+	StreamEndReasonPanic                StreamEndReason = "panic"
+	StreamEndReasonPingFail             StreamEndReason = "ping_fail"
 )
 
 const maxStreamErrorEntries = 20
@@ -29,9 +33,9 @@ type StreamErrorEntry struct {
 }
 
 type StreamStatus struct {
-	EndReason  StreamEndReason
-	EndError   error
-	endOnce    sync.Once
+	EndReason StreamEndReason
+	EndError  error
+	endOnce   sync.Once
 
 	mu         sync.Mutex
 	Errors     []StreamErrorEntry

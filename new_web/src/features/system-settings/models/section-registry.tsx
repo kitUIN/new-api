@@ -59,6 +59,14 @@ const MODELS_SECTIONS = [
               settings['general_setting.ping_interval_enabled'],
             ping_interval_seconds:
               settings['general_setting.ping_interval_seconds'],
+            upstream_first_response_timeout_enabled:
+              settings[
+                'general_setting.upstream_first_response_timeout_enabled'
+              ],
+            upstream_first_response_timeout_seconds:
+              settings[
+                'general_setting.upstream_first_response_timeout_seconds'
+              ],
           },
         }}
       />

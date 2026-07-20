@@ -214,6 +214,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		if relayInfo.IsStream {
+			relayInfo.StreamStatus = nil
+		}
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -225,6 +228,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
+		newAPIError = normalizeUpstreamFirstResponseTimeout(newAPIError, relayInfo)
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
@@ -380,6 +384,22 @@ func relayTTFT(info *relaycommon.RelayInfo) (int64, bool) {
 		return 0, false
 	}
 	return info.FirstResponseTime.Sub(info.StartTime).Milliseconds(), true
+}
+
+func normalizeUpstreamFirstResponseTimeout(err *types.NewAPIError, info *relaycommon.RelayInfo) *types.NewAPIError {
+	timedOut := errors.Is(err, relaycommon.ErrUpstreamFirstResponseTimeout)
+	if info != nil && info.StreamStatus != nil {
+		timedOut = timedOut || info.StreamStatus.EndReason == relaycommon.StreamEndReasonFirstResponseTimeout
+	}
+	if !timedOut {
+		return err
+	}
+	timeout := operation_setting.GetUpstreamFirstResponseTimeout()
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("upstream did not return the first response byte within %s: %w", timeout, relaycommon.ErrUpstreamFirstResponseTimeout),
+		types.ErrorCodeUpstreamFirstResponseTimeout,
+		http.StatusGatewayTimeout,
+	)
 }
 
 func shouldRecordRuleAutoGroupFailure(err *types.NewAPIError, info *relaycommon.RelayInfo) bool {

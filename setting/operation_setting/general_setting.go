@@ -1,6 +1,12 @@
 package operation_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import (
+	"time"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
+
+const defaultUpstreamFirstResponseTimeoutSeconds = 30
 
 // 额度展示类型
 const (
@@ -11,9 +17,11 @@ const (
 )
 
 type GeneralSetting struct {
-	DocsLink            string `json:"docs_link"`
-	PingIntervalEnabled bool   `json:"ping_interval_enabled"`
-	PingIntervalSeconds int    `json:"ping_interval_seconds"`
+	DocsLink                            string `json:"docs_link"`
+	PingIntervalEnabled                 bool   `json:"ping_interval_enabled"`
+	PingIntervalSeconds                 int    `json:"ping_interval_seconds"`
+	UpstreamFirstResponseTimeoutEnabled bool   `json:"upstream_first_response_timeout_enabled"`
+	UpstreamFirstResponseTimeoutSeconds int    `json:"upstream_first_response_timeout_seconds"`
 	// 当前站点额度展示类型：USD / CNY / TOKENS
 	QuotaDisplayType string `json:"quota_display_type"`
 	// 自定义货币符号，用于 CUSTOM 展示类型
@@ -24,12 +32,14 @@ type GeneralSetting struct {
 
 // 默认配置
 var generalSetting = GeneralSetting{
-	DocsLink:                   "https://docs.newapi.pro",
-	PingIntervalEnabled:        false,
-	PingIntervalSeconds:        60,
-	QuotaDisplayType:           QuotaDisplayTypeUSD,
-	CustomCurrencySymbol:       "¤",
-	CustomCurrencyExchangeRate: 1.0,
+	DocsLink:                            "https://docs.newapi.pro",
+	PingIntervalEnabled:                 false,
+	PingIntervalSeconds:                 60,
+	UpstreamFirstResponseTimeoutEnabled: true,
+	UpstreamFirstResponseTimeoutSeconds: defaultUpstreamFirstResponseTimeoutSeconds,
+	QuotaDisplayType:                    QuotaDisplayTypeUSD,
+	CustomCurrencySymbol:                "¤",
+	CustomCurrencyExchangeRate:          1.0,
 }
 
 func init() {
@@ -39,6 +49,17 @@ func init() {
 
 func GetGeneralSetting() *GeneralSetting {
 	return &generalSetting
+}
+
+func GetUpstreamFirstResponseTimeout() time.Duration {
+	if !generalSetting.UpstreamFirstResponseTimeoutEnabled {
+		return 0
+	}
+	seconds := generalSetting.UpstreamFirstResponseTimeoutSeconds
+	if seconds <= 0 {
+		seconds = defaultUpstreamFirstResponseTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // IsCurrencyDisplay 是否以货币形式展示（美元或人民币）

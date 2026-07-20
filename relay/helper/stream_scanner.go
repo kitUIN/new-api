@@ -3,6 +3,7 @@ package helper
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 
@@ -35,10 +37,10 @@ func getScannerBufferSize() int {
 	return DefaultMaxScannerBufferSize
 }
 
-func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
+func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) *types.NewAPIError {
 
 	if resp == nil || dataHandler == nil {
-		return
+		return nil
 	}
 
 	if info.StreamStatus == nil {
@@ -280,7 +282,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		if err := scanner.Err(); err != nil {
 			if err != io.EOF {
 				logger.LogError(c, "scanner error: "+err.Error())
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+				if errors.Is(err, relaycommon.ErrUpstreamFirstResponseTimeout) {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonFirstResponseTimeout, err)
+				} else {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+				}
 			}
 		}
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
@@ -301,4 +307,14 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
+
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonFirstResponseTimeout {
+		timeout := operation_setting.GetUpstreamFirstResponseTimeout()
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("upstream did not return the first response byte within %s: %w", timeout, relaycommon.ErrUpstreamFirstResponseTimeout),
+			types.ErrorCodeUpstreamFirstResponseTimeout,
+			http.StatusGatewayTimeout,
+		)
+	}
+	return nil
 }

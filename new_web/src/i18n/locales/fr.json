@@ -4886,6 +4886,10 @@
     "Online Banking": "Online Banking",
     "JD Pay": "JD Pay",
     "UnionPay": "UnionPay",
-    "Douyin Pay": "Douyin Pay"
+    "Douyin Pay": "Douyin Pay",
+    "Enable Upstream First Response Timeout": "Activer le délai de première réponse en amont",
+    "Abort upstream requests that do not return the first response byte within the configured time.": "Interrompt les requêtes en amont qui ne renvoient pas le premier octet de réponse dans le délai configuré.",
+    "Upstream First Response Timeout (seconds)": "Délai de première réponse en amont (secondes)",
+    "Timeout starts when the upstream request is sent and stops after the first response byte is received.": "Le délai commence à l’envoi de la requête en amont et s’arrête à la réception du premier octet de réponse."
   }
 }
