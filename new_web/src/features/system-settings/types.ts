@@ -278,6 +278,7 @@ export type BillingSettings = {
   WaffoPayMethods: string
   XznPayEnabled: boolean
   XznPayGatewayURL: string
+  XznPayCallbackAddress: string
   XznPayPID: string
   XznPaySignType: 'MD5' | 'RSA'
   XznPayMD5Key: string

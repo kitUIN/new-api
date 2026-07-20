@@ -14,14 +14,15 @@ const (
 )
 
 var (
-	XznPayEnabled    bool
-	XznPayGatewayURL = XznPayDefaultGateway
-	XznPayPID        string
-	XznPaySignType   = XznPaySignTypeMD5
-	XznPayMD5Key     string
-	XznPayPrivateKey string
-	XznPayPublicKey  string
-	XznPayMinTopUp   = 1
+	XznPayEnabled         bool
+	XznPayGatewayURL      = XznPayDefaultGateway
+	XznPayCallbackAddress string
+	XznPayPID             string
+	XznPaySignType        = XznPaySignTypeMD5
+	XznPayMD5Key          string
+	XznPayPrivateKey      string
+	XznPayPublicKey       string
+	XznPayMinTopUp        = 1
 )
 
 type XznPayMethod struct {

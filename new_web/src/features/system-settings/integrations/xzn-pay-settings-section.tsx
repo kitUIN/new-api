@@ -39,6 +39,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 export interface XznPaySettingsValues {
   XznPayEnabled: boolean
   XznPayGatewayURL: string
+  XznPayCallbackAddress: string
   XznPayPID: string
   XznPaySignType: 'MD5' | 'RSA'
   XznPayMD5Key: string
@@ -112,6 +113,7 @@ export function XznPaySettingsSection(props: Props) {
 
   const handleSave = async () => {
     const values = form.getValues()
+    const callbackAddress = values.XznPayCallbackAddress.trim()
     let parsedMethods: XznPayMethodTemplate[]
     try {
       parsedMethods = parseMethods(methods)
@@ -122,6 +124,10 @@ export function XznPaySettingsSection(props: Props) {
       }
     } catch {
       toast.error(t('Payment methods must be a JSON array'))
+      return
+    }
+    if (callbackAddress && !/^https?:\/\//.test(callbackAddress)) {
+      toast.error(t('Provide a valid URL starting with http:// or https://'))
       return
     }
     if (values.XznPayEnabled) {
@@ -142,6 +148,10 @@ export function XznPaySettingsSection(props: Props) {
         {
           key: 'XznPayGatewayURL',
           value: values.XznPayGatewayURL.trim().replace(/\/$/, ''),
+        },
+        {
+          key: 'XznPayCallbackAddress',
+          value: callbackAddress.replace(/\/+$/, ''),
         },
         { key: 'XznPayPID', value: values.XznPayPID.trim() },
         { key: 'XznPaySignType', value: values.XznPaySignType },
@@ -206,6 +216,17 @@ export function XznPaySettingsSection(props: Props) {
         <div className='grid gap-1.5'>
           <Label>{t('Merchant ID')}</Label>
           <Input {...form.register('XznPayPID')} />
+        </div>
+        <div className='grid gap-1.5 sm:col-span-2'>
+          <Label>{t('Callback address')}</Label>
+          <Input
+            type='url'
+            placeholder='https://gateway.example.com'
+            {...form.register('XznPayCallbackAddress')}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Optional callback override. Leave blank to use server address')}
+          </p>
         </div>
         <div className='grid gap-1.5'>
           <Label>{t('Signature type')}</Label>

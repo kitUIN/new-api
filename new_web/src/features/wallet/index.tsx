@@ -53,7 +53,6 @@ import type {
   PaymentMethod,
   PresetAmount,
   CreemProduct,
-  XznPayMethod,
 } from './types'
 
 interface WalletProps {
@@ -107,7 +106,8 @@ export function Wallet(props: WalletProps) {
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
-  const { processXznPayPayment } = useXznPayPayment()
+  const { processing: xznPayProcessing, processXznPayPayment } =
+    useXznPayPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(
@@ -208,9 +208,15 @@ export function Wallet(props: WalletProps) {
     if (!selectedPaymentMethod) return
 
     const isPancake = isWaffoPancakePayment(selectedPaymentMethod.type)
-    const success = isPancake
-      ? await processWaffoPancakePayment(topupAmount)
-      : await processPayment(topupAmount, selectedPaymentMethod.type)
+    const xznPayMethodIndex = selectedPaymentMethod.xzn_pay_method_index
+    const isXznPay =
+      typeof xznPayMethodIndex === 'number' &&
+      Number.isInteger(xznPayMethodIndex)
+    const success = isXznPay
+      ? await processXznPayPayment(topupAmount, xznPayMethodIndex)
+      : isPancake
+        ? await processWaffoPancakePayment(topupAmount)
+        : await processPayment(topupAmount, selectedPaymentMethod.type)
 
     if (success) {
       setConfirmDialogOpen(false)
@@ -262,19 +268,6 @@ export function Wallet(props: WalletProps) {
 
     try {
       await processWaffoPayment(topupAmount, index)
-    } finally {
-      setPaymentLoading(null)
-    }
-  }
-
-  const handleXznPayMethodSelect = async (
-    _method: XznPayMethod,
-    index: number
-  ) => {
-    const loadingKey = `xzn-pay-${index}`
-    setPaymentLoading(loadingKey)
-    try {
-      await processXznPayPayment(topupAmount, index)
     } finally {
       setPaymentLoading(null)
     }
@@ -338,10 +331,6 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
-                  enableXznPayTopup={topupInfo?.enable_xzn_pay_topup}
-                  xznPayMethods={topupInfo?.xzn_pay_methods}
-                  xznPayMinTopup={topupInfo?.xzn_pay_min_topup}
-                  onXznPayMethodSelect={handleXznPayMethodSelect}
                 />
               </div>
 
@@ -372,7 +361,7 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing || pancakeProcessing}
+        processing={processing || pancakeProcessing || xznPayProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
       />

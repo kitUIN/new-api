@@ -3,9 +3,34 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetXznPayCallbackAddress(t *testing.T) {
+	originalXznPayCallbackAddress := setting.XznPayCallbackAddress
+	originalCustomCallbackAddress := operation_setting.CustomCallbackAddress
+	originalServerAddress := system_setting.ServerAddress
+	t.Cleanup(func() {
+		setting.XznPayCallbackAddress = originalXznPayCallbackAddress
+		operation_setting.CustomCallbackAddress = originalCustomCallbackAddress
+		system_setting.ServerAddress = originalServerAddress
+	})
+
+	setting.XznPayCallbackAddress = " https://xzn.example.com/// "
+	require.Equal(t, "https://xzn.example.com", getXznPayCallbackAddress())
+
+	setting.XznPayCallbackAddress = ""
+	operation_setting.CustomCallbackAddress = "https://payments.example.com/"
+	require.Equal(t, "https://payments.example.com", getXznPayCallbackAddress())
+
+	operation_setting.CustomCallbackAddress = ""
+	system_setting.ServerAddress = "https://server.example.com/"
+	require.Equal(t, "https://server.example.com", getXznPayCallbackAddress())
+}
 
 func TestParseXznPayMoneyCents(t *testing.T) {
 	testCases := []struct {

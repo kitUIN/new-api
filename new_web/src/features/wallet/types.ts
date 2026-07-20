@@ -104,6 +104,8 @@ export interface PaymentMethod {
   min_topup?: number
   /** Optional icon URL provided by backend (preferred over built-in icons) */
   icon?: string
+  /** XznPay method index when this button is handled by XznPay */
+  xzn_pay_method_index?: number
 }
 
 /**
@@ -122,6 +124,7 @@ export interface WaffoPayMethod {
 
 export interface XznPayMethod {
   name: string
+  paytype_code: string
   icon?: string
   min_topup?: number
 }

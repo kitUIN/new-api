@@ -102,6 +102,7 @@ const defaultBillingSettings: BillingSettings = {
   WaffoPayMethods: '[]',
   XznPayEnabled: false,
   XznPayGatewayURL: 'https://pay.xzncraft.cn',
+  XznPayCallbackAddress: '',
   XznPayPID: '',
   XznPaySignType: 'MD5',
   XznPayMD5Key: '',

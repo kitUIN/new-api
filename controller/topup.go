@@ -99,9 +99,10 @@ func GetTopUpInfo(c *gin.Context) {
 				effectiveMinTopUp = setting.XznPayMinTopUp
 			}
 			xznPayMethods = append(xznPayMethods, gin.H{
-				"name":      method.Name,
-				"icon":      method.Icon,
-				"min_topup": effectiveMinTopUp,
+				"name":         method.Name,
+				"paytype_code": method.PayTypeCode,
+				"icon":         method.Icon,
+				"min_topup":    effectiveMinTopUp,
 			})
 		}
 	}

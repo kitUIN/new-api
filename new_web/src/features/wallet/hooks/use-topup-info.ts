@@ -105,10 +105,41 @@ function parseXznPayMethods(data: unknown): XznPayMethod[] {
     )
     .map((item) => ({
       name: typeof item.name === 'string' ? item.name : '',
+      paytype_code:
+        typeof item.paytype_code === 'string' ? item.paytype_code : '',
       icon: typeof item.icon === 'string' ? item.icon : undefined,
       min_topup: Number(item.min_topup) || 0,
     }))
-    .filter((item) => item.name)
+    .filter((item) => item.name && item.paytype_code)
+}
+
+function bindXznPayMethods(
+  payMethods: PaymentMethod[],
+  xznPayMethods: XznPayMethod[],
+  xznPayMinTopup: number
+): PaymentMethod[] {
+  return payMethods.map((method) => {
+    const xznPayMethodIndex = xznPayMethods.findIndex(
+      (xznPayMethod) =>
+        xznPayMethod.paytype_code.trim().toLowerCase() ===
+        method.type.trim().toLowerCase()
+    )
+
+    if (xznPayMethodIndex < 0) {
+      return method
+    }
+
+    const xznPayMethod = xznPayMethods[xznPayMethodIndex]
+    return {
+      ...method,
+      min_topup: Math.max(
+        method.min_topup || 0,
+        xznPayMethod.min_topup || 0,
+        xznPayMinTopup
+      ),
+      xzn_pay_method_index: xznPayMethodIndex,
+    }
+  })
 }
 
 function parseCreemProducts(data: unknown): CreemProduct[] {
@@ -193,19 +224,27 @@ export function useTopupInfo() {
         return
       }
 
+      const xznPayMethods = parseXznPayMethods(response.data.xzn_pay_methods)
+      const payMethods = parsePaymentMethods(
+        response.data.pay_methods,
+        response.data.stripe_min_topup
+      )
       const processedData: TopupInfo = {
         ...response.data,
-        pay_methods: parsePaymentMethods(
-          response.data.pay_methods,
-          response.data.stripe_min_topup
-        ),
+        pay_methods: response.data.enable_xzn_pay_topup
+          ? bindXznPayMethods(
+              payMethods,
+              xznPayMethods,
+              Number(response.data.xzn_pay_min_topup) || 0
+            )
+          : payMethods,
         amount_options: parseAmountOptions(response.data.amount_options),
         discount: parseDiscountMap(response.data.discount),
         creem_products: parseCreemProducts(response.data.creem_products),
         waffo_pay_methods: parseWaffoPayMethods(
           response.data.waffo_pay_methods
         ),
-        xzn_pay_methods: parseXznPayMethods(response.data.xzn_pay_methods),
+        xzn_pay_methods: xznPayMethods,
       }
 
       setTopupInfo(processedData)

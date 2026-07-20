@@ -85,6 +85,7 @@ func InitOptionMap() {
 	common.OptionMap["EpayKey"] = ""
 	common.OptionMap["XznPayEnabled"] = strconv.FormatBool(setting.XznPayEnabled)
 	common.OptionMap["XznPayGatewayURL"] = setting.XznPayGatewayURL
+	common.OptionMap["XznPayCallbackAddress"] = setting.XznPayCallbackAddress
 	common.OptionMap["XznPayPID"] = setting.XznPayPID
 	common.OptionMap["XznPaySignType"] = setting.XznPaySignType
 	common.OptionMap["XznPayMD5Key"] = setting.XznPayMD5Key
@@ -514,6 +515,8 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.XznPayEnabled = value == "true"
 	case "XznPayGatewayURL":
 		setting.XznPayGatewayURL = value
+	case "XznPayCallbackAddress":
+		setting.XznPayCallbackAddress = value
 	case "XznPayPID":
 		setting.XznPayPID = value
 	case "XznPaySignType":

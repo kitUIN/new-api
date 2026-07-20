@@ -45,6 +45,14 @@ func getXznPayClient() (*service.XznPayClient, error) {
 	}, nil)
 }
 
+func getXznPayCallbackAddress() string {
+	callbackAddress := strings.TrimSpace(setting.XznPayCallbackAddress)
+	if callbackAddress == "" {
+		callbackAddress = service.GetCallbackAddress()
+	}
+	return strings.TrimRight(callbackAddress, "/")
+}
+
 func RequestXznPay(c *gin.Context) {
 	if !isXznPayTopUpEnabled() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "XznPay 支付未启用"})
@@ -116,7 +124,7 @@ func RequestXznPay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付配置错误"})
 		return
 	}
-	callbackAddress := strings.TrimRight(service.GetCallbackAddress(), "/")
+	callbackAddress := getXznPayCallbackAddress()
 	returnAddress := strings.TrimRight(system_setting.ServerAddress, "/") + "/console/topup?show_history=true"
 	params := map[string]string{
 		"out_trade_no": tradeNo,

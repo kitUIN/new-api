@@ -177,6 +177,7 @@ const BILLING_SECTIONS = [
           XznPayEnabled: settings.XznPayEnabled ?? false,
           XznPayGatewayURL:
             settings.XznPayGatewayURL ?? 'https://pay.xzncraft.cn',
+          XznPayCallbackAddress: settings.XznPayCallbackAddress ?? '',
           XznPayPID: settings.XznPayPID ?? '',
           XznPaySignType: settings.XznPaySignType ?? 'MD5',
           XznPayMD5Key: settings.XznPayMD5Key ?? '',
