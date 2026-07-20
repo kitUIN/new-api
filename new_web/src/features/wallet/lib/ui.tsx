@@ -121,6 +121,13 @@ export function getPaymentIcon(
           style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WAFFO] }}
         />
       )
+    case PAYMENT_TYPES.XZN_PAY:
+      return (
+        <CreditCard
+          className={className}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.XZN_PAY] }}
+        />
+      )
     case PAYMENT_TYPES.WAFFO_PANCAKE:
       // The W glyph fills only ~40% of its viewBox vertically (wide and
       // short letterform); scale(2) brings its rendered height in line

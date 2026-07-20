@@ -173,6 +173,18 @@ const BILLING_SECTIONS = [
           WaffoReturnUrl: settings.WaffoReturnUrl ?? '',
           WaffoPayMethods: settings.WaffoPayMethods ?? '[]',
         }}
+        xznPayDefaultValues={{
+          XznPayEnabled: settings.XznPayEnabled ?? false,
+          XznPayGatewayURL:
+            settings.XznPayGatewayURL ?? 'https://pay.xzncraft.cn',
+          XznPayPID: settings.XznPayPID ?? '',
+          XznPaySignType: settings.XznPaySignType ?? 'MD5',
+          XznPayMD5Key: settings.XznPayMD5Key ?? '',
+          XznPayPrivateKey: settings.XznPayPrivateKey ?? '',
+          XznPayPublicKey: settings.XznPayPublicKey ?? '',
+          XznPayMinTopUp: settings.XznPayMinTopUp ?? 1,
+          XznPayMethods: settings.XznPayMethods ?? '[]',
+        }}
         waffoPancakeDefaultValues={{
           WaffoPancakeMerchantID: settings.WaffoPancakeMerchantID ?? '',
           WaffoPancakePrivateKey: settings.WaffoPancakePrivateKey ?? '',

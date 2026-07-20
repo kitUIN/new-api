@@ -83,6 +83,15 @@ func InitOptionMap() {
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
+	common.OptionMap["XznPayEnabled"] = strconv.FormatBool(setting.XznPayEnabled)
+	common.OptionMap["XznPayGatewayURL"] = setting.XznPayGatewayURL
+	common.OptionMap["XznPayPID"] = setting.XznPayPID
+	common.OptionMap["XznPaySignType"] = setting.XznPaySignType
+	common.OptionMap["XznPayMD5Key"] = setting.XznPayMD5Key
+	common.OptionMap["XznPayPrivateKey"] = setting.XznPayPrivateKey
+	common.OptionMap["XznPayPublicKey"] = setting.XznPayPublicKey
+	common.OptionMap["XznPayMinTopUp"] = strconv.Itoa(setting.XznPayMinTopUp)
+	common.OptionMap["XznPayMethods"] = setting.XznPayMethods2JsonString()
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
@@ -501,6 +510,24 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.EpayId = value
 	case "EpayKey":
 		operation_setting.EpayKey = value
+	case "XznPayEnabled":
+		setting.XznPayEnabled = value == "true"
+	case "XznPayGatewayURL":
+		setting.XznPayGatewayURL = value
+	case "XznPayPID":
+		setting.XznPayPID = value
+	case "XznPaySignType":
+		setting.XznPaySignType = strings.ToUpper(value)
+	case "XznPayMD5Key":
+		setting.XznPayMD5Key = value
+	case "XznPayPrivateKey":
+		setting.XznPayPrivateKey = value
+	case "XznPayPublicKey":
+		setting.XznPayPublicKey = value
+	case "XznPayMinTopUp":
+		setting.XznPayMinTopUp, _ = strconv.Atoi(value)
+	case "XznPayMethods":
+		err = setting.ValidateXznPayMethodsJson(value)
 	case "Price":
 		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
 	case "USDExchangeRate":

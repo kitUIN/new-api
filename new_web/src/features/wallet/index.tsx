@@ -41,6 +41,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useXznPayPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -52,6 +53,7 @@ import type {
   PaymentMethod,
   PresetAmount,
   CreemProduct,
+  XznPayMethod,
 } from './types'
 
 interface WalletProps {
@@ -105,6 +107,7 @@ export function Wallet(props: WalletProps) {
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { processXznPayPayment } = useXznPayPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(
@@ -264,6 +267,19 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const handleXznPayMethodSelect = async (
+    _method: XznPayMethod,
+    index: number
+  ) => {
+    const loadingKey = `xzn-pay-${index}`
+    setPaymentLoading(loadingKey)
+    try {
+      await processXznPayPayment(topupAmount, index)
+    } finally {
+      setPaymentLoading(null)
+    }
+  }
+
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
@@ -322,6 +338,10 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableXznPayTopup={topupInfo?.enable_xzn_pay_topup}
+                  xznPayMethods={topupInfo?.xzn_pay_methods}
+                  xznPayMinTopup={topupInfo?.xzn_pay_min_topup}
+                  onXznPayMethodSelect={handleXznPayMethodSelect}
                 />
               </div>
 

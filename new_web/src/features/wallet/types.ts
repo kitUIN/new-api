@@ -59,6 +59,10 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type XznPayPaymentResponse = ApiResponse<{
+  payment_url?: string
+  order_id?: string
+}>
 
 /**
  * Creem product configuration
@@ -116,6 +120,12 @@ export interface WaffoPayMethod {
   payMethodName?: string
 }
 
+export interface XznPayMethod {
+  name: string
+  icon?: string
+  min_topup?: number
+}
+
 /**
  * Topup configuration information
  */
@@ -150,6 +160,12 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether XznPay topup is enabled */
+  enable_xzn_pay_topup?: boolean
+  /** Public XznPay payment method metadata */
+  xzn_pay_methods?: XznPayMethod[]
+  /** Minimum topup amount for XznPay */
+  xzn_pay_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -204,6 +220,11 @@ export interface WaffoPancakePaymentRequest {
   amount: number
 }
 
+export interface XznPayPaymentRequest {
+  amount: number
+  pay_method_index: number
+}
+
 /**
  * Amount calculation request
  */
@@ -247,7 +268,14 @@ export interface UserWalletData {
 /**
  * Topup record status
  */
-export type TopupStatus = 'success' | 'pending' | 'expired'
+export type TopupStatus =
+  | 'success'
+  | 'pending'
+  | 'failed'
+  | 'expired'
+  | 'frozen'
+  | 'partially_refunded'
+  | 'refunded'
 
 /**
  * Topup billing record
@@ -265,6 +293,12 @@ export interface TopupRecord {
   trade_no: string
   /** Payment method type */
   payment_method: string
+  /** Upstream provider order number */
+  provider_trade_no?: string
+  /** Upstream payment type */
+  provider_pay_type?: string
+  /** Latest upstream payment status */
+  provider_status?: string
   /** Creation timestamp */
   create_time: number
   /** Completion timestamp */

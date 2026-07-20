@@ -276,6 +276,15 @@ export type BillingSettings = {
   WaffoNotifyUrl: string
   WaffoReturnUrl: string
   WaffoPayMethods: string
+  XznPayEnabled: boolean
+  XznPayGatewayURL: string
+  XznPayPID: string
+  XznPaySignType: 'MD5' | 'RSA'
+  XznPayMD5Key: string
+  XznPayPrivateKey: string
+  XznPayPublicKey: string
+  XznPayMinTopUp: number
+  XznPayMethods: string
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string

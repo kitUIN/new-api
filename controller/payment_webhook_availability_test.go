@@ -3,6 +3,7 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,64 @@ func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 
 	setting.StripePriceId = ""
 	require.False(t, isStripeWebhookEnabled())
+}
+
+func TestXznPayWebhookEnabledRequiresCompleteConfig(t *testing.T) {
+	originalEnabled := setting.XznPayEnabled
+	originalGateway := setting.XznPayGatewayURL
+	originalPID := setting.XznPayPID
+	originalSignType := setting.XznPaySignType
+	originalMD5Key := setting.XznPayMD5Key
+	originalPrivateKey := setting.XznPayPrivateKey
+	originalPublicKey := setting.XznPayPublicKey
+	common.OptionMapRWMutex.Lock()
+	optionMapWasNil := common.OptionMap == nil
+	if optionMapWasNil {
+		common.OptionMap = make(map[string]string)
+	}
+	originalMethods := common.OptionMap["XznPayMethods"]
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		setting.XznPayEnabled = originalEnabled
+		setting.XznPayGatewayURL = originalGateway
+		setting.XznPayPID = originalPID
+		setting.XznPaySignType = originalSignType
+		setting.XznPayMD5Key = originalMD5Key
+		setting.XznPayPrivateKey = originalPrivateKey
+		setting.XznPayPublicKey = originalPublicKey
+		common.OptionMapRWMutex.Lock()
+		if optionMapWasNil {
+			common.OptionMap = nil
+		} else {
+			common.OptionMap["XznPayMethods"] = originalMethods
+		}
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	setting.XznPayEnabled = true
+	setting.XznPayGatewayURL = "https://pay.example.com"
+	setting.XznPayPID = "20880001"
+	setting.XznPaySignType = setting.XznPaySignTypeMD5
+	setting.XznPayMD5Key = ""
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["XznPayMethods"] = `[{"name":"Alipay","paytype_code":"alipay"}]`
+	common.OptionMapRWMutex.Unlock()
+	require.False(t, isXznPayWebhookEnabled())
+
+	setting.XznPayMD5Key = "secret"
+	require.True(t, isXznPayWebhookEnabled())
+
+	setting.XznPaySignType = setting.XznPaySignTypeRSA
+	setting.XznPayPrivateKey = "private"
+	setting.XznPayPublicKey = ""
+	require.False(t, isXznPayWebhookEnabled())
+	setting.XznPayPublicKey = "public"
+	require.True(t, isXznPayWebhookEnabled())
+
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["XznPayMethods"] = `[]`
+	common.OptionMapRWMutex.Unlock()
+	require.False(t, isXznPayWebhookEnabled())
 }
 
 func TestCreemWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {

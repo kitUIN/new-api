@@ -98,3 +98,24 @@ func isEpayWebhookConfigured() bool {
 func isEpayWebhookEnabled() bool {
 	return isEpayTopUpEnabled()
 }
+
+func isXznPayTopUpEnabled() bool {
+	if !setting.XznPayEnabled || len(setting.GetXznPayMethods()) == 0 {
+		return false
+	}
+	if strings.TrimSpace(setting.XznPayGatewayURL) == "" || strings.TrimSpace(setting.XznPayPID) == "" {
+		return false
+	}
+	switch strings.ToUpper(strings.TrimSpace(setting.XznPaySignType)) {
+	case setting.XznPaySignTypeMD5:
+		return strings.TrimSpace(setting.XznPayMD5Key) != ""
+	case setting.XznPaySignTypeRSA:
+		return strings.TrimSpace(setting.XznPayPrivateKey) != "" && strings.TrimSpace(setting.XznPayPublicKey) != ""
+	default:
+		return false
+	}
+}
+
+func isXznPayWebhookEnabled() bool {
+	return isXznPayTopUpEnabled()
+}

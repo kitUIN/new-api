@@ -64,6 +64,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
+		apiRouter.POST("/xzn-pay/webhook", controller.XznPayWebhook)
 		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)
 		//apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
@@ -105,6 +106,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
+				selfRoute.POST("/xzn-pay/pay", middleware.CriticalRateLimit(), controller.RequestXznPay)
 				selfRoute.POST("/amount", controller.RequestAmount)
 				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)

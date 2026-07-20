@@ -90,12 +90,31 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableXznPay := isXznPayTopUpEnabled()
+	xznPayMethods := make([]gin.H, 0)
+	if enableXznPay {
+		for _, method := range setting.GetXznPayMethods() {
+			effectiveMinTopUp := method.MinTopUp
+			if effectiveMinTopUp < setting.XznPayMinTopUp {
+				effectiveMinTopUp = setting.XznPayMinTopUp
+			}
+			xznPayMethods = append(xznPayMethods, gin.H{
+				"name":      method.Name,
+				"icon":      method.Icon,
+				"min_topup": effectiveMinTopUp,
+			})
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup":        isEpayTopUpEnabled(),
 		"enable_stripe_topup":        isStripeTopUpEnabled(),
 		"enable_creem_topup":         isCreemTopUpEnabled(),
 		"enable_waffo_topup":         enableWaffo,
 		"enable_waffo_pancake_topup": enableWaffoPancake,
+		"enable_xzn_pay_topup":       enableXznPay,
+		"xzn_pay_methods":            xznPayMethods,
+		"xzn_pay_min_topup":          setting.XznPayMinTopUp,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -128,6 +147,7 @@ var nonEpayPaymentMethodsForCallback = []string{
 	model.PaymentMethodCreem,
 	model.PaymentMethodWaffo,
 	model.PaymentMethodWaffoPancake,
+	model.PaymentMethodXznPay,
 }
 
 func isNonEpayPaymentMethodForEpayCallback(paymentMethod string) bool {

@@ -12,15 +12,23 @@ import (
 )
 
 type TopUp struct {
-	Id            int     `json:"id"`
-	UserId        int     `json:"user_id" gorm:"index"`
-	Amount        int64   `json:"amount"`
-	Money         float64 `json:"money"`
-	TradeNo       string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod string  `json:"payment_method" gorm:"type:varchar(50)"`
-	CreateTime    int64   `json:"create_time"`
-	CompleteTime  int64   `json:"complete_time"`
-	Status        string  `json:"status"`
+	Id                     int     `json:"id"`
+	UserId                 int     `json:"user_id" gorm:"index"`
+	Amount                 int64   `json:"amount"`
+	Money                  float64 `json:"money"`
+	TradeNo                string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod          string  `json:"payment_method" gorm:"type:varchar(50)"`
+	CreateTime             int64   `json:"create_time"`
+	CompleteTime           int64   `json:"complete_time"`
+	Status                 string  `json:"status"`
+	ProviderTradeNo        string  `json:"provider_trade_no,omitempty" gorm:"type:varchar(255);index"`
+	ProviderPayType        string  `json:"provider_pay_type,omitempty" gorm:"type:varchar(50)"`
+	ProviderStatus         string  `json:"provider_status,omitempty" gorm:"type:varchar(50)"`
+	CreditedQuota          int64   `json:"-"`
+	RefundedQuota          int64   `json:"-"`
+	FrozenQuota            int64   `json:"-"`
+	ProviderRefundedAmount int64   `json:"-"`
+	ProviderFrozen         bool    `json:"-"`
 }
 
 const (
@@ -28,6 +36,7 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodXznPay       = "xzn_pay"
 )
 
 var (
@@ -66,6 +75,22 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 		return nil
 	}
 	return topUp
+}
+
+func UpdateTopUpProviderTradeNo(tradeNo string, providerTradeNo string, expectedPaymentMethod string) error {
+	if tradeNo == "" || providerTradeNo == "" {
+		return errors.New("支付订单号不能为空")
+	}
+	result := DB.Model(&TopUp{}).
+		Where("trade_no = ? AND payment_method = ? AND (provider_trade_no = ? OR provider_trade_no IS NULL OR provider_trade_no = ?)", tradeNo, expectedPaymentMethod, "", providerTradeNo).
+		Update("provider_trade_no", providerTradeNo)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrPaymentMethodMismatch
+	}
+	return nil
 }
 
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentMethod string, targetStatus string) error {
@@ -350,6 +375,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
+		}
+		if topUp.PaymentMethod == PaymentMethodXznPay {
+			topUp.CreditedQuota = int64(quotaToAdd)
 		}
 
 		// 标记完成
