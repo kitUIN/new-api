@@ -126,3 +126,46 @@ func TestRegisterUsesInvitationAsUsernameAndCopiesProfileFields(t *testing.T) {
 		t.Fatalf("invitation was not consumed correctly: %+v", consumed)
 	}
 }
+
+func TestRegisterAllowsInvitationWhenGeneralRegistrationDisabled(t *testing.T) {
+	db := setupInvitationRegisterControllerTestDB(t)
+	common.RegisterEnabled = false
+
+	invitation := model.Invitation{
+		Code:        "987654321",
+		Remark:      "invitation-only user",
+		Status:      model.InvitationStatusAvailable,
+		CreatedTime: common.GetTimestamp(),
+	}
+	if err := db.Create(&invitation).Error; err != nil {
+		t.Fatalf("failed to seed invitation: %v", err)
+	}
+
+	payload, err := common.Marshal(map[string]any{
+		"invite_code":  invitation.Code,
+		"display_name": "invited user",
+		"password":     "password123",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal registration payload: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/register", bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	Register(ctx)
+
+	var response invitationRegisterResponse
+	if err := common.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected invitation registration to succeed when general registration is disabled, got %q", response.Message)
+	}
+
+	var user model.User
+	if err := db.Where("username = ?", invitation.Code).First(&user).Error; err != nil {
+		t.Fatalf("failed to load registered user: %v", err)
+	}
+}
