@@ -165,14 +165,11 @@ func XznPayWebhook(c *gin.Context) {
 		writeXznPayWebhookResult(c, false)
 		return
 	}
-	if err := c.Request.ParseForm(); err != nil {
+	params, err := parseXznPayWebhookParams(c.Request)
+	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("XznPay webhook 表单解析失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))
 		writeXznPayWebhookResult(c, false)
 		return
-	}
-	params := make(map[string]string, len(c.Request.PostForm))
-	for key := range c.Request.PostForm {
-		params[key] = c.Request.PostForm.Get(key)
 	}
 	client, err := getXznPayClient()
 	if err != nil {
@@ -250,6 +247,19 @@ func XznPayWebhook(c *gin.Context) {
 	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("XznPay webhook 处理成功 trade_no=%s trade_status=%s duplicate=%t quota_delta=%d status=%s client_ip=%s", tradeNo, tradeStatus, result.Duplicate, result.QuotaDelta, result.Status, c.ClientIP()))
 	writeXznPayWebhookResult(c, true)
+}
+
+func parseXznPayWebhookParams(request *http.Request) (map[string]string, error) {
+	err := request.ParseMultipartForm(1 << 20)
+	if err != nil && err != http.ErrNotMultipart {
+		return nil, err
+	}
+
+	params := make(map[string]string, len(request.PostForm))
+	for key := range request.PostForm {
+		params[key] = request.PostForm.Get(key)
+	}
+	return params, nil
 }
 
 func parseXznPayMoneyCents(value string) (int64, error) {
