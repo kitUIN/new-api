@@ -71,6 +71,20 @@ const (
 	MsgRedemptionExpireTimeInvalid = "redemption.expire_time_invalid"
 )
 
+// Registration invitation related messages
+const (
+	MsgInvitationCodeRequired            = "invitation.code_required"
+	MsgInvitationCodeInvalidQQ           = "invitation.code_invalid_qq"
+	MsgInvitationRemarkRequired          = "invitation.remark_required"
+	MsgInvitationRemarkTooLong           = "invitation.remark_too_long"
+	MsgInvitationCodeExists              = "invitation.code_exists"
+	MsgInvitationInvalid                 = "invitation.invalid"
+	MsgInvitationUsed                    = "invitation.used"
+	MsgInvitationUnavailable             = "invitation.unavailable"
+	MsgInvitationDeleteUsed              = "invitation.delete_used"
+	MsgInvitationRequiredForRegistration = "invitation.required_for_registration"
+)
+
 // User related messages
 const (
 	MsgUserPasswordLoginDisabled     = "user.password_login_disabled"
@@ -114,6 +128,7 @@ const (
 	MsgUserTelegramNotBound          = "user.telegram_not_bound"
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 	MsgUserQuotaChangeZero           = "user.quota_change_zero"
+	MsgUserQQAlreadyTaken            = "user.qq_already_taken"
 )
 
 // Quota related messages

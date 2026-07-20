@@ -32,8 +32,19 @@ export const loginFormSchema = z.object({
 
 export const registerFormSchema = z
   .object({
-    username: z.string().min(1, 'Please enter your username'),
-    email: z.string().optional(),
+    invite_code: z
+      .string()
+      .min(1, 'Invitation code is required')
+      .regex(/^\d{5,20}$/, 'Invitation code must be a valid QQ number'),
+    display_name: z
+      .string()
+      .min(1, 'Please enter your nickname')
+      .max(20, 'Nickname must be at most 20 characters'),
+    email: z
+      .string()
+      .email('Please enter a valid email address')
+      .or(z.literal(''))
+      .optional(),
     password: z
       .string()
       .min(1, 'Please enter your password')

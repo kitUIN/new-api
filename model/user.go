@@ -2,7 +2,6 @@ package model
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -83,7 +82,7 @@ func (user *User) SetAccessToken(token string) {
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysLog("failed to unmarshal setting: " + err.Error())
 		}
@@ -92,7 +91,7 @@ func (user *User) GetSetting() dto.UserSetting {
 }
 
 func (user *User) SetSetting(setting dto.UserSetting) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
 		return
@@ -153,7 +152,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -470,9 +469,8 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	return nil
 }
 
-// FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
-// This should be called after the transaction commits successfully.
-func (user *User) FinalizeOAuthUserCreation(inviterId int) {
+// FinalizeCreation performs post-transaction tasks after a user is created.
+func (user *User) FinalizeCreation(inviterId int) {
 	// 用户创建成功后，根据角色初始化边栏配置
 	var createdUser User
 	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
@@ -499,6 +497,11 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			_ = inviteUser(inviterId)
 		}
 	}
+}
+
+// FinalizeOAuthUserCreation is kept for OAuth creation callers.
+func (user *User) FinalizeOAuthUserCreation(inviterId int) {
+	user.FinalizeCreation(inviterId)
 }
 
 func (user *User) Update(updatePassword bool) error {
@@ -716,7 +719,14 @@ func IsWeChatIdAlreadyTaken(wechatId string) bool {
 }
 
 func IsQQIdAlreadyTaken(qqId string) bool {
-	return DB.Unscoped().Where("qq_id = ?", qqId).Find(&User{}).RowsAffected == 1
+	exists, _ := QQIdExists(qqId)
+	return exists
+}
+
+func QQIdExists(qqId string) (bool, error) {
+	var count int64
+	err := DB.Unscoped().Model(&User{}).Where("qq_id = ?", strings.TrimSpace(qqId)).Count(&count).Error
+	return count > 0, err
 }
 
 func IsGitHubIdAlreadyTaken(githubId string) bool {

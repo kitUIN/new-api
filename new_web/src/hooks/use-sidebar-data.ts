@@ -23,6 +23,7 @@ import {
   FileText,
   FlaskConical,
   Image,
+  MailPlus,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -137,6 +138,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Invitation Codes'),
+            url: '/registration-invitations',
+            icon: MailPlus,
           },
           {
             title: t('Redemption Codes'),

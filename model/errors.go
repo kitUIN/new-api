@@ -11,6 +11,7 @@ var (
 var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrUserEmptyCredentials = errors.New("empty credentials")
+	ErrUserQQAlreadyTaken   = errors.New("qq id already taken")
 )
 
 // Token auth errors

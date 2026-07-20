@@ -35,7 +35,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	var loginRequest LoginRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&loginRequest)
+	err := common.DecodeJson(c.Request.Body, &loginRequest)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -147,59 +147,62 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var request dto.RegisterRequest
+	err := common.DecodeJson(c.Request.Body, &request)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if err := common.Validate.Struct(&user); err != nil {
+	request.InviteCode = strings.TrimSpace(request.InviteCode)
+	request.DisplayName = strings.TrimSpace(request.DisplayName)
+	request.Email = strings.TrimSpace(request.Email)
+	if request.InviteCode == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvitationCodeRequired)
+		return
+	}
+	if err := common.Validate.Var(request.InviteCode, "numeric,min=5,max=20"); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvitationCodeInvalidQQ)
+		return
+	}
+	if err := common.Validate.Struct(&request); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
 	if common.EmailVerificationEnabled {
-		if user.Email == "" || user.VerificationCode == "" {
+		if request.Email == "" || request.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		if !common.VerifyCodeWithKey(request.Email, request.VerificationCode, common.EmailVerificationPurpose) {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
 	}
-	exist, err := model.CheckUserExistOrDeleted(user.Username, user.Email)
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
-		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
-		return
-	}
-	if exist {
-		common.ApiErrorI18n(c, i18n.MsgUserExists)
-		return
-	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.Username,
-		InviterId:   inviterId,
+		Password:    request.Password,
+		DisplayName: request.DisplayName,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
 	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
+		cleanUser.Email = request.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
-		common.ApiError(c, err)
+	if err := model.RegisterUserWithInvitation(&cleanUser, request.InviteCode); err != nil {
+		switch {
+		case errors.Is(err, model.ErrInvitationNotFound):
+			common.ApiErrorI18n(c, i18n.MsgInvitationInvalid)
+		case errors.Is(err, model.ErrInvitationUsed):
+			common.ApiErrorI18n(c, i18n.MsgInvitationUsed)
+		case errors.Is(err, model.ErrInvitationUnavailable):
+			common.ApiErrorI18n(c, i18n.MsgInvitationUnavailable)
+		case errors.Is(err, model.ErrUserQQAlreadyTaken):
+			common.ApiErrorI18n(c, i18n.MsgUserQQAlreadyTaken)
+		default:
+			common.SysLog(fmt.Sprintf("RegisterUserWithInvitation error: %v", err))
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+		}
 		return
 	}
 
-	// 获取插入后的用户ID
-	var insertedUser model.User
-	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
-		return
-	}
 	// 生成默认令牌
 	if constant.GenerateDefaultToken {
 		key, err := common.GenerateKey()
@@ -210,7 +213,7 @@ func Register(c *gin.Context) {
 		}
 		// 生成默认令牌
 		token := model.Token{
-			UserId:             insertedUser.Id, // 使用插入后的用户ID
+			UserId:             cleanUser.Id,
 			Name:               cleanUser.Username + "的初始令牌",
 			Key:                key,
 			CreatedTime:        common.GetTimestamp(),
@@ -551,7 +554,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -698,7 +701,7 @@ func AdminClearUserBinding(c *gin.Context) {
 
 func UpdateSelf(c *gin.Context) {
 	var requestData map[string]interface{}
-	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
+	err := common.DecodeJson(c.Request.Body, &requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -762,12 +765,12 @@ func UpdateSelf(c *gin.Context) {
 
 	// 原有的用户信息更新逻辑
 	var user model.User
-	requestDataBytes, err := json.Marshal(requestData)
+	requestDataBytes, err := common.Marshal(requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	err = json.Unmarshal(requestDataBytes, &user)
+	err = common.Unmarshal(requestDataBytes, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -877,7 +880,7 @@ func DeleteSelf(c *gin.Context) {
 
 func CreateUser(c *gin.Context) {
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err := common.DecodeJson(c.Request.Body, &user)
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
@@ -924,7 +927,7 @@ type ManageRequest struct {
 // ManageUser Only admin user can do this
 func ManageUser(c *gin.Context) {
 	var req ManageRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	err := common.DecodeJson(c.Request.Body, &req)
 
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
