@@ -169,12 +169,6 @@ export interface TopupInfo {
   xzn_pay_methods?: XznPayMethod[]
   /** Minimum topup amount for XznPay */
   xzn_pay_min_topup?: number
-  /** Whether redemption code usage is enabled */
-  enable_redemption?: boolean
-  /** Whether compliance confirmation has been completed */
-  payment_compliance_confirmed?: boolean
-  /** Current compliance terms version */
-  payment_compliance_terms_version?: string
 }
 
 /**
