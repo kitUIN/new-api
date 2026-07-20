@@ -2,11 +2,13 @@ package constant
 
 const (
 	RuleAutoGroupCodexLow = "自动分组:codex-low"
+	RuleAutoGroupCodex    = "自动分组:codex"
 	RuleAutoGroupCodexPro = "自动分组:codex-pro"
 	RuleAutoGroupKiro     = "自动分组:kiro"
 	RuleAutoGroupGemini   = "自动分组:gemini"
 
 	legacyRuleAutoGroupCodexLow = "auto:codex-low"
+	legacyRuleAutoGroupCodex    = "auto:codex"
 	legacyRuleAutoGroupCodexPro = "auto:codex-pro"
 	legacyRuleAutoGroupKiro     = "auto:kiro"
 	legacyRuleAutoGroupGemini   = "auto:gemini"
@@ -19,6 +21,8 @@ func NormalizeRuleAutoGroupName(group string) string {
 	switch group {
 	case RuleAutoGroupCodexLow, legacyRuleAutoGroupCodexLow:
 		return RuleAutoGroupCodexLow
+	case RuleAutoGroupCodex, legacyRuleAutoGroupCodex:
+		return RuleAutoGroupCodex
 	case RuleAutoGroupCodexPro, legacyRuleAutoGroupCodexPro:
 		return RuleAutoGroupCodexPro
 	case RuleAutoGroupKiro, legacyRuleAutoGroupKiro:

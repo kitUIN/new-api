@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next'
 
 const RULE_AUTO_GROUP_NAMES = new Set([
   '自动分组:codex-low',
+  '自动分组:codex',
   '自动分组:codex-pro',
   '自动分组:kiro',
   '自动分组:gemini',
@@ -9,6 +10,7 @@ const RULE_AUTO_GROUP_NAMES = new Set([
 
 const LEGACY_RULE_AUTO_GROUP_NAMES: Record<string, string> = {
   'auto:codex-low': '自动分组:codex-low',
+  'auto:codex': '自动分组:codex',
   'auto:codex-pro': '自动分组:codex-pro',
   'auto:kiro': '自动分组:kiro',
   'auto:gemini': '自动分组:gemini',

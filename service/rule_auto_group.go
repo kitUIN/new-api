@@ -13,6 +13,7 @@ import (
 
 const (
 	RuleAutoGroupCodexLow = constant.RuleAutoGroupCodexLow
+	RuleAutoGroupCodex    = constant.RuleAutoGroupCodex
 	RuleAutoGroupCodexPro = constant.RuleAutoGroupCodexPro
 	RuleAutoGroupKiro     = constant.RuleAutoGroupKiro
 	RuleAutoGroupGemini   = constant.RuleAutoGroupGemini
@@ -92,6 +93,16 @@ var ruleAutoGroupDefinitions = []ruleAutoGroupDefinition{
 		},
 		Match: func(group string, ratio float64) bool {
 			return strings.HasPrefix(group, "codex") && ratio >= 0 && ratio < 0.1
+		},
+	},
+	{
+		Name:          RuleAutoGroupCodex,
+		Label:         RuleAutoGroupCodex,
+		Description:   "自动选择全部 codex 开头的分组",
+		Prefix:        "codex",
+		AutoGroupType: "codex",
+		Match: func(group string, _ float64) bool {
+			return strings.HasPrefix(group, "codex")
 		},
 	},
 	{

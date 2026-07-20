@@ -25,6 +25,9 @@ func TestRuleAutoGroupCandidatesUseEffectiveRatioAndBoundaries(t *testing.T) {
 
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodexLow))
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", "auto:codex-low"))
+	require.Equal(t, []string{"codex-a", "codex-pro-a", "codex-b", "codex-c"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodex))
+	require.True(t, GroupInUserUsableGroups("", RuleAutoGroupCodexLow))
+	require.True(t, GroupInUserUsableGroups("", RuleAutoGroupCodex))
 	require.Equal(t, []string{"codex-pro-a"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodexPro))
 	require.Equal(t, []string{"codex-c", "codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("vip", RuleAutoGroupCodexLow))
 }
