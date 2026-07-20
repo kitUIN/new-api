@@ -175,8 +175,16 @@ func XznPayWebhook(c *gin.Context) {
 		params[key] = c.Request.PostForm.Get(key)
 	}
 	client, err := getXznPayClient()
-	if err != nil || !client.VerifyNotify(params) {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("XznPay webhook 验签失败 client_ip=%s error=%v", c.ClientIP(), err))
+	if err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("XznPay webhook 客户端初始化失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))
+		writeXznPayWebhookResult(c, false)
+		return
+	}
+	if !client.VerifyNotify(params) {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf(
+			"XznPay webhook 验签失败 client_ip=%s content_type=%q callback_sign_type=%q has_sign=%t param_count=%d",
+			c.ClientIP(), c.GetHeader("Content-Type"), params["sign_type"], strings.TrimSpace(params["sign"]) != "", len(params),
+		))
 		writeXznPayWebhookResult(c, false)
 		return
 	}

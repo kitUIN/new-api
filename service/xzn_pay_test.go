@@ -36,6 +36,10 @@ func TestXznPayMD5SignAndVerify(t *testing.T) {
 	params["sign"] = signature
 	require.True(t, client.VerifyNotify(params))
 
+	delete(params, "sign_type")
+	require.True(t, client.VerifyNotify(params))
+	params["sign_type"] = "MD5"
+
 	params["total_amount"] = "11.00"
 	require.False(t, client.VerifyNotify(params))
 	params["sign_type"] = "RSA"

@@ -149,6 +149,9 @@ func (client *XznPayClient) CreateOrder(ctx context.Context, params map[string]s
 func (client *XznPayClient) VerifyNotify(params map[string]string) bool {
 	signature := strings.TrimSpace(params["sign"])
 	signType := strings.ToUpper(strings.TrimSpace(params["sign_type"]))
+	if signType == "" {
+		signType = "MD5"
+	}
 	if signature == "" || signType != client.config.SignType {
 		return false
 	}
