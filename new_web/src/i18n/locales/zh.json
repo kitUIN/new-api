@@ -4886,10 +4886,6 @@
     "Online Banking": "网银支付",
     "JD Pay": "京东支付",
     "UnionPay": "云闪付",
-    "Douyin Pay": "抖音支付",
-    "Enable Upstream First Response Timeout": "启用上游首字超时中断",
-    "Abort upstream requests that do not return the first response byte within the configured time.": "当上游在配置时间内未返回首个响应字节时，自动中断请求。",
-    "Upstream First Response Timeout (seconds)": "上游首字超时（秒）",
-    "Timeout starts when the upstream request is sent and stops after the first response byte is received.": "计时从上游请求发出时开始，收到首个响应字节后停止。"
+    "Douyin Pay": "抖音支付"
   }
 }

@@ -94,8 +94,6 @@ const schema = z.object({
   general_setting: z.object({
     ping_interval_enabled: z.boolean(),
     ping_interval_seconds: z.coerce.number().min(1),
-    upstream_first_response_timeout_enabled: z.boolean(),
-    upstream_first_response_timeout_seconds: z.coerce.number().min(1).max(600),
   }),
 })
 
@@ -108,8 +106,6 @@ type FlatGlobalModelSettings = {
   'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
-  'general_setting.upstream_first_response_timeout_enabled': boolean
-  'general_setting.upstream_first_response_timeout_seconds': number
 }
 
 const flattenGlobalValues = (
@@ -129,10 +125,6 @@ const flattenGlobalValues = (
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
     values.general_setting.ping_interval_seconds,
-  'general_setting.upstream_first_response_timeout_enabled':
-    values.general_setting.upstream_first_response_timeout_enabled,
-  'general_setting.upstream_first_response_timeout_seconds':
-    values.general_setting.upstream_first_response_timeout_seconds,
 })
 
 function normalizeJsonText(value: string, fallback: string) {
@@ -162,9 +154,6 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   }, [defaultValues, form])
 
   const pingEnabled = form.watch('general_setting.ping_interval_enabled')
-  const firstResponseTimeoutEnabled = form.watch(
-    'general_setting.upstream_first_response_timeout_enabled'
-  )
 
   const formatJsonField = (
     field:
@@ -408,69 +397,6 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 <FormDescription>
                   {t(
                     'Recommended to keep this high to avoid upstream throttling.'
-                  )}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <Separator />
-
-          <FormField
-            control={form.control}
-            name='general_setting.upstream_first_response_timeout_enabled'
-            render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>
-                    {t('Enable Upstream First Response Timeout')}
-                  </FormLabel>
-                  <FormDescription>
-                    {t(
-                      'Abort upstream requests that do not return the first response byte within the configured time.'
-                    )}
-                  </FormDescription>
-                </SettingsSwitchContent>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </SettingsSwitchItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name='general_setting.upstream_first_response_timeout_seconds'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {t('Upstream First Response Timeout (seconds)')}
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type='number'
-                    min={1}
-                    max={600}
-                    disabled={!firstResponseTimeoutEnabled}
-                    className='w-24'
-                    value={
-                      field.value === undefined || field.value === null
-                        ? ''
-                        : String(field.value)
-                    }
-                    onChange={(event) => field.onChange(event.target.value)}
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t(
-                    'Timeout starts when the upstream request is sent and stops after the first response byte is received.'
                   )}
                 </FormDescription>
                 <FormMessage />

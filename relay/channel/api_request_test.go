@@ -1,15 +1,11 @@
 package channel
 
 import (
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -35,91 +31,6 @@ func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
 	require.Empty(t, headers)
-}
-
-func TestUpstreamFirstResponseTimeoutCancelsBeforeResponse(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
-	timedReq, state := startUpstreamFirstResponseTimeout(req, 20*time.Millisecond)
-	defer state.close()
-
-	select {
-	case <-timedReq.Context().Done():
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for upstream request cancellation")
-	}
-
-	require.True(t, state.timedOut.Load())
-	require.ErrorIs(t, state.normalizeError(timedReq.Context().Err()), relaycommon.ErrUpstreamFirstResponseTimeout)
-}
-
-func TestUpstreamFirstResponseTimeoutStopsAfterFirstBodyByte(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
-	timedReq, state := startUpstreamFirstResponseTimeout(req, 40*time.Millisecond)
-	body := &upstreamFirstResponseTimeoutBody{
-		ReadCloser: io.NopCloser(strings.NewReader("data: first\n")),
-		state:      state,
-	}
-	defer body.Close()
-
-	buffer := make([]byte, 1)
-	_, err := body.Read(buffer)
-	require.NoError(t, err)
-	time.Sleep(80 * time.Millisecond)
-
-	require.False(t, state.timedOut.Load())
-	select {
-	case <-timedReq.Context().Done():
-		t.Fatal("request context was cancelled after the first response byte")
-	default:
-	}
-}
-
-func TestUpstreamFirstResponseTimeoutClosesBlockedResponseBody(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
-	_, state := startUpstreamFirstResponseTimeout(req, 40*time.Millisecond)
-	defer state.close()
-
-	reader, writer := io.Pipe()
-	defer writer.Close()
-	state.attachBody(reader)
-	body := &upstreamFirstResponseTimeoutBody{
-		ReadCloser: reader,
-		state:      state,
-	}
-
-	readDone := make(chan error, 1)
-	go func() {
-		_, err := body.Read(make([]byte, 1))
-		readDone <- err
-	}()
-
-	select {
-	case err := <-readDone:
-		require.ErrorIs(t, err, relaycommon.ErrUpstreamFirstResponseTimeout)
-	case <-time.After(time.Second):
-		t.Fatal("blocked response body was not closed after first response timeout")
-	}
-
-	require.True(t, state.timedOut.Load())
-}
-
-func TestShouldApplyUpstreamFirstResponseTimeout(t *testing.T) {
-	tests := []struct {
-		name      string
-		relayMode int
-		want      bool
-	}{
-		{name: "chat completion", relayMode: relayconstant.RelayModeChatCompletions, want: true},
-		{name: "image generation", relayMode: relayconstant.RelayModeImagesGenerations, want: false},
-		{name: "image edit", relayMode: relayconstant.RelayModeImagesEdits, want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			info := &relaycommon.RelayInfo{RelayMode: tt.relayMode}
-			require.Equal(t, tt.want, shouldApplyUpstreamFirstResponseTimeout(info))
-		})
-	}
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {

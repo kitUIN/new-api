@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
@@ -486,125 +485,6 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return doRequest(c, req, info)
 }
 
-type upstreamFirstResponseTimeoutState struct {
-	timedOut atomic.Bool
-	timer    *time.Timer
-	cancel   context.CancelFunc
-
-	bodyMu     sync.Mutex
-	body       io.ReadCloser
-	bodyClosed atomic.Bool
-}
-
-func startUpstreamFirstResponseTimeout(req *http.Request, timeout time.Duration) (*http.Request, *upstreamFirstResponseTimeoutState) {
-	ctx, cancel := context.WithCancel(req.Context())
-	state := &upstreamFirstResponseTimeoutState{cancel: cancel}
-	state.timer = time.AfterFunc(timeout, state.timeout)
-	return req.WithContext(ctx), state
-}
-
-func (s *upstreamFirstResponseTimeoutState) timeout() {
-	if s == nil {
-		return
-	}
-	s.timedOut.Store(true)
-	if s.cancel != nil {
-		s.cancel()
-	}
-	s.closeBody()
-}
-
-func (s *upstreamFirstResponseTimeoutState) attachBody(body io.ReadCloser) {
-	if s == nil || body == nil {
-		return
-	}
-
-	s.bodyMu.Lock()
-	s.body = body
-	timedOut := s.timedOut.Load()
-	s.bodyMu.Unlock()
-
-	// The timer can fire while client.Do is returning the response. Close the
-	// body immediately in that race so a subsequent Read cannot remain blocked.
-	if timedOut {
-		s.closeBody()
-	}
-}
-
-func (s *upstreamFirstResponseTimeoutState) closeBody() bool {
-	if s == nil {
-		return false
-	}
-
-	s.bodyMu.Lock()
-	body := s.body
-	s.bodyMu.Unlock()
-	if body == nil {
-		return false
-	}
-	if s.bodyClosed.CompareAndSwap(false, true) {
-		_ = body.Close()
-	}
-	return true
-}
-
-func (s *upstreamFirstResponseTimeoutState) markResponseReceived() {
-	if s != nil && s.timer != nil {
-		s.timer.Stop()
-	}
-}
-
-func (s *upstreamFirstResponseTimeoutState) close() bool {
-	if s == nil {
-		return false
-	}
-	if s.timer != nil {
-		s.timer.Stop()
-	}
-	if s.cancel != nil {
-		s.cancel()
-	}
-	return s.closeBody()
-}
-
-func (s *upstreamFirstResponseTimeoutState) normalizeError(err error) error {
-	if s != nil && s.timedOut.Load() {
-		return common.ErrUpstreamFirstResponseTimeout
-	}
-	return err
-}
-
-type upstreamFirstResponseTimeoutBody struct {
-	io.ReadCloser
-	state *upstreamFirstResponseTimeoutState
-}
-
-func (b *upstreamFirstResponseTimeoutBody) Read(p []byte) (int, error) {
-	n, err := b.ReadCloser.Read(p)
-	if b.state != nil && b.state.timedOut.Load() {
-		return 0, common.ErrUpstreamFirstResponseTimeout
-	}
-	if n > 0 {
-		b.state.markResponseReceived()
-	}
-	return n, b.state.normalizeError(err)
-}
-
-func (b *upstreamFirstResponseTimeoutBody) Close() error {
-	if b.state != nil && b.state.close() {
-		return nil
-	}
-	return b.ReadCloser.Close()
-}
-
-func shouldApplyUpstreamFirstResponseTimeout(info *common.RelayInfo) bool {
-	if info == nil {
-		return true
-	}
-	return info.RelayMode != constant.RelayModeImagesGenerations &&
-		info.RelayMode != constant.RelayModeImagesEdits
-}
-
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
@@ -639,44 +519,18 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	c.Set("upstream_request_headers", req.Header.Clone())
 
-	var firstResponseTimeoutState *upstreamFirstResponseTimeoutState
-	if shouldApplyUpstreamFirstResponseTimeout(info) {
-		if timeout := operation_setting.GetUpstreamFirstResponseTimeout(); timeout > 0 {
-			req, firstResponseTimeoutState = startUpstreamFirstResponseTimeout(req, timeout)
-		}
-	}
-
 	info.MarkUpstreamRequestStart()
 	resp, err := client.Do(req)
 	if err != nil {
-		if firstResponseTimeoutState != nil {
-			err = firstResponseTimeoutState.normalizeError(err)
-			firstResponseTimeoutState.close()
-		}
 		info.MarkUpstreamRequestEnd()
 		logger.LogError(c, "do request failed: "+err.Error())
-		if errors.Is(err, common.ErrUpstreamFirstResponseTimeout) {
-			return nil, types.NewErrorWithStatusCode(
-				err,
-				types.ErrorCodeUpstreamFirstResponseTimeout,
-				http.StatusGatewayTimeout,
-			)
-		}
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
-		firstResponseTimeoutState.close()
 		info.MarkUpstreamRequestEnd()
 		return nil, errors.New("resp is nil")
 	}
 	info.MarkUpstreamResponseHeader()
-	if firstResponseTimeoutState != nil {
-		firstResponseTimeoutState.attachBody(resp.Body)
-		resp.Body = &upstreamFirstResponseTimeoutBody{
-			ReadCloser: resp.Body,
-			state:      firstResponseTimeoutState,
-		}
-	}
 
 	if !info.IsStream {
 		var buf bytes.Buffer
