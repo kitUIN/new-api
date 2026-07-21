@@ -24,6 +24,7 @@ import {
   Gauge,
   HeartPulse,
   RefreshCw,
+  Search,
   Timer,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -407,6 +408,7 @@ export function GroupHealthGrid() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [showRatioHistory, setShowRatioHistory] = useState(false)
   const [sortMode, setSortMode] = useState<GroupSortMode>('ratio')
+  const [searchText, setSearchText] = useState('')
   const [ratioRange, setRatioRange] = useState<RatioHistoryRange>(
     getDefaultRatioHistoryRange
   )
@@ -456,17 +458,27 @@ export function GroupHealthGrid() {
     retry: false,
   })
 
-  const groups = useMemo(
+  const allGroups = useMemo(
     () =>
       [...(healthQuery.data?.data.groups ?? [])].sort((left, right) =>
         compareGroupHealth(left, right, sortMode)
       ),
     [healthQuery.data, sortMode]
   )
+  const normalizedSearchText = searchText.trim().toLocaleLowerCase()
+  const groups = useMemo(
+    () =>
+      normalizedSearchText
+        ? allGroups.filter((group) =>
+            group.group.toLocaleLowerCase().includes(normalizedSearchText)
+          )
+        : allGroups,
+    [allGroups, normalizedSearchText]
+  )
   const trafficShareMap = useMemo(() => {
     const counts = new Map<string, number>()
     let total = 0
-    for (const group of groups) {
+    for (const group of allGroups) {
       const count = calculateRecentRequestCount(
         group.buckets,
         HEALTH_TRAFFIC_SHARE_WINDOW_HOURS
@@ -476,14 +488,14 @@ export function GroupHealthGrid() {
     }
     const shares = new Map<string, number>()
     if (total <= 0) return shares
-    for (const group of groups) {
+    for (const group of allGroups) {
       const count = counts.get(group.group) ?? 0
       if (count > 0) {
         shares.set(group.group, (count / total) * 100)
       }
     }
     return shares
-  }, [groups])
+  }, [allGroups])
   const ratioHistoryMap = useMemo(() => {
     const map = new Map<string, GroupRatioHistorySeries>()
     for (const item of ratioHistoryQuery.data?.data.groups ?? []) {
@@ -508,6 +520,7 @@ export function GroupHealthGrid() {
     autoRefresh,
     showRatioHistory,
     sortMode,
+    searchText,
     isFetching:
       healthQuery.isFetching ||
       sevenDayHealthQuery.isFetching ||
@@ -518,6 +531,7 @@ export function GroupHealthGrid() {
     onToggleRatioHistory: () =>
       startTransition(() => setShowRatioHistory((value) => !value)),
     onSortModeChange: (mode: GroupSortMode) => setSortMode(mode),
+    onSearchTextChange: setSearchText,
   }
 
   if (healthQuery.isLoading) {
@@ -529,7 +543,7 @@ export function GroupHealthGrid() {
     )
   }
 
-  if (!groups.length) {
+  if (!allGroups.length) {
     return (
       <div className='flex flex-col gap-3'>
         <GroupHealthToolbar {...toolbarProps} />
@@ -542,6 +556,22 @@ export function GroupHealthGrid() {
             <EmptyDescription>
               {t('Enable performance metrics to collect group health data.')}
             </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
+    )
+  }
+
+  if (!groups.length) {
+    return (
+      <div className='flex flex-col gap-3'>
+        <GroupHealthToolbar {...toolbarProps} />
+        <Empty className='min-h-72 border'>
+          <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <Search />
+            </EmptyMedia>
+            <EmptyTitle>{t('No groups match your search')}</EmptyTitle>
           </EmptyHeader>
         </Empty>
       </div>
@@ -574,18 +604,34 @@ function GroupHealthToolbar(props: {
   autoRefresh: boolean
   showRatioHistory: boolean
   sortMode: GroupSortMode
+  searchText: string
   isFetching: boolean
   onRatioRangeChange: (range: RatioHistoryRange) => void
   onRefresh: () => void
   onToggleAutoRefresh: () => void
   onToggleRatioHistory: () => void
   onSortModeChange: (mode: GroupSortMode) => void
+  onSearchTextChange: (value: string) => void
 }) {
   const { t } = useTranslation()
 
   return (
     <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
       <div className='flex flex-wrap items-center gap-2'>
+        <div className='relative w-full sm:w-64'>
+          <Search
+            className='text-muted-foreground pointer-events-none absolute top-2 left-2.5 size-4'
+            aria-hidden='true'
+          />
+          <Input
+            type='search'
+            placeholder={t('Search groups...')}
+            aria-label={t('Search groups...')}
+            value={props.searchText}
+            onChange={(event) => props.onSearchTextChange(event.target.value)}
+            className='pl-8'
+          />
+        </div>
         <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
           <Switch
             id='group-ratio-history-toggle'
