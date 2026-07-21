@@ -402,11 +402,6 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 		}
 	}
 
-	//// 创建一个用于日志的 info 副本，移除 ApiKey
-	//logInfo := info
-	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
-
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
 		return testResult{
@@ -556,14 +551,13 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			common.SysError(fmt.Sprintf(
-				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
+				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d",
 				channel.Id,
 				channel.Name,
 				channel.Type,
 				testModel,
 				endpointType,
 				httpResp.StatusCode,
-				err,
 			))
 			return testResult{
 				context:     c,
@@ -627,7 +621,6 @@ func testChannelWithGroup(channel *model.Channel, testModel string, endpointType
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
