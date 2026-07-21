@@ -102,7 +102,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
 				httpResp.StatusCode = http.StatusOK
 			} else {
-				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 				recordDetail()
 				return newAPIError

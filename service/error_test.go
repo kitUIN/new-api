@@ -1,6 +1,10 @@
 package service
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/types"
@@ -54,4 +58,28 @@ func TestResetStatusCode(t *testing.T) {
 			require.Equal(t, tc.expectedCode, newAPIError.StatusCode)
 		})
 	}
+}
+
+func TestRelayErrorHandlerReturnsNonJSONResponseBodyWhenRequested(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader("image prompt rejected")),
+	}
+
+	err := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, http.StatusBadRequest, err.StatusCode)
+	require.Equal(t, "image prompt rejected", err.ToOpenAIError().Message)
+	require.Equal(t, "image prompt rejected", err.ResponseBody)
+}
+
+func TestRelayErrorHandlerUsesStatusForEmptyResponseBody(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Body:       io.NopCloser(strings.NewReader("")),
+	}
+
+	err := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, "bad response status code 502", err.ToOpenAIError().Message)
 }
