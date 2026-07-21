@@ -548,6 +548,14 @@ func (b *upstreamFirstResponseTimeoutBody) Close() error {
 	return b.ReadCloser.Close()
 }
 
+func shouldApplyUpstreamFirstResponseTimeout(info *common.RelayInfo) bool {
+	if info == nil {
+		return true
+	}
+	return info.RelayMode != constant.RelayModeImagesGenerations &&
+		info.RelayMode != constant.RelayModeImagesEdits
+}
+
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
@@ -583,8 +591,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	c.Set("upstream_request_headers", req.Header.Clone())
 
 	var firstResponseTimeoutState *upstreamFirstResponseTimeoutState
-	if timeout := operation_setting.GetUpstreamFirstResponseTimeout(); timeout > 0 {
-		req, firstResponseTimeoutState = startUpstreamFirstResponseTimeout(req, timeout)
+	if shouldApplyUpstreamFirstResponseTimeout(info) {
+		if timeout := operation_setting.GetUpstreamFirstResponseTimeout(); timeout > 0 {
+			req, firstResponseTimeoutState = startUpstreamFirstResponseTimeout(req, timeout)
+		}
 	}
 
 	info.MarkUpstreamRequestStart()

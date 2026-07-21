@@ -9,6 +9,7 @@ import (
 	"time"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -70,6 +71,25 @@ func TestUpstreamFirstResponseTimeoutStopsAfterFirstBodyByte(t *testing.T) {
 	case <-timedReq.Context().Done():
 		t.Fatal("request context was cancelled after the first response byte")
 	default:
+	}
+}
+
+func TestShouldApplyUpstreamFirstResponseTimeout(t *testing.T) {
+	tests := []struct {
+		name      string
+		relayMode int
+		want      bool
+	}{
+		{name: "chat completion", relayMode: relayconstant.RelayModeChatCompletions, want: true},
+		{name: "image generation", relayMode: relayconstant.RelayModeImagesGenerations, want: false},
+		{name: "image edit", relayMode: relayconstant.RelayModeImagesEdits, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{RelayMode: tt.relayMode}
+			require.Equal(t, tt.want, shouldApplyUpstreamFirstResponseTimeout(info))
+		})
 	}
 }
 
