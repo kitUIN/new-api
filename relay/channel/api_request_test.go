@@ -74,6 +74,35 @@ func TestUpstreamFirstResponseTimeoutStopsAfterFirstBodyByte(t *testing.T) {
 	}
 }
 
+func TestUpstreamFirstResponseTimeoutClosesBlockedResponseBody(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", nil)
+	_, state := startUpstreamFirstResponseTimeout(req, 40*time.Millisecond)
+	defer state.close()
+
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	state.attachBody(reader)
+	body := &upstreamFirstResponseTimeoutBody{
+		ReadCloser: reader,
+		state:      state,
+	}
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := body.Read(make([]byte, 1))
+		readDone <- err
+	}()
+
+	select {
+	case err := <-readDone:
+		require.ErrorIs(t, err, relaycommon.ErrUpstreamFirstResponseTimeout)
+	case <-time.After(time.Second):
+		t.Fatal("blocked response body was not closed after first response timeout")
+	}
+
+	require.True(t, state.timedOut.Load())
+}
+
 func TestShouldApplyUpstreamFirstResponseTimeout(t *testing.T) {
 	tests := []struct {
 		name      string
