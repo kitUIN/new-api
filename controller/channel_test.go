@@ -95,6 +95,24 @@ func TestExtractJuiceValue(t *testing.T) {
 	}
 }
 
+func TestExtractJuiceValueAcceptsObjectContent(t *testing.T) {
+	body := []byte(`{
+		"output": [{
+			"type": "message",
+			"role": "assistant",
+			"content": {"type": "output_text", "text": " 512\n"}
+		}]
+	}`)
+
+	juice, err := extractJuiceValue(body)
+	if err != nil {
+		t.Fatalf("extractJuiceValue() error = %v", err)
+	}
+	if juice != "512" {
+		t.Fatalf("extractJuiceValue() = %q, want %q", juice, "512")
+	}
+}
+
 func TestShouldRunJuiceTestUsesSixHourAttemptInterval(t *testing.T) {
 	now := int64(1_000_000)
 	channel := &model.Channel{Status: common.ChannelStatusEnabled, Models: model.JuiceTestModel}

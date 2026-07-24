@@ -354,6 +354,7 @@ func (r *ResponsesOutput) UnmarshalJSON(data []byte) error {
 	type responsesOutputAlias ResponsesOutput
 	var aux struct {
 		responsesOutputAlias
+		Content   json.RawMessage `json:"content"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
 	if err := common.Unmarshal(data, &aux); err != nil {
@@ -361,6 +362,11 @@ func (r *ResponsesOutput) UnmarshalJSON(data []byte) error {
 	}
 
 	*r = ResponsesOutput(aux.responsesOutputAlias)
+	content, err := normalizeResponsesOutputContent(aux.Content)
+	if err != nil {
+		return err
+	}
+	r.Content = content
 	if len(aux.Arguments) == 0 {
 		return nil
 	}
@@ -371,6 +377,24 @@ func (r *ResponsesOutput) UnmarshalJSON(data []byte) error {
 	}
 	r.Arguments = arguments
 	return nil
+}
+
+func normalizeResponsesOutputContent(data json.RawMessage) ([]ResponsesOutputContent, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, nil
+	}
+
+	var content []ResponsesOutputContent
+	if err := common.Unmarshal(trimmed, &content); err == nil {
+		return content, nil
+	}
+
+	var single ResponsesOutputContent
+	if err := common.Unmarshal(trimmed, &single); err != nil {
+		return nil, fmt.Errorf("invalid responses output content: %w", err)
+	}
+	return []ResponsesOutputContent{single}, nil
 }
 
 func normalizeJSONArgumentString(data json.RawMessage) (string, error) {

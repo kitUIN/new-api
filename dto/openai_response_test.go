@@ -74,3 +74,39 @@ func TestResponsesOutputArgumentsKeepsString(t *testing.T) {
 		t.Fatalf("arguments = %s, want %s", got, want)
 	}
 }
+
+func TestResponsesOutputContentAcceptsArray(t *testing.T) {
+	var resp OpenAIResponsesResponse
+	data := []byte(`{
+		"output": [{
+			"type": "message",
+			"role": "assistant",
+			"content": [{"type": "output_text", "text": "128"}]
+		}]
+	}`)
+
+	if err := common.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal responses response: %v", err)
+	}
+	if got, want := resp.Output[0].Content[0].Text, "128"; got != want {
+		t.Fatalf("content text = %q, want %q", got, want)
+	}
+}
+
+func TestResponsesOutputContentAcceptsObject(t *testing.T) {
+	var resp OpenAIResponsesResponse
+	data := []byte(`{
+		"output": [{
+			"type": "message",
+			"role": "assistant",
+			"content": {"type": "output_text", "text": "256"}
+		}]
+	}`)
+
+	if err := common.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal responses response: %v", err)
+	}
+	if got, want := resp.Output[0].Content[0].Text, "256"; got != want {
+		t.Fatalf("content text = %q, want %q", got, want)
+	}
+}
