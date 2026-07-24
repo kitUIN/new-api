@@ -901,7 +901,11 @@ function GroupHealthCard(props: {
               {formatRatio(group.ratio)}
             </Badge>
             <Tooltip>
-              <TooltipTrigger render={<span className='max-w-full' />}>
+              <TooltipTrigger
+                render={
+                  <span className='inline-flex max-w-full items-center leading-none' />
+                }
+              >
                 <Badge
                   variant='outline'
                   className='max-w-full overflow-hidden font-mono text-ellipsis whitespace-nowrap'
