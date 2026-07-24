@@ -144,6 +144,14 @@ func TestGetGroupJuiceStatsUsesMinimumArbitraryPrecisionValue(t *testing.T) {
 		Id: 4, Name: "invalid", Key: "sk-4", Status: common.ChannelStatusEnabled,
 		Models: JuiceTestModel, Group: "default", Juice: "+1", JuiceUpdatedTime: 50,
 	}).Error)
+	require.NoError(t, DB.Create(&Channel{
+		Id: 5, Name: "decimal", Key: "sk-5", Status: common.ChannelStatusEnabled,
+		Models: JuiceTestModel, Group: "decimal", Juice: "0.75", JuiceUpdatedTime: 400,
+	}).Error)
+	require.NoError(t, DB.Create(&Channel{
+		Id: 6, Name: "smaller-decimal", Key: "sk-6", Status: common.ChannelStatusEnabled,
+		Models: JuiceTestModel, Group: "decimal", Juice: "0.5", JuiceUpdatedTime: 500,
+	}).Error)
 
 	stats, err := GetGroupJuiceStats()
 	require.NoError(t, err)
@@ -151,6 +159,8 @@ func TestGetGroupJuiceStatsUsesMinimumArbitraryPrecisionValue(t *testing.T) {
 	require.EqualValues(t, 200, stats["default"].UpdatedTime)
 	require.Equal(t, "999999999999999999999999999999999999", stats["vip"].Juice)
 	require.EqualValues(t, 200, stats["vip"].UpdatedTime)
+	require.Equal(t, "0.5", stats["decimal"].Juice)
+	require.EqualValues(t, 400, stats["decimal"].UpdatedTime)
 }
 
 func TestUpdateJuiceTestPreservesLastValueOnFailure(t *testing.T) {

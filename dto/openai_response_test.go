@@ -110,3 +110,21 @@ func TestResponsesOutputContentAcceptsObject(t *testing.T) {
 		t.Fatalf("content text = %q, want %q", got, want)
 	}
 }
+
+func TestResponsesOutputContentAcceptsNumericText(t *testing.T) {
+	var resp OpenAIResponsesResponse
+	data := []byte(`{
+		"output": [{
+			"type": "message",
+			"role": "assistant",
+			"content": [{"type": "output_text", "text": 12.5}]
+		}]
+	}`)
+
+	if err := common.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal responses response: %v", err)
+	}
+	if got, want := resp.Output[0].Content[0].Text, "12.5"; got != want {
+		t.Fatalf("content text = %q, want %q", got, want)
+	}
+}

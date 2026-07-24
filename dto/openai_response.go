@@ -386,13 +386,17 @@ func normalizeResponsesOutputContent(data json.RawMessage) ([]ResponsesOutputCon
 	}
 
 	var content []ResponsesOutputContent
-	if err := common.Unmarshal(trimmed, &content); err == nil {
+	arrayErr := common.Unmarshal(trimmed, &content)
+	if arrayErr == nil {
 		return content, nil
+	}
+	if common.GetJsonType(trimmed) == "array" {
+		return nil, fmt.Errorf("invalid responses output content array: %w", arrayErr)
 	}
 
 	var single ResponsesOutputContent
 	if err := common.Unmarshal(trimmed, &single); err != nil {
-		return nil, fmt.Errorf("invalid responses output content: %w", err)
+		return nil, fmt.Errorf("invalid responses output content: %w", arrayErr)
 	}
 	return []ResponsesOutputContent{single}, nil
 }
@@ -419,6 +423,41 @@ type ResponsesOutputContent struct {
 	Type        string        `json:"type"`
 	Text        string        `json:"text"`
 	Annotations []interface{} `json:"annotations"`
+}
+
+func (r *ResponsesOutputContent) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Type        string          `json:"type"`
+		Text        json.RawMessage `json:"text"`
+		Annotations []interface{}   `json:"annotations"`
+	}
+	if err := common.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	text, err := normalizeResponsesOutputText(aux.Text)
+	if err != nil {
+		return err
+	}
+	r.Type = aux.Type
+	r.Text = text
+	r.Annotations = aux.Annotations
+	return nil
+}
+
+func normalizeResponsesOutputText(data json.RawMessage) (string, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return "", nil
+	}
+
+	var text string
+	if err := common.Unmarshal(trimmed, &text); err == nil {
+		return text, nil
+	}
+	if common.GetJsonType(trimmed) == "number" {
+		return string(trimmed), nil
+	}
+	return "", fmt.Errorf("invalid responses output text: expected string or number")
 }
 
 type ResponsesReasoningSummaryPart struct {

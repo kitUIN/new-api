@@ -971,7 +971,7 @@ const juiceTestInterval = 6 * time.Hour
 var (
 	errJuiceTestRunning = errors.New("juice test is already running")
 	errJuiceTestNotDue  = errors.New("juice test is not due")
-	juiceNumberPattern  = regexp.MustCompile(`^[0-9]+$`)
+	juiceNumberPattern  = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?$`)
 	juiceTestLocks      sync.Map
 )
 
@@ -1002,13 +1002,22 @@ func buildJuiceTestRequest() (*dto.OpenAIResponsesRequest, error) {
 func extractJuiceValue(responseBody []byte) (string, error) {
 	var response dto.OpenAIResponsesResponse
 	if err := common.Unmarshal(responseBody, &response); err != nil {
-		return "", fmt.Errorf("invalid juice response: %w", err)
+		return "", fmt.Errorf("invalid juice response (upstream content: %s): %w", formatJuiceResponseBody(responseBody), err)
 	}
 	juice := strings.TrimSpace(service.ExtractOutputTextFromResponses(&response))
 	if !juiceNumberPattern.MatchString(juice) {
-		return "", errors.New("juice response must be a non-negative integer string")
+		return "", fmt.Errorf("juice response must be a non-negative decimal string; extracted content=%q; upstream content: %s", juice, formatJuiceResponseBody(responseBody))
 	}
 	return juice, nil
+}
+
+func formatJuiceResponseBody(responseBody []byte) string {
+	const maxResponseBodyLength = 4096
+	content := strings.TrimSpace(string(responseBody))
+	if len(content) > maxResponseBodyLength {
+		return strconv.Quote(content[:maxResponseBodyLength] + "...(truncated)")
+	}
+	return strconv.Quote(content)
 }
 
 func executeJuiceTest(channel *model.Channel) (string, error) {

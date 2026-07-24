@@ -919,16 +919,16 @@ func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
 	}
 
 	stats := make(map[string]GroupJuiceStats)
-	values := make(map[string]*big.Int)
+	values := make(map[string]*big.Rat)
 	for _, channel := range channels {
 		if !channel.SupportsMappedModel(JuiceTestModel) {
 			continue
 		}
 		juice := strings.TrimSpace(channel.Juice)
-		if channel.JuiceUpdatedTime <= 0 || !isDecimalDigitString(juice) {
+		if channel.JuiceUpdatedTime <= 0 || !isValidJuiceDecimalString(juice) {
 			continue
 		}
-		value, ok := new(big.Int).SetString(juice, 10)
+		value, ok := new(big.Rat).SetString(juice)
 		if !ok {
 			continue
 		}
@@ -940,7 +940,7 @@ func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
 			groupName = normalizePerfMetricGroupName(groupName)
 			stat := stats[groupName]
 			if current, exists := values[groupName]; !exists || value.Cmp(current) < 0 {
-				values[groupName] = new(big.Int).Set(value)
+				values[groupName] = new(big.Rat).Set(value)
 				stat.Juice = juice
 			}
 			if stat.UpdatedTime == 0 || (channel.JuiceUpdatedTime > 0 && channel.JuiceUpdatedTime < stat.UpdatedTime) {
@@ -952,16 +952,27 @@ func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
 	return stats, nil
 }
 
-func isDecimalDigitString(value string) bool {
+func isValidJuiceDecimalString(value string) bool {
 	if value == "" {
 		return false
 	}
+	dotSeen := false
+	digitSeen := false
 	for index := 0; index < len(value); index++ {
-		if value[index] < '0' || value[index] > '9' {
+		character := value[index]
+		if character >= '0' && character <= '9' {
+			digitSeen = true
+			continue
+		}
+		if character == '.' && !dotSeen && index > 0 && index+1 < len(value) {
+			dotSeen = true
+			continue
+		}
+		if character < '0' || character > '9' {
 			return false
 		}
 	}
-	return true
+	return digitSeen
 }
 
 func perfGroupBalanceLevel(balance float64) int {

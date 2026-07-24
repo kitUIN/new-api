@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,7 +69,7 @@ func TestExtractJuiceValue(t *testing.T) {
 	}{
 		{name: "integer", text: "128", want: "128"},
 		{name: "surrounding whitespace", text: "  256\n", want: "256"},
-		{name: "decimal", text: "12.5", wantErr: true},
+		{name: "decimal", text: "12.5", want: "12.5"},
 		{name: "extra text", text: "Juice: 128", wantErr: true},
 		{name: "empty", text: "", wantErr: true},
 	}
@@ -92,6 +93,17 @@ func TestExtractJuiceValue(t *testing.T) {
 				t.Fatalf("extractJuiceValue() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestExtractJuiceValueIncludesUpstreamContentOnError(t *testing.T) {
+	body := []byte(`{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Juice: 128"}]}]}`)
+	_, err := extractJuiceValue(body)
+	if err == nil {
+		t.Fatal("extractJuiceValue() should reject extra output text")
+	}
+	if !strings.Contains(err.Error(), "Juice: 128") || !strings.Contains(err.Error(), "upstream content") {
+		t.Fatalf("error = %q, want extracted and upstream content", err)
 	}
 }
 
