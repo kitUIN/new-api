@@ -1653,7 +1653,7 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
           />
         )
       },
-      size: 132,
+      size: 148,
       enableSorting: false,
       enableHiding: false,
     },

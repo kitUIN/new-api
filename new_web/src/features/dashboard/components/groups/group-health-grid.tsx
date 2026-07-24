@@ -900,6 +900,29 @@ function GroupHealthCard(props: {
             <Badge variant='outline' className='font-mono'>
               {formatRatio(group.ratio)}
             </Badge>
+            <Tooltip>
+              <TooltipTrigger render={<span className='max-w-full' />}>
+                <Badge
+                  variant='outline'
+                  className='max-w-full overflow-hidden font-mono text-ellipsis whitespace-nowrap'
+                >
+                  {t('Juice')} {group.juice || '—'}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div>{t('Minimum valid Juice in this group')}</div>
+                {group.juice && <div className='font-mono'>{group.juice}</div>}
+                {group.juice_updated_time > 0 && (
+                  <div className='text-muted-foreground'>
+                    {t('Juice updated at {{time}}', {
+                      time: dayjs
+                        .unix(group.juice_updated_time)
+                        .format('YYYY-MM-DD HH:mm'),
+                    })}
+                  </div>
+                )}
+              </TooltipContent>
+            </Tooltip>
             <Badge variant='secondary' className='gap-1.5'>
               <span
                 className={cn(
@@ -1042,7 +1065,10 @@ function HealthHint() {
       {legendItems.map((item) => (
         <span key={item.status} className='inline-flex items-center gap-1.5'>
           <span
-            className={cn('size-2 rounded-full', statusDotClassName(item.status))}
+            className={cn(
+              'size-2 rounded-full',
+              statusDotClassName(item.status)
+            )}
             aria-hidden='true'
           />
           {item.label}

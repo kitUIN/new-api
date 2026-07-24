@@ -149,6 +149,7 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	setChannelJuiceTestEligibility(channelData)
 	if enableProviderMode && !enableTagMode {
 		for _, datum := range channelData {
 			clearChannelInfo(datum)
@@ -347,6 +348,7 @@ func SearchChannels(c *gin.Context) {
 		channelData = filtered
 	}
 
+	setChannelJuiceTestEligibility(channelData)
 	if enableProviderMode && !enableTagMode {
 		for _, datum := range channelData {
 			clearChannelInfo(datum)
@@ -422,6 +424,7 @@ func GetChannel(c *gin.Context) {
 		return
 	}
 	if channel != nil {
+		channel.JuiceTestEligible = isJuiceTestEligible(channel)
 		clearChannelInfo(channel)
 		model.AttachChannelProviderSummaries([]*model.Channel{channel})
 	}
@@ -431,6 +434,14 @@ func GetChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func setChannelJuiceTestEligibility(channels []*model.Channel) {
+	for _, channel := range channels {
+		if channel != nil {
+			channel.JuiceTestEligible = isJuiceTestEligible(channel)
+		}
+	}
 }
 
 // GetChannelKey 获取渠道密钥（需要通过安全验证中间件）

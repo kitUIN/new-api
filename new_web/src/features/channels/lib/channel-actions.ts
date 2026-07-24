@@ -24,6 +24,7 @@ import {
   copyChannel,
   deleteChannel,
   testChannel,
+  testChannelJuice,
   updateChannel,
   batchDeleteChannels,
   batchSetChannelTag,
@@ -260,6 +261,36 @@ export async function handleTestChannel(
       toast.error(errorMsg)
     }
     onTestComplete?.(false, undefined, errorMsg)
+  }
+}
+
+export async function handleTestChannelJuice(id: number): Promise<boolean> {
+  try {
+    const response = await testChannelJuice(id)
+    if (!response.success) {
+      const retainedMessage = i18next.t(
+        'Juice test failed. The previous value was kept.'
+      )
+      toast.error(
+        response.message
+          ? `${response.message}. ${retainedMessage}`
+          : retainedMessage
+      )
+      return false
+    }
+    toast.success(`${i18next.t('Juice')}: ${response.data?.juice ?? '-'}`)
+    return true
+  } catch (_error: unknown) {
+    const err = _error as { response?: { data?: { message?: string } } }
+    const retainedMessage = i18next.t(
+      'Juice test failed. The previous value was kept.'
+    )
+    toast.error(
+      err?.response?.data?.message
+        ? `${err.response.data.message}. ${retainedMessage}`
+        : retainedMessage
+    )
+    return false
   }
 }
 

@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"errors"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +14,118 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
+
+func TestJuiceTestEligibility(t *testing.T) {
+	mapping := `{"alias":"gpt-5.6-sol"}`
+	tests := []struct {
+		name    string
+		channel *model.Channel
+		want    bool
+	}{
+		{name: "direct model", channel: &model.Channel{Status: common.ChannelStatusEnabled, Models: "gpt-5.6-sol"}, want: true},
+		{name: "mapped model", channel: &model.Channel{Status: common.ChannelStatusEnabled, Models: "alias", ModelMapping: &mapping}, want: true},
+		{name: "different model", channel: &model.Channel{Status: common.ChannelStatusEnabled, Models: "gpt-5.4"}},
+		{name: "disabled", channel: &model.Channel{Status: common.ChannelStatusManuallyDisabled, Models: "gpt-5.6-sol"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isJuiceTestEligible(tt.channel); got != tt.want {
+				t.Fatalf("isJuiceTestEligible() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildJuiceTestRequest(t *testing.T) {
+	request, err := buildJuiceTestRequest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.Model != model.JuiceTestModel {
+		t.Fatalf("model = %q, want %q", request.Model, model.JuiceTestModel)
+	}
+	if request.Stream == nil || *request.Stream {
+		t.Fatal("juice request must explicitly disable streaming")
+	}
+	if request.Reasoning == nil || request.Reasoning.Effort != "max" {
+		t.Fatal("juice request must use max reasoning effort")
+	}
+	var input string
+	if err := common.Unmarshal(request.Input, &input); err != nil {
+		t.Fatal(err)
+	}
+	if input != juiceTestPrompt {
+		t.Fatalf("input = %q, want exact juice prompt", input)
+	}
+}
+
+func TestExtractJuiceValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		text    string
+		want    string
+		wantErr bool
+	}{
+		{name: "integer", text: "128", want: "128"},
+		{name: "surrounding whitespace", text: "  256\n", want: "256"},
+		{name: "decimal", text: "12.5", wantErr: true},
+		{name: "extra text", text: "Juice: 128", wantErr: true},
+		{name: "empty", text: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := common.Marshal(dto.OpenAIResponsesResponse{
+				Output: []dto.ResponsesOutput{{
+					Type:    "message",
+					Role:    "assistant",
+					Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: tt.text}},
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := extractJuiceValue(body)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("extractJuiceValue() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Fatalf("extractJuiceValue() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShouldRunJuiceTestUsesSixHourAttemptInterval(t *testing.T) {
+	now := int64(1_000_000)
+	channel := &model.Channel{Status: common.ChannelStatusEnabled, Models: model.JuiceTestModel}
+	if !shouldRunJuiceTest(channel, now) {
+		t.Fatal("untested eligible channel should run immediately")
+	}
+	channel.JuiceTestTime = now - int64(juiceTestInterval.Seconds()) + 1
+	if shouldRunJuiceTest(channel, now) {
+		t.Fatal("channel should not run before six hours")
+	}
+	channel.JuiceTestTime = now - int64(juiceTestInterval.Seconds())
+	if !shouldRunJuiceTest(channel, now) {
+		t.Fatal("channel should run at the six-hour boundary")
+	}
+}
+
+func TestExecuteJuiceTestRejectsConcurrentChannelTest(t *testing.T) {
+	channel := &model.Channel{Id: 987654, Status: common.ChannelStatusEnabled, Models: model.JuiceTestModel}
+	lock := &sync.Mutex{}
+	lock.Lock()
+	juiceTestLocks.Store(channel.Id, lock)
+	t.Cleanup(func() {
+		lock.Unlock()
+		juiceTestLocks.Delete(channel.Id)
+	})
+
+	_, err := executeJuiceTest(channel)
+	if !errors.Is(err, errJuiceTestRunning) {
+		t.Fatalf("executeJuiceTest() error = %v, want %v", err, errJuiceTestRunning)
+	}
+}
 
 func TestParseChannelTestStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)

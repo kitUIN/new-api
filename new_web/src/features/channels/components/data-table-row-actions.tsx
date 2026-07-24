@@ -33,6 +33,7 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  BatteryCharging,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -55,6 +56,7 @@ import {
   channelsQueryKeys,
   handleDeleteChannel,
   handleTestChannel,
+  handleTestChannelJuice,
   handleToggleChannelStatus,
   isChannelEnabled,
   isMultiKeyChannel,
@@ -70,11 +72,11 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const channel = row.original
-  const { setOpen, setCurrentRow, setCurrentProvider, upstream } =
-    useChannels()
+  const { setOpen, setCurrentRow, setCurrentProvider, upstream } = useChannels()
   const queryClient = useQueryClient()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
+  const [isJuiceTesting, setIsJuiceTesting] = useState(false)
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
@@ -100,6 +102,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       })
     } finally {
       setIsTesting(false)
+    }
+  }
+
+  const handleJuiceTest = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    setIsJuiceTesting(true)
+    try {
+      const success = await handleTestChannelJuice(channel.id)
+      if (success) {
+        queryClient.invalidateQueries({ queryKey: ['perf-group-health'] })
+      }
+    } finally {
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      setIsJuiceTesting(false)
     }
   }
 
@@ -157,6 +173,29 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </TooltipTrigger>
         <TooltipContent>{t('Test Connection')}</TooltipContent>
       </Tooltip>
+
+      {channel.juice_test_eligible && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={handleJuiceTest}
+                disabled={isJuiceTesting}
+                aria-label={t('Test Juice')}
+              />
+            }
+          >
+            {isJuiceTesting ? (
+              <Loader2 className='size-4 animate-spin' />
+            ) : (
+              <BatteryCharging className='size-4' />
+            )}
+          </TooltipTrigger>
+          <TooltipContent>{t('Test Juice')}</TooltipContent>
+        </Tooltip>
+      )}
 
       <Tooltip>
         <TooltipTrigger

@@ -109,6 +109,7 @@ func main() {
 	}
 
 	go controller.AutomaticallyTestChannels()
+	controller.StartChannelJuiceTestTask()
 	controller.StartChannelBalanceQueryTask()
 	controller.StartChannelGroupQueryTask()
 

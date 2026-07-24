@@ -31,6 +31,11 @@ type Channel struct {
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
 	TestTime           int64   `json:"test_time" gorm:"bigint"`
 	ResponseTime       int     `json:"response_time"` // in milliseconds
+	Juice              string  `json:"juice" gorm:"type:varchar(255);default:''"`
+	JuiceUpdatedTime   int64   `json:"juice_updated_time" gorm:"bigint"`
+	JuiceTestTime      int64   `json:"juice_test_time" gorm:"bigint"`
+	JuiceTestError     string  `json:"juice_test_error" gorm:"type:text"`
+	JuiceTestEligible  bool    `json:"juice_test_eligible" gorm:"-"`
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"` // in USD
@@ -68,6 +73,8 @@ type ChannelInfo struct {
 	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
 	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
 }
+
+const JuiceTestModel = "gpt-5.6-sol"
 
 // Value implements driver.Valuer interface
 func (c ChannelInfo) Value() (driver.Value, error) {
@@ -200,6 +207,76 @@ func (channel *Channel) GetModels() []string {
 		return []string{}
 	}
 	return strings.Split(strings.Trim(channel.Models, ","), ",")
+}
+
+// SupportsMappedModel reports whether the channel exposes a model directly or
+// through a configured model-mapping chain.
+func (channel *Channel) SupportsMappedModel(targetModel string) bool {
+	_, ok := channel.ResolveMappedModel(targetModel)
+	return ok
+}
+
+// ResolveMappedModel returns a source model whose mapping chain terminates at
+// targetModel. Mapping keys are included because channel tests already allow
+// testing a configured mapping even when the source is not in Models.
+func (channel *Channel) ResolveMappedModel(targetModel string) (string, bool) {
+	targetModel = strings.TrimSpace(targetModel)
+	if targetModel == "" {
+		return "", false
+	}
+
+	modelMapping := strings.TrimSpace(channel.GetModelMapping())
+	modelMap := make(map[string]string)
+	if modelMapping != "" && modelMapping != "{}" {
+		if err := common.UnmarshalJsonStr(modelMapping, &modelMap); err != nil {
+			return "", false
+		}
+	}
+
+	candidates := make([]string, 0, len(channel.GetModels())+len(modelMap))
+	seenCandidates := make(map[string]struct{}, cap(candidates))
+	for _, modelName := range channel.GetModels() {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		candidates = append(candidates, modelName)
+		seenCandidates[modelName] = struct{}{}
+	}
+	for sourceModel := range modelMap {
+		sourceModel = strings.TrimSpace(sourceModel)
+		if sourceModel == "" {
+			continue
+		}
+		if _, seen := seenCandidates[sourceModel]; seen {
+			continue
+		}
+		candidates = append(candidates, sourceModel)
+	}
+
+	for _, sourceModel := range candidates {
+		currentModel := sourceModel
+		visited := map[string]struct{}{currentModel: {}}
+		for {
+			mappedModel := strings.TrimSpace(modelMap[currentModel])
+			if mappedModel == "" {
+				break
+			}
+			if mappedModel == currentModel {
+				break
+			}
+			if _, seen := visited[mappedModel]; seen {
+				currentModel = ""
+				break
+			}
+			visited[mappedModel] = struct{}{}
+			currentModel = mappedModel
+		}
+		if currentModel == targetModel {
+			return sourceModel, true
+		}
+	}
+	return "", false
 }
 
 func (channel *Channel) GetGroups() []string {
@@ -526,6 +603,28 @@ func (channel *Channel) UpdateResponseTime(responseTime int64) {
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to update response time: channel_id=%d, error=%v", channel.Id, err))
 	}
+}
+
+func (channel *Channel) UpdateJuiceTest(juice string, errMessage string) error {
+	now := common.GetTimestamp()
+	updates := map[string]interface{}{
+		"juice_test_time":  now,
+		"juice_test_error": errMessage,
+	}
+	if errMessage == "" {
+		updates["juice"] = juice
+		updates["juice_updated_time"] = now
+	}
+	if err := DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error; err != nil {
+		return err
+	}
+	channel.JuiceTestTime = now
+	channel.JuiceTestError = errMessage
+	if errMessage == "" {
+		channel.Juice = juice
+		channel.JuiceUpdatedTime = now
+	}
+	return nil
 }
 
 func (channel *Channel) UpdateBalance(balance float64) {

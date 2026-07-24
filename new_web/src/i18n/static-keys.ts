@@ -25,6 +25,11 @@ export const STATIC_I18N_KEYS = [
   'Model Square',
   'Rankings',
   'Group Health',
+  'Juice',
+  'Test Juice',
+  'Juice test failed. The previous value was kept.',
+  'Minimum valid Juice in this group',
+  'Juice updated at {{time}}',
   'Docs',
   'About',
 

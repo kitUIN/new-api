@@ -188,6 +188,23 @@ export async function testChannel(
   return res.data
 }
 
+export type ChannelJuiceTestResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    juice: string
+    juice_updated_time: number
+    juice_test_time: number
+  }
+}
+
+export async function testChannelJuice(
+  id: number
+): Promise<ChannelJuiceTestResponse> {
+  const res = await api.post(`/api/channel/${id}/juice/test`)
+  return res.data
+}
+
 /**
  * Update channel balance
  */
@@ -218,11 +235,13 @@ export async function updateProviderGroups(id: number): Promise<{
   return res.data
 }
 
-export async function getChannelProviders(params: {
-  keyword?: string
-  p?: number
-  page_size?: number
-} = {}): Promise<ChannelProvidersResponse> {
+export async function getChannelProviders(
+  params: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  } = {}
+): Promise<ChannelProvidersResponse> {
   const res = await api.get('/api/channel/providers', { params })
   return res.data
 }

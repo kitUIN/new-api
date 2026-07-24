@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"sort"
 	"strings"
 	"sync"
@@ -82,6 +83,8 @@ type PerfGroupHealth struct {
 	Ratio               float64                 `json:"ratio"`
 	ProviderCount       int                     `json:"provider_count"`
 	BalanceLevel        int                     `json:"balance_level"`
+	Juice               string                  `json:"juice"`
+	JuiceUpdatedTime    int64                   `json:"juice_updated_time"`
 	RequestCount        int64                   `json:"request_count"`
 	SuccessRate         float64                 `json:"success_rate"`
 	AvgTTFTMs           float64                 `json:"avg_ttft_ms"`
@@ -783,6 +786,10 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	if err != nil {
 		return PerfGroupHealthSummary{}, err
 	}
+	juiceStats, err := GetGroupJuiceStats()
+	if err != nil {
+		return PerfGroupHealthSummary{}, err
+	}
 	for groupName := range providerStats {
 		if !shouldShowGroup(groupName) {
 			continue
@@ -850,6 +857,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			Ratio:               ratio,
 			ProviderCount:       stats.ProviderCount,
 			BalanceLevel:        perfGroupBalanceLevel(stats.MinBalance),
+			Juice:               juiceStats[groupName].Juice,
+			JuiceUpdatedTime:    juiceStats[groupName].UpdatedTime,
 			RequestCount:        group.total.requestCount,
 			SuccessRate:         successRate,
 			AvgTTFTMs:           avgTTFTMs,
@@ -896,6 +905,63 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 type GroupProviderStats struct {
 	ProviderCount int
 	MinBalance    float64
+}
+
+type GroupJuiceStats struct {
+	Juice       string
+	UpdatedTime int64
+}
+
+func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
+	var channels []Channel
+	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]GroupJuiceStats)
+	values := make(map[string]*big.Int)
+	for _, channel := range channels {
+		if !channel.SupportsMappedModel(JuiceTestModel) {
+			continue
+		}
+		juice := strings.TrimSpace(channel.Juice)
+		if channel.JuiceUpdatedTime <= 0 || !isDecimalDigitString(juice) {
+			continue
+		}
+		value, ok := new(big.Int).SetString(juice, 10)
+		if !ok {
+			continue
+		}
+		groups := channel.GetGroups()
+		if len(groups) == 0 {
+			groups = []string{"default"}
+		}
+		for _, groupName := range groups {
+			groupName = normalizePerfMetricGroupName(groupName)
+			stat := stats[groupName]
+			if current, exists := values[groupName]; !exists || value.Cmp(current) < 0 {
+				values[groupName] = new(big.Int).Set(value)
+				stat.Juice = juice
+			}
+			if stat.UpdatedTime == 0 || (channel.JuiceUpdatedTime > 0 && channel.JuiceUpdatedTime < stat.UpdatedTime) {
+				stat.UpdatedTime = channel.JuiceUpdatedTime
+			}
+			stats[groupName] = stat
+		}
+	}
+	return stats, nil
+}
+
+func isDecimalDigitString(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if value[index] < '0' || value[index] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func perfGroupBalanceLevel(balance float64) int {

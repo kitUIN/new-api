@@ -58,6 +58,11 @@ export const channelSchema = z.object({
   created_time: z.number(),
   test_time: z.number(),
   response_time: z.number(), // in milliseconds
+  juice: z.string().default(''),
+  juice_updated_time: z.number().default(0),
+  juice_test_time: z.number().default(0),
+  juice_test_error: z.string().default(''),
+  juice_test_eligible: z.boolean().default(false),
   base_url: z.string().nullish(),
   other: z.string().default(''),
   balance: z.number().default(0), // in USD
