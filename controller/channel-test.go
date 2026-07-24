@@ -47,8 +47,10 @@ type testResult struct {
 
 type channelTestOptions struct {
 	request          dto.Request
-	skipAccounting   bool
+	skipPricing      bool
 	recordPerfMetric bool
+	usageLogLabel    string
+	usageLogModel    string
 }
 
 const defaultChannelTestStream = true
@@ -419,7 +421,7 @@ func testChannelWithOptions(channel *model.Channel, testModel string, endpointTy
 	}
 
 	var priceData types.PriceData
-	if !options.skipAccounting {
+	if !options.skipPricing {
 		priceData, err = helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 		if err != nil {
 			return testResult{
@@ -618,30 +620,36 @@ func testChannelWithOptions(channel *model.Channel, testModel string, endpointTy
 			newAPIError: types.NewOpenAIError(bodyErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
-	if !options.skipAccounting {
-		info.SetEstimatePromptTokens(usage.PromptTokens)
-		perfCompletionTokens = int64(usage.CompletionTokens)
+	info.SetEstimatePromptTokens(usage.PromptTokens)
+	perfCompletionTokens = int64(usage.CompletionTokens)
 
-		quota := calculateChannelTestQuota(usage, priceData)
-		tok := time.Now()
-		milliseconds := tok.Sub(tik).Milliseconds()
-		consumedTime := float64(milliseconds) / 1000.0
-		other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
-			usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
-		model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
-			ChannelId:        channel.Id,
-			PromptTokens:     usage.PromptTokens,
-			CompletionTokens: usage.CompletionTokens,
-			ModelName:        info.OriginModelName,
-			TokenName:        "模型测试",
-			Quota:            quota,
-			Content:          "模型测试",
-			UseTimeSeconds:   int(consumedTime),
-			IsStream:         info.IsStream,
-			Group:            info.UsingGroup,
-			Other:            other,
-		})
+	quota := calculateChannelTestQuota(usage, priceData)
+	tok := time.Now()
+	milliseconds := tok.Sub(tik).Milliseconds()
+	consumedTime := float64(milliseconds) / 1000.0
+	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
+		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	usageLogLabel := options.usageLogLabel
+	if usageLogLabel == "" {
+		usageLogLabel = "模型测试"
 	}
+	usageLogModel := options.usageLogModel
+	if usageLogModel == "" {
+		usageLogModel = info.OriginModelName
+	}
+	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
+		ChannelId:        channel.Id,
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		ModelName:        usageLogModel,
+		TokenName:        usageLogLabel,
+		Quota:            quota,
+		Content:          usageLogLabel,
+		UseTimeSeconds:   int(consumedTime),
+		IsStream:         info.IsStream,
+		Group:            info.UsingGroup,
+		Other:            other,
+	})
 	return testResult{
 		context:      c,
 		localErr:     nil,
@@ -1048,8 +1056,10 @@ func executeJuiceTestWithSchedule(channel *model.Channel, enforceSchedule bool, 
 		false,
 		"",
 		channelTestOptions{
-			request:        request,
-			skipAccounting: true,
+			request:       request,
+			skipPricing:   true,
+			usageLogLabel: "Juice 测试",
+			usageLogModel: model.JuiceTestModel,
 		},
 	)
 	if result.localErr != nil {
