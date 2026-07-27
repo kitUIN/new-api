@@ -175,3 +175,158 @@ func TestApplyUpstreamGroupRatioBindingsToMapSkipsNoopsAndInvalid(t *testing.T) 
 		})
 	}
 }
+
+func TestExtractSub2APIKeyGroup(t *testing.T) {
+	const channelKey = "sk-aaa"
+
+	tests := []struct {
+		name      string
+		body      string
+		keys      []string
+		wantName  string
+		wantRatio float64
+		wantNil   bool
+		wantErr   bool
+	}{
+		{
+			name: "single key single group",
+			body: `{"code":0,"message":"success","data":{"items":[
+				{"id":1,"key":"sk-aaa","name":"fl","group":{"id":126,"name":"Codex","rate_multiplier":0.03}},
+				{"id":2,"key":"sk-bbb","name":"other","group":{"id":99,"name":"Other","rate_multiplier":1}}
+			],"total":2}}`,
+			keys:      []string{channelKey},
+			wantName:  "Codex",
+			wantRatio: 0.03,
+		},
+		{
+			name: "multi key same group",
+			body: `{"code":0,"message":"success","data":{"items":[
+				{"id":1,"key":"sk-aaa","group":{"id":126,"name":"Codex","rate_multiplier":0.03}},
+				{"id":2,"key":"sk-bbb","group":{"id":126,"name":"Codex","rate_multiplier":0.03}}
+			],"total":2}}`,
+			keys:      []string{"sk-aaa", "sk-bbb"},
+			wantName:  "Codex",
+			wantRatio: 0.03,
+		},
+		{
+			name: "multi key different groups is ambiguous",
+			body: `{"code":0,"message":"success","data":{"items":[
+				{"id":1,"key":"sk-aaa","group":{"id":126,"name":"Codex","rate_multiplier":0.03}},
+				{"id":2,"key":"sk-bbb","group":{"id":99,"name":"Other","rate_multiplier":1}}
+			],"total":2}}`,
+			keys:    []string{"sk-aaa", "sk-bbb"},
+			wantNil: true,
+		},
+		{
+			name:    "key not found",
+			body:    `{"code":0,"message":"success","data":{"items":[{"id":2,"key":"sk-bbb","group":{"id":99,"name":"Other","rate_multiplier":1}}],"total":1}}`,
+			keys:    []string{channelKey},
+			wantNil: true,
+		},
+		{
+			name:    "null group",
+			body:    `{"code":0,"message":"success","data":{"items":[{"id":1,"key":"sk-aaa","group":null}],"total":1}}`,
+			keys:    []string{channelKey},
+			wantNil: true,
+		},
+		{
+			name:    "upstream error code",
+			body:    `{"code":401,"message":"unauthorized","data":{"items":[]}}`,
+			keys:    []string{channelKey},
+			wantErr: true,
+		},
+		{
+			name:    "malformed body",
+			body:    `not-json`,
+			keys:    []string{channelKey},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extractSub2APIKeyGroup([]byte(tt.body), tt.keys)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantNil {
+				require.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			require.Equal(t, tt.wantName, got.Name)
+			require.Equal(t, tt.wantRatio, got.RateMultiplier)
+		})
+	}
+}
+
+func TestResolveUpstreamGroupBindingUpdate(t *testing.T) {
+	t.Run("no binding creates one", func(t *testing.T) {
+		got, changed := resolveUpstreamGroupBindingUpdate(ratio_setting.UpstreamGroupRatioBinding{}, 7, "Codex")
+
+		require.True(t, changed)
+		require.Equal(t, ratio_setting.UpstreamGroupRatioBindingSourceChannel, got.SourceType)
+		require.Equal(t, 7, got.SourceID)
+		require.Equal(t, "Codex", got.UpstreamGroup)
+	})
+
+	t.Run("identical binding is unchanged", func(t *testing.T) {
+		existing := ratio_setting.UpstreamGroupRatioBinding{
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:      7,
+			UpstreamGroup: "Codex",
+			Offset:        0.01,
+		}
+
+		got, changed := resolveUpstreamGroupBindingUpdate(existing, 7, "Codex")
+
+		require.False(t, changed)
+		require.Equal(t, existing, got)
+	})
+
+	t.Run("upstream group change preserves numeric offset", func(t *testing.T) {
+		existing := ratio_setting.UpstreamGroupRatioBinding{
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:      7,
+			UpstreamGroup: "OldGroup",
+			Offset:        0.02,
+		}
+
+		got, changed := resolveUpstreamGroupBindingUpdate(existing, 7, "Codex")
+
+		require.True(t, changed)
+		require.Equal(t, "Codex", got.UpstreamGroup)
+		require.Equal(t, 0.02, got.Offset)
+	})
+
+	t.Run("upstream group change preserves offset expression", func(t *testing.T) {
+		existing := ratio_setting.UpstreamGroupRatioBinding{
+			SourceType:       ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+			SourceID:         7,
+			UpstreamGroup:    "OldGroup",
+			OffsetExpression: "ratio * 1.1",
+		}
+
+		got, changed := resolveUpstreamGroupBindingUpdate(existing, 7, "Codex")
+
+		require.True(t, changed)
+		require.Equal(t, "Codex", got.UpstreamGroup)
+		require.Equal(t, "ratio * 1.1", got.OffsetExpression)
+	})
+
+	t.Run("rebinding from provider source takes over", func(t *testing.T) {
+		existing := ratio_setting.UpstreamGroupRatioBinding{
+			SourceType:    ratio_setting.UpstreamGroupRatioBindingSourceProvider,
+			SourceID:      7,
+			UpstreamGroup: "Codex",
+		}
+
+		got, changed := resolveUpstreamGroupBindingUpdate(existing, 7, "Codex")
+
+		require.True(t, changed)
+		require.Equal(t, ratio_setting.UpstreamGroupRatioBindingSourceChannel, got.SourceType)
+	})
+}

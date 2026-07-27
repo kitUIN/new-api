@@ -405,6 +405,117 @@ func syncUpstreamGroupRatioBindings(sourceType string, sourceID int, result map[
 	}
 }
 
+// extractSub2APIKeyGroup 返回渠道全部 APIKey 共同归属的上游分组。
+// 当这些 APIKey 分散在多个上游分组时返回 nil，避免歧义绑定。
+func extractSub2APIKeyGroup(body []byte, channelKeys []string) (*dto.Sub2APIKeyGroupInfo, error) {
+	var resp dto.Sub2APIKeysResponse
+	if err := common.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("上游 APIKey 查询响应解析失败: %w", err)
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("上游 APIKey 查询失败: %s", resp.Message)
+	}
+	keySet := make(map[string]bool, len(channelKeys))
+	for _, key := range channelKeys {
+		if trimmed := strings.TrimSpace(key); trimmed != "" {
+			keySet[trimmed] = true
+		}
+	}
+	var matched *dto.Sub2APIKeyGroupInfo
+	for i := range resp.Data.Items {
+		item := resp.Data.Items[i]
+		if !keySet[strings.TrimSpace(item.Key)] || item.Group == nil {
+			continue
+		}
+		if matched != nil && matched.Name != item.Group.Name {
+			return nil, nil
+		}
+		matched = item.Group
+	}
+	return matched, nil
+}
+
+func resolveUpstreamGroupBindingUpdate(
+	existing ratio_setting.UpstreamGroupRatioBinding,
+	channelID int,
+	upstreamGroup string,
+) (ratio_setting.UpstreamGroupRatioBinding, bool) {
+	if existing.SourceType == ratio_setting.UpstreamGroupRatioBindingSourceChannel &&
+		existing.SourceID == channelID &&
+		existing.UpstreamGroup == upstreamGroup {
+		return existing, false
+	}
+	return ratio_setting.UpstreamGroupRatioBinding{
+		SourceType:       ratio_setting.UpstreamGroupRatioBindingSourceChannel,
+		SourceID:         channelID,
+		UpstreamGroup:    upstreamGroup,
+		Offset:           existing.Offset,
+		OffsetExpression: existing.OffsetExpression,
+	}, true
+}
+
+func executeChannelAPIKeyGroupDetection(channel *model.Channel, config dto.GroupQuery) error {
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return nil
+	}
+
+	localGroups := channel.GetGroups()
+	if len(localGroups) != 1 {
+		return nil
+	}
+	localGroup := localGroups[0]
+
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[channel.Type], "/")
+	}
+	accessToken := config.AccessToken
+	if accessToken == "" {
+		accessToken = channel.Key
+	}
+
+	reqURL := baseURL + "/api/v1/keys?page=1&page_size=20&sort_by=created_at&sort_order=desc&timezone=Asia%2FShanghai"
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+accessToken)
+
+	body, err := GetResponseBodyWithBody(http.MethodGet, reqURL, "", channel, headers)
+	if err != nil {
+		return fmt.Errorf("上游 APIKey 查询请求失败: %w", err)
+	}
+
+	matchedGroup, err := extractSub2APIKeyGroup(body, keys)
+	if err != nil {
+		return err
+	}
+	if matchedGroup == nil {
+		return nil
+	}
+
+	bindings := ratio_setting.GetUpstreamGroupRatioBindingsCopy()
+	newBinding, changed := resolveUpstreamGroupBindingUpdate(bindings[localGroup], channel.Id, matchedGroup.Name)
+	if !changed {
+		return nil
+	}
+	bindings[localGroup] = newBinding
+
+	jsonStr, err := common.Marshal(bindings)
+	if err != nil {
+		return fmt.Errorf("上游分组绑定序列化失败: %w", err)
+	}
+	if err := model.UpdateOption("group_ratio_setting.upstream_group_ratio_bindings", string(jsonStr)); err != nil {
+		return fmt.Errorf("上游分组绑定保存失败: %w", err)
+	}
+	common.SysLog(fmt.Sprintf("auto-bound upstream group: local_group=%s channel_id=%d upstream_group=%s", localGroup, channel.Id, matchedGroup.Name))
+
+	syntheticResult := map[string]dto.GroupQueryItem{
+		matchedGroup.Name: {Ratio: matchedGroup.RateMultiplier},
+	}
+	syncUpstreamGroupRatioBindings(ratio_setting.UpstreamGroupRatioBindingSourceChannel, channel.Id, syntheticResult)
+
+	return nil
+}
+
 func syncUpstreamGroupRatioBindingsFromLastResults() error {
 	providers, _, err := model.ListChannelProviders(0, 0)
 	if err != nil {
@@ -670,6 +781,11 @@ func executeChannelConfiguredGroups(target *model.Channel, targetSettings dto.Ch
 	persistGroupQueryResult(target, targetSettings, result, nil)
 	if previous != nil && !reflect.DeepEqual(previous, result) {
 		sendChannelGroupQueryChangedNotify(target, previous, result)
+	}
+	if normalizeBalanceQueryTemplate(config.Template) == balanceQueryTemplateSub2API {
+		if err := executeChannelAPIKeyGroupDetection(channel, config); err != nil {
+			common.SysLog(fmt.Sprintf("channel %d apikey group detection failed: %v", channel.Id, err))
+		}
 	}
 	return result, true, nil
 }

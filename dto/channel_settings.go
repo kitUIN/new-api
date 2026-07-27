@@ -146,3 +146,28 @@ type GroupQueryItem struct {
 	Desc  string  `json:"desc"`
 	Ratio float64 `json:"ratio"`
 }
+
+type Sub2APIKeyGroupInfo struct {
+	ID             int     `json:"id"`
+	Name           string  `json:"name"`
+	RateMultiplier float64 `json:"rate_multiplier"`
+}
+
+type Sub2APIKeyItem struct {
+	ID    int                  `json:"id"`
+	Key   string               `json:"key"`
+	Name  string               `json:"name"`
+	Group *Sub2APIKeyGroupInfo `json:"group"`
+}
+
+type Sub2APIKeysResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Items    []Sub2APIKeyItem `json:"items"`
+		Total    int              `json:"total"`
+		Page     int              `json:"page"`
+		PageSize int              `json:"page_size"`
+		Pages    int              `json:"pages"`
+	} `json:"data"`
+}
