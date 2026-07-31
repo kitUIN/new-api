@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -51,6 +52,15 @@ type channelTestOptions struct {
 	recordPerfMetric bool
 	usageLogLabel    string
 	usageLogModel    string
+}
+
+func setChannelTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Request) error {
+	input, err := helper.BuildBillingExprRequestInputFromRequest(request, info.RequestHeaders)
+	if err != nil {
+		return fmt.Errorf("failed to build channel test billing input: %w", err)
+	}
+	info.BillingRequestInput = &input
+	return nil
 }
 
 const defaultChannelTestStream = true
@@ -381,6 +391,15 @@ func testChannelWithOptions(channel *model.Channel, testModel string, endpointTy
 			context:     c,
 			localErr:    err,
 			newAPIError: types.NewError(err, types.ErrorCodeGenRelayInfoFailed),
+		}
+	}
+	if !options.skipPricing && billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+		if err := setChannelTestBillingRequestInput(info, request); err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest)),
+			}
 		}
 	}
 

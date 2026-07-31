@@ -34,6 +34,10 @@ func IsRequestBodyTooLargeError(err error) bool {
 }
 
 func GetRequestBody(c *gin.Context) (io.Seeker, error) {
+	if c == nil || c.Request == nil {
+		return nil, errors.New("request is nil")
+	}
+
 	// 首先检查是否有 BodyStorage 缓存
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
@@ -65,9 +69,14 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	contentLength := c.Request.ContentLength
 
-	// 使用新的存储系统
-	storage, err := CreateBodyStorageFromReader(c.Request.Body, contentLength, maxBytes)
-	_ = c.Request.Body.Close()
+	// net/http server requests always provide a non-nil Body, but synthetic
+	// requests used by internal jobs may leave it nil.
+	body := c.Request.Body
+	if body == nil {
+		body = http.NoBody
+	}
+	storage, err := CreateBodyStorageFromReader(body, contentLength, maxBytes)
+	_ = body.Close()
 
 	if err != nil {
 		if IsRequestBodyTooLargeError(err) {

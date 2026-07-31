@@ -260,6 +260,10 @@ func CreateBodyStorage(data []byte) (BodyStorage, error) {
 
 // CreateBodyStorageFromReader 从 Reader 创建存储（用于大请求的流式处理）
 func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes int64) (BodyStorage, error) {
+	if reader == nil {
+		return nil, fmt.Errorf("body reader is nil")
+	}
+
 	threshold := GetDiskCacheThresholdBytes()
 
 	// 如果启用了磁盘缓存且内容长度超过阈值，直接使用磁盘存储

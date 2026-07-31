@@ -12,9 +12,44 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
+
+func TestSetChannelTestBillingRequestInputPreservesIncomingRequest(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RequestHeaders: map[string]string{"Content-Type": "application/json"},
+	}
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-5.6-terra",
+		Messages: []dto.Message{{
+			Role:    "user",
+			Content: "hi",
+		}},
+	}
+
+	if err := setChannelTestBillingRequestInput(info, request); err != nil {
+		t.Fatal(err)
+	}
+	request.SetModelName("mapped-upstream-model")
+
+	if info.BillingRequestInput == nil {
+		t.Fatal("billing request input was not set")
+	}
+	if got := info.BillingRequestInput.Headers["Content-Type"]; got != "application/json" {
+		t.Fatalf("Content-Type = %q, want application/json", got)
+	}
+	var body struct {
+		Model string `json:"model"`
+	}
+	if err := common.Unmarshal(info.BillingRequestInput.Body, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Model != "gpt-5.6-terra" {
+		t.Fatalf("billing model = %q, want incoming model", body.Model)
+	}
+}
 
 func TestJuiceTestEligibility(t *testing.T) {
 	mapping := `{"alias":"gpt-5.6-sol"}`
