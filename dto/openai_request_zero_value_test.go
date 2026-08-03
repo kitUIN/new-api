@@ -98,3 +98,29 @@ func TestOpenAIResponsesRequestRemoveOnlyImageGenerationToolClearsTools(t *testi
 	require.NoError(t, err)
 	require.Nil(t, req.Tools)
 }
+
+func TestOpenAIResponsesRequestRemoveWebSearchTools(t *testing.T) {
+	raw := json.RawMessage(`[
+		{"type":"function","name":"shell_command"},
+		{"type":"web_search","external_web_access":false},
+		{"type":"web_search_preview","search_context_size":"medium"}
+	]`)
+
+	req := OpenAIResponsesRequest{Tools: raw}
+	err := req.RemoveWebSearchTools()
+	require.NoError(t, err)
+
+	require.False(t, gjson.GetBytes(req.Tools, `#[type="web_search"]`).Exists())
+	require.Equal(t, "function", gjson.GetBytes(req.Tools, "0.type").String())
+	require.Equal(t, "web_search_preview", gjson.GetBytes(req.Tools, "1.type").String())
+}
+
+func TestOpenAIResponsesRequestRemoveOnlyWebSearchToolClearsTools(t *testing.T) {
+	req := OpenAIResponsesRequest{
+		Tools: json.RawMessage(`[{"type":"web_search","external_web_access":false}]`),
+	}
+
+	err := req.RemoveWebSearchTools()
+	require.NoError(t, err)
+	require.Nil(t, req.Tools)
+}

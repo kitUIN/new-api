@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/common/limiter"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
@@ -178,6 +179,11 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		successMaxCount := setting.ModelRequestRateLimitSuccessCount
 
 		// 获取分组
+		if common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
+			if modelRequest, shouldSelectChannel, err := getModelRequest(c); err == nil && shouldSelectChannel && modelRequest.Model != "" {
+				_, _, _ = service.ResolveModelGroupCombination(c, modelRequest.Model)
+			}
+		}
 		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 		if group == "" {
 			group = common.GetContextKeyString(c, constant.ContextKeyUserGroup)

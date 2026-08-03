@@ -43,6 +43,15 @@ export const apiKeySchema = z.object({
     .optional()
     .default(false),
   auto_group_mode: z.string().nullish().default(''),
+  model_group_combination_enabled: z
+    .preprocess((v) => {
+      if (v === 1) return true
+      if (v === 0) return false
+      return v
+    }, z.boolean())
+    .optional()
+    .default(false),
+  model_group_combination_groups: z.string().nullish().default(''),
   session_group_failover_enabled: z
     .preprocess((v) => {
       if (v === 1) return true
@@ -116,6 +125,8 @@ export interface ApiKeyFormData {
   group: string
   cross_group_retry: boolean
   auto_group_mode: string
+  model_group_combination_enabled: boolean
+  model_group_combination_groups: string
   session_group_failover_enabled: boolean
   session_failover_groups: string
   session_failover_threshold: number

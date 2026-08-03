@@ -60,9 +60,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
-	filterResponsesImageGenerationTools := !info.ChannelOtherSettings.DisableResponsesImageGenerationFilter
-	if filterResponsesImageGenerationTools {
-		if err = request.RemoveImageGenerationTools(); err != nil {
+	filteredResponsesToolTypes := getFilteredResponsesToolTypes(info.ChannelOtherSettings)
+	if len(filteredResponsesToolTypes) > 0 {
+		if err = request.RemoveTools(filteredResponsesToolTypes...); err != nil {
 			return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		}
 	}
@@ -88,8 +88,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
 		jsonData := rawBody
-		if filterResponsesImageGenerationTools {
-			jsonData, err = removeResponsesImageGenerationToolsFromBody(rawBody)
+		if len(filteredResponsesToolTypes) > 0 {
+			jsonData, err = removeResponsesToolsFromBody(rawBody, filteredResponsesToolTypes...)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 			}
@@ -120,8 +120,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 			}
 		}
 
-		if filterResponsesImageGenerationTools {
-			jsonData, err = removeResponsesImageGenerationToolsFromBody(jsonData)
+		if len(filteredResponsesToolTypes) > 0 {
+			jsonData, err = removeResponsesToolsFromBody(jsonData, filteredResponsesToolTypes...)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
@@ -190,7 +190,26 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	return nil
 }
 
+func getFilteredResponsesToolTypes(settings dto.ChannelOtherSettings) []string {
+	filteredToolTypes := make([]string, 0, 2)
+	if !settings.DisableResponsesImageGenerationFilter {
+		filteredToolTypes = append(filteredToolTypes, dto.OpenAIResponsesToolTypeImageGeneration)
+	}
+	if settings.DisableResponsesWebSearchTool {
+		filteredToolTypes = append(filteredToolTypes, dto.OpenAIResponsesToolTypeWebSearch)
+	}
+	return filteredToolTypes
+}
+
 func removeResponsesImageGenerationToolsFromBody(jsonData []byte) ([]byte, error) {
+	return removeResponsesToolsFromBody(jsonData, dto.OpenAIResponsesToolTypeImageGeneration)
+}
+
+func removeResponsesWebSearchToolsFromBody(jsonData []byte) ([]byte, error) {
+	return removeResponsesToolsFromBody(jsonData, dto.OpenAIResponsesToolTypeWebSearch)
+}
+
+func removeResponsesToolsFromBody(jsonData []byte, filteredToolTypes ...string) ([]byte, error) {
 	var request map[string]json.RawMessage
 	if err := common.Unmarshal(jsonData, &request); err != nil {
 		return nil, err
@@ -201,7 +220,7 @@ func removeResponsesImageGenerationToolsFromBody(jsonData []byte) ([]byte, error
 		return jsonData, nil
 	}
 
-	filteredTools, removed, err := dto.FilterOpenAIResponsesImageGenerationTools(tools)
+	filteredTools, removed, err := dto.FilterOpenAIResponsesTools(tools, filteredToolTypes...)
 	if err != nil {
 		return nil, err
 	}

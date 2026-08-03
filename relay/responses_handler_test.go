@@ -3,9 +3,25 @@ package relay
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestGetFilteredResponsesToolTypesWebSearchDefaultsToEnabled(t *testing.T) {
+	require.Equal(t,
+		[]string{dto.OpenAIResponsesToolTypeImageGeneration},
+		getFilteredResponsesToolTypes(dto.ChannelOtherSettings{}),
+	)
+
+	require.Equal(t,
+		[]string{
+			dto.OpenAIResponsesToolTypeImageGeneration,
+			dto.OpenAIResponsesToolTypeWebSearch,
+		},
+		getFilteredResponsesToolTypes(dto.ChannelOtherSettings{DisableResponsesWebSearchTool: true}),
+	)
+}
 
 func TestRemoveResponsesImageGenerationToolsFromBody(t *testing.T) {
 	input := []byte(`{
@@ -40,4 +56,39 @@ func TestRemoveResponsesImageGenerationToolsFromBodyDeletesToolsWhenEmpty(t *tes
 
 	require.False(t, gjson.GetBytes(output, "tools").Exists())
 	require.Equal(t, "gpt-5.5", gjson.GetBytes(output, "model").String())
+}
+
+func TestRemoveResponsesWebSearchToolsFromBody(t *testing.T) {
+	input := []byte(`{
+		"model":"deepseek-v4-flash",
+		"input":"hi",
+		"unknown_field":{"keep":true},
+		"tools":[
+			{"type":"function","name":"shell_command"},
+			{"type":"web_search","external_web_access":false},
+			{"type":"web_search_preview","search_context_size":"medium"}
+		]
+	}`)
+
+	output, err := removeResponsesWebSearchToolsFromBody(input)
+	require.NoError(t, err)
+
+	require.False(t, gjson.GetBytes(output, `tools.#[type="web_search"]`).Exists())
+	require.Equal(t, "function", gjson.GetBytes(output, "tools.0.type").String())
+	require.Equal(t, "web_search_preview", gjson.GetBytes(output, "tools.1.type").String())
+	require.True(t, gjson.GetBytes(output, "unknown_field.keep").Bool())
+}
+
+func TestRemoveResponsesWebSearchToolsFromBodyDeletesToolsWhenEmpty(t *testing.T) {
+	input := []byte(`{
+		"model":"deepseek-v4-flash",
+		"input":"hi",
+		"tools":[{"type":"web_search","external_web_access":false}]
+	}`)
+
+	output, err := removeResponsesWebSearchToolsFromBody(input)
+	require.NoError(t, err)
+
+	require.False(t, gjson.GetBytes(output, "tools").Exists())
+	require.Equal(t, "deepseek-v4-flash", gjson.GetBytes(output, "model").String())
 }

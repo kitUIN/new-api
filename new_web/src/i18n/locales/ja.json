@@ -3461,6 +3461,8 @@
     "Responses API Version": "応答APIバージョン",
     "Filter Responses image generation tool": "过滤 Responses 图像生成工具",
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
+    "Enable Responses web search tool": "Responses のウェブ検索ツールを有効化",
+    "Turn off to remove web_search tools before forwarding Responses requests upstream": "オフにすると、Responses リクエストをアップストリームへ転送する前に web_search ツールを削除します",
     "Restore defaults": "既定に戻す",
     "Restrict user model request frequency (may impact high concurrency performance)": "ユーザーモデルのリクエスト頻度を制限する（高並行性パフォーマンスに影響を与える可能性があります）",
     "Retain last N days": "最新N日間を保持",
@@ -4891,6 +4893,13 @@
     "Online Banking": "Online Banking",
     "JD Pay": "JD Pay",
     "UnionPay": "UnionPay",
-    "Douyin Pay": "Douyin Pay"
+    "Douyin Pay": "Douyin Pay",
+    "分组模式": "グループモード",
+    "单分组": "単一グループ",
+    "模型组合": "モデルの組み合わせ",
+    "组合分组": "組み合わせグループ",
+    "请至少选择两个模型组合分组": "モデル組み合わせグループを2つ以上選択してください",
+    "模型组合分组不能重复": "モデル組み合わせグループは重複できません",
+    "请求将按优先级使用第一个支持所请求模型的分组。": "リクエストは、要求されたモデルをサポートする最初のグループを優先順位に従って使用します。"
   }
 }

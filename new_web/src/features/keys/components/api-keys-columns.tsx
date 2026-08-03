@@ -34,7 +34,10 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
-import { parseSessionFailoverGroups } from '../lib'
+import {
+  parseModelGroupCombinationGroups,
+  parseSessionFailoverGroups,
+} from '../lib'
 import { type ApiKey } from '../types'
 import {
   ApiKeyCell,
@@ -144,6 +147,53 @@ export function FailoverGroupsCell({
           variant='neutral'
           copyable={false}
           className='shrink-0'
+        />
+      )}
+    </span>
+  )
+}
+
+export function ModelCombinationGroupsCell({
+  groups,
+  groupRatios,
+  compact = false,
+}: {
+  groups: string[]
+  groupRatios: Record<string, number>
+  compact?: boolean
+}) {
+  const displayedGroups = groups.slice(0, 3)
+
+  return (
+    <span
+      className={cn(
+        'flex flex-wrap items-center gap-1.5 text-xs whitespace-normal',
+        compact ? 'min-w-max' : 'min-w-[18rem]'
+      )}
+    >
+      {displayedGroups.map((group, index) => (
+        <span
+          key={`${group}-${index}`}
+          className='inline-flex min-w-max items-center gap-1'
+        >
+          <StatusBadge
+            label={`P${index}`}
+            variant='info'
+            copyable={false}
+            className='shrink-0'
+          />
+          <GroupBadge
+            group={group}
+            ratio={groupRatios[group]}
+            ratioColor='group'
+          />
+        </span>
+      ))}
+      {groups.length > displayedGroups.length && (
+        <StatusBadge
+          label={`+${groups.length - displayedGroups.length}`}
+          variant='neutral'
+          copyable={false}
         />
       )}
     </span>
@@ -302,9 +352,45 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
+        const combinationGroups = parseModelGroupCombinationGroups(
+          apiKey.model_group_combination_groups
+        )
         const runtime = apiKey.api_key_group_failover_runtime
         const currentLevel =
           runtime && runtime.current_level >= 0 ? runtime.current_level : 0
+
+        if (
+          apiKey.model_group_combination_enabled &&
+          combinationGroups.length >= 2
+        ) {
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className='inline-flex max-w-full text-xs whitespace-normal' />
+                }
+              >
+                <ModelCombinationGroupsCell
+                  groups={combinationGroups}
+                  groupRatios={groupRatios}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className='flex flex-col gap-1 text-xs'>
+                  <span>{t('模型组合')}</span>
+                  <span>
+                    {combinationGroups
+                      .map(
+                        (combinationGroup, index) =>
+                          `P${index} ${combinationGroup}`
+                      )
+                      .join(' -> ')}
+                  </span>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
 
         if (
           apiKey.session_group_failover_enabled &&

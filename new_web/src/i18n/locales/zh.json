@@ -3461,6 +3461,8 @@
     "Responses API Version": "响应 API 版本",
     "Filter Responses image generation tool": "过滤 Responses 图像生成工具",
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
+    "Enable Responses web search tool": "启用 Responses 网络搜索工具",
+    "Turn off to remove web_search tools before forwarding Responses requests upstream": "关闭后，转发 Responses 请求到上游前会移除 web_search 工具",
     "Restore defaults": "恢复默认",
     "Restrict user model request frequency (may impact high concurrency performance)": "限制用户模型请求频率（可能会影响高并发性能）",
     "Retain last N days": "保留最近N天",
@@ -4891,6 +4893,13 @@
     "Online Banking": "网银支付",
     "JD Pay": "京东支付",
     "UnionPay": "云闪付",
-    "Douyin Pay": "抖音支付"
+    "Douyin Pay": "抖音支付",
+    "分组模式": "分组模式",
+    "单分组": "单分组",
+    "模型组合": "模型组合",
+    "组合分组": "组合分组",
+    "请至少选择两个模型组合分组": "请至少选择两个模型组合分组",
+    "模型组合分组不能重复": "模型组合分组不能重复",
+    "请求将按优先级使用第一个支持所请求模型的分组。": "请求将按优先级使用第一个支持所请求模型的分组。"
   }
 }

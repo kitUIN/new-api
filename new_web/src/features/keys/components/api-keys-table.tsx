@@ -60,11 +60,15 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
-import { parseSessionFailoverGroups } from '../lib'
+import {
+  parseModelGroupCombinationGroups,
+  parseSessionFailoverGroups,
+} from '../lib'
 import { type ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import {
   FailoverGroupsCell,
+  ModelCombinationGroupsCell,
   useGroupMetadata,
   useApiKeysColumns,
   useGroupRatios,
@@ -148,11 +152,17 @@ function ApiKeysMobileList({
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
+        const combinationGroups = parseModelGroupCombinationGroups(
+          apiKey.model_group_combination_groups
+        )
         const runtime = apiKey.api_key_group_failover_runtime
         const currentLevel =
           runtime && runtime.current_level >= 0 ? runtime.current_level : 0
         const showFailoverGroups =
           apiKey.session_group_failover_enabled && failoverGroups.length >= 2
+        const showCombinationGroups =
+          apiKey.model_group_combination_enabled &&
+          combinationGroups.length >= 2
 
         return (
           <div
@@ -208,7 +218,13 @@ function ApiKeysMobileList({
               </span>
               <div className='no-scrollbar min-w-0 flex-1 overflow-x-auto text-right'>
                 <div className='ml-auto flex w-max justify-end'>
-                  {showFailoverGroups ? (
+                  {showCombinationGroups ? (
+                    <ModelCombinationGroupsCell
+                      groups={combinationGroups}
+                      groupRatios={groupRatios}
+                      compact
+                    />
+                  ) : showFailoverGroups ? (
                     <FailoverGroupsCell
                       failoverGroups={failoverGroups}
                       currentLevel={currentLevel}

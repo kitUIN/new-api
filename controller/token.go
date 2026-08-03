@@ -36,15 +36,21 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	return maskedTokens
 }
 
-func normalizeTokenSessionFailoverForRequest(c *gin.Context, token *model.Token) error {
+func normalizeTokenRoutingForRequest(c *gin.Context, token *model.Token) error {
 	userGroup := c.GetString("group")
-	needsUserGroup := token != nil && (token.SessionGroupFailoverEnabled || service.IsRuleAutoGroup(token.Group))
+	needsUserGroup := token != nil && (token.ModelGroupCombinationEnabled || token.SessionGroupFailoverEnabled || service.IsRuleAutoGroup(token.Group))
 	if userGroup == "" && needsUserGroup {
 		userCache, err := model.GetUserCache(c.GetInt("id"))
 		if err != nil {
 			return err
 		}
 		userGroup = userCache.Group
+	}
+	if err := service.NormalizeTokenModelGroupCombination(token, userGroup); err != nil {
+		return err
+	}
+	if token.ModelGroupCombinationEnabled {
+		return nil
 	}
 	if err := service.NormalizeTokenRuleAutoGroup(token, userGroup); err != nil {
 		return err
@@ -227,7 +233,7 @@ func AddToken(c *gin.Context) {
 			return
 		}
 	}
-	if err := normalizeTokenSessionFailoverForRequest(c, &token); err != nil {
+	if err := normalizeTokenRoutingForRequest(c, &token); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -252,23 +258,25 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	cleanToken := model.Token{
-		UserId:                      c.GetInt("id"),
-		Name:                        token.Name,
-		Key:                         key,
-		CreatedTime:                 common.GetTimestamp(),
-		AccessedTime:                common.GetTimestamp(),
-		ExpiredTime:                 token.ExpiredTime,
-		RemainQuota:                 token.RemainQuota,
-		UnlimitedQuota:              token.UnlimitedQuota,
-		ModelLimitsEnabled:          token.ModelLimitsEnabled,
-		ModelLimits:                 token.ModelLimits,
-		AllowIps:                    token.AllowIps,
-		Group:                       token.Group,
-		CrossGroupRetry:             token.CrossGroupRetry,
-		AutoGroupMode:               token.AutoGroupMode,
-		SessionGroupFailoverEnabled: token.SessionGroupFailoverEnabled,
-		SessionFailoverGroups:       token.SessionFailoverGroups,
-		SessionFailoverThreshold:    token.SessionFailoverThreshold,
+		UserId:                       c.GetInt("id"),
+		Name:                         token.Name,
+		Key:                          key,
+		CreatedTime:                  common.GetTimestamp(),
+		AccessedTime:                 common.GetTimestamp(),
+		ExpiredTime:                  token.ExpiredTime,
+		RemainQuota:                  token.RemainQuota,
+		UnlimitedQuota:               token.UnlimitedQuota,
+		ModelLimitsEnabled:           token.ModelLimitsEnabled,
+		ModelLimits:                  token.ModelLimits,
+		AllowIps:                     token.AllowIps,
+		Group:                        token.Group,
+		CrossGroupRetry:              token.CrossGroupRetry,
+		AutoGroupMode:                token.AutoGroupMode,
+		ModelGroupCombinationEnabled: token.ModelGroupCombinationEnabled,
+		ModelGroupCombinationGroups:  token.ModelGroupCombinationGroups,
+		SessionGroupFailoverEnabled:  token.SessionGroupFailoverEnabled,
+		SessionFailoverGroups:        token.SessionFailoverGroups,
+		SessionFailoverThreshold:     token.SessionFailoverThreshold,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -319,7 +327,7 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
-	if err := normalizeTokenSessionFailoverForRequest(c, &token); err != nil {
+	if err := normalizeTokenRoutingForRequest(c, &token); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -352,6 +360,8 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 		cleanToken.AutoGroupMode = token.AutoGroupMode
+		cleanToken.ModelGroupCombinationEnabled = token.ModelGroupCombinationEnabled
+		cleanToken.ModelGroupCombinationGroups = token.ModelGroupCombinationGroups
 		cleanToken.SessionGroupFailoverEnabled = token.SessionGroupFailoverEnabled
 		cleanToken.SessionFailoverGroups = token.SessionFailoverGroups
 		cleanToken.SessionFailoverThreshold = token.SessionFailoverThreshold

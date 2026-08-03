@@ -3461,6 +3461,8 @@
     "Responses API Version": "Phiên bản API Phản hồi",
     "Filter Responses image generation tool": "过滤 Responses 图像生成工具",
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
+    "Enable Responses web search tool": "Bật công cụ tìm kiếm web của Responses",
+    "Turn off to remove web_search tools before forwarding Responses requests upstream": "Tắt để xóa công cụ web_search trước khi chuyển tiếp yêu cầu Responses đến thượng nguồn",
     "Restore defaults": "Khôi phục mặc định",
     "Restrict user model request frequency (may impact high concurrency performance)": "Hạn chế tần suất yêu cầu mô hình người dùng (có thể ảnh hưởng đến hiệu suất khi có độ đồng thời cao)",
     "Retain last N days": "Giữ lại N ngày gần nhất",
@@ -4891,6 +4893,13 @@
     "Online Banking": "Online Banking",
     "JD Pay": "JD Pay",
     "UnionPay": "UnionPay",
-    "Douyin Pay": "Douyin Pay"
+    "Douyin Pay": "Douyin Pay",
+    "分组模式": "Chế độ nhóm",
+    "单分组": "Nhóm đơn",
+    "模型组合": "Tổ hợp mô hình",
+    "组合分组": "Các nhóm trong tổ hợp",
+    "请至少选择两个模型组合分组": "Chọn ít nhất hai nhóm cho tổ hợp mô hình",
+    "模型组合分组不能重复": "Các nhóm trong tổ hợp mô hình không được trùng lặp",
+    "请求将按优先级使用第一个支持所请求模型的分组。": "Yêu cầu sử dụng nhóm đầu tiên theo thứ tự ưu tiên có hỗ trợ mô hình được yêu cầu."
   }
 }

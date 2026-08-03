@@ -381,7 +381,14 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
-		if tokenGroup != "" {
+		if token.ModelGroupCombinationEnabled {
+			if err := service.NormalizeTokenModelGroupCombination(token, userGroup); err != nil {
+				abortWithOpenAiMessage(c, http.StatusForbidden, err.Error())
+				return
+			}
+			tokenGroup = token.Group
+			userGroup = tokenGroup
+		} else if tokenGroup != "" {
 			// Check concrete groups and rule-based virtual groups against the user's usable groups.
 			if !service.GroupInUserUsableGroups(userGroup, tokenGroup) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
@@ -427,6 +434,8 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
 	common.SetContextKey(c, constant.ContextKeyTokenAutoGroupMode, token.AutoGroupMode)
+	common.SetContextKey(c, constant.ContextKeyTokenModelGroupCombinationEnabled, token.ModelGroupCombinationEnabled)
+	common.SetContextKey(c, constant.ContextKeyTokenModelGroupCombinationGroups, token.ModelGroupCombinationGroups)
 	common.SetContextKey(c, constant.ContextKeyTokenSessionGroupFailoverEnabled, token.SessionGroupFailoverEnabled)
 	common.SetContextKey(c, constant.ContextKeyTokenSessionFailoverGroups, token.SessionFailoverGroups)
 	common.SetContextKey(c, constant.ContextKeyTokenSessionFailoverThreshold, token.SessionFailoverThreshold)

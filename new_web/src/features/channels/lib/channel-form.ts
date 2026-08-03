@@ -344,6 +344,7 @@ export const channelFormSchema = z
     allow_safety_identifier: z.boolean().optional(), // OpenAI only
     allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
     responses_image_generation_tool_filter_enabled: z.boolean().optional(), // OpenAI/Codex Responses
+    responses_web_search_tool_enabled: z.boolean().optional(), // OpenAI/Codex Responses
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
@@ -525,6 +526,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_safety_identifier: false,
   allow_include_obfuscation: false,
   responses_image_generation_tool_filter_enabled: true,
+  responses_web_search_tool_enabled: true,
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
@@ -787,6 +789,7 @@ export function transformChannelToFormDefaults(
   let allowSafetyIdentifier = false
   let allowIncludeObfuscation = false
   let responsesImageGenerationToolFilterEnabled = true
+  let responsesWebSearchToolEnabled = true
   let autoTestEnabled = true
   let allowInferenceGeo = false
   let allowSpeed = false
@@ -812,6 +815,8 @@ export function transformChannelToFormDefaults(
     allowIncludeObfuscation = parsed.allow_include_obfuscation === true
     responsesImageGenerationToolFilterEnabled =
       parsed.disable_responses_image_generation_tool_filter !== true
+    responsesWebSearchToolEnabled =
+      parsed.disable_responses_web_search_tool !== true
     autoTestEnabled = parsed.auto_test_enabled !== false
     allowInferenceGeo = parsed.allow_inference_geo === true
     allowSpeed = parsed.allow_speed === true
@@ -881,6 +886,7 @@ export function transformChannelToFormDefaults(
     allow_safety_identifier: allowSafetyIdentifier,
     responses_image_generation_tool_filter_enabled:
       responsesImageGenerationToolFilterEnabled,
+    responses_web_search_tool_enabled: responsesWebSearchToolEnabled,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
@@ -987,8 +993,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   if (formData.type === 1 || formData.type === 57) {
     settingsObj.disable_responses_image_generation_tool_filter =
       formData.responses_image_generation_tool_filter_enabled !== true
-  } else if ('disable_responses_image_generation_tool_filter' in settingsObj) {
-    delete settingsObj.disable_responses_image_generation_tool_filter
+    settingsObj.disable_responses_web_search_tool =
+      formData.responses_web_search_tool_enabled !== true
+  } else {
+    if ('disable_responses_image_generation_tool_filter' in settingsObj) {
+      delete settingsObj.disable_responses_image_generation_tool_filter
+    }
+    if ('disable_responses_web_search_tool' in settingsObj) {
+      delete settingsObj.disable_responses_web_search_tool
+    }
   }
 
   if (formData.auto_test_enabled === false) {

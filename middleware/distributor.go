@@ -81,6 +81,13 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				if resolvedGroup, enabled, resolveErr := service.ResolveModelGroupCombination(c, modelRequest.Model); enabled {
+					if resolveErr != nil {
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, resolveErr.Error(), types.ErrorCodeModelNotFound)
+						return
+					}
+					usingGroup = resolvedGroup
+				}
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}

@@ -3461,6 +3461,8 @@
     "Responses API Version": "Responses API Version",
     "Filter Responses image generation tool": "过滤 Responses 图像生成工具",
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
+    "Enable Responses web search tool": "Enable Responses web search tool",
+    "Turn off to remove web_search tools before forwarding Responses requests upstream": "Turn off to remove web_search tools before forwarding Responses requests upstream",
     "Restore defaults": "Restore defaults",
     "Restrict user model request frequency (may impact high concurrency performance)": "Restrict user model request frequency (may impact high concurrency performance)",
     "Retain last N days": "Retain last N days",
@@ -4891,6 +4893,13 @@
     "Online Banking": "Online Banking",
     "JD Pay": "JD Pay",
     "UnionPay": "UnionPay",
-    "Douyin Pay": "Douyin Pay"
+    "Douyin Pay": "Douyin Pay",
+    "分组模式": "Group mode",
+    "单分组": "Single group",
+    "模型组合": "Model combination",
+    "组合分组": "Combination groups",
+    "请至少选择两个模型组合分组": "Select at least two model combination groups",
+    "模型组合分组不能重复": "Model combination groups cannot be duplicated",
+    "请求将按优先级使用第一个支持所请求模型的分组。": "Requests use the first group in priority order that supports the requested model."
   }
 }

@@ -204,6 +204,14 @@ export function ApiKeysMutateDrawer({
   >(null)
   const [dragOverFailoverPosition, setDragOverFailoverPosition] =
     useState<FailoverDragPosition>('before')
+  const [draggedCombinationIndex, setDraggedCombinationIndex] = useState<
+    number | null
+  >(null)
+  const [dragOverCombinationIndex, setDragOverCombinationIndex] = useState<
+    number | null
+  >(null)
+  const [dragOverCombinationPosition, setDragOverCombinationPosition] =
+    useState<FailoverDragPosition>('before')
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
@@ -408,15 +416,19 @@ export function ApiKeysMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
+  const groupMode = form.watch('group_mode') || 'single'
   const selectedGroupOption = groups.find(
     (group) => group.value === selectedGroup
   )
   const selectedRuleAutoGroup =
-    !!selectedGroupOption?.isAutoGroup && selectedGroup !== 'auto'
+    groupMode === 'single' &&
+    !!selectedGroupOption?.isAutoGroup &&
+    selectedGroup !== 'auto'
   const autoGroupMode = form.watch('auto_group_mode') || 'low_ratio'
   const unlimitedQuota = form.watch('unlimited_quota')
   const sessionFailoverEnabled = form.watch('session_group_failover_enabled')
   const sessionFailoverGroups = form.watch('session_failover_groups') || []
+  const combinationGroups = form.watch('model_group_combination_groups') || []
 
   useEffect(() => {
     if (!selectedRuleAutoGroup) return
@@ -447,6 +459,125 @@ export function ApiKeysMutateDrawer({
     if (nextGroups.length > 0) {
       form.setValue('group', nextGroups[0], { shouldDirty: true })
     }
+  }
+
+  const setCombinationGroups = (nextGroups: string[]) => {
+    form.setValue('model_group_combination_groups', nextGroups, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    if (nextGroups.length > 0) {
+      form.setValue('group', nextGroups[0], { shouldDirty: true })
+    }
+  }
+
+  const getCombinationOptions = (index: number) => {
+    const used = new Set(
+      combinationGroups.filter((_, groupIndex) => groupIndex !== index)
+    )
+    return concreteGroups.filter((group) => !used.has(group.value))
+  }
+
+  const handleGroupModeChange = (mode: 'single' | 'combination') => {
+    form.setValue('group_mode', mode, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    if (mode === 'single') return
+
+    form.setValue('cross_group_retry', false, { shouldDirty: true })
+    form.setValue('auto_group_mode', 'low_ratio', { shouldDirty: true })
+    form.setValue('session_group_failover_enabled', false, {
+      shouldDirty: true,
+    })
+    form.setValue('session_failover_groups', [], { shouldDirty: true })
+    if (combinationGroups.length >= 2) {
+      setCombinationGroups(combinationGroups)
+      return
+    }
+    const primary = concreteGroups.some(
+      (group) => group.value === selectedGroup
+    )
+      ? selectedGroup
+      : concreteGroups[0]?.value
+    const secondary = concreteGroups.find((group) => group.value !== primary)
+    setCombinationGroups(
+      [primary, secondary?.value].filter(
+        (group): group is string => group !== undefined && group !== ''
+      )
+    )
+  }
+
+  const handleAddCombinationGroup = () => {
+    const next = concreteGroups.find(
+      (group) => !combinationGroups.includes(group.value)
+    )
+    if (!next) return
+    setCombinationGroups([...combinationGroups, next.value])
+  }
+
+  const handleMoveCombinationGroup = (index: number, direction: -1 | 1) => {
+    const next = [...combinationGroups]
+    const target = index + direction
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setCombinationGroups(next)
+  }
+
+  const handleRemoveCombinationGroup = (index: number) => {
+    setCombinationGroups(
+      combinationGroups.filter((_, groupIndex) => groupIndex !== index)
+    )
+  }
+
+  const resetCombinationDragState = () => {
+    setDraggedCombinationIndex(null)
+    setDragOverCombinationIndex(null)
+    setDragOverCombinationPosition('before')
+  }
+
+  const handleCombinationDragStart = (
+    event: DragEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    setDraggedCombinationIndex(index)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+
+  const handleCombinationDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    index: number
+  ) => {
+    if (draggedCombinationIndex === null || draggedCombinationIndex === index) {
+      return
+    }
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    const rect = event.currentTarget.getBoundingClientRect()
+    setDragOverCombinationIndex(index)
+    setDragOverCombinationPosition(
+      event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    )
+  }
+
+  const handleCombinationDrop = (
+    event: DragEvent<HTMLDivElement>,
+    index: number
+  ) => {
+    event.preventDefault()
+    if (draggedCombinationIndex === null || draggedCombinationIndex === index) {
+      resetCombinationDragState()
+      return
+    }
+    const next = [...combinationGroups]
+    const [moved] = next.splice(draggedCombinationIndex, 1)
+    let targetIndex = index
+    if (draggedCombinationIndex < index) targetIndex -= 1
+    if (dragOverCombinationPosition === 'after') targetIndex += 1
+    next.splice(targetIndex, 0, moved)
+    setCombinationGroups(next)
+    resetCombinationDragState()
   }
 
   const getFailoverOptions = (index: number) => {
@@ -588,11 +719,22 @@ export function ApiKeysMutateDrawer({
   }
 
   useEffect(() => {
-    if (!sessionFailoverEnabled || sessionFailoverGroups.length === 0) return
+    if (
+      groupMode !== 'single' ||
+      !sessionFailoverEnabled ||
+      sessionFailoverGroups.length === 0
+    )
+      return
     if (sessionFailoverGroups[0] !== selectedGroup) {
       form.setValue('group', sessionFailoverGroups[0])
     }
-  }, [form, selectedGroup, sessionFailoverEnabled, sessionFailoverGroups])
+  }, [
+    form,
+    groupMode,
+    selectedGroup,
+    sessionFailoverEnabled,
+    sessionFailoverGroups,
+  ])
 
   return (
     <Sheet
@@ -645,30 +787,209 @@ export function ApiKeysMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='group'
+                name='group_mode'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Group')}</FormLabel>
+                    <FormLabel>{t('分组模式')}</FormLabel>
                     <FormControl>
-                      <ApiKeyGroupCombobox
-                        options={groups}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t('Select a group')}
-                        disabled={sessionFailoverEnabled}
-                      />
+                      <ToggleGroup
+                        value={[field.value]}
+                        variant='outline'
+                        size='sm'
+                        onValueChange={(values) => {
+                          const next = values[0]
+                          if (next === 'single' || next === 'combination') {
+                            handleGroupModeChange(next)
+                          }
+                        }}
+                        className='w-full'
+                        aria-label={t('分组模式')}
+                      >
+                        <ToggleGroupItem value='single' className='flex-1'>
+                          {t('单分组')}
+                        </ToggleGroupItem>
+                        <ToggleGroupItem
+                          value='combination'
+                          className='flex-1'
+                          disabled={concreteGroups.length < 2}
+                        >
+                          {t('模型组合')}
+                        </ToggleGroupItem>
+                      </ToggleGroup>
                     </FormControl>
-                    {sessionFailoverEnabled && (
-                      <FormDescription>
-                        {t('P0 is controlled by the API key failover chain')}
-                      </FormDescription>
-                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {selectedGroup === 'auto' && (
+              {groupMode === 'single' ? (
+                <FormField
+                  control={form.control}
+                  name='group'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Group')}</FormLabel>
+                      <FormControl>
+                        <ApiKeyGroupCombobox
+                          options={groups}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          placeholder={t('Select a group')}
+                          disabled={sessionFailoverEnabled}
+                        />
+                      </FormControl>
+                      {sessionFailoverEnabled && (
+                        <FormDescription>
+                          {t('P0 is controlled by the API key failover chain')}
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name='model_group_combination_groups'
+                  render={() => (
+                    <FormItem>
+                      <div className='flex items-center justify-between gap-3'>
+                        <FormLabel>{t('组合分组')}</FormLabel>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={handleAddCombinationGroup}
+                          disabled={
+                            combinationGroups.length >= concreteGroups.length
+                          }
+                        >
+                          <Plus className='size-4' />
+                          {t('Add group')}
+                        </Button>
+                      </div>
+                      <div className='flex flex-col gap-2'>
+                        {combinationGroups.map((group, index) => {
+                          const isDragging = draggedCombinationIndex === index
+                          const isDragOver =
+                            dragOverCombinationIndex === index &&
+                            draggedCombinationIndex !== null &&
+                            draggedCombinationIndex !== index
+                          return (
+                            <div
+                              key={`${group}-${index}`}
+                              onDragOver={(event) =>
+                                handleCombinationDragOver(event, index)
+                              }
+                              onDrop={(event) =>
+                                handleCombinationDrop(event, index)
+                              }
+                              onDragLeave={(event) => {
+                                if (
+                                  !event.currentTarget.contains(
+                                    event.relatedTarget as Node | null
+                                  )
+                                ) {
+                                  setDragOverCombinationIndex(null)
+                                }
+                              }}
+                              className={cn(
+                                'border-border bg-muted/20 relative grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded-md border p-2 transition-[opacity,box-shadow,border-color,background-color] sm:flex',
+                                isDragging && 'opacity-50',
+                                isDragOver &&
+                                  dragOverCombinationPosition === 'before' &&
+                                  'before:bg-primary before:absolute before:-top-1 before:right-2 before:left-2 before:h-0.5 before:rounded-full',
+                                isDragOver &&
+                                  dragOverCombinationPosition === 'after' &&
+                                  'after:bg-primary after:absolute after:-right-2 after:-bottom-1 after:left-2 after:h-0.5 after:rounded-full'
+                              )}
+                            >
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='icon'
+                                draggable={combinationGroups.length > 1}
+                                onDragStart={(event) =>
+                                  handleCombinationDragStart(event, index)
+                                }
+                                onDragEnd={resetCombinationDragState}
+                                disabled={combinationGroups.length <= 1}
+                                className='cursor-grab active:cursor-grabbing'
+                                aria-label={t('Drag to reorder')}
+                              >
+                                <GripVertical className='size-4' />
+                              </Button>
+                              <Badge
+                                variant='outline'
+                                className='w-10 shrink-0'
+                              >
+                                P{index}
+                              </Badge>
+                              <div className='min-w-0 flex-1'>
+                                <ApiKeyGroupCombobox
+                                  options={getCombinationOptions(index)}
+                                  value={group}
+                                  onValueChange={(value) => {
+                                    const next = [...combinationGroups]
+                                    next[index] = value
+                                    setCombinationGroups(next)
+                                  }}
+                                  placeholder={t('Select a group')}
+                                />
+                              </div>
+                              <div className='col-span-full flex shrink-0 items-center justify-end gap-1 sm:col-span-1'>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  onClick={() =>
+                                    handleMoveCombinationGroup(index, -1)
+                                  }
+                                  disabled={index === 0}
+                                  aria-label={t('Move up')}
+                                >
+                                  <ArrowUp className='size-4' />
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  onClick={() =>
+                                    handleMoveCombinationGroup(index, 1)
+                                  }
+                                  disabled={
+                                    index === combinationGroups.length - 1
+                                  }
+                                  aria-label={t('Move down')}
+                                >
+                                  <ArrowDown className='size-4' />
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  onClick={() =>
+                                    handleRemoveCombinationGroup(index)
+                                  }
+                                  aria-label={t('Remove')}
+                                >
+                                  <Trash2 className='size-4' />
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <FormDescription>
+                        {t('请求将按优先级使用第一个支持所请求模型的分组。')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {groupMode === 'single' && selectedGroup === 'auto' && (
                 <FormField
                   control={form.control}
                   name='cross_group_retry'
@@ -735,33 +1056,35 @@ export function ApiKeysMutateDrawer({
                 />
               )}
 
-              <FormField
-                control={form.control}
-                name='session_group_failover_enabled'
-                render={({ field }) => (
-                  <FormItem className={sideDrawerSwitchItemClassName()}>
-                    <div className='flex flex-col gap-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('API key group failover')}
-                      </FormLabel>
-                      <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
-                        {t(
-                          'Keeps this API key on the current priority group and moves to the next group after consecutive final failures.'
-                        )}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={!!field.value}
-                        onCheckedChange={handleFailoverEnabledChange}
-                        disabled={selectedRuleAutoGroup}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              {groupMode === 'single' && (
+                <FormField
+                  control={form.control}
+                  name='session_group_failover_enabled'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <div className='flex flex-col gap-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('API key group failover')}
+                        </FormLabel>
+                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
+                          {t(
+                            'Keeps this API key on the current priority group and moves to the next group after consecutive final failures.'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!!field.value}
+                          onCheckedChange={handleFailoverEnabledChange}
+                          disabled={selectedRuleAutoGroup}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
 
-              {sessionFailoverEnabled && (
+              {groupMode === 'single' && sessionFailoverEnabled && (
                 <>
                   <FormField
                     control={form.control}

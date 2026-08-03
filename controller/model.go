@@ -124,14 +124,31 @@ func ListModels(c *gin.Context, modelType int) {
 	}
 
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
-	if modelLimitEnable {
-		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-		var tokenModelLimit map[string]bool
-		if ok {
-			tokenModelLimit = s.(map[string]bool)
-		} else {
-			tokenModelLimit = map[string]bool{}
+	combinationEnabled := common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled)
+	if combinationEnabled {
+		groups, err := service.GetModelGroupCombinationGroupsFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
 		}
+		models := collectGroupModels(groups)
+		if modelLimitEnable {
+			tokenModelLimit := getTokenModelLimit(c)
+			filtered := make([]string, 0, len(models))
+			for _, modelName := range models {
+				matchName := ratio_setting.FormatMatchingModelName(modelName)
+				if tokenModelLimit[modelName] || tokenModelLimit[matchName] {
+					filtered = append(filtered, modelName)
+				}
+			}
+			models = filtered
+		}
+		userOpenAiModels = buildUserOpenAIModels(models, acceptUnsetRatioModel)
+	} else if modelLimitEnable {
+		tokenModelLimit := getTokenModelLimit(c)
 		for allowModel, _ := range tokenModelLimit {
 			if !acceptUnsetRatioModel {
 				_, _, exist := ratio_setting.GetModelRatioOrPrice(allowModel)
@@ -189,26 +206,7 @@ func ListModels(c *gin.Context, modelType int) {
 		} else {
 			models = model.GetGroupEnabledModels(group)
 		}
-		for _, modelName := range models {
-			if !acceptUnsetRatioModel {
-				_, _, exist := ratio_setting.GetModelRatioOrPrice(modelName)
-				if !exist {
-					continue
-				}
-			}
-			if oaiModel, ok := openAIModelsMap[modelName]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     modelName,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
-				})
-			}
-		}
+		userOpenAiModels = buildUserOpenAIModels(models, acceptUnsetRatioModel)
 	}
 
 	switch modelType {
@@ -222,11 +220,17 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
+		firstID := ""
+		lastID := ""
+		if len(useranthropicModels) > 0 {
+			firstID = useranthropicModels[0].ID
+			lastID = useranthropicModels[len(useranthropicModels)-1].ID
+		}
 		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
+			"first_id": firstID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+			"last_id":  lastID,
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
@@ -247,6 +251,58 @@ func ListModels(c *gin.Context, modelType int) {
 			"object":  "list",
 		})
 	}
+}
+
+func getTokenModelLimit(c *gin.Context) map[string]bool {
+	value, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+	if !ok {
+		return map[string]bool{}
+	}
+	limits, ok := value.(map[string]bool)
+	if !ok {
+		return map[string]bool{}
+	}
+	return limits
+}
+
+func collectGroupModels(groups []string) []string {
+	models := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, group := range groups {
+		for _, modelName := range model.GetGroupEnabledModels(group) {
+			if _, exists := seen[modelName]; exists {
+				continue
+			}
+			seen[modelName] = struct{}{}
+			models = append(models, modelName)
+		}
+	}
+	return models
+}
+
+func buildUserOpenAIModels(models []string, acceptUnsetRatioModel bool) []dto.OpenAIModels {
+	result := make([]dto.OpenAIModels, 0, len(models))
+	for _, modelName := range models {
+		if !acceptUnsetRatioModel {
+			_, _, exist := ratio_setting.GetModelRatioOrPrice(modelName)
+			if !exist {
+				continue
+			}
+		}
+		if oaiModel, ok := openAIModelsMap[modelName]; ok {
+			oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+			result = append(result, oaiModel)
+		} else {
+			result = append(result, dto.OpenAIModels{
+				Id:                     modelName,
+				Object:                 "model",
+				Created:                1626777600,
+				OwnedBy:                "custom",
+				SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
+			})
+		}
+	}
+	return result
 }
 
 func ChannelListModels(c *gin.Context) {

@@ -234,6 +234,7 @@ export interface ChannelOtherSettings {
   allow_safety_identifier?: boolean
   allow_include_obfuscation?: boolean
   disable_responses_image_generation_tool_filter?: boolean
+  disable_responses_web_search_tool?: boolean
   auto_test_enabled?: boolean
   allow_inference_geo?: boolean
   allow_speed?: boolean

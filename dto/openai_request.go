@@ -860,10 +860,21 @@ type OpenAIResponsesRequest struct {
 	Preset json.RawMessage `json:"preset,omitempty"`
 }
 
-const OpenAIResponsesToolTypeImageGeneration = "image_generation"
+const (
+	OpenAIResponsesToolTypeImageGeneration = "image_generation"
+	OpenAIResponsesToolTypeWebSearch       = "web_search"
+)
 
 func (r *OpenAIResponsesRequest) RemoveImageGenerationTools() error {
-	tools, removed, err := FilterOpenAIResponsesImageGenerationTools(r.Tools)
+	return r.RemoveTools(OpenAIResponsesToolTypeImageGeneration)
+}
+
+func (r *OpenAIResponsesRequest) RemoveWebSearchTools() error {
+	return r.RemoveTools(OpenAIResponsesToolTypeWebSearch)
+}
+
+func (r *OpenAIResponsesRequest) RemoveTools(filteredToolTypes ...string) error {
+	tools, removed, err := FilterOpenAIResponsesTools(r.Tools, filteredToolTypes...)
 	if err != nil {
 		return err
 	}
@@ -874,8 +885,20 @@ func (r *OpenAIResponsesRequest) RemoveImageGenerationTools() error {
 }
 
 func FilterOpenAIResponsesImageGenerationTools(tools json.RawMessage) (json.RawMessage, bool, error) {
+	return FilterOpenAIResponsesTools(tools, OpenAIResponsesToolTypeImageGeneration)
+}
+
+func FilterOpenAIResponsesWebSearchTools(tools json.RawMessage) (json.RawMessage, bool, error) {
+	return FilterOpenAIResponsesTools(tools, OpenAIResponsesToolTypeWebSearch)
+}
+
+func FilterOpenAIResponsesTools(tools json.RawMessage, filteredToolTypes ...string) (json.RawMessage, bool, error) {
 	if len(tools) == 0 {
 		return tools, false, nil
+	}
+	filteredTypeSet := make(map[string]struct{}, len(filteredToolTypes))
+	for _, toolType := range filteredToolTypes {
+		filteredTypeSet[toolType] = struct{}{}
 	}
 
 	var rawTools []json.RawMessage
@@ -893,7 +916,7 @@ func FilterOpenAIResponsesImageGenerationTools(tools json.RawMessage) (json.RawM
 			filteredTools = append(filteredTools, rawTool)
 			continue
 		}
-		if toolType.Type == OpenAIResponsesToolTypeImageGeneration {
+		if _, shouldFilter := filteredTypeSet[toolType.Type]; shouldFilter {
 			removed = true
 			continue
 		}

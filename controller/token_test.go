@@ -240,6 +240,48 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	}
 }
 
+func TestUpdateTokenClearsModelGroupCombination(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "combination-token", "combo1234token5678")
+	token.ModelGroupCombinationEnabled = true
+	token.ModelGroupCombinationGroups = `["group-a","group-b"]`
+	if err := db.Save(token).Error; err != nil {
+		t.Fatalf("failed to enable model group combination: %v", err)
+	}
+
+	body := map[string]any{
+		"id":                              token.Id,
+		"name":                            token.Name,
+		"expired_time":                    -1,
+		"remain_quota":                    100,
+		"unlimited_quota":                 true,
+		"model_limits_enabled":            false,
+		"model_limits":                    "",
+		"group":                           "default",
+		"cross_group_retry":               false,
+		"model_group_combination_enabled": false,
+		"model_group_combination_groups":  "",
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected update to succeed, got message: %s", response.Message)
+	}
+	var updated model.Token
+	if err := db.First(&updated, token.Id).Error; err != nil {
+		t.Fatalf("failed to reload token: %v", err)
+	}
+	if updated.ModelGroupCombinationEnabled {
+		t.Fatal("expected model group combination to be disabled")
+	}
+	if updated.ModelGroupCombinationGroups != "" {
+		t.Fatalf("expected model group combination groups to be cleared, got %q", updated.ModelGroupCombinationGroups)
+	}
+}
+
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	token := seedToken(t, db, 1, "owned-token", "owner1234token5678")
