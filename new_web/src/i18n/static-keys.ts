@@ -30,6 +30,8 @@ export const STATIC_I18N_KEYS = [
   'Juice test failed. The previous value was kept.',
   'Minimum valid Juice in this group',
   'Juice updated at {{time}}',
+  'Juice history',
+  'No Juice changes',
   'Docs',
   'About',
 

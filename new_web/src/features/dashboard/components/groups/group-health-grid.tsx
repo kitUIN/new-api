@@ -62,6 +62,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  getGroupJuiceHistory,
   getGroupRatioHistory,
   getPerfGroupHealth,
 } from '@/features/performance-metrics/api'
@@ -71,6 +72,7 @@ import {
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import type {
+  GroupJuiceHistorySeries,
   GroupRatioHistorySeries,
   PerfGroupHealth,
   PerfGroupHealthBucket,
@@ -103,6 +105,13 @@ type RatioChartPoint = {
   source?: string
 }
 
+type JuiceChartPoint = {
+  ts: number
+  juiceValue: number
+  juice: string
+  source?: string
+}
+
 type SuccessRateSummary = {
   requestCount: number
   successRate: number
@@ -123,6 +132,12 @@ const ratioChartConfig = {
   ratio: {
     label: 'Ratio',
     color: 'var(--chart-1)',
+  },
+} satisfies ChartConfig
+const juiceChartConfig = {
+  juiceValue: {
+    label: 'Juice',
+    color: 'var(--chart-2)',
   },
 } satisfies ChartConfig
 const PROVIDER_ICON_MATCHERS: Array<[RegExp, string]> = [
@@ -407,6 +422,7 @@ export function GroupHealthGrid() {
   const { t } = useTranslation()
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [showRatioHistory, setShowRatioHistory] = useState(false)
+  const [showJuiceHistory, setShowJuiceHistory] = useState(false)
   const [sortMode, setSortMode] = useState<GroupSortMode>('ratio')
   const [searchText, setSearchText] = useState('')
   const [ratioRange, setRatioRange] = useState<RatioHistoryRange>(
@@ -450,6 +466,21 @@ export function GroupHealthGrid() {
         end_ts: ratioRange.endTs,
       }),
     enabled: showRatioHistory,
+    refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
+    refetchOnMount: 'always',
+    refetchOnReconnect: 'always',
+    refetchOnWindowFocus: 'always',
+    staleTime: 0,
+    retry: false,
+  })
+  const juiceHistoryQuery = useQuery({
+    queryKey: ['group-juice-history', ratioRange.startTs, ratioRange.endTs],
+    queryFn: () =>
+      getGroupJuiceHistory({
+        start_ts: ratioRange.startTs,
+        end_ts: ratioRange.endTs,
+      }),
+    enabled: showJuiceHistory,
     refetchInterval: autoRefresh ? HEALTH_REFRESH_INTERVAL_MS : false,
     refetchOnMount: 'always',
     refetchOnReconnect: 'always',
@@ -503,6 +534,13 @@ export function GroupHealthGrid() {
     }
     return map
   }, [ratioHistoryQuery.data])
+  const juiceHistoryMap = useMemo(() => {
+    const map = new Map<string, GroupJuiceHistorySeries>()
+    for (const item of juiceHistoryQuery.data?.data.groups ?? []) {
+      map.set(item.group, item)
+    }
+    return map
+  }, [juiceHistoryQuery.data])
   const sevenDayHealthMap = useMemo(
     () =>
       buildSuccessRateSummaryMap(sevenDayHealthQuery.data?.data.groups ?? []),
@@ -514,22 +552,29 @@ export function GroupHealthGrid() {
     if (showRatioHistory) {
       ratioHistoryQuery.refetch()
     }
+    if (showJuiceHistory) {
+      juiceHistoryQuery.refetch()
+    }
   }
   const toolbarProps = {
     ratioRange,
     autoRefresh,
     showRatioHistory,
+    showJuiceHistory,
     sortMode,
     searchText,
     isFetching:
       healthQuery.isFetching ||
       sevenDayHealthQuery.isFetching ||
-      ratioHistoryQuery.isFetching,
+      ratioHistoryQuery.isFetching ||
+      juiceHistoryQuery.isFetching,
     onRatioRangeChange: setRatioRange,
     onRefresh: refetchAll,
     onToggleAutoRefresh: () => setAutoRefresh((value) => !value),
     onToggleRatioHistory: () =>
       startTransition(() => setShowRatioHistory((value) => !value)),
+    onToggleJuiceHistory: () =>
+      startTransition(() => setShowJuiceHistory((value) => !value)),
     onSortModeChange: (mode: GroupSortMode) => setSortMode(mode),
     onSearchTextChange: setSearchText,
   }
@@ -589,8 +634,10 @@ export function GroupHealthGrid() {
             group={group}
             trafficShare={trafficShareMap.get(group.group) ?? 0}
             ratioHistory={ratioHistoryMap.get(group.group)}
+            juiceHistory={juiceHistoryMap.get(group.group)}
             ratioRange={ratioRange}
             showRatioHistory={showRatioHistory}
+            showJuiceHistory={showJuiceHistory}
             sevenDayHealth={sevenDayHealthMap.get(group.group)}
           />
         ))}
@@ -603,6 +650,7 @@ function GroupHealthToolbar(props: {
   ratioRange: RatioHistoryRange
   autoRefresh: boolean
   showRatioHistory: boolean
+  showJuiceHistory: boolean
   sortMode: GroupSortMode
   searchText: string
   isFetching: boolean
@@ -610,6 +658,7 @@ function GroupHealthToolbar(props: {
   onRefresh: () => void
   onToggleAutoRefresh: () => void
   onToggleRatioHistory: () => void
+  onToggleJuiceHistory: () => void
   onSortModeChange: (mode: GroupSortMode) => void
   onSearchTextChange: (value: string) => void
 }) {
@@ -646,7 +695,21 @@ function GroupHealthToolbar(props: {
             {t('Ratio history')}
           </label>
         </div>
-        {props.showRatioHistory && (
+        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+          <Switch
+            id='group-juice-history-toggle'
+            size='sm'
+            checked={props.showJuiceHistory}
+            onCheckedChange={props.onToggleJuiceHistory}
+          />
+          <label
+            htmlFor='group-juice-history-toggle'
+            className='cursor-pointer text-sm font-medium'
+          >
+            {t('Juice history')}
+          </label>
+        </div>
+        {(props.showRatioHistory || props.showJuiceHistory) && (
           <RatioHistoryRangePicker
             range={props.ratioRange}
             onChange={props.onRatioRangeChange}
@@ -852,8 +915,10 @@ function GroupHealthCard(props: {
   group: PerfGroupHealth
   trafficShare: number
   ratioHistory: GroupRatioHistorySeries | undefined
+  juiceHistory: GroupJuiceHistorySeries | undefined
   ratioRange: RatioHistoryRange
   showRatioHistory: boolean
+  showJuiceHistory: boolean
   sevenDayHealth: SuccessRateSummary | undefined
 }) {
   const { t } = useTranslation()
@@ -880,6 +945,8 @@ function GroupHealthCard(props: {
   const tenMinuteHealth = getTenMinuteGroupHealth(group)
   const [ratioChartHostRef, shouldRenderRatioChart] =
     useDeferredVisibleRender<HTMLDivElement>(props.showRatioHistory)
+  const [juiceChartHostRef, shouldRenderJuiceChart] =
+    useDeferredVisibleRender<HTMLDivElement>(props.showJuiceHistory)
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
@@ -1042,6 +1109,20 @@ function GroupHealthCard(props: {
               range={props.ratioRange}
             />
           ) : props.showRatioHistory ? (
+            <Skeleton className='h-28 rounded-md' />
+          ) : null}
+        </div>
+        <div
+          ref={juiceChartHostRef}
+          className={cn(!props.showJuiceHistory && 'hidden')}
+        >
+          {shouldRenderJuiceChart ? (
+            <JuiceHistoryChart
+              currentJuice={group.juice}
+              history={props.juiceHistory}
+              range={props.ratioRange}
+            />
+          ) : props.showJuiceHistory ? (
             <Skeleton className='h-28 rounded-md' />
           ) : null}
         </div>
@@ -1252,6 +1333,156 @@ function RatioHistoryChart(props: {
           />
         </LineChart>
       </ChartContainer>
+    </div>
+  )
+}
+
+function toJuiceChartValue(juice: string): number | null {
+  const value = Number(juice)
+  return Number.isFinite(value) ? value : null
+}
+
+function formatJuiceChartValue(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  const absoluteValue = Math.abs(value)
+  if (
+    absoluteValue >= 1_000_000 ||
+    (absoluteValue > 0 && absoluteValue < 0.001)
+  ) {
+    return value.toExponential(1)
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
+}
+
+function buildJuiceChartData(
+  currentJuice: string,
+  history: GroupJuiceHistorySeries | undefined,
+  range: RatioHistoryRange
+): JuiceChartPoint[] {
+  const points: JuiceChartPoint[] = [...(history?.points ?? [])]
+    .filter((point) => point.ts >= range.startTs && point.ts <= range.endTs)
+    .sort((a, b) => a.ts - b.ts)
+    .flatMap((point) => {
+      const juiceValue = toJuiceChartValue(point.juice)
+      return juiceValue === null
+        ? []
+        : [
+            {
+              ts: point.ts,
+              juiceValue,
+              juice: point.juice,
+              source: point.source,
+            },
+          ]
+    })
+
+  if (!points.length) {
+    const juiceValue = toJuiceChartValue(currentJuice)
+    if (juiceValue !== null) {
+      points.push({ ts: range.startTs, juiceValue, juice: currentJuice })
+    }
+  }
+
+  const last = points[points.length - 1]
+  if (last && last.ts < range.endTs) {
+    points.push({ ...last, ts: range.endTs, source: undefined })
+  }
+
+  return points
+}
+
+function JuiceHistoryChart(props: {
+  currentJuice: string
+  history: GroupJuiceHistorySeries | undefined
+  range: RatioHistoryRange
+}) {
+  const { t } = useTranslation()
+  const data = useMemo(
+    () => buildJuiceChartData(props.currentJuice, props.history, props.range),
+    [props.currentJuice, props.history, props.range]
+  )
+  const changedCount = data.filter((point) => point.source).length
+
+  return (
+    <div className='bg-muted/20 rounded-md border px-2.5 py-2'>
+      <div className='mb-1 flex items-center justify-between gap-2'>
+        <div className='text-muted-foreground truncate text-[10px] font-medium'>
+          {t('Juice history')}
+        </div>
+        <div className='text-muted-foreground shrink-0 font-mono text-[10px] tabular-nums'>
+          {changedCount > 0
+            ? t('{{count}} changes', { count: changedCount })
+            : t('No Juice changes')}
+        </div>
+      </div>
+      {data.length ? (
+        <ChartContainer
+          config={juiceChartConfig}
+          className='aspect-auto h-24 w-full'
+          initialDimension={{ width: 320, height: 96 }}
+        >
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray='3 3' />
+            <XAxis
+              dataKey='ts'
+              type='number'
+              domain={[props.range.startTs, props.range.endTs]}
+              tickFormatter={(value) =>
+                dayjs.unix(Number(value)).format('MM-DD')
+              }
+              tickLine={false}
+              axisLine={false}
+              tickMargin={6}
+              minTickGap={28}
+            />
+            <YAxis
+              dataKey='juiceValue'
+              width={52}
+              tickFormatter={(value) => formatJuiceChartValue(Number(value))}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              domain={['dataMin', 'dataMax']}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  hideLabel
+                  formatter={(_value, _name, item) => (
+                    <div className='grid gap-1'>
+                      <div className='font-mono text-xs font-semibold tabular-nums'>
+                        {String(item.payload?.juice ?? '')}
+                      </div>
+                      <div className='text-muted-foreground text-[11px]'>
+                        {dayjs
+                          .unix(Number(item.payload?.ts ?? 0))
+                          .format('YYYY-MM-DD HH:mm')}
+                      </div>
+                    </div>
+                  )}
+                />
+              }
+            />
+            <Line
+              type='stepAfter'
+              dataKey='juiceValue'
+              stroke='var(--color-juiceValue)'
+              strokeWidth={2}
+              dot={{ r: 2 }}
+              activeDot={{ r: 4 }}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ChartContainer>
+      ) : (
+        <div className='text-muted-foreground flex h-24 items-center justify-center text-sm'>
+          —
+        </div>
+      )}
     </div>
   )
 }

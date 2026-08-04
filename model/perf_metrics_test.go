@@ -79,6 +79,35 @@ func TestRecordGroupRatioChangesSkipsAddedGroups(t *testing.T) {
 	require.Equal(t, 0.7, newSeries[0].Ratio)
 }
 
+func TestGetGroupJuiceHistorySummary(t *testing.T) {
+	truncateTables(t)
+	now := time.Now().Unix()
+	require.NoError(t, DB.Create(&Channel{
+		Id: 1, Name: "juice", Key: "sk", Status: common.ChannelStatusEnabled,
+		Models: JuiceTestModel, Group: "default", Juice: "40", JuiceUpdatedTime: now,
+	}).Error)
+	require.NoError(t, DB.Create(&[]GroupJuiceHistory{
+		{
+			Group: "default", OldJuice: "10", NewJuice: "20", ChannelId: 1,
+			Source: GroupJuiceHistorySourceScheduled, CreatedAt: now - 100,
+		},
+		{
+			Group: "default", OldJuice: "20", NewJuice: "40", ChannelId: 1,
+			Source: GroupJuiceHistorySourceManual, CreatedAt: now - 50,
+		},
+	}).Error)
+
+	summary, err := GetGroupJuiceHistorySummary(now-150, now)
+	require.NoError(t, err)
+	require.Len(t, summary.Groups, 1)
+	require.Equal(t, "default", summary.Groups[0].Group)
+	require.Equal(t, []GroupJuiceHistoryPoint{
+		{Ts: now - 150, Juice: "10"},
+		{Ts: now - 100, Juice: "20", ChannelId: 1, Source: GroupJuiceHistorySourceScheduled},
+		{Ts: now - 50, Juice: "40", ChannelId: 1, Source: GroupJuiceHistorySourceManual},
+	}, summary.Groups[0].Points)
+}
+
 func TestGetPerfMetricsSummaryAggregatesBuckets(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()

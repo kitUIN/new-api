@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   PerformanceMetricsData,
+  GroupJuiceHistoryData,
   GroupRatioHistoryData,
   PerfGroupHealthData,
   PerfSummaryAllData,
@@ -65,6 +66,17 @@ export async function getGroupRatioHistory(params: {
 }): Promise<GroupRatioHistoryData> {
   const res = await api.get<GroupRatioHistoryData>(
     '/api/perf-metrics/group-ratio-history',
+    { params }
+  )
+  return res.data
+}
+
+export async function getGroupJuiceHistory(params: {
+  start_ts: number
+  end_ts: number
+}): Promise<GroupJuiceHistoryData> {
+  const res = await api.get<GroupJuiceHistoryData>(
+    '/api/perf-metrics/group-juice-history',
     { params }
   )
   return res.data

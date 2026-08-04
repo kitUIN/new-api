@@ -4731,6 +4731,8 @@
     "Juice test failed. The previous value was kept.": "Juice test failed. The previous value was kept.",
     "Minimum valid Juice in this group": "Minimum valid Juice in this group",
     "Juice updated at {{time}}": "Juice updated at {{time}}",
+    "Juice history": "Juice history",
+    "No Juice changes": "No Juice changes",
     "24h success rate": "24h success rate",
     "2h success rate": "2h success rate",
     "10m success rate": "10m success rate",

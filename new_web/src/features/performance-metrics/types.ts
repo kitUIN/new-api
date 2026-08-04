@@ -125,3 +125,25 @@ export type GroupRatioHistoryData = {
     groups: GroupRatioHistorySeries[]
   }
 }
+
+export type GroupJuiceHistoryPoint = {
+  ts: number
+  juice: string
+  channel_id?: number
+  source?: string
+}
+
+export type GroupJuiceHistorySeries = {
+  group: string
+  points: GroupJuiceHistoryPoint[]
+}
+
+export type GroupJuiceHistoryData = {
+  success: boolean
+  message?: string
+  data: {
+    start_ts: number
+    end_ts: number
+    groups: GroupJuiceHistorySeries[]
+  }
+}

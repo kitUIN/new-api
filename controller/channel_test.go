@@ -160,7 +160,10 @@ func TestExtractJuiceValueAcceptsObjectContent(t *testing.T) {
 	}
 }
 
-func TestShouldRunJuiceTestUsesSixHourAttemptInterval(t *testing.T) {
+func TestShouldRunJuiceTestUsesHourlyAttemptInterval(t *testing.T) {
+	if juiceTestInterval != time.Hour {
+		t.Fatalf("juiceTestInterval = %s, want %s", juiceTestInterval, time.Hour)
+	}
 	now := int64(1_000_000)
 	channel := &model.Channel{Status: common.ChannelStatusEnabled, Models: model.JuiceTestModel}
 	if !shouldRunJuiceTest(channel, now) {
@@ -168,11 +171,11 @@ func TestShouldRunJuiceTestUsesSixHourAttemptInterval(t *testing.T) {
 	}
 	channel.JuiceTestTime = now - int64(juiceTestInterval.Seconds()) + 1
 	if shouldRunJuiceTest(channel, now) {
-		t.Fatal("channel should not run before six hours")
+		t.Fatal("channel should not run before one hour")
 	}
 	channel.JuiceTestTime = now - int64(juiceTestInterval.Seconds())
 	if !shouldRunJuiceTest(channel, now) {
-		t.Fatal("channel should run at the six-hour boundary")
+		t.Fatal("channel should run at the one-hour boundary")
 	}
 }
 

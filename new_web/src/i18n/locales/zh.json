@@ -4731,6 +4731,8 @@
     "Juice test failed. The previous value was kept.": "Juice 测试失败，已保留之前的值。",
     "Minimum valid Juice in this group": "该分组有效渠道中的最低 Juice",
     "Juice updated at {{time}}": "Juice 更新时间：{{time}}",
+    "Juice history": "Juice 变更",
+    "No Juice changes": "无 Juice 变更",
     "24h success rate": "24 小时成功率",
     "2h success rate": "2 小时成功率",
     "10m success rate": "10 分钟成功率",

@@ -985,7 +985,7 @@ const juiceTestPrompt = `<?xml version="1.0" encoding="UTF-8"?>
     <juice_level></juice_level>
 </request>`
 
-const juiceTestInterval = 6 * time.Hour
+const juiceTestInterval = time.Hour
 
 var (
 	errJuiceTestRunning = errors.New("juice test is already running")
@@ -1101,7 +1101,11 @@ func executeJuiceTestWithSchedule(channel *model.Channel, enforceSchedule bool, 
 		model.CacheUpdateChannel(channel)
 		return "", err
 	}
-	if err := channel.UpdateJuiceTest(juice, ""); err != nil {
+	source := model.GroupJuiceHistorySourceManual
+	if enforceSchedule {
+		source = model.GroupJuiceHistorySourceScheduled
+	}
+	if err := channel.UpdateJuiceTestWithSource(juice, "", source); err != nil {
 		return "", err
 	}
 	model.CacheUpdateChannel(channel)

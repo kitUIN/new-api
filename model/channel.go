@@ -605,7 +605,22 @@ func (channel *Channel) UpdateResponseTime(responseTime int64) {
 	}
 }
 
+var groupJuiceHistoryUpdateMutex sync.Mutex
+
 func (channel *Channel) UpdateJuiceTest(juice string, errMessage string) error {
+	return channel.UpdateJuiceTestWithSource(juice, errMessage, GroupJuiceHistorySourceManual)
+}
+
+func (channel *Channel) UpdateJuiceTestWithSource(juice string, errMessage string, source string) error {
+	var previousStats map[string]GroupJuiceStats
+	var previousStatsErr error
+	if errMessage == "" {
+		groupJuiceHistoryUpdateMutex.Lock()
+		defer groupJuiceHistoryUpdateMutex.Unlock()
+		previousStats, previousStatsErr = GetGroupJuiceStats()
+		previousStats = selectGroupJuiceStats(previousStats, channel.GetGroups())
+	}
+
 	now := common.GetTimestamp()
 	updates := map[string]interface{}{
 		"juice_test_time":  now,
@@ -623,6 +638,19 @@ func (channel *Channel) UpdateJuiceTest(juice string, errMessage string) error {
 	if errMessage == "" {
 		channel.Juice = juice
 		channel.JuiceUpdatedTime = now
+		if previousStatsErr != nil {
+			common.SysLog("failed to read previous group juice values: " + previousStatsErr.Error())
+			return nil
+		}
+		currentStats, err := GetGroupJuiceStats()
+		if err != nil {
+			common.SysLog("failed to read current group juice values: " + err.Error())
+			return nil
+		}
+		currentStats = selectGroupJuiceStats(currentStats, channel.GetGroups())
+		if err := RecordGroupJuiceChanges(previousStats, currentStats, channel.Id, source); err != nil {
+			common.SysLog("failed to record group juice changes: " + err.Error())
+		}
 	}
 	return nil
 }

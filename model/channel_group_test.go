@@ -179,3 +179,46 @@ func TestUpdateJuiceTestPreservesLastValueOnFailure(t *testing.T) {
 	require.Equal(t, "upstream failed", stored.JuiceTestError)
 	require.Positive(t, stored.JuiceTestTime)
 }
+
+func TestUpdateJuiceTestRecordsGroupMinimumChanges(t *testing.T) {
+	truncateTables(t)
+	primary := &Channel{
+		Id: 1, Name: "primary", Key: "sk-1", Status: common.ChannelStatusEnabled,
+		Models: JuiceTestModel, Group: "default", Juice: "10", JuiceUpdatedTime: 100,
+	}
+	fallback := &Channel{
+		Id: 2, Name: "fallback", Key: "sk-2", Status: common.ChannelStatusEnabled,
+		Models: JuiceTestModel, Group: "default", Juice: "20", JuiceUpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(primary).Error)
+	require.NoError(t, DB.Create(fallback).Error)
+
+	require.NoError(t, primary.UpdateJuiceTestWithSource("30", "", GroupJuiceHistorySourceScheduled))
+
+	var histories []GroupJuiceHistory
+	require.NoError(t, DB.Order("id ASC").Find(&histories).Error)
+	require.Len(t, histories, 1)
+	require.Equal(t, "default", histories[0].Group)
+	require.Equal(t, "10", histories[0].OldJuice)
+	require.Equal(t, "20", histories[0].NewJuice)
+	require.Equal(t, primary.Id, histories[0].ChannelId)
+	require.Equal(t, GroupJuiceHistorySourceScheduled, histories[0].Source)
+
+	require.NoError(t, fallback.UpdateJuiceTestWithSource("20.0", "", GroupJuiceHistorySourceManual))
+	require.NoError(t, DB.Order("id ASC").Find(&histories).Error)
+	require.Len(t, histories, 1, "numerically equal Juice values must not create history")
+}
+
+func TestUpdateJuiceTestSkipsInitialGroupJuiceHistory(t *testing.T) {
+	truncateTables(t)
+	channel := &Channel{
+		Id: 1, Name: "initial", Key: "sk", Status: common.ChannelStatusEnabled,
+		Models: JuiceTestModel, Group: "default",
+	}
+	require.NoError(t, DB.Create(channel).Error)
+	require.NoError(t, channel.UpdateJuiceTestWithSource("128", "", GroupJuiceHistorySourceScheduled))
+
+	var count int64
+	require.NoError(t, DB.Model(&GroupJuiceHistory{}).Count(&count).Error)
+	require.Zero(t, count)
+}

@@ -57,6 +57,19 @@ func GetGroupRatioHistory(c *gin.Context) {
 	common.ApiSuccess(c, summary)
 }
 
+func GetGroupJuiceHistory(c *gin.Context) {
+	startTs := getInt64Query(c, "start_ts", 0)
+	endTs := getInt64Query(c, "end_ts", 0)
+
+	summary, err := model.GetGroupJuiceHistorySummary(startTs, endTs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, summary)
+}
+
 func GetPerfMetrics(c *gin.Context) {
 	modelName := strings.TrimSpace(c.Query("model"))
 	if modelName == "" {
