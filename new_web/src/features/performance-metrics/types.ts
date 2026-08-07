@@ -80,6 +80,8 @@ export type PerfGroupHealth = {
   ratio: number
   provider_count: number
   balance_level: 0 | 1 | 2
+  balance_available: boolean
+  has_luna: boolean
   juice: string
   juice_updated_time: number
   request_count: number

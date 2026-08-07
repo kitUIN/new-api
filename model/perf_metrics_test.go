@@ -693,6 +693,50 @@ func TestGetGroupProviderCounts(t *testing.T) {
 	require.Equal(t, 1, counts["vip"])
 }
 
+func TestGetGroupProviderStatsReportsBalanceAvailabilityAndLuna(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create([]ChannelProvider{
+		{Id: 10, Name: "queried", BaseURL: "https://queried.example", Balance: 5, BalanceUpdatedTime: 100},
+		{Id: 11, Name: "not-queried", BaseURL: "https://not-queried.example", Balance: 8},
+	}).Error)
+	lunaMapping := `{"luna-alias":"gpt-5.6-luna"}`
+	require.NoError(t, DB.Create([]Channel{
+		{
+			Id: 1, ProviderID: 10, Status: common.ChannelStatusEnabled,
+			Group: "default", Models: "luna-alias", ModelMapping: &lunaMapping,
+		},
+		{
+			Id: 2, Status: common.ChannelStatusEnabled, Group: "default",
+			Balance: 2, BalanceUpdatedTime: 100,
+		},
+		{
+			Id: 3, ProviderID: 11, Status: common.ChannelStatusEnabled,
+			Group: "unknown",
+		},
+		{
+			Id: 4, Status: common.ChannelStatusEnabled, Group: "empty",
+			Balance: 0, BalanceUpdatedTime: 100,
+		},
+	}).Error)
+
+	stats, err := GetGroupProviderStats()
+	require.NoError(t, err)
+	require.Equal(t, GroupProviderStats{
+		ProviderCount:    2,
+		MinBalance:       2,
+		BalanceAvailable: true,
+		HasLuna:          true,
+	}, stats["default"])
+	require.Equal(t, GroupProviderStats{
+		ProviderCount: 1,
+		MinBalance:    8,
+	}, stats["unknown"])
+	require.Equal(t, GroupProviderStats{
+		ProviderCount: 1,
+	}, stats["empty"])
+}
+
 func TestStartPerfMetricsFlushLoopFlushesPendingSamples(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()

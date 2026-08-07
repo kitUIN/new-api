@@ -23,6 +23,7 @@ import {
   CalendarDays,
   Gauge,
   HeartPulse,
+  MoonStar,
   RefreshCw,
   Search,
   Timer,
@@ -177,7 +178,11 @@ function statusTextClassName(rate: number, requestCount: number): string {
   return 'text-destructive'
 }
 
-function balanceDotClassName(level: PerfGroupHealth['balance_level']): string {
+function balanceDotClassName(
+  level: PerfGroupHealth['balance_level'],
+  balanceAvailable: boolean
+): string {
+  if (!balanceAvailable) return 'bg-muted-foreground/50'
   if (level === 0) return 'bg-destructive'
   if (level === 1) return 'bg-warning'
   return 'bg-success'
@@ -923,6 +928,7 @@ function GroupHealthCard(props: {
 }) {
   const { t } = useTranslation()
   const group = props.group
+  const juice = group.juice?.trim() ?? ''
   const hasSamples = group.request_count > 0
   const [bucketBarRef, bucketBarWidth] = useElementWidth<HTMLDivElement>()
   const defaultVisibleBucketCount = Math.ceil(
@@ -960,6 +966,21 @@ function GroupHealthCard(props: {
               <div className='truncate text-sm font-semibold'>
                 {group.group}
               </div>
+              {group.has_luna && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span
+                        className='inline-flex size-4 shrink-0 items-center justify-center text-amber-500'
+                        aria-label='gpt-5.6-luna'
+                      />
+                    }
+                  >
+                    <MoonStar className='size-4' aria-hidden='true' />
+                  </TooltipTrigger>
+                  <TooltipContent>gpt-5.6-luna</TooltipContent>
+                </Tooltip>
+              )}
             </div>
             <TrafficShareRing percent={props.trafficShare} />
           </div>
@@ -967,38 +988,43 @@ function GroupHealthCard(props: {
             <Badge variant='outline' className='font-mono'>
               {formatRatio(group.ratio)}
             </Badge>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className='inline-flex max-w-full items-center leading-none' />
-                }
-              >
-                <Badge
-                  variant='outline'
-                  className='max-w-full overflow-hidden font-mono text-ellipsis whitespace-nowrap'
+            {juice && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className='inline-flex max-w-full items-center leading-none' />
+                  }
                 >
-                  {t('Juice')} {group.juice || '—'}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div>{t('Minimum valid Juice in this group')}</div>
-                {group.juice && <div className='font-mono'>{group.juice}</div>}
-                {group.juice_updated_time > 0 && (
-                  <div className='text-muted-foreground'>
-                    {t('Juice updated at {{time}}', {
-                      time: dayjs
-                        .unix(group.juice_updated_time)
-                        .format('YYYY-MM-DD HH:mm'),
-                    })}
-                  </div>
-                )}
-              </TooltipContent>
-            </Tooltip>
-            <Badge variant='secondary' className='gap-1.5'>
+                  <Badge
+                    variant='outline'
+                    className='max-w-full overflow-hidden font-mono text-ellipsis whitespace-nowrap'
+                  >
+                    {t('Juice')} {juice}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div>{t('Minimum valid Juice in this group')}</div>
+                  <div className='font-mono'>{juice}</div>
+                  {group.juice_updated_time > 0 && (
+                    <div className='text-muted-foreground'>
+                      {t('Juice updated at {{time}}', {
+                        time: dayjs
+                          .unix(group.juice_updated_time)
+                          .format('YYYY-MM-DD HH:mm'),
+                      })}
+                    </div>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <Badge variant='outline' className='gap-1.5 font-mono'>
               <span
                 className={cn(
                   'size-2 shrink-0 rounded-full',
-                  balanceDotClassName(group.balance_level)
+                  balanceDotClassName(
+                    group.balance_level,
+                    group.balance_available
+                  )
                 )}
                 aria-hidden='true'
               />

@@ -265,6 +265,8 @@ GET /api/perf-metrics/groups
 | `ratio` | number | 分组倍率 |
 | `provider_count` | number | 分组可用供应商/渠道聚合数量 |
 | `balance_level` | number | 余额等级，`0` 低、`1` 中、`2` 高 |
+| `balance_available` | boolean | 所有供应商余额均已成功查询且大于 `0` |
+| `has_luna` | boolean | 分组是否支持 `gpt-5.6-luna`（含模型映射） |
 | `request_count` | number | 统计窗口内请求数 |
 | `success_rate` | number | 统计窗口内成功率，百分比 |
 | `avg_ttft_ms` | number | 平均首 token 延迟，毫秒 |
@@ -306,6 +308,8 @@ GET /api/perf-metrics/groups
         "ratio": 1,
         "provider_count": 3,
         "balance_level": 2,
+        "balance_available": true,
+        "has_luna": true,
         "request_count": 1000,
         "success_rate": 99.2,
         "avg_ttft_ms": 520.5,

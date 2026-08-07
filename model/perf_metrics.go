@@ -20,6 +20,8 @@ import (
 
 const defaultPerfMetricsLimit = 200
 
+const groupHealthLunaModel = "gpt-5.6-luna"
+
 type PerfMetricBucket struct {
 	Id                int    `json:"id"`
 	BucketStart       int64  `json:"bucket_start" gorm:"bigint;uniqueIndex:idx_perf_metric_bucket"`
@@ -83,6 +85,8 @@ type PerfGroupHealth struct {
 	Ratio               float64                 `json:"ratio"`
 	ProviderCount       int                     `json:"provider_count"`
 	BalanceLevel        int                     `json:"balance_level"`
+	BalanceAvailable    bool                    `json:"balance_available"`
+	HasLuna             bool                    `json:"has_luna"`
 	Juice               string                  `json:"juice"`
 	JuiceUpdatedTime    int64                   `json:"juice_updated_time"`
 	RequestCount        int64                   `json:"request_count"`
@@ -857,6 +861,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			Ratio:               ratio,
 			ProviderCount:       stats.ProviderCount,
 			BalanceLevel:        perfGroupBalanceLevel(stats.MinBalance),
+			BalanceAvailable:    stats.BalanceAvailable,
+			HasLuna:             stats.HasLuna,
 			Juice:               juiceStats[groupName].Juice,
 			JuiceUpdatedTime:    juiceStats[groupName].UpdatedTime,
 			RequestCount:        group.total.requestCount,
@@ -903,8 +909,10 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 }
 
 type GroupProviderStats struct {
-	ProviderCount int
-	MinBalance    float64
+	ProviderCount    int
+	MinBalance       float64
+	BalanceAvailable bool
+	HasLuna          bool
 }
 
 type GroupJuiceStats struct {
@@ -1073,19 +1081,28 @@ func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 		providerIDs = append(providerIDs, channel.ProviderID)
 	}
 
-	providerBalances := make(map[int]float64, len(providerIDs))
+	type providerBalanceState struct {
+		balance     float64
+		updatedTime int64
+	}
+	providerBalances := make(map[int]providerBalanceState, len(providerIDs))
 	if len(providerIDs) > 0 {
 		var providers []ChannelProvider
-		if err := DB.Select("id", "balance").Where("id IN ?", providerIDs).Find(&providers).Error; err != nil {
+		if err := DB.Select("id", "balance", "balance_updated_time").Where("id IN ?", providerIDs).Find(&providers).Error; err != nil {
 			return nil, err
 		}
 		for _, provider := range providers {
-			providerBalances[provider.Id] = provider.Balance
+			providerBalances[provider.Id] = providerBalanceState{
+				balance:     provider.Balance,
+				updatedTime: provider.BalanceUpdatedTime,
+			}
 		}
 	}
 
 	type groupProviderBalance struct {
-		balance float64
+		balance   float64
+		available bool
+		hasLuna   bool
 	}
 
 	groupProviders := make(map[string]map[string]groupProviderBalance)
@@ -1096,12 +1113,18 @@ func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 		}
 		providerKey := fmt.Sprintf("channel:%d", channel.Id)
 		balance := channel.Balance
+		balanceUpdatedTime := channel.BalanceUpdatedTime
 		if channel.ProviderID > 0 {
 			providerKey = fmt.Sprintf("provider:%d", channel.ProviderID)
 			if providerBalance, ok := providerBalances[channel.ProviderID]; ok {
-				balance = providerBalance
+				balance = providerBalance.balance
+				balanceUpdatedTime = providerBalance.updatedTime
+			} else {
+				balanceUpdatedTime = 0
 			}
 		}
+		balanceAvailable := balance > 0 && balanceUpdatedTime > 0 && !math.IsNaN(balance) && !math.IsInf(balance, 0)
+		hasLuna := channel.SupportsMappedModel(groupHealthLunaModel)
 		for _, groupName := range groups {
 			groupName = strings.TrimSpace(groupName)
 			if groupName == "" {
@@ -1113,20 +1136,40 @@ func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 				groupProviders[groupName] = providers
 			}
 			existing, ok := providers[providerKey]
-			if !ok || balance < existing.balance {
-				providers[providerKey] = groupProviderBalance{balance: balance}
+			if !ok {
+				providers[providerKey] = groupProviderBalance{
+					balance:   balance,
+					available: balanceAvailable,
+					hasLuna:   hasLuna,
+				}
+				continue
 			}
+			if balance < existing.balance {
+				existing.balance = balance
+			}
+			existing.available = existing.available && balanceAvailable
+			existing.hasLuna = existing.hasLuna || hasLuna
+			providers[providerKey] = existing
 		}
 	}
 
 	stats := make(map[string]GroupProviderStats, len(groupProviders))
 	for groupName, providers := range groupProviders {
-		stat := GroupProviderStats{ProviderCount: len(providers)}
+		stat := GroupProviderStats{
+			ProviderCount:    len(providers),
+			BalanceAvailable: true,
+		}
 		first := true
 		for _, provider := range providers {
 			if first || provider.balance < stat.MinBalance {
 				stat.MinBalance = provider.balance
 				first = false
+			}
+			if !provider.available {
+				stat.BalanceAvailable = false
+			}
+			if provider.hasLuna {
+				stat.HasLuna = true
 			}
 		}
 		stats[groupName] = stat

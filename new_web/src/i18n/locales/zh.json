@@ -4737,7 +4737,7 @@
     "2h success rate": "2 小时成功率",
     "10m success rate": "10 分钟成功率",
     "7d success rate": "7 天成功率",
-    "{{count}} providers": "{{count}} 供应商",
+    "{{count}} providers": "{{count}} 供",
     "Average first-token latency": "平均首字延迟",
     "First-token latency": "首字延迟",
     "Average token/s": "平均 token/s",
