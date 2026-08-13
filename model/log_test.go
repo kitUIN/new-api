@@ -9,40 +9,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFormatUserLogsHidesErrorDetails(t *testing.T) {
-	logs := []*Log{
-		{
-			Id:      99,
-			Type:    LogTypeError,
-			Content: "status_code=401, invalid API key: sk-secret",
-			Other:   `{"status_code":401,"error_code":"invalid_api_key","error_type":"openai_error","channel_id":7,"admin_info":{"upstream_error_body":"secret upstream body"}}`,
-		},
+func TestGetUserLogsPreservesErrorDetails(t *testing.T) {
+	truncateTables(t)
+	rawContent := "status_code=401, invalid API key: sk-secret"
+	rawOther := `{"status_code":401,"error_code":"invalid_api_key","error_type":"openai_error","channel_id":7,"admin_info":{"upstream_error_body":"secret upstream body"},"stream_status":{"status":"error"}}`
+	log := &Log{
+		UserId:    42,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeError,
+		Content:   rawContent,
+		Other:     rawOther,
+		TokenId:   9,
+		ChannelId: 7,
 	}
+	require.NoError(t, LOG_DB.Create(log).Error)
 
-	formatUserLogs(logs, 0)
+	logs, total, err := GetUserLogs(42, LogTypeError, 0, 0, "", "", 0, 10, "", "", "")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, logs, 1)
+	require.Equal(t, log.Id, logs[0].Id)
+	require.Equal(t, rawContent, logs[0].Content)
+	require.JSONEq(t, rawOther, logs[0].Other)
 
-	require.Equal(t, 1, logs[0].Id)
-	require.Equal(t, "status_code=401", logs[0].Content)
-	require.Contains(t, logs[0].Other, `"status_code":401`)
-	require.Contains(t, logs[0].Other, `"error_code":"invalid_api_key"`)
-	require.NotContains(t, logs[0].Other, "admin_info")
-	require.NotContains(t, logs[0].Other, "upstream_error_body")
-	require.NotContains(t, logs[0].Other, "channel_id")
-}
-
-func TestFormatUserLogsFallsBackToStatusCodeInContent(t *testing.T) {
-	logs := []*Log{
-		{
-			Type:    LogTypeError,
-			Content: "status_code=429, rate limit exceeded",
-			Other:   "",
-		},
-	}
-
-	formatUserLogs(logs, 0)
-
-	require.Equal(t, "status_code=429", logs[0].Content)
-	require.Equal(t, "{}", logs[0].Other)
+	tokenLogs, err := GetLogByTokenId(9)
+	require.NoError(t, err)
+	require.Len(t, tokenLogs, 1)
+	require.Equal(t, rawContent, tokenLogs[0].Content)
+	require.JSONEq(t, rawOther, tokenLogs[0].Other)
 }
 
 func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {

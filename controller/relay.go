@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -30,6 +31,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+const maxUpstreamErrorBodyBytes = 4096
 
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
@@ -79,7 +82,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError())
+			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIErrorForResponse())
 			return
 		}
 		defer ws.Close()
@@ -91,15 +94,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				helper.WssError(c, ws, newAPIError.ToOpenAIErrorForResponse())
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
+					"error": newAPIError.ToClaudeErrorForResponse(),
 				})
 			default:
 				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(),
+					"error": newAPIError.ToOpenAIErrorForResponse(),
 				})
 			}
 		}
@@ -456,7 +459,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		service.AppendSessionGroupFailoverAdminInfo(c, adminInfo)
 		service.AppendRuleAutoGroupAdminInfo(c, adminInfo)
 		if err.ResponseBody != "" {
-			adminInfo["upstream_error_body"] = truncateLogField(common.MaskSensitiveInfo(err.ResponseBody), 4096)
+			adminInfo["upstream_error_body"] = truncateLogField(err.ResponseBody, maxUpstreamErrorBodyBytes)
 		}
 		other["admin_info"] = adminInfo
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
@@ -469,11 +472,24 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 
 }
 
-func truncateLogField(value string, maxLen int) string {
-	if maxLen <= 0 || len(value) <= maxLen {
+func truncateLogField(value string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(value) <= maxBytes {
 		return value
 	}
-	return value[:maxLen] + "...[truncated]"
+
+	const suffix = "..."
+	if maxBytes <= len(suffix) {
+		return suffix[:maxBytes]
+	}
+
+	cut := maxBytes - len(suffix)
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	return value[:cut] + suffix
 }
 
 func RelayMidjourney(c *gin.Context) {
@@ -481,7 +497,7 @@ func RelayMidjourney(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"description": fmt.Sprintf("failed to generate relay info: %s", err.Error()),
+			"description": types.LimitErrorMessageForResponse(fmt.Sprintf("failed to generate relay info: %s", err.Error())),
 			"type":        "upstream_error",
 			"code":        4,
 		})
@@ -510,7 +526,7 @@ func RelayMidjourney(c *gin.Context) {
 			statusCode = http.StatusTooManyRequests
 		}
 		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
+			"description": types.LimitErrorMessageForResponse(fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)),
 			"type":        "upstream_error",
 			"code":        mjErr.Code,
 		})
@@ -521,7 +537,7 @@ func RelayMidjourney(c *gin.Context) {
 
 func RelayNotImplemented(c *gin.Context) {
 	err := types.OpenAIError{
-		Message: "API not implemented",
+		Message: types.LimitErrorMessageForResponse("API not implemented"),
 		Type:    "new_api_error",
 		Param:   "",
 		Code:    "api_not_implemented",
@@ -533,7 +549,7 @@ func RelayNotImplemented(c *gin.Context) {
 
 func RelayNotFound(c *gin.Context) {
 	err := types.OpenAIError{
-		Message: fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path),
+		Message: types.LimitErrorMessageForResponse(fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path)),
 		Type:    "invalid_request_error",
 		Param:   "",
 		Code:    "",
@@ -546,7 +562,7 @@ func RelayNotFound(c *gin.Context) {
 func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+		respondTaskError(c, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
@@ -561,7 +577,7 @@ func RelayTaskFetch(c *gin.Context) {
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+		respondTaskError(c, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
@@ -703,6 +719,7 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
+	taskErr.Message = types.LimitErrorMessageForResponse(taskErr.Message)
 	c.JSON(taskErr.StatusCode, taskErr)
 }
 

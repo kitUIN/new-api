@@ -83,3 +83,19 @@ func TestRelayErrorHandlerUsesStatusForEmptyResponseBody(t *testing.T) {
 
 	require.Equal(t, "bad response status code 502", err.ToOpenAIError().Message)
 }
+
+func TestRelayErrorHandlerPreservesRawBodyWhileLimitingClientMessage(t *testing.T) {
+	message := strings.Repeat("upstream error ", 50)
+	responseBody := `{"error":{"message":"` + message + `","type":"invalid_request_error","code":"bad_request"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(responseBody)),
+	}
+
+	err := RelayErrorHandler(context.Background(), resp, false)
+
+	require.Equal(t, responseBody, err.ResponseBody)
+	require.Equal(t, message, err.ToOpenAIError().Message)
+	require.Len(t, []rune(err.ToOpenAIErrorForResponse().Message), types.MaxErrorMessageRunes)
+	require.Equal(t, message, err.ToOpenAIError().Message)
+}

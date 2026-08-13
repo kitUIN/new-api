@@ -38,6 +38,11 @@ const (
 type ErrorCode string
 
 const (
+	MaxErrorMessageRunes      = 500
+	errorMessageOmittedSuffix = "..."
+)
+
+const (
 	ErrorCodeInvalidRequest         ErrorCode = "invalid_request"
 	ErrorCodeSensitiveWordsDetected ErrorCode = "sensitive_words_detected"
 	ErrorCodeViolationFeeGrokCSAM   ErrorCode = "violation_fee.grok.csam"
@@ -211,6 +216,12 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	return result
 }
 
+func (e *NewAPIError) ToOpenAIErrorForResponse() OpenAIError {
+	result := e.ToOpenAIError()
+	result.Message = LimitErrorMessageForResponse(result.Message)
+	return result
+}
+
 func (e *NewAPIError) ToClaudeError() ClaudeError {
 	var result ClaudeError
 	switch e.errorType {
@@ -238,6 +249,22 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		result.Message = string(e.errorType)
 	}
 	return result
+}
+
+func (e *NewAPIError) ToClaudeErrorForResponse() ClaudeError {
+	result := e.ToClaudeError()
+	result.Message = LimitErrorMessageForResponse(result.Message)
+	return result
+}
+
+func LimitErrorMessageForResponse(message string) string {
+	runes := []rune(message)
+	if len(runes) <= MaxErrorMessageRunes {
+		return message
+	}
+
+	suffix := []rune(errorMessageOmittedSuffix)
+	return string(runes[:MaxErrorMessageRunes-len(suffix)]) + errorMessageOmittedSuffix
 }
 
 type NewAPIErrorOptions func(*NewAPIError)

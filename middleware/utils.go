@@ -17,7 +17,7 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 	userId := c.GetInt("id")
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
-			"message": common.MessageWithRequestId(message, c.GetString(common.RequestIdKey)),
+			"message": types.LimitErrorMessageForResponse(common.MessageWithRequestId(message, c.GetString(common.RequestIdKey))),
 			"type":    "new_api_error",
 			"code":    codeStr,
 		},
@@ -28,7 +28,7 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 
 func abortWithMidjourneyMessage(c *gin.Context, statusCode int, code int, description string) {
 	c.JSON(statusCode, gin.H{
-		"description": description,
+		"description": types.LimitErrorMessageForResponse(description),
 		"type":        "new_api_error",
 		"code":        code,
 	})

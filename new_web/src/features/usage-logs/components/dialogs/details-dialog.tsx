@@ -841,9 +841,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
               </DetailSection>
             )}
 
-            {/* Relay error metadata (admin only) */}
-            {props.isAdmin &&
-              isError &&
+            {/* Relay error metadata */}
+            {isError &&
               (other?.status_code ||
                 other?.error_code ||
                 other?.error_type ||
