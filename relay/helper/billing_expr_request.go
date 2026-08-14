@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
 
 func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
@@ -43,6 +44,20 @@ func BuildBillingExprRequestInputFromRequest(request dto.Request, headers map[st
 	}
 
 	bodyBytes, err := common.Marshal(request)
+	if err != nil {
+		return billingexpr.RequestInput{}, err
+	}
+	input.Body = bodyBytes
+	return input, nil
+}
+
+func RemoveServiceTierFromBillingExprRequestInput(input billingexpr.RequestInput) (billingexpr.RequestInput, error) {
+	input = cloneRequestInput(input)
+	if len(input.Body) == 0 {
+		return input, nil
+	}
+
+	bodyBytes, err := sjson.DeleteBytes(input.Body, "service_tier")
 	if err != nil {
 		return billingexpr.RequestInput{}, err
 	}

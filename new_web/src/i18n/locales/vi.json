@@ -4902,6 +4902,10 @@
     "组合分组": "Các nhóm trong tổ hợp",
     "请至少选择两个模型组合分组": "Chọn ít nhất hai nhóm cho tổ hợp mô hình",
     "模型组合分组不能重复": "Các nhóm trong tổ hợp mô hình không được trùng lặp",
-    "请求将按优先级使用第一个支持所请求模型的分组。": "Yêu cầu sử dụng nhóm đầu tiên theo thứ tự ưu tiên có hỗ trợ mô hình được yêu cầu."
+    "请求将按优先级使用第一个支持所请求模型的分组。": "Yêu cầu sử dụng nhóm đầu tiên theo thứ tự ưu tiên có hỗ trợ mô hình được yêu cầu.",
+    "Fast": "Nhanh",
+    "Fast Mode": "Chế độ nhanh",
+    "Service Tier Multiplier": "Hệ số cấp dịch vụ",
+    "Service Tier": "Cấp dịch vụ"
   }
 }

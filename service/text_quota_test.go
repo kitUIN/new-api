@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -338,8 +340,8 @@ func TestTotalInputTokensForLogPrefersAnthropicNormalizedInputTokens(t *testing.
 		IsClaudeUsageSemantic: true,
 	}
 	usage := &dto.Usage{
-		InputTokens:  32210,
-		UsageSource:  "anthropic",
+		InputTokens:   32210,
+		UsageSource:   "anthropic",
 		UsageSemantic: "openai",
 	}
 
@@ -363,4 +365,73 @@ func TestTotalInputTokensForLogDoesNotReuseNonAnthropicInputTokens(t *testing.T)
 	got := totalInputTokensForLog(summary, usage)
 
 	require.Equal(t, 50, got)
+}
+
+func TestCalculateTextQuotaSummaryAppliesOpenAIFastModeMultiplier(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 100,
+		TotalTokens:      1100,
+	}
+
+	newRelayInfo := func(multiplier float64) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			OriginModelName:              "gpt-4.1",
+			ServiceTierBillingMultiplier: multiplier,
+			PriceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 2,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			StartTime: time.Now(),
+		}
+	}
+
+	standardSummary := calculateTextQuotaSummary(ctx, newRelayInfo(1), usage)
+	fastSummary := calculateTextQuotaSummary(ctx, newRelayInfo(relaycommon.OpenAIFastModeBillingMultiplier), usage)
+
+	require.Equal(t, 1200, standardSummary.Quota)
+	require.Equal(t, standardSummary.Quota*2, fastSummary.Quota)
+}
+
+func TestApplyTieredTextQuotaAppliesFastMultiplierOnceBeforeToolSurcharge(t *testing.T) {
+	expr := `tier("base", p * 1) * (param("service_tier") == "fast" ? 2 : 1)`
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:   "tiered_expr",
+		ModelName:     "tiered-fast-mode-test-model",
+		ExprString:    expr,
+		ExprHash:      billingexpr.ExprHashString(expr),
+		GroupRatio:    1,
+		EstimatedTier: "base",
+		QuotaPerUnit:  common.QuotaPerUnit,
+		ExprVersion:   billingexpr.ExprVersion(expr),
+	}
+	requestInput := &billingexpr.RequestInput{Body: []byte(`{}`)}
+	relayInfo := &relaycommon.RelayInfo{
+		ServiceTierBillingMultiplier: relaycommon.OpenAIFastModeBillingMultiplier,
+		TieredBillingSnapshot:        snapshot,
+		BillingRequestInput:          requestInput,
+	}
+	summary := textQuotaSummary{
+		GroupRatio:         1,
+		WebSearchPrice:     10,
+		WebSearchCallCount: 1,
+	}
+	usage := &dto.Usage{
+		PromptTokens: 1000,
+		TotalTokens:  1000,
+	}
+
+	result := applyTieredTextQuota(relayInfo, &summary, usage)
+	require.NotNil(t, result)
+
+	expectedBeforeGroup := float64(usage.PromptTokens) / 1_000_000 * common.QuotaPerUnit * relaycommon.OpenAIFastModeBillingMultiplier
+	expectedTokenQuota := billingexpr.QuotaRound(expectedBeforeGroup)
+	toolSurcharge := calculateTieredToolSurchargeQuota(summary)
+	require.Greater(t, toolSurcharge, 0)
+	require.InDelta(t, expectedBeforeGroup, result.ActualQuotaBeforeGroup, 0.000001)
+	require.Equal(t, expectedTokenQuota, result.ActualQuotaAfterGroup)
+	require.Equal(t, expectedTokenQuota+toolSurcharge, summary.Quota)
 }

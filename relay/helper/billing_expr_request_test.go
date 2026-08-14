@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -74,4 +75,22 @@ func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	require.True(t, gjson.GetBytes(input.Body, "stream").Bool())
 	require.Equal(t, "user", gjson.GetBytes(input.Body, "messages.0.role").String())
 	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
+}
+
+func TestRemoveServiceTierFromBillingExprRequestInputPreservesOtherValues(t *testing.T) {
+	body := []byte(`{"request_id":9007199254740993,"service_tier":"fast","temperature":0}`)
+	input := billingexpr.RequestInput{
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    body,
+		Group:   "vip",
+	}
+
+	filtered, err := RemoveServiceTierFromBillingExprRequestInput(input)
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(filtered.Body, "service_tier").Exists())
+	require.Equal(t, "9007199254740993", gjson.GetBytes(filtered.Body, "request_id").Raw)
+	require.Equal(t, float64(0), gjson.GetBytes(filtered.Body, "temperature").Float())
+	require.Equal(t, "vip", filtered.Group)
+	require.Equal(t, "application/json", filtered.Headers["Content-Type"])
+	require.Equal(t, []byte(`{"request_id":9007199254740993,"service_tier":"fast","temperature":0}`), input.Body)
 }

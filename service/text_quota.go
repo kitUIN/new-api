@@ -132,6 +132,13 @@ func applyTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary *textQuotaSu
 		return nil
 	}
 
+	if tieredResult != nil {
+		tieredResult.ActualQuotaBeforeGroup *= relayInfo.GetServiceTierBillingMultiplier()
+		tieredResult.ActualQuotaAfterGroup = billingexpr.QuotaRound(
+			tieredResult.ActualQuotaBeforeGroup * relayInfo.TieredBillingSnapshot.GroupRatio,
+		)
+		tieredQuota = tieredResult.ActualQuotaAfterGroup
+	}
 	summary.Quota = tieredQuota + calculateTieredToolSurchargeQuota(*summary)
 	return tieredResult
 }
@@ -217,6 +224,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	dCacheCreationRatio5m := decimal.NewFromFloat(summary.CacheCreationRatio5m)
 	dCacheCreationRatio1h := decimal.NewFromFloat(summary.CacheCreationRatio1h)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	dServiceTierMultiplier := decimal.NewFromFloat(relayInfo.GetServiceTierBillingMultiplier())
 
 	ratio := dModelRatio.Mul(dGroupRatio)
 
@@ -312,7 +320,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 
 		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
-		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
+		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio).Mul(dServiceTierMultiplier)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dWebSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dClaudeWebSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dFileSearchQuota)
@@ -330,7 +338,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		}
 		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
 	} else {
-		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
+		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio).Mul(dServiceTierMultiplier)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dWebSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dClaudeWebSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dFileSearchQuota)

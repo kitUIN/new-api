@@ -196,6 +196,15 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 			other["matched_tier"] = snap.EstimatedTier
 		}
 	}
+	if relayInfo.ChannelMeta != nil && relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeOpenAI {
+		multiplier := relayInfo.GetServiceTierBillingMultiplier()
+		serviceTier := "default"
+		if multiplier > 1 {
+			serviceTier = "fast"
+		}
+		other["service_tier"] = serviceTier
+		other["service_tier_multiplier"] = multiplier
+	}
 	// billing_source: "wallet" or "subscription"
 	if relayInfo.BillingSource != "" {
 		other["billing_source"] = relayInfo.BillingSource

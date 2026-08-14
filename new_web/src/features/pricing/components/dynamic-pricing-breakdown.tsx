@@ -64,6 +64,7 @@ type DynamicPricingBreakdownProps = {
    * call they are inspecting. Defaults to false (show all configured prices).
    */
   hideCacheColumns?: boolean
+  priceMultiplier?: number
 }
 
 const VAR_LABELS: Record<string, string> = {
@@ -162,6 +163,7 @@ export function DynamicPricingBreakdown({
   billingExpr,
   matchedTierLabel,
   hideCacheColumns = false,
+  priceMultiplier = 1,
 }: DynamicPricingBreakdownProps) {
   const { t } = useTranslation()
   const expr = billingExpr || ''
@@ -195,6 +197,10 @@ export function DynamicPricingBreakdown({
   const normalizedMatchedTierLabel = normalizeTierLabel(
     matchedTierLabel ?? undefined
   )
+  const effectivePriceMultiplier =
+    Number.isFinite(priceMultiplier) && priceMultiplier > 0
+      ? priceMultiplier
+      : 1
 
   if (!expr) return null
 
@@ -301,7 +307,7 @@ export function DynamicPricingBreakdown({
                           </div>
                           <div className='truncate font-mono text-sm font-semibold'>
                             {value > 0
-                              ? `${symbol}${(value * rate).toFixed(4)}`
+                              ? `${symbol}${(value * effectivePriceMultiplier * rate).toFixed(4)}`
                               : '-'}
                           </div>
                         </div>
@@ -378,7 +384,7 @@ export function DynamicPricingBreakdown({
                           >
                             {value > 0 ? (
                               <span className='font-semibold'>
-                                {`${symbol}${(value * rate).toFixed(4)}`}
+                                {`${symbol}${(value * effectivePriceMultiplier * rate).toFixed(4)}`}
                               </span>
                             ) : (
                               '-'

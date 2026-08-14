@@ -104,6 +104,33 @@ export function parseLogOther(other: string): LogOtherData | null {
   }
 }
 
+export function getServiceTierBillingMultiplier(
+  other: LogOtherData | null
+): number {
+  const multiplier = Number(other?.service_tier_multiplier)
+  if (Number.isFinite(multiplier) && multiplier > 0) return multiplier
+
+  const tier = String(other?.service_tier || other?.tier || '')
+    .trim()
+    .toLowerCase()
+  return tier === 'fast' || tier === 'priority' ? 2 : 1
+}
+
+export function getServiceTierLabel(
+  other: LogOtherData | null
+): 'fast' | 'default' | null {
+  const tier = String(other?.service_tier || other?.tier || '')
+    .trim()
+    .toLowerCase()
+  const hasTierMetadata = tier !== '' || other?.service_tier_multiplier != null
+  if (!hasTierMetadata) return null
+  return getServiceTierBillingMultiplier(other) > 1 ||
+    tier === 'fast' ||
+    tier === 'priority'
+    ? 'fast'
+    : 'default'
+}
+
 /**
  * Get time color based on duration (in seconds)
  */

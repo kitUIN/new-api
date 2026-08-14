@@ -4902,6 +4902,10 @@
     "组合分组": "Groupes de la combinaison",
     "请至少选择两个模型组合分组": "Sélectionnez au moins deux groupes de combinaison de modèles",
     "模型组合分组不能重复": "Les groupes de combinaison de modèles ne peuvent pas être dupliqués",
-    "请求将按优先级使用第一个支持所请求模型的分组。": "Les requêtes utilisent le premier groupe par ordre de priorité qui prend en charge le modèle demandé."
+    "请求将按优先级使用第一个支持所请求模型的分组。": "Les requêtes utilisent le premier groupe par ordre de priorité qui prend en charge le modèle demandé.",
+    "Fast": "Rapide",
+    "Fast Mode": "Mode rapide",
+    "Service Tier Multiplier": "Multiplicateur du niveau de service",
+    "Service Tier": "Niveau de service"
   }
 }

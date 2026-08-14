@@ -55,6 +55,8 @@ import {
   parseAuditLine,
   decodeBillingExprB64,
   getTieredBillingSummary,
+  getServiceTierBillingMultiplier,
+  getServiceTierLabel,
   hasAnyCacheTokens,
   isViolationFeeLog,
   getFirstResponseTimeColor,
@@ -258,11 +260,14 @@ function BillingBreakdown(props: {
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
+  const billingMultiplier = getServiceTierBillingMultiplier(other)
+  const serviceTier = getServiceTierLabel(other)
 
   const rows: Array<{ label: string; value: string }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
-  const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
+  const baseInputUSD =
+    other.model_ratio != null ? other.model_ratio * 2.0 * billingMultiplier : 0
 
   if (isTieredExpr) {
     rows.push({
@@ -279,7 +284,7 @@ function BillingBreakdown(props: {
       for (const entry of tieredSummary.priceEntries) {
         rows.push({
           label: t(entry.shortLabel),
-          value: `${fmtPrice(entry.price)}/M`,
+          value: `${fmtPrice(entry.price * billingMultiplier)}/M`,
         })
       }
     } else {
@@ -293,7 +298,7 @@ function BillingBreakdown(props: {
     if (other.model_price != null) {
       rows.push({
         label: t('Model Price'),
-        value: fmtPrice(other.model_price),
+        value: fmtPrice(other.model_price * billingMultiplier),
       })
     }
   } else {
@@ -310,6 +315,17 @@ function BillingBreakdown(props: {
         value: `${fmtPrice(baseInputUSD * other.completion_ratio)}/M`,
       })
     }
+  }
+
+  if (serviceTier) {
+    rows.push({
+      label: t('Service Tier'),
+      value: serviceTier,
+    })
+    rows.push({
+      label: t('Service Tier Multiplier'),
+      value: `${billingMultiplier}x`,
+    })
   }
 
   const userGR = other.user_group_ratio
@@ -1080,6 +1096,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   billingExpr={decodeBillingExprB64(other.expr_b64)}
                   matchedTierLabel={other.matched_tier}
                   hideCacheColumns={!hasAnyCacheTokens(other)}
+                  priceMultiplier={getServiceTierBillingMultiplier(other)}
                 />
               </div>
             )}

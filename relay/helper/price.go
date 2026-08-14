@@ -65,6 +65,7 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
+	info.RefreshOpenAIFastModeBilling(c)
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
@@ -118,6 +119,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 	}
+	preConsumedQuota = int(float64(preConsumedQuota) * info.GetServiceTierBillingMultiplier())
 
 	// check if free model pre-consume is disabled
 	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
@@ -255,6 +257,12 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		return types.PriceData{}, err
 	}
 	requestInput.Group = info.UsingGroup
+	if info.ShouldStripServiceTierFromBillingInput() {
+		requestInput, err = RemoveServiceTierFromBillingExprRequestInput(requestInput)
+		if err != nil {
+			return types.PriceData{}, fmt.Errorf("remove service_tier from model %s billing input: %w", info.OriginModelName, err)
+		}
+	}
 
 	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
 		P:   float64(promptTokens),
@@ -265,7 +273,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		return types.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", info.OriginModelName, err)
 	}
 
-	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
+	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit * info.GetServiceTierBillingMultiplier()
 	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
 
 	freeModel := false

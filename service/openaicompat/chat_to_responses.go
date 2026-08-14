@@ -372,6 +372,13 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		topP = common.GetPointer(lo.FromPtr(req.TopP))
 	}
 
+	var serviceTier string
+	if len(req.ServiceTier) > 0 {
+		if err := common.Unmarshal(req.ServiceTier, &serviceTier); err != nil {
+			return nil, fmt.Errorf("invalid service_tier: %w", err)
+		}
+	}
+
 	out := &dto.OpenAIResponsesRequest{
 		Model:             req.Model,
 		Input:             inputRaw,
@@ -386,6 +393,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		ParallelToolCalls: parallelToolCallsRaw,
 		Store:             req.Store,
 		Metadata:          req.Metadata,
+		ServiceTier:       serviceTier,
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)

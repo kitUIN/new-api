@@ -8,12 +8,16 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func updateBillingSettingForTest(t *testing.T, modes map[string]string, exprs map[string]string) {
@@ -73,4 +77,111 @@ func TestModelPriceHelperTieredUsesFinalGroup(t *testing.T) {
 	require.Equal(t, "vip", info.TieredBillingSnapshot.Group)
 	require.Equal(t, "vip", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, priceData.QuotaToPreConsume, info.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
+}
+
+func newOpenAIFastPricingContext(body []byte) *gin.Context {
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", io.NopCloser(bytes.NewReader(body)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set(common.KeyRequestBody, body)
+	common.SetContextKey(ctx, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(ctx, constant.ContextKeyChannelSetting, dto.ChannelSettings{})
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		AllowServiceTier: true,
+	})
+	return ctx
+}
+
+func TestModelPriceHelperOpenAIFastModeDoublesPreConsume(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldModes := billing_setting.GetBillingModeCopy()
+	oldExprs := billing_setting.GetBillingExprCopy()
+	t.Cleanup(func() {
+		updateBillingSettingForTest(t, oldModes, oldExprs)
+	})
+	updateBillingSettingForTest(t, map[string]string{}, map[string]string{})
+
+	newRelayInfo := func(tier string) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			OriginModelName: "gpt-4.1",
+			UserGroup:       "default",
+			UsingGroup:      "default",
+			ServiceTier:     tier,
+			UserSetting: dto.UserSetting{
+				AcceptUnsetRatioModel: true,
+			},
+		}
+	}
+
+	standardInfo := newRelayInfo("default")
+	standardPrice, err := ModelPriceHelper(
+		newOpenAIFastPricingContext([]byte(`{"service_tier":"default"}`)),
+		standardInfo,
+		1000,
+		&types.TokenCountMeta{},
+	)
+	require.NoError(t, err)
+	require.Greater(t, standardPrice.QuotaToPreConsume, 0)
+
+	fastInfo := newRelayInfo("fast")
+	fastPrice, err := ModelPriceHelper(
+		newOpenAIFastPricingContext([]byte(`{"service_tier":"fast"}`)),
+		fastInfo,
+		1000,
+		&types.TokenCountMeta{},
+	)
+	require.NoError(t, err)
+	require.Equal(t, relaycommon.OpenAIFastModeBillingMultiplier, fastInfo.GetServiceTierBillingMultiplier())
+	require.Equal(t, standardPrice.QuotaToPreConsume*2, fastPrice.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperTieredFastModeDoesNotDoubleExistingTierRule(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldModes := billing_setting.GetBillingModeCopy()
+	oldExprs := billing_setting.GetBillingExprCopy()
+	t.Cleanup(func() {
+		updateBillingSettingForTest(t, oldModes, oldExprs)
+	})
+
+	modelName := "tiered-fast-mode-test-model"
+	expr := `tier("fast", p * 1) * (param("service_tier") == "fast" ? 2 : 1)`
+	updateBillingSettingForTest(t, map[string]string{
+		modelName: billing_setting.BillingModeTieredExpr,
+	}, map[string]string{
+		modelName: expr,
+	})
+
+	body := []byte(`{"service_tier":"fast","messages":[{"role":"user","content":"hi"}]}`)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: modelName,
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		ServiceTier:     "fast",
+		RequestHeaders: map[string]string{
+			"Content-Type": "application/json",
+		},
+	}
+
+	const promptTokens = 1000
+	priceData, err := ModelPriceHelper(
+		newOpenAIFastPricingContext(body),
+		info,
+		promptTokens,
+		&types.TokenCountMeta{},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, info.BillingRequestInput)
+	require.False(t, gjson.GetBytes(info.BillingRequestInput.Body, "service_tier").Exists())
+	require.NotNil(t, info.TieredBillingSnapshot)
+
+	expectedBeforeGroup := float64(promptTokens) / 1_000_000 * common.QuotaPerUnit * relaycommon.OpenAIFastModeBillingMultiplier
+	require.InDelta(t, expectedBeforeGroup, info.TieredBillingSnapshot.EstimatedQuotaBeforeGroup, 0.000001)
+	require.Equal(
+		t,
+		billingexpr.QuotaRound(expectedBeforeGroup*info.TieredBillingSnapshot.GroupRatio),
+		priceData.QuotaToPreConsume,
+	)
 }

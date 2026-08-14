@@ -27,6 +27,7 @@ import {
   Package,
   SquarePen,
   FileText,
+  Zap,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -60,6 +61,8 @@ import {
   getFirstResponseTimeColor,
   getResponseTimeColor,
   getTieredBillingSummary,
+  getServiceTierBillingMultiplier,
+  getServiceTierLabel,
   hasAnyCacheTokens,
   parseLogOther,
   isViolationFeeLog,
@@ -84,6 +87,18 @@ interface DetailSegment {
   danger?: boolean
 }
 
+function FastModeIcon({ label }: { label: string }) {
+  return (
+    <span
+      className='inline-flex shrink-0 items-center text-amber-500'
+      aria-label={label}
+      title={label}
+    >
+      <Zap className='size-3 fill-current' aria-hidden='true' />
+    </span>
+  )
+}
+
 const DETAIL_TOOLTIP_CONTENT_CLASS = 'w-fit max-w-[calc(100vw-2rem)]'
 const DETAIL_TOOLTIP_ROW_CLASS =
   'grid min-w-48 grid-cols-[1fr_max-content] items-center gap-x-4'
@@ -92,6 +107,24 @@ const DETAIL_TOOLTIP_BORDER_ROW_CLASS = cn(
   'border-border/60 border-t pt-1'
 )
 const DETAIL_TOOLTIP_VALUE_CLASS = 'text-right font-mono tabular-nums'
+
+function UnitPriceValue(props: {
+  value: string
+  isFast: boolean
+  fastLabel: string
+}) {
+  return (
+    <span
+      className={cn(
+        DETAIL_TOOLTIP_VALUE_CLASS,
+        'inline-flex items-center gap-1'
+      )}
+    >
+      {props.value}
+      {props.isFast && <FastModeIcon label={props.fastLabel} />}
+    </span>
+  )
+}
 
 function formatRatioCompact(ratio: number | undefined): string {
   if (ratio == null || !Number.isFinite(ratio)) return '-'
@@ -167,7 +200,8 @@ function getBillableInputTokens(
   other: LogOtherData | null
 ): number {
   const inputTokens = getPrimaryInputTokens(log, other)
-  const cacheTokens = getCacheReadTokens(log, other) + getCacheWriteTokens(log, other)
+  const cacheTokens =
+    getCacheReadTokens(log, other) + getCacheWriteTokens(log, other)
 
   if (inputTokens <= 0 || cacheTokens <= 0) return inputTokens
   return inputTokens >= cacheTokens ? inputTokens - cacheTokens : inputTokens
@@ -242,6 +276,7 @@ interface CostDetail {
   billedQuota: number
   groupRatio: number
   serviceTier: string
+  billingMultiplier: number
   billingMode?: string
   matchedTier?: string
   crossedTier?: boolean
@@ -274,34 +309,46 @@ function buildCostDetail(
     other?.user_group_ratio
   )
   const billedQuota = toPositiveNumber(log.quota)
-  const serviceTier =
-    ((other as (LogOtherData & { service_tier?: string; tier?: string }) | null)
-      ?.service_tier ||
-      (
-        other as
-          | (LogOtherData & { service_tier?: string; tier?: string })
-          | null
-      )?.tier ||
-      '') ??
-    ''
+  const serviceTier = getServiceTierLabel(other) || ''
+  const billingMultiplier = getServiceTierBillingMultiplier(other)
 
   if (other?.billing_mode === 'tiered_expr') {
     const tieredSummary = getTieredBillingSummary(other)
     const priceEntries = tieredSummary?.priceEntries ?? []
-    const inputUnitPrice = getTieredUnitPrice(priceEntries, 'inputPrice')
-    const outputUnitPrice = getTieredUnitPrice(priceEntries, 'outputPrice')
-    const cacheReadUnitPrice = getTieredUnitPrice(
+    const baseInputUnitPrice = getTieredUnitPrice(priceEntries, 'inputPrice')
+    const baseOutputUnitPrice = getTieredUnitPrice(priceEntries, 'outputPrice')
+    const baseCacheReadUnitPrice = getTieredUnitPrice(
       priceEntries,
       'cacheReadPrice'
     )
-    const cacheWriteUnitPrice = getTieredUnitPrice(
+    const baseCacheWriteUnitPrice = getTieredUnitPrice(
       priceEntries,
       'cacheCreatePrice'
     )
-    const cacheWriteUnitPrice1h = getTieredUnitPrice(
+    const baseCacheWriteUnitPrice1h = getTieredUnitPrice(
       priceEntries,
       'cacheCreate1hPrice'
     )
+    const inputUnitPrice =
+      baseInputUnitPrice == null
+        ? undefined
+        : baseInputUnitPrice * billingMultiplier
+    const outputUnitPrice =
+      baseOutputUnitPrice == null
+        ? undefined
+        : baseOutputUnitPrice * billingMultiplier
+    const cacheReadUnitPrice =
+      baseCacheReadUnitPrice == null
+        ? undefined
+        : baseCacheReadUnitPrice * billingMultiplier
+    const cacheWriteUnitPrice =
+      baseCacheWriteUnitPrice == null
+        ? undefined
+        : baseCacheWriteUnitPrice * billingMultiplier
+    const cacheWriteUnitPrice1h =
+      baseCacheWriteUnitPrice1h == null
+        ? undefined
+        : baseCacheWriteUnitPrice1h * billingMultiplier
 
     const totalInputTokens = toPositiveNumber(
       other.input_tokens_total || log.prompt_tokens
@@ -373,8 +420,8 @@ function buildCostDetail(
               : 0
         return {
           label: entry.shortLabel,
-          amount: (tokens / 1_000_000) * entry.price,
-          unitPrice: entry.price,
+          amount: (tokens / 1_000_000) * entry.price * billingMultiplier,
+          unitPrice: entry.price * billingMultiplier,
         }
       })
       .filter((entry) => entry.amount > 0)
@@ -416,6 +463,7 @@ function buildCostDetail(
         calculatedOriginalAmount,
       billedQuota,
       serviceTier,
+      billingMultiplier,
     }
   }
 
@@ -423,9 +471,10 @@ function buildCostDetail(
   if (Number.isFinite(modelPrice) && modelPrice !== -1) {
     return {
       groupRatio,
-      originalAmount: modelPrice,
+      originalAmount: modelPrice * billingMultiplier,
       billedQuota,
       serviceTier,
+      billingMultiplier,
     }
   }
 
@@ -435,6 +484,7 @@ function buildCostDetail(
       groupRatio,
       billedQuota,
       serviceTier,
+      billingMultiplier,
     }
   }
 
@@ -447,7 +497,7 @@ function buildCostDetail(
   const cacheCreationRatio1h = Number(
     other?.cache_creation_ratio_1h || cacheCreationRatio
   )
-  const inputUnitPrice = modelRatio * 2.0
+  const inputUnitPrice = modelRatio * 2.0 * billingMultiplier
   const outputUnitPrice = inputUnitPrice * completionRatio
   const cacheReadUnitPrice = inputUnitPrice * cacheRatio
   const cacheWriteUnitPrice = inputUnitPrice * cacheCreationRatio
@@ -487,6 +537,7 @@ function buildCostDetail(
     originalAmount,
     billedQuota,
     serviceTier,
+    billingMultiplier,
   }
 }
 
@@ -572,13 +623,18 @@ function buildDetailSegments(
   }
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
+  const billingMultiplier = getServiceTierBillingMultiplier(other)
+  const serviceTier = getServiceTierLabel(other)
   if (isTieredExpr) {
     if (tieredSummary) {
       const baseEntries = tieredSummary.priceEntries
         .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
-        .map((entry) => formatPriceCompact(entry.price))
+        .map((entry) => formatPriceCompact(entry.price * billingMultiplier))
       if (baseEntries.length > 0) {
-        const tierLabel = tieredSummary.tier.label || t('Default')
+        const tierLabel =
+          serviceTier === 'fast'
+            ? t('Fast')
+            : tieredSummary.tier.label || t('Default')
         segments.push({
           text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
         })
@@ -591,7 +647,7 @@ function buildDetailSegments(
           )
         )
         .map((entry) => {
-          return formatPriceCompact(entry.price)
+          return formatPriceCompact(entry.price * billingMultiplier)
         })
       if (cacheEntries.length > 0) {
         segments.push({
@@ -611,7 +667,10 @@ function buildDetailSegments(
               'cacheCreate1hPrice',
             ].includes(entry.field)
         )
-        .map((entry) => `${t(entry.shortLabel)} ${formatPrice(entry.price)}`)
+        .map(
+          (entry) =>
+            `${t(entry.shortLabel)} ${formatPrice(entry.price * billingMultiplier)}`
+        )
       if (otherEntries.length > 0) {
         segments.push({
           text: otherEntries.join(' · '),
@@ -628,10 +687,10 @@ function buildDetailSegments(
     const isPerCall = isPerCallBilling(other.model_price)
     if (isPerCall) {
       segments.push({
-        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
+        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price! * billingMultiplier, priceOpts)}`,
       })
     } else if (other.model_ratio != null) {
-      const inputPriceUSD = other.model_ratio * 2.0
+      const inputPriceUSD = other.model_ratio * 2.0 * billingMultiplier
       const baseEntries = [formatPriceCompact(inputPriceUSD)]
       if (other.completion_ratio != null) {
         baseEntries.push(
@@ -639,7 +698,7 @@ function buildDetailSegments(
         )
       }
       segments.push({
-        text: `${t('Standard')} · ${formatPriceList(baseEntries, true)}`,
+        text: `${serviceTier === 'fast' ? t('Fast') : t('Standard')} · ${formatPriceList(baseEntries, true)}`,
       })
 
       if (hasAnyCacheTokens(other)) {
@@ -1094,13 +1153,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
+        const isFast =
+          getServiceTierBillingMultiplier(parseLogOther(log.other)) > 1
 
         return (
-          <div className='flex max-w-[220px] flex-col gap-0.5'>
+          <div className='flex max-w-[220px] items-center gap-1'>
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
             />
+            {isFast && <FastModeIcon label={t('Fast Mode')} />}
           </div>
         )
       },
@@ -1447,49 +1509,61 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               {costDetail.inputUnitPrice != null && (
                 <div className={DETAIL_TOOLTIP_BORDER_ROW_CLASS}>
                   <span>{t('Input price')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatUnitPrice(costDetail.inputUnitPrice)}
-                  </span>
+                  <UnitPriceValue
+                    value={formatUnitPrice(costDetail.inputUnitPrice)}
+                    isFast={costDetail.billingMultiplier > 1}
+                    fastLabel={t('Fast Mode')}
+                  />
                 </div>
               )}
               {costDetail.outputUnitPrice != null && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Output price')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatUnitPrice(costDetail.outputUnitPrice)}
-                  </span>
+                  <UnitPriceValue
+                    value={formatUnitPrice(costDetail.outputUnitPrice)}
+                    isFast={costDetail.billingMultiplier > 1}
+                    fastLabel={t('Fast Mode')}
+                  />
                 </div>
               )}
               {costDetail.cacheReadUnitPrice != null && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Cache read price')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatUnitPrice(costDetail.cacheReadUnitPrice)}
-                  </span>
+                  <UnitPriceValue
+                    value={formatUnitPrice(costDetail.cacheReadUnitPrice)}
+                    isFast={costDetail.billingMultiplier > 1}
+                    fastLabel={t('Fast Mode')}
+                  />
                 </div>
               )}
               {costDetail.cacheWriteUnitPrice != null && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Cache write price')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatUnitPrice(costDetail.cacheWriteUnitPrice)}
-                  </span>
+                  <UnitPriceValue
+                    value={formatUnitPrice(costDetail.cacheWriteUnitPrice)}
+                    isFast={costDetail.billingMultiplier > 1}
+                    fastLabel={t('Fast Mode')}
+                  />
                 </div>
               )}
               {costDetail.cacheWriteUnitPrice5m != null && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Cache create price')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatUnitPrice(costDetail.cacheWriteUnitPrice5m)}
-                  </span>
+                  <UnitPriceValue
+                    value={formatUnitPrice(costDetail.cacheWriteUnitPrice5m)}
+                    isFast={costDetail.billingMultiplier > 1}
+                    fastLabel={t('Fast Mode')}
+                  />
                 </div>
               )}
               {costDetail.cacheWriteUnitPrice1h != null && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Cache create (1h) price')}</span>
-                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatUnitPrice(costDetail.cacheWriteUnitPrice1h)}
-                  </span>
+                  <UnitPriceValue
+                    value={formatUnitPrice(costDetail.cacheWriteUnitPrice1h)}
+                    isFast={costDetail.billingMultiplier > 1}
+                    fastLabel={t('Fast Mode')}
+                  />
                 </div>
               )}
               {costDetail.extraAmounts?.map((entry) => (
@@ -1513,6 +1587,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   </span>
                 </div>
               )}
+              {costDetail.serviceTier && (
+                <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                  <span>{t('Service Tier Multiplier')}</span>
+                  <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                    {formatRatioCompact(costDetail.billingMultiplier)}x
+                  </span>
+                </div>
+              )}
               {costDetail.crossedTier === true && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Tier changed after completion')}</span>
@@ -1529,7 +1611,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               )}
               <div
                 className={
-                  costDetail.serviceTier
+                  costDetail.serviceTier || costDetail.billingMultiplier > 1
                     ? DETAIL_TOOLTIP_ROW_CLASS
                     : DETAIL_TOOLTIP_BORDER_ROW_CLASS
                 }
@@ -1588,8 +1670,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   <div className='flex flex-col gap-0.5 font-mono tabular-nums' />
                 }
               >
-                <span className='border-border/80 bg-muted/60 inline-flex w-fit items-center rounded-md border px-1.5 py-0.5 text-xs font-semibold'>
+                <span className='border-border/80 bg-muted/60 inline-flex w-fit items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-semibold'>
                   {formatLogQuota(quota)}
+                  {costDetail.billingMultiplier > 1 && (
+                    <FastModeIcon label={t('Fast Mode')} />
+                  )}
                 </span>
                 {hasCacheQuota && (
                   <div className='text-muted-foreground/60 flex flex-col gap-0.5 text-[11px]'>
