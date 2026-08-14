@@ -702,6 +702,11 @@ func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSe
 	if previous != nil && !reflect.DeepEqual(previous, result) {
 		sendProviderGroupQueryChangedNotify(provider, previous, result)
 	}
+	if normalizeBalanceQueryTemplate(config.Template) == balanceQueryTemplateSub2API {
+		if err := executeChannelAPIKeyGroupDetection(channel, config); err != nil {
+			common.SysLog(fmt.Sprintf("provider %d channel %d apikey group detection failed: %v", provider.Id, channel.Id, err))
+		}
+	}
 	return result, true, nil
 }
 

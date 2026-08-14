@@ -1,12 +1,20 @@
 package controller
 
 import (
+	"fmt"
 	"math"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestSub2APIGroupTemplateDefaults(t *testing.T) {
@@ -22,6 +30,98 @@ func TestSub2APIGroupTemplateDefaults(t *testing.T) {
 	require.Equal(t, "code", config.Extractor.SuccessPath)
 	require.Equal(t, "0", config.Extractor.SuccessValue)
 	require.False(t, config.Extractor.SuccessOptional)
+}
+
+func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.T) {
+	originalDB := model.DB
+	originalBindings := ratio_setting.UpstreamGroupRatioBindings2JSONString()
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.ChannelProvider{}))
+
+	common.OptionMapRWMutex.Lock()
+	originalOptionMap := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	common.OptionMapRWMutex.Unlock()
+	model.DB = db
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateUpstreamGroupRatioBindingsByJSONString(originalBindings))
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = originalOptionMap
+		common.OptionMapRWMutex.Unlock()
+		model.DB = originalDB
+		sqlDB, dbErr := db.DB()
+		if dbErr == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	require.NoError(t, ratio_setting.UpdateUpstreamGroupRatioBindingsByJSONString(`{}`))
+
+	groupCalls := 0
+	refreshCalls := 0
+	keyCalls := 0
+	keyAuthorization := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/groups/available":
+			groupCalls++
+			if r.Header.Get("Authorization") == "Bearer expired-access" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"id":126,"name":"Codex","description":"","rate_multiplier":0.03}]}`))
+		case "/api/v1/auth/refresh":
+			refreshCalls++
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"refreshed-access","refresh_token":"refreshed-refresh"}}`))
+		case "/api/v1/keys":
+			keyCalls++
+			keyAuthorization = r.Header.Get("Authorization")
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"items":[{"id":1,"key":"sk-provider","group":{"id":126,"name":"Codex","rate_multiplier":0.03}}],"total":1,"page":1,"page_size":20,"pages":1}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	settings := dto.ChannelProviderSettings{
+		GroupQuery: dto.GroupQuery{
+			Enabled:      true,
+			Template:     balanceQueryTemplateSub2API,
+			AccessToken:  "expired-access",
+			RefreshToken: "refresh-token",
+		},
+	}
+	provider := &model.ChannelProvider{Name: "provider", BaseURL: server.URL, Status: common.ChannelStatusEnabled}
+	provider.SetOtherSettings(settings)
+	require.NoError(t, db.Create(provider).Error)
+	baseURL := server.URL
+	channel := &model.Channel{
+		Id:         77,
+		ProviderID: provider.Id,
+		Key:        "sk-provider",
+		Group:      "provider-detection-test",
+		BaseURL:    &baseURL,
+	}
+
+	result, configured, err := executeProviderConfiguredGroups(
+		provider,
+		settings,
+		providerGroupQueryExecution{Provider: provider, Channel: channel, Settings: settings},
+	)
+
+	require.NoError(t, err)
+	require.True(t, configured)
+	require.Contains(t, result, "Codex")
+	require.Equal(t, 2, groupCalls)
+	require.Equal(t, 1, refreshCalls)
+	require.Equal(t, 1, keyCalls)
+	require.Equal(t, "Bearer refreshed-access", keyAuthorization)
+	binding, ok := ratio_setting.GetUpstreamGroupRatioBindingsCopy()["provider-detection-test"]
+	require.True(t, ok)
+	require.Equal(t, ratio_setting.UpstreamGroupRatioBindingSourceChannel, binding.SourceType)
+	require.Equal(t, channel.Id, binding.SourceID)
+	require.Equal(t, "Codex", binding.UpstreamGroup)
 }
 
 func TestExtractGroupQueryResultSupportsSub2APIArray(t *testing.T) {

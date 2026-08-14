@@ -93,7 +93,7 @@ func newOpenAIFastPricingContext(body []byte) *gin.Context {
 	return ctx
 }
 
-func TestModelPriceHelperOpenAIFastModeDoublesPreConsume(t *testing.T) {
+func TestModelPriceHelperOpenAIFastModeAppliesTwoPointFiveMultiplier(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldModes := billing_setting.GetBillingModeCopy()
@@ -133,11 +133,11 @@ func TestModelPriceHelperOpenAIFastModeDoublesPreConsume(t *testing.T) {
 		&types.TokenCountMeta{},
 	)
 	require.NoError(t, err)
-	require.Equal(t, relaycommon.OpenAIFastModeBillingMultiplier, fastInfo.GetServiceTierBillingMultiplier())
-	require.Equal(t, standardPrice.QuotaToPreConsume*2, fastPrice.QuotaToPreConsume)
+	require.Equal(t, 2.5, fastInfo.GetServiceTierBillingMultiplier())
+	require.Equal(t, int(float64(standardPrice.QuotaToPreConsume)*2.5), fastPrice.QuotaToPreConsume)
 }
 
-func TestModelPriceHelperTieredFastModeDoesNotDoubleExistingTierRule(t *testing.T) {
+func TestModelPriceHelperTieredFastModeDoesNotStackExistingTierRule(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldModes := billing_setting.GetBillingModeCopy()

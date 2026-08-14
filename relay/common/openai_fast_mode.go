@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const OpenAIFastModeBillingMultiplier = 2.0
+const OpenAIFastModeBillingMultiplier = 2.5
 
 func normalizeServiceTier(tier string) string {
 	return strings.ToLower(strings.TrimSpace(tier))

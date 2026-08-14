@@ -393,7 +393,7 @@ func TestCalculateTextQuotaSummaryAppliesOpenAIFastModeMultiplier(t *testing.T) 
 	fastSummary := calculateTextQuotaSummary(ctx, newRelayInfo(relaycommon.OpenAIFastModeBillingMultiplier), usage)
 
 	require.Equal(t, 1200, standardSummary.Quota)
-	require.Equal(t, standardSummary.Quota*2, fastSummary.Quota)
+	require.Equal(t, int(float64(standardSummary.Quota)*2.5), fastSummary.Quota)
 }
 
 func TestApplyTieredTextQuotaAppliesFastMultiplierOnceBeforeToolSurcharge(t *testing.T) {
