@@ -25,11 +25,11 @@ BEGIN
 END
 $unschedule$;
 
--- Run at minute 17 of every hour. Each run retains the latest 7 * 24 hours,
--- so the maximum cleanup delay is less than one hour and is timezone-neutral.
+-- Run daily at 00:17 in the PostgreSQL server's cron timezone. Each run
+-- retains the latest 7 * 24 hours, so the maximum cleanup delay is one day.
 SELECT cron.schedule(
     'new-api-usage-log-retention-7d',
-    '17 * * * *',
+    '17 0 * * *',
     $command$
         WITH cutoff AS (
             SELECT (FLOOR(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP))::bigint - 7 * 24 * 60 * 60) AS cutoff_epoch
