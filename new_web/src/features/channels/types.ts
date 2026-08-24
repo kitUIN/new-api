@@ -220,6 +220,7 @@ export type ChannelProviderSettings = {
   sub2api_auto_login_enabled?: boolean
   sub2api_email?: string
   sub2api_password?: string
+  query_proxy?: string
   balance_query?: BalanceQueryConfig
   group_query?: GroupQueryConfig
 }

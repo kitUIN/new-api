@@ -52,6 +52,7 @@ type ChannelProviderSettings struct {
 	Sub2APIAutoLoginEnabled bool         `json:"sub2api_auto_login_enabled,omitempty"` // 是否允许 sub2api 自动登录
 	Sub2APIEmail            string       `json:"sub2api_email,omitempty"`              // sub2api 登录邮箱
 	Sub2APIPassword         string       `json:"sub2api_password,omitempty"`           // sub2api 登录密码
+	QueryProxy              string       `json:"query_proxy,omitempty"`                // 余额和上游分组查询代理；为空时使用源渠道代理
 	BalanceQuery            BalanceQuery `json:"balance_query,omitempty"`              // 供应商余额查询配置
 	GroupQuery              GroupQuery   `json:"group_query,omitempty"`                // 供应商上游分组查询配置
 }

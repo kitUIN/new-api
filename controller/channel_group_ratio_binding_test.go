@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,9 @@ func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.
 	common.OptionMap = make(map[string]string)
 	common.OptionMapRWMutex.Unlock()
 	model.DB = db
+	service.ResetProxyClientCache()
 	t.Cleanup(func() {
+		service.ResetProxyClientCache()
 		require.NoError(t, ratio_setting.UpdateUpstreamGroupRatioBindingsByJSONString(originalBindings))
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = originalOptionMap
@@ -62,7 +65,10 @@ func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.
 	refreshCalls := 0
 	keyCalls := 0
 	keyAuthorization := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Host != "upstream.example" {
+			t.Errorf("proxy request host = %q, want upstream.example", r.URL.Host)
+		}
 		switch r.URL.Path {
 		case "/api/v1/groups/available":
 			groupCalls++
@@ -82,9 +88,10 @@ func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer server.Close()
+	defer proxyServer.Close()
 
 	settings := dto.ChannelProviderSettings{
+		QueryProxy: proxyServer.URL,
 		GroupQuery: dto.GroupQuery{
 			Enabled:      true,
 			Template:     balanceQueryTemplateSub2API,
@@ -92,10 +99,10 @@ func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.
 			RefreshToken: "refresh-token",
 		},
 	}
-	provider := &model.ChannelProvider{Name: "provider", BaseURL: server.URL, Status: common.ChannelStatusEnabled}
+	baseURL := "http://upstream.example"
+	provider := &model.ChannelProvider{Name: "provider", BaseURL: baseURL, Status: common.ChannelStatusEnabled}
 	provider.SetOtherSettings(settings)
 	require.NoError(t, db.Create(provider).Error)
-	baseURL := server.URL
 	channel := &model.Channel{
 		Id:         77,
 		ProviderID: provider.Id,
@@ -103,6 +110,7 @@ func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.
 		Group:      "provider-detection-test",
 		BaseURL:    &baseURL,
 	}
+	channel.SetSetting(dto.ChannelSettings{Proxy: "http://127.0.0.1:1"})
 
 	result, configured, err := executeProviderConfiguredGroups(
 		provider,
@@ -117,6 +125,7 @@ func TestExecuteProviderConfiguredGroupsRunsSub2APIKeyGroupDetection(t *testing.
 	require.Equal(t, 1, refreshCalls)
 	require.Equal(t, 1, keyCalls)
 	require.Equal(t, "Bearer refreshed-access", keyAuthorization)
+	require.Equal(t, proxyServer.URL, provider.GetOtherSettings().QueryProxy)
 	binding, ok := ratio_setting.GetUpstreamGroupRatioBindingsCopy()["provider-detection-test"]
 	require.True(t, ok)
 	require.Equal(t, ratio_setting.UpstreamGroupRatioBindingSourceChannel, binding.SourceType)

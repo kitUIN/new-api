@@ -2555,6 +2555,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.",
     "Nested JSON: source group →": "Nested JSON: source group →",
     "Network proxy for this channel (supports socks5 protocol)": "Network proxy for this channel (supports socks5 protocol)",
+    "Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.": "Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.",
     "Never": "Never",
     "Never expires": "Never expires",
     "Never used an API Gateway?": "Never used an API Gateway?",

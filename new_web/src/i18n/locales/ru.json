@@ -2555,6 +2555,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "Вложенный JSON, определяющий правила для каждой группы для добавления (+:), удаления (-:) или добавления используемых групп.",
     "Nested JSON: source group →": "Вложенный JSON: исходная группа →",
     "Network proxy for this channel (supports socks5 protocol)": "Сетевой прокси для этого канала (поддерживает протокол socks5)",
+    "Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.": "Используется для запросов баланса и групп вышестоящего сервиса. Оставьте пустым, чтобы использовать прокси выбранного канала-источника.",
     "Never": "Никогда",
     "Never expires": "Никогда не истекает",
     "Never used an API Gateway?": "Никогда не пользовались API-шлюзом?",

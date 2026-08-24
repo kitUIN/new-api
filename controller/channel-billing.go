@@ -146,6 +146,20 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 }
 
 func GetResponseBodyWithBody(method, url string, body string, channel *model.Channel, headers http.Header) ([]byte, error) {
+	return getResponseBodyWithBodyAndProxy(method, url, body, channel, headers, "")
+}
+
+func resolveChannelQueryProxy(channel *model.Channel, queryProxy string) string {
+	if proxyURL := strings.TrimSpace(queryProxy); proxyURL != "" {
+		return proxyURL
+	}
+	if channel == nil {
+		return ""
+	}
+	return strings.TrimSpace(channel.GetSetting().Proxy)
+}
+
+func getResponseBodyWithBodyAndProxy(method, url string, body string, channel *model.Channel, headers http.Header, queryProxy string) ([]byte, error) {
 	var reader io.Reader
 	if body != "" {
 		reader = strings.NewReader(body)
@@ -157,7 +171,7 @@ func GetResponseBodyWithBody(method, url string, body string, channel *model.Cha
 	for k := range headers {
 		req.Header.Add(k, headers.Get(k))
 	}
-	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	client, err := service.NewProxyHttpClient(resolveChannelQueryProxy(channel, queryProxy))
 	if err != nil {
 		return nil, err
 	}
@@ -594,6 +608,10 @@ func getQueryBaseURL(channel *model.Channel) string {
 }
 
 func requestSub2APIAuthTokens(channel *model.Channel, path string, payload map[string]string, action string) (sub2APIAuthTokens, error) {
+	return requestSub2APIAuthTokensWithProxy(channel, path, payload, action, "")
+}
+
+func requestSub2APIAuthTokensWithProxy(channel *model.Channel, path string, payload map[string]string, action string, queryProxy string) (sub2APIAuthTokens, error) {
 	baseURL := getQueryBaseURL(channel)
 	if baseURL == "" {
 		return sub2APIAuthTokens{}, fmt.Errorf("%s请求地址不能为空", action)
@@ -607,7 +625,7 @@ func requestSub2APIAuthTokens(channel *model.Channel, path string, payload map[s
 		return sub2APIAuthTokens{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	client, err := service.NewProxyHttpClient(resolveChannelQueryProxy(channel, queryProxy))
 	if err != nil {
 		return sub2APIAuthTokens{}, err
 	}
@@ -644,16 +662,24 @@ func requestSub2APIAuthTokens(channel *model.Channel, path string, payload map[s
 }
 
 func refreshSub2APIQueryToken(channel *model.Channel, refreshToken string) (sub2APIAuthTokens, error) {
+	return refreshSub2APIQueryTokenWithProxy(channel, refreshToken, "")
+}
+
+func refreshSub2APIQueryTokenWithProxy(channel *model.Channel, refreshToken string, queryProxy string) (sub2APIAuthTokens, error) {
 	refreshToken = strings.TrimSpace(refreshToken)
 	if refreshToken == "" {
 		return sub2APIAuthTokens{}, errors.New("refresh_token 不能为空")
 	}
-	return requestSub2APIAuthTokens(channel, "/api/v1/auth/refresh", map[string]string{
+	return requestSub2APIAuthTokensWithProxy(channel, "/api/v1/auth/refresh", map[string]string{
 		"refresh_token": refreshToken,
-	}, "刷新 token")
+	}, "刷新 token", queryProxy)
 }
 
 func loginSub2APIQueryToken(channel *model.Channel, email string, password string) (sub2APIAuthTokens, error) {
+	return loginSub2APIQueryTokenWithProxy(channel, email, password, "")
+}
+
+func loginSub2APIQueryTokenWithProxy(channel *model.Channel, email string, password string, queryProxy string) (sub2APIAuthTokens, error) {
 	email = strings.TrimSpace(email)
 	if email == "" {
 		return sub2APIAuthTokens{}, errors.New("sub2api 登录邮箱不能为空")
@@ -661,10 +687,10 @@ func loginSub2APIQueryToken(channel *model.Channel, email string, password strin
 	if password == "" {
 		return sub2APIAuthTokens{}, errors.New("sub2api 登录密码不能为空")
 	}
-	return requestSub2APIAuthTokens(channel, "/api/v1/auth/login", map[string]string{
+	return requestSub2APIAuthTokensWithProxy(channel, "/api/v1/auth/login", map[string]string{
 		"email":    email,
 		"password": password,
-	}, "sub2api 登录")
+	}, "sub2api 登录", queryProxy)
 }
 
 func updateChannelBalanceQueryTokens(channel *model.Channel, settings dto.ChannelOtherSettings, tokens sub2APIAuthTokens) dto.ChannelOtherSettings {
@@ -703,11 +729,24 @@ func recoverSub2APIProviderQuery(
 	queryErr error,
 	retry func(tokens sub2APIAuthTokens) ([]byte, error),
 ) ([]byte, dto.ChannelProviderSettings, error) {
+	return recoverSub2APIProviderQueryWithProxy(channel, provider, settings, template, refreshToken, "", queryErr, retry)
+}
+
+func recoverSub2APIProviderQueryWithProxy(
+	channel *model.Channel,
+	provider *model.ChannelProvider,
+	settings dto.ChannelProviderSettings,
+	template string,
+	refreshToken string,
+	queryProxy string,
+	queryErr error,
+	retry func(tokens sub2APIAuthTokens) ([]byte, error),
+) ([]byte, dto.ChannelProviderSettings, error) {
 	if !shouldRefreshSub2APIToken(template, refreshToken, queryErr) {
 		return nil, settings, queryErr
 	}
 
-	tokens, refreshErr := refreshSub2APIQueryToken(channel, refreshToken)
+	tokens, refreshErr := refreshSub2APIQueryTokenWithProxy(channel, refreshToken, queryProxy)
 	if refreshErr == nil {
 		settings = updateProviderQueryTokens(provider, settings, tokens)
 		body, err := retry(tokens)
@@ -721,7 +760,7 @@ func recoverSub2APIProviderQuery(
 		return nil, settings, fmt.Errorf("401 后刷新 token 失败: %w", refreshErr)
 	}
 
-	tokens, loginErr := loginSub2APIQueryToken(channel, settings.Sub2APIEmail, settings.Sub2APIPassword)
+	tokens, loginErr := loginSub2APIQueryTokenWithProxy(channel, settings.Sub2APIEmail, settings.Sub2APIPassword, queryProxy)
 	if loginErr != nil {
 		return nil, settings, fmt.Errorf("刷新 token 后仍为 401，sub2api 登录失败: %w", loginErr)
 	}
@@ -1184,7 +1223,7 @@ func executeProviderConfiguredBalance(provider *model.ChannelProvider, providerS
 		Headers:   balanceQueryHeadersToMap(headers),
 		Body:      requestBody,
 	}
-	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	body, err := getResponseBodyWithBodyAndProxy(method, url, requestBody, channel, headers, providerSettings.QueryProxy)
 	if err != nil {
 		retryWithTokens := func(tokens sub2APIAuthTokens) ([]byte, error) {
 			config.AccessToken = tokens.AccessToken
@@ -1199,14 +1238,15 @@ func executeProviderConfiguredBalance(provider *model.ChannelProvider, providerS
 			requestBody = replaceBalanceQueryVars(config.Request.Body, channel, config)
 			debugInfo.Headers = balanceQueryHeadersToMap(headers)
 			debugInfo.Body = requestBody
-			return GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+			return getResponseBodyWithBodyAndProxy(method, url, requestBody, channel, headers, providerSettings.QueryProxy)
 		}
-		body, providerSettings, err = recoverSub2APIProviderQuery(
+		body, providerSettings, err = recoverSub2APIProviderQueryWithProxy(
 			channel,
 			provider,
 			providerSettings,
 			config.Template,
 			config.RefreshToken,
+			providerSettings.QueryProxy,
 			err,
 			retryWithTokens,
 		)

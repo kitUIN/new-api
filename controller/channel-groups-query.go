@@ -455,6 +455,10 @@ func resolveUpstreamGroupBindingUpdate(
 }
 
 func executeChannelAPIKeyGroupDetection(channel *model.Channel, config dto.GroupQuery) error {
+	return executeChannelAPIKeyGroupDetectionWithProxy(channel, config, "")
+}
+
+func executeChannelAPIKeyGroupDetectionWithProxy(channel *model.Channel, config dto.GroupQuery, queryProxy string) error {
 	keys := channel.GetKeys()
 	if len(keys) == 0 {
 		return nil
@@ -479,7 +483,7 @@ func executeChannelAPIKeyGroupDetection(channel *model.Channel, config dto.Group
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+accessToken)
 
-	body, err := GetResponseBodyWithBody(http.MethodGet, reqURL, "", channel, headers)
+	body, err := getResponseBodyWithBodyAndProxy(http.MethodGet, reqURL, "", channel, headers, queryProxy)
 	if err != nil {
 		return fmt.Errorf("上游 APIKey 查询请求失败: %w", err)
 	}
@@ -656,7 +660,7 @@ func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSe
 		Headers:   balanceQueryHeadersToMap(headers),
 		Body:      requestBody,
 	}
-	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	body, err := getResponseBodyWithBodyAndProxy(method, url, requestBody, channel, headers, providerSettings.QueryProxy)
 	if err != nil {
 		retryWithTokens := func(tokens sub2APIAuthTokens) ([]byte, error) {
 			config.AccessToken = tokens.AccessToken
@@ -671,14 +675,15 @@ func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSe
 			requestBody = replaceGroupQueryVars(config.Request.Body, channel, config)
 			debugInfo.Headers = balanceQueryHeadersToMap(headers)
 			debugInfo.Body = requestBody
-			return GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+			return getResponseBodyWithBodyAndProxy(method, url, requestBody, channel, headers, providerSettings.QueryProxy)
 		}
-		body, providerSettings, err = recoverSub2APIProviderQuery(
+		body, providerSettings, err = recoverSub2APIProviderQueryWithProxy(
 			channel,
 			provider,
 			providerSettings,
 			config.Template,
 			config.RefreshToken,
+			providerSettings.QueryProxy,
 			err,
 			retryWithTokens,
 		)
@@ -703,7 +708,7 @@ func executeProviderConfiguredGroups(provider *model.ChannelProvider, providerSe
 		sendProviderGroupQueryChangedNotify(provider, previous, result)
 	}
 	if normalizeBalanceQueryTemplate(config.Template) == balanceQueryTemplateSub2API {
-		if err := executeChannelAPIKeyGroupDetection(channel, config); err != nil {
+		if err := executeChannelAPIKeyGroupDetectionWithProxy(channel, config, providerSettings.QueryProxy); err != nil {
 			common.SysLog(fmt.Sprintf("provider %d channel %d apikey group detection failed: %v", provider.Id, channel.Id, err))
 		}
 	}

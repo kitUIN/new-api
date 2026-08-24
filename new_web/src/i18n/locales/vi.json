@@ -2555,6 +2555,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "JSON lồng nhau xác định quy tắc theo nhóm để thêm (+:), xóa (-:), hoặc nối các nhóm có thể sử dụng.",
     "Nested JSON: source group →": "JSON lồng nhau: nhóm nguồn →",
     "Network proxy for this channel (supports socks5 protocol)": "Proxy mạng cho kênh này (hỗ trợ giao thức socks5)",
+    "Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.": "Dùng để truy vấn số dư và nhóm thượng nguồn. Để trống để dùng proxy của kênh nguồn đã chọn.",
     "Never": "Không bao giờ",
     "Never expires": "Không hết hạn",
     "Never used an API Gateway?": "Chưa bao giờ sử dụng API Gateway?",

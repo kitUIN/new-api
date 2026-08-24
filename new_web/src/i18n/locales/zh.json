@@ -2555,6 +2555,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "嵌套 JSON，定义按分组添加（+:）、移除（-:）或追加可用分组的规则。",
     "Nested JSON: source group →": "嵌套 JSON：源分组 →",
     "Network proxy for this channel (supports socks5 protocol)": "此渠道的网络代理（支持 socks5 协议）",
+    "Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.": "用于余额和上游分组查询；留空时使用所选源渠道的代理。",
     "Never": "永不",
     "Never expires": "永不过期",
     "Never used an API Gateway?": "从未使用过 API 网关/中转 API？",

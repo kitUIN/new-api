@@ -66,6 +66,7 @@ type FormState = {
   access_token: string
   refresh_token: string
   user_id: string
+  query_proxy: string
   sub2api_auto_login_enabled: boolean
   sub2api_email: string
   sub2api_password: string
@@ -153,6 +154,7 @@ function defaultState(provider: ProviderRow | null): FormState {
     access_token: b.access_token || g.access_token || '',
     refresh_token: b.refresh_token || g.refresh_token || '',
     user_id: b.user_id || g.user_id || '',
+    query_proxy: settings.query_proxy || '',
     sub2api_auto_login_enabled: settings.sub2api_auto_login_enabled === true,
     sub2api_email: settings.sub2api_email || '',
     sub2api_password: settings.sub2api_password || '',
@@ -299,6 +301,7 @@ export function ProviderQuerySettingsDialog(props: Props) {
       sub2api_auto_login_enabled: form.sub2api_auto_login_enabled,
       sub2api_email: form.sub2api_email,
       sub2api_password: form.sub2api_password,
+      query_proxy: form.query_proxy.trim(),
       balance_query: {
         ...previous.balance_query,
         enabled: form.balance_enabled,
@@ -407,6 +410,20 @@ export function ProviderQuerySettingsDialog(props: Props) {
         <DialogHeader>
           <DialogTitle>{t('Provider query settings')}</DialogTitle>
         </DialogHeader>
+        <div className='space-y-1.5'>
+          <Label htmlFor='provider-query-proxy'>{t('Proxy Address')}</Label>
+          <Input
+            id='provider-query-proxy'
+            value={form.query_proxy}
+            placeholder={t('socks5://user:pass@host:port')}
+            onChange={(event) => set('query_proxy', event.target.value)}
+          />
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.'
+            )}
+          </p>
+        </div>
         <div className='grid gap-3 sm:grid-cols-3'>
           <TextField
             label='Access Token'

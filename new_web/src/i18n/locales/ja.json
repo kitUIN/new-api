@@ -2555,6 +2555,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "追加 (+:)、削除 (-:)、または使用可能なグループの追加を行うグループごとのルールを定義するネストされたJSON。",
     "Nested JSON: source group →": "ネストされたJSON: ソースグループ →",
     "Network proxy for this channel (supports socks5 protocol)": "このチャネルのネットワークプロキシ (socks5プロトコルをサポート)",
+    "Used for balance and upstream group queries. Leave blank to use the selected source channel proxy.": "残高およびアップストリームグループの照会に使用します。空欄の場合は、選択したソースチャネルのプロキシを使用します。",
     "Never": "しない",
     "Never expires": "無期限",
     "Never used an API Gateway?": "APIゲートウェイを一度も使用したことがありませんか？",
