@@ -24,7 +24,7 @@ func TestRuleAutoGroupCandidatesUseEffectiveRatioAndBoundaries(t *testing.T) {
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"codex-a":"A","codex-pro-a":"Pro A","codex-b":"B","codex-c":"C","codex-combo":"Combo"}`))
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"codex-a":0.05,"codex-pro-a":0.08,"codex-b":0.1,"codex-c":0.2,"codex-combo":0.01}`))
 	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"vip":{"codex-c":0.03}}`))
-	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"codex-combo":{"gpt-5.6-sol":1}}`))
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"codex-combo":[{"group":"codex-a","models":["test"]},{"group":"codex-b","models":["test"]}]}`))
 
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodexLow))
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", "auto:codex-low"))

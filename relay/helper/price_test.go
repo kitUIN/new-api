@@ -14,6 +14,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -77,6 +78,64 @@ func TestModelPriceHelperTieredUsesFinalGroup(t *testing.T) {
 	require.Equal(t, "vip", info.TieredBillingSnapshot.Group)
 	require.Equal(t, "vip", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, priceData.QuotaToPreConsume, info.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
+}
+
+func TestRefreshPricingForSelectedGroupReevaluatesTieredExpr(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldModes := billing_setting.GetBillingModeCopy()
+	oldExprs := billing_setting.GetBillingExprCopy()
+	oldRatios := ratio_setting.GroupRatio2JSONString()
+	oldGroupRatios := ratio_setting.GroupGroupRatio2JSONString()
+	t.Cleanup(func() {
+		updateBillingSettingForTest(t, oldModes, oldExprs)
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldRatios))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(oldGroupRatios))
+	})
+
+	modelName := "tiered-group-switch-test-model"
+	expr := `group == "premium" ? tier("premium", p * 2) : tier("combo", p)`
+	updateBillingSettingForTest(t, map[string]string{
+		modelName: billing_setting.BillingModeTieredExpr,
+	}, map[string]string{
+		modelName: expr,
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"combo":3,"premium":0.5}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{}`))
+
+	body := []byte(`{"messages":[{"role":"user","content":"hi"}]}`)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", io.NopCloser(bytes.NewReader(body)))
+	ctx.Set(common.KeyRequestBody, body)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: modelName,
+		UserGroup:       "default",
+		UsingGroup:      "combo",
+		RequestHeaders: map[string]string{
+			"Content-Type": "application/json",
+		},
+	}
+	const promptTokens = 1000
+	priceData, err := ModelPriceHelper(ctx, info, promptTokens, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	initialPreConsumedQuota := priceData.QuotaToPreConsume
+	require.Equal(t, "combo", info.TieredBillingSnapshot.EstimatedTier)
+	require.Equal(t, 3.0, info.TieredBillingSnapshot.GroupRatio)
+
+	require.NoError(t, RefreshPricingForSelectedGroup(ctx, info, "premium"))
+	expectedBeforeGroup := float64(promptTokens*2) / 1_000_000 * info.TieredBillingSnapshot.QuotaPerUnit
+	require.Equal(t, "premium", info.UsingGroup)
+	require.Equal(t, "premium", info.BillingRequestInput.Group)
+	require.Equal(t, "premium", info.TieredBillingSnapshot.Group)
+	require.Equal(t, "premium", info.TieredBillingSnapshot.EstimatedTier)
+	require.Equal(t, 0.5, info.TieredBillingSnapshot.GroupRatio)
+	require.Equal(t, 0.5, info.PriceData.GroupRatioInfo.GroupRatio)
+	require.InDelta(t, expectedBeforeGroup, info.TieredBillingSnapshot.EstimatedQuotaBeforeGroup, 0.000001)
+	require.Equal(t, billingexpr.QuotaRound(expectedBeforeGroup*0.5), info.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
+	require.Equal(t, initialPreConsumedQuota, info.PriceData.QuotaToPreConsume)
+	require.NotEqual(t, initialPreConsumedQuota, info.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
 }
 
 func newOpenAIFastPricingContext(body []byte) *gin.Context {

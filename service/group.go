@@ -62,11 +62,13 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 		if !ok || !enabledChannelGroups[groupName] {
 			continue
 		}
+		ratio, ratioRange := getGroupCombinationRatio(userGroup, groupName)
 		groups = append(groups, UserUsableGroupInfo{
-			Name:  groupName,
-			Label: groupName,
-			Ratio: GetUserGroupRatio(userGroup, groupName),
-			Desc:  desc,
+			Name:       groupName,
+			Label:      groupName,
+			Ratio:      ratio,
+			Desc:       desc,
+			RatioRange: ratioRange,
 		})
 	}
 
@@ -165,4 +167,34 @@ func GetUserGroupRatio(userGroup, group string) float64 {
 		return ratio
 	}
 	return ratio_setting.GetGroupRatio(group)
+}
+
+func getGroupCombinationRatio(userGroup, group string) (interface{}, *RuleAutoGroupRatioRange) {
+	members, configured := ratio_setting.GetGroupCombinationMembers(group)
+	if !configured || len(members) == 0 {
+		return GetUserGroupRatio(userGroup, group), nil
+	}
+
+	minRatio := GetUserGroupRatio(userGroup, members[0].Group)
+	maxRatio := minRatio
+	for _, member := range members[1:] {
+		ratio := GetUserGroupRatio(userGroup, member.Group)
+		if ratio < minRatio {
+			minRatio = ratio
+		}
+		if ratio > maxRatio {
+			maxRatio = ratio
+		}
+	}
+	if minRatio == maxRatio {
+		return minRatio, nil
+	}
+	ratioRange := &RuleAutoGroupRatioRange{
+		Min:          minRatio,
+		Max:          maxRatio,
+		MinInclusive: true,
+		MaxInclusive: true,
+		Display:      formatRuleAutoGroupRatioRange(minRatio, maxRatio),
+	}
+	return ratioRange.Display, ratioRange
 }

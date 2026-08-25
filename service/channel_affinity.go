@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/hot"
@@ -666,6 +667,9 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 		return false
 	}
 	if meta.SessionKeyOnly {
+		return false
+	}
+	if ratio_setting.IsGroupCombination(meta.UsingGroup) {
 		return false
 	}
 	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)

@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -28,7 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -37,222 +37,285 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { GroupBoundChannel } from '../types'
+import { MultiSelect } from '@/components/multi-select'
 
-export type GroupCombinationRoutes = Record<string, number>
+export type GroupCombinationMember = {
+  group: string
+  models: string[]
+}
 
-type RouteDraft = {
+export type GroupCombinationMembers = GroupCombinationMember[]
+
+export type GroupCombinationOption = {
+  name: string
+  ratio: number
+  models: string[]
+}
+
+type MemberGroupDraft = {
   id: number
-  model: string
-  channelId: string
+  group: string
+  models: string[]
 }
 
 type GroupCombinationDialogProps = {
   open: boolean
   groupName: string
-  routes: GroupCombinationRoutes
-  channels: GroupBoundChannel[]
+  memberGroups: GroupCombinationMembers
+  groups: GroupCombinationOption[]
   onOpenChange: (open: boolean) => void
-  onSave: (routes: GroupCombinationRoutes) => void
+  onSave: (memberGroups: GroupCombinationMembers) => void
 }
 
-let nextRouteID = 1
+let nextDraftID = 1
 
-function createRouteDraft(model = '', channelID = ''): RouteDraft {
-  const route = { id: nextRouteID, model, channelId: channelID }
-  nextRouteID += 1
-  return route
+function createMemberGroupDraft(
+  group = '',
+  models: string[] = []
+): MemberGroupDraft {
+  const draft = { id: nextDraftID, group, models }
+  nextDraftID += 1
+  return draft
+}
+
+export function normalizeGroupCombinationMembers(
+  value: unknown
+): GroupCombinationMembers {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((member) => {
+    if (!member || typeof member !== 'object' || Array.isArray(member)) {
+      return []
+    }
+    const group = (member as { group?: unknown }).group
+    const models = (member as { models?: unknown }).models
+    if (typeof group !== 'string' || !Array.isArray(models)) return []
+    return [
+      {
+        group,
+        models: models.filter(
+          (model): model is string =>
+            typeof model === 'string' && model.trim() !== ''
+        ),
+      },
+    ]
+  })
 }
 
 export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
   const { t } = useTranslation()
-  const [drafts, setDrafts] = useState<RouteDraft[]>([])
+  const [drafts, setDrafts] = useState<MemberGroupDraft[]>([])
 
-  const sortedChannels = useMemo(
-    () => [...props.channels].sort((left, right) => left.id - right.id),
-    [props.channels]
-  )
-  const channelByID = useMemo(
-    () => new Map(sortedChannels.map((channel) => [channel.id, channel])),
-    [sortedChannels]
-  )
-  const exposedModels = useMemo(
+  const sortedGroups = useMemo(
     () =>
-      Array.from(
-        new Set(sortedChannels.flatMap((channel) => channel.models || []))
-      ).sort(),
-    [sortedChannels]
+      [...props.groups].sort((left, right) =>
+        left.name.localeCompare(right.name)
+      ),
+    [props.groups]
+  )
+  const groupByName = useMemo(
+    () => new Map(sortedGroups.map((group) => [group.name, group])),
+    [sortedGroups]
   )
 
   useEffect(() => {
     if (!props.open) return
     setDrafts(
-      Object.entries(props.routes)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([model, channelID]) => createRouteDraft(model, String(channelID)))
+      normalizeGroupCombinationMembers(props.memberGroups).map((member) =>
+        createMemberGroupDraft(member.group, member.models)
+      )
     )
-  }, [props.open, props.routes])
+  }, [props.memberGroups, props.open])
 
-  const normalizedModels = drafts.map((draft) => draft.model.trim())
-  const duplicateModels = new Set(
-    normalizedModels.filter(
-      (model, index) => model && normalizedModels.indexOf(model) !== index
-    )
-  )
-  const invalidRouteIDs = new Set(
-    drafts
-      .filter((draft) => {
-        const model = draft.model.trim()
-        const channelID = Number(draft.channelId)
-        const channel = channelByID.get(channelID)
-        return (
-          !model ||
-          !channel ||
-          channel.status !== 1 ||
-          !(channel.models || []).includes(model) ||
-          duplicateModels.has(model)
+  const duplicateGroups = useMemo(() => {
+    const seen = new Set<string>()
+    const duplicates = new Set<string>()
+    for (const draft of drafts) {
+      if (!draft.group) continue
+      if (seen.has(draft.group)) duplicates.add(draft.group)
+      seen.add(draft.group)
+    }
+    return duplicates
+  }, [drafts])
+
+  const canSave =
+    drafts.length >= 2 &&
+    drafts.every(
+      (draft) =>
+        groupByName.has(draft.group) &&
+        !duplicateGroups.has(draft.group) &&
+        draft.models.length > 0 &&
+        draft.models.every((model) =>
+          groupByName.get(draft.group)?.models.includes(model)
         )
-      })
-      .map((draft) => draft.id)
-  )
-  const canSave = drafts.length > 0 && invalidRouteIDs.size === 0
+    )
 
-  const updateDraft = (
-    id: number,
-    field: 'model' | 'channelId',
-    value: string
-  ) => {
+  const updateDraftGroup = (id: number, group: string) => {
+    const supportedModels = new Set(groupByName.get(group)?.models ?? [])
     setDrafts((current) =>
       current.map((draft) =>
-        draft.id === id ? { ...draft, [field]: value } : draft
+        draft.id === id
+          ? {
+              ...draft,
+              group,
+              models: draft.models.filter((model) =>
+                supportedModels.has(model)
+              ),
+            }
+          : draft
       )
     )
   }
 
-  const handleChannelChange = (draft: RouteDraft, value: string) => {
-    const channel = channelByID.get(Number(value))
-    const nextModel =
-      draft.model.trim() || channel?.models?.length !== 1
-        ? draft.model
-        : channel.models[0]
+  const updateDraftModels = (id: number, models: string[]) => {
     setDrafts((current) =>
-      current.map((item) =>
-        item.id === draft.id
-          ? { ...item, channelId: value, model: nextModel }
-          : item
-      )
+      current.map((draft) => (draft.id === id ? { ...draft, models } : draft))
     )
   }
 
-  const handleSave = () => {
-    if (!canSave) return
-    const routes: GroupCombinationRoutes = {}
-    for (const draft of drafts) {
-      routes[draft.model.trim()] = Number(draft.channelId)
-    }
-    props.onSave(routes)
+  const moveDraft = (index: number, direction: -1 | 1) => {
+    setDrafts((current) => {
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= current.length) return current
+      const next = [...current]
+      ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
+      return next
+    })
+  }
+
+  const addDraft = () => {
+    const selectedGroups = new Set(drafts.map((draft) => draft.group))
+    const nextGroup = sortedGroups.find(
+      (group) => !selectedGroups.has(group.name)
+    )
+    setDrafts((current) => [
+      ...current,
+      createMemberGroupDraft(nextGroup?.name ?? ''),
+    ])
   }
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className='sm:max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>{t('Combination routes')}</DialogTitle>
+          <DialogTitle>{t('Member groups')}</DialogTitle>
           <DialogDescription>
-            {t('{{group}} model routes', { group: props.groupName })}
+            {t('{{group}} member group and model priority', {
+              group: props.groupName,
+            })}
           </DialogDescription>
         </DialogHeader>
 
-        <datalist id='group-combination-models'>
-          {exposedModels.map((model) => (
-            <option key={model} value={model} />
-          ))}
-        </datalist>
-
-        <div className='max-h-[55vh] space-y-3 overflow-y-auto pr-1'>
-          {drafts.map((draft) => {
-            const channel = channelByID.get(Number(draft.channelId))
-            const model = draft.model.trim()
-            const duplicate = duplicateModels.has(model)
-            const unsupported =
-              !!channel && !!model && !(channel.models || []).includes(model)
-
+        <div className='max-h-[55vh] space-y-2 overflow-y-auto pr-1'>
+          {drafts.map((draft, index) => {
+            const selectedGroup = groupByName.get(draft.group)
             return (
               <div
                 key={draft.id}
-                className='grid grid-cols-1 gap-2 border-b pb-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_2.25rem] sm:items-start'
+                className='grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b pb-3 last:border-b-0 sm:grid-cols-[3rem_minmax(0,0.8fr)_5rem_minmax(0,1.2fr)_6.75rem] sm:gap-3'
               >
-                <div className='space-y-1'>
-                  <Input
-                    list='group-combination-models'
-                    value={draft.model}
-                    placeholder={t('Model name')}
-                    aria-invalid={invalidRouteIDs.has(draft.id)}
-                    onChange={(event) =>
-                      updateDraft(draft.id, 'model', event.target.value)
-                    }
-                  />
-                  {duplicate && (
-                    <p className='text-destructive text-xs'>
-                      {t('Duplicate model route')}
-                    </p>
-                  )}
-                  {unsupported && !duplicate && (
-                    <p className='text-destructive text-xs'>
-                      {t('Channel does not expose this model')}
-                    </p>
-                  )}
-                </div>
+                <span className='text-muted-foreground text-xs font-medium'>
+                  #{index + 1}
+                </span>
 
                 <Select
-                  items={sortedChannels.map((item) => ({
-                    value: String(item.id),
-                    label: `#${item.id} ${item.name}`,
+                  items={sortedGroups.map((group) => ({
+                    value: group.name,
+                    label:
+                      group.name === props.groupName
+                        ? `${group.name} (${t('Original group')})`
+                        : group.name,
                   }))}
-                  value={draft.channelId}
+                  value={draft.group}
                   onValueChange={(value) => {
-                    if (value === null) return
-                    handleChannelChange(draft, value)
+                    if (value !== null) updateDraftGroup(draft.id, value)
                   }}
                 >
-                  <SelectTrigger className='w-full' aria-invalid={!channel}>
-                    <SelectValue placeholder={t('Select channel')} />
+                  <SelectTrigger
+                    className='w-full min-w-0'
+                    aria-invalid={
+                      !selectedGroup || duplicateGroups.has(draft.group)
+                    }
+                  >
+                    <SelectValue placeholder={t('Select group')} />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
-                      {sortedChannels.map((item) => (
-                        <SelectItem
-                          key={item.id}
-                          value={String(item.id)}
-                          disabled={item.status !== 1}
-                        >
-                          {`#${item.id} ${item.name}`}
+                      {sortedGroups.map((group) => (
+                        <SelectItem key={group.name} value={group.name}>
+                          {group.name === props.groupName
+                            ? `${group.name} (${t('Original group')})`
+                            : group.name}
                         </SelectItem>
                       ))}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
 
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='icon'
-                  aria-label={t('Delete route')}
-                  onClick={() =>
-                    setDrafts((current) =>
-                      current.filter((item) => item.id !== draft.id)
-                    )
-                  }
+                <Badge
+                  variant='secondary'
+                  className='hidden justify-center sm:flex'
                 >
-                  <Trash2 className='h-4 w-4' />
-                </Button>
+                  {selectedGroup ? `${selectedGroup.ratio}x` : '-'}
+                </Badge>
+
+                <MultiSelect
+                  className='col-start-2 col-end-4 min-w-0 sm:col-auto'
+                  options={(selectedGroup?.models ?? []).map((model) => ({
+                    label: model,
+                    value: model,
+                  }))}
+                  selected={draft.models}
+                  onChange={(models) => updateDraftModels(draft.id, models)}
+                  placeholder={t('Select models')}
+                  disabled={!selectedGroup}
+                  maxVisibleChips={2}
+                />
+
+                <div className='col-start-3 row-start-1 flex items-center justify-end sm:col-auto sm:row-auto'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    disabled={index === 0}
+                    title={t('Move group up')}
+                    aria-label={t('Move group up')}
+                    onClick={() => moveDraft(index, -1)}
+                  >
+                    <ArrowUp className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    disabled={index === drafts.length - 1}
+                    title={t('Move group down')}
+                    aria-label={t('Move group down')}
+                    onClick={() => moveDraft(index, 1)}
+                  >
+                    <ArrowDown className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    title={t('Remove group')}
+                    aria-label={t('Remove group')}
+                    onClick={() =>
+                      setDrafts((current) =>
+                        current.filter((item) => item.id !== draft.id)
+                      )
+                    }
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
               </div>
             )
           })}
 
           {drafts.length === 0 && (
             <p className='text-muted-foreground py-6 text-center text-sm'>
-              {t('No model routes')}
+              {t('No member groups')}
             </p>
           )}
         </div>
@@ -261,15 +324,25 @@ export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
           <Button
             type='button'
             variant='outline'
-            onClick={() =>
-              setDrafts((current) => [...current, createRouteDraft()])
-            }
+            disabled={drafts.length >= sortedGroups.length}
+            onClick={addDraft}
           >
             <Plus className='mr-2 h-4 w-4' />
-            {t('Add route')}
+            {t('Add group')}
           </Button>
-          <Button type='button' disabled={!canSave} onClick={handleSave}>
-            {t('Save routes')}
+          <Button
+            type='button'
+            disabled={!canSave}
+            onClick={() =>
+              props.onSave(
+                drafts.map((draft) => ({
+                  group: draft.group,
+                  models: draft.models,
+                }))
+              )
+            }
+          >
+            {t('Save')}
           </Button>
         </DialogFooter>
       </DialogContent>

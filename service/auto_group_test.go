@@ -65,7 +65,7 @@ func TestGetUserAutoGroupExcludesCombinationGroups(t *testing.T) {
 
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"g1":"G1","combo":"Combo"}`))
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"g1":1,"combo":1}`))
-	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"combo":{"gpt-5.6-sol":1}}`))
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"combo":[{"group":"g1","models":["test"]},{"group":"g2","models":["test"]}]}`))
 	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["combo","g1"]`))
 
 	require.Equal(t, []string{"g1"}, GetUserAutoGroup(""))

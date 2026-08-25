@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/expr-lang/expr"
@@ -103,9 +105,131 @@ const (
 
 var groupTypesMap = types.NewRWMap[string, string]()
 
-// GroupCombinations maps a virtual billing group to exact model-channel routes.
-// The virtual group remains the billing, rate-limit, and logging group.
-var groupCombinationsMap = types.NewRWMap[string, map[string]int]()
+type GroupCombinationMember struct {
+	Group  string   `json:"group"`
+	Models []string `json:"models"`
+}
+
+// GroupCombinationConfig accepts both the current ordered-member format and
+// the legacy model-to-channel format. Updates are parsed into temporary maps
+// first so malformed configuration cannot clear the active routes.
+type GroupCombinationConfig struct {
+	mutex        sync.RWMutex
+	members      map[string][]GroupCombinationMember
+	legacyRoutes map[string]map[string]int
+}
+
+func newGroupCombinationConfig() *GroupCombinationConfig {
+	return &GroupCombinationConfig{
+		members:      make(map[string][]GroupCombinationMember),
+		legacyRoutes: make(map[string]map[string]int),
+	}
+}
+
+func cloneGroupCombinationMembers(source map[string][]GroupCombinationMember) map[string][]GroupCombinationMember {
+	cloned := make(map[string][]GroupCombinationMember, len(source))
+	for group, members := range source {
+		memberCopies := make([]GroupCombinationMember, len(members))
+		for i, member := range members {
+			memberCopies[i] = GroupCombinationMember{
+				Group:  member.Group,
+				Models: append([]string(nil), member.Models...),
+			}
+		}
+		cloned[group] = memberCopies
+	}
+	return cloned
+}
+
+func cloneLegacyGroupCombinationRoutes(source map[string]map[string]int) map[string]map[string]int {
+	cloned := make(map[string]map[string]int, len(source))
+	for group, routes := range source {
+		routeCopies := make(map[string]int, len(routes))
+		for modelName, channelID := range routes {
+			routeCopies[modelName] = channelID
+		}
+		cloned[group] = routeCopies
+	}
+	return cloned
+}
+
+func parseGroupCombinations(jsonStr string) (map[string][]GroupCombinationMember, map[string]map[string]int, error) {
+	if common.GetJsonType(json.RawMessage(jsonStr)) != "object" {
+		return nil, nil, errors.New("group combinations must be a JSON object")
+	}
+
+	rawCombinations := make(map[string]json.RawMessage)
+	if err := common.Unmarshal([]byte(jsonStr), &rawCombinations); err != nil {
+		return nil, nil, err
+	}
+
+	members := make(map[string][]GroupCombinationMember)
+	legacyRoutes := make(map[string]map[string]int)
+	for group, rawValue := range rawCombinations {
+		switch common.GetJsonType(rawValue) {
+		case "array":
+			var groupMembers []GroupCombinationMember
+			if err := common.Unmarshal(rawValue, &groupMembers); err != nil {
+				return nil, nil, fmt.Errorf("invalid combination members for %s: %w", group, err)
+			}
+			members[group] = groupMembers
+		case "object":
+			var routes map[string]int
+			if err := common.Unmarshal(rawValue, &routes); err != nil {
+				return nil, nil, fmt.Errorf("invalid legacy combination routes for %s: %w", group, err)
+			}
+			legacyRoutes[group] = routes
+		default:
+			return nil, nil, fmt.Errorf("combination group %s must use an array or object", group)
+		}
+	}
+
+	if err := validateGroupCombinationMembers(members, legacyRoutes); err != nil {
+		return nil, nil, err
+	}
+	if err := validateLegacyGroupCombinationRoutes(legacyRoutes); err != nil {
+		return nil, nil, err
+	}
+	return members, legacyRoutes, nil
+}
+
+func (c *GroupCombinationConfig) replace(members map[string][]GroupCombinationMember, legacyRoutes map[string]map[string]int) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.members = cloneGroupCombinationMembers(members)
+	c.legacyRoutes = cloneLegacyGroupCombinationRoutes(legacyRoutes)
+}
+
+func (c *GroupCombinationConfig) UnmarshalJSON(data []byte) error {
+	members, legacyRoutes, err := parseGroupCombinations(string(data))
+	if err != nil {
+		return err
+	}
+	c.replace(members, legacyRoutes)
+	return nil
+}
+
+func (c *GroupCombinationConfig) MarshalJSON() ([]byte, error) {
+	if c == nil {
+		return common.Marshal(map[string]any{})
+	}
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	combined := make(map[string]any, len(c.members)+len(c.legacyRoutes))
+	for group, members := range cloneGroupCombinationMembers(c.members) {
+		combined[group] = members
+	}
+	for group, routes := range cloneLegacyGroupCombinationRoutes(c.legacyRoutes) {
+		combined[group] = routes
+	}
+	return common.Marshal(combined)
+}
+
+// GroupCombinations maps a selectable combination group to ordered concrete
+// groups and the models each group may serve. Billing and logging use the
+// selected concrete group.
+var groupCombinations = newGroupCombinationConfig()
 
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 	"vip": {
@@ -120,7 +244,7 @@ type GroupRatioSetting struct {
 	GroupSpecialUsableGroup    *types.RWMap[string, map[string]string]         `json:"group_special_usable_group"`
 	UpstreamGroupRatioBindings *types.RWMap[string, UpstreamGroupRatioBinding] `json:"upstream_group_ratio_bindings"`
 	GroupTypes                 *types.RWMap[string, string]                    `json:"group_types"`
-	GroupCombinations          *types.RWMap[string, map[string]int]            `json:"group_combinations"`
+	GroupCombinations          *GroupCombinationConfig                         `json:"group_combinations"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -138,7 +262,7 @@ func init() {
 		GroupGroupRatio:            groupGroupRatioMap,
 		UpstreamGroupRatioBindings: upstreamGroupRatioBindingMap,
 		GroupTypes:                 groupTypesMap,
-		GroupCombinations:          groupCombinationsMap,
+		GroupCombinations:          groupCombinations,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -156,7 +280,7 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 		groupRatioSetting.GroupTypes = groupTypesMap
 	}
 	if groupRatioSetting.GroupCombinations == nil {
-		groupRatioSetting.GroupCombinations = groupCombinationsMap
+		groupRatioSetting.GroupCombinations = groupCombinations
 	}
 	return &groupRatioSetting
 }
@@ -211,42 +335,86 @@ func UpdateGroupTypesByJSONString(jsonStr string) error {
 	return types.LoadFromJsonString(groupRatioSetting.GroupTypes, jsonStr)
 }
 
-func GetGroupCombinationsCopy() map[string]map[string]int {
+func GetGroupCombinationsCopy() map[string][]GroupCombinationMember {
+	if groupRatioSetting.GroupCombinations == nil {
+		return map[string][]GroupCombinationMember{}
+	}
+	groupRatioSetting.GroupCombinations.mutex.RLock()
+	defer groupRatioSetting.GroupCombinations.mutex.RUnlock()
+	return cloneGroupCombinationMembers(groupRatioSetting.GroupCombinations.members)
+}
+
+func GetLegacyGroupCombinationsCopy() map[string]map[string]int {
 	if groupRatioSetting.GroupCombinations == nil {
 		return map[string]map[string]int{}
 	}
-	combinations := groupRatioSetting.GroupCombinations.ReadAll()
-	copyOfCombinations := make(map[string]map[string]int, len(combinations))
-	for group, routes := range combinations {
-		copyOfRoutes := make(map[string]int, len(routes))
-		for modelName, channelID := range routes {
-			copyOfRoutes[modelName] = channelID
-		}
-		copyOfCombinations[group] = copyOfRoutes
-	}
-	return copyOfCombinations
+	groupRatioSetting.GroupCombinations.mutex.RLock()
+	defer groupRatioSetting.GroupCombinations.mutex.RUnlock()
+	return cloneLegacyGroupCombinationRoutes(groupRatioSetting.GroupCombinations.legacyRoutes)
 }
 
 func GroupCombinations2JSONString() string {
 	if groupRatioSetting.GroupCombinations == nil {
 		return "{}"
 	}
-	return groupRatioSetting.GroupCombinations.MarshalJSONString()
+	data, err := common.Marshal(groupRatioSetting.GroupCombinations)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
 }
 
 func IsGroupCombination(group string) bool {
 	if groupRatioSetting.GroupCombinations == nil {
 		return false
 	}
-	_, ok := groupRatioSetting.GroupCombinations.Get(group)
+	groupRatioSetting.GroupCombinations.mutex.RLock()
+	defer groupRatioSetting.GroupCombinations.mutex.RUnlock()
+	_, hasMembers := groupRatioSetting.GroupCombinations.members[group]
+	_, hasLegacyRoutes := groupRatioSetting.GroupCombinations.legacyRoutes[group]
+	return hasMembers || hasLegacyRoutes
+}
+
+func IsLegacyGroupCombination(group string) bool {
+	if groupRatioSetting.GroupCombinations == nil {
+		return false
+	}
+	groupRatioSetting.GroupCombinations.mutex.RLock()
+	defer groupRatioSetting.GroupCombinations.mutex.RUnlock()
+	_, ok := groupRatioSetting.GroupCombinations.legacyRoutes[group]
 	return ok
+}
+
+func GetGroupCombinationMembers(group string) ([]GroupCombinationMember, bool) {
+	if groupRatioSetting.GroupCombinations == nil {
+		return nil, false
+	}
+	groupRatioSetting.GroupCombinations.mutex.RLock()
+	members, configured := groupRatioSetting.GroupCombinations.members[group]
+	groupRatioSetting.GroupCombinations.mutex.RUnlock()
+	if !configured {
+		return nil, false
+	}
+	memberCopies := make([]GroupCombinationMember, len(members))
+	for i, member := range members {
+		memberCopies[i] = GroupCombinationMember{
+			Group:  member.Group,
+			Models: append([]string(nil), member.Models...),
+		}
+	}
+	return memberCopies, true
 }
 
 func GetGroupCombinationChannelID(group, modelName string) (int, bool, bool) {
 	if groupRatioSetting.GroupCombinations == nil {
 		return 0, false, false
 	}
-	routes, configured := groupRatioSetting.GroupCombinations.Get(group)
+	groupRatioSetting.GroupCombinations.mutex.RLock()
+	routes, configured := groupRatioSetting.GroupCombinations.legacyRoutes[group]
+	if configured {
+		routes = cloneLegacyGroupCombinationRoutes(map[string]map[string]int{group: routes})[group]
+	}
+	groupRatioSetting.GroupCombinations.mutex.RUnlock()
 	if !configured {
 		return 0, false, false
 	}
@@ -262,11 +430,68 @@ func GetGroupCombinationChannelID(group, modelName string) (int, bool, bool) {
 	return 0, true, false
 }
 
-func CheckGroupCombinations(jsonStr string) error {
-	combinations := make(map[string]map[string]int)
-	if err := common.Unmarshal([]byte(jsonStr), &combinations); err != nil {
-		return err
+func GroupCombinationMemberSupportsModel(member GroupCombinationMember, modelName string) bool {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
 	}
+	normalizedModel := FormatMatchingModelName(modelName)
+	for _, selectedModel := range member.Models {
+		if selectedModel == modelName || (normalizedModel != modelName && selectedModel == normalizedModel) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateGroupCombinationMembers(combinations map[string][]GroupCombinationMember, legacyRoutes map[string]map[string]int) error {
+	for group, members := range combinations {
+		if strings.TrimSpace(group) == "" || strings.TrimSpace(group) != group {
+			return errors.New("combination group name cannot be empty or contain surrounding whitespace")
+		}
+		if group == "auto" || constant.IsRuleAutoGroup(group) {
+			return errors.New("automatic groups cannot be configured as combination groups")
+		}
+		if len(members) < 2 {
+			return errors.New("combination group must contain at least two member groups: " + group)
+		}
+		seenMemberGroups := make(map[string]struct{}, len(members))
+		for _, member := range members {
+			memberGroup := member.Group
+			if strings.TrimSpace(memberGroup) == "" || strings.TrimSpace(memberGroup) != memberGroup {
+				return errors.New("combination member group cannot be empty or contain surrounding whitespace: " + group)
+			}
+			if memberGroup == "auto" || constant.IsRuleAutoGroup(memberGroup) {
+				return fmt.Errorf("automatic groups cannot be combination members: %s/%s", group, memberGroup)
+			}
+			_, isMemberCombination := combinations[memberGroup]
+			_, isLegacyCombination := legacyRoutes[memberGroup]
+			if memberGroup != group && (isMemberCombination || isLegacyCombination) {
+				return fmt.Errorf("combination groups cannot be nested: %s/%s", group, memberGroup)
+			}
+			if _, exists := seenMemberGroups[memberGroup]; exists {
+				return fmt.Errorf("combination group cannot contain duplicate members: %s/%s", group, memberGroup)
+			}
+			seenMemberGroups[memberGroup] = struct{}{}
+			if len(member.Models) == 0 {
+				return fmt.Errorf("combination member group must select at least one model: %s/%s", group, memberGroup)
+			}
+			seenModels := make(map[string]struct{}, len(member.Models))
+			for _, modelName := range member.Models {
+				if strings.TrimSpace(modelName) == "" || strings.TrimSpace(modelName) != modelName {
+					return fmt.Errorf("combination member model cannot be empty or contain surrounding whitespace: %s/%s", group, memberGroup)
+				}
+				if _, exists := seenModels[modelName]; exists {
+					return fmt.Errorf("combination member group cannot contain duplicate models: %s/%s/%s", group, memberGroup, modelName)
+				}
+				seenModels[modelName] = struct{}{}
+			}
+		}
+	}
+	return nil
+}
+
+func validateLegacyGroupCombinationRoutes(combinations map[string]map[string]int) error {
 	for group, routes := range combinations {
 		if strings.TrimSpace(group) == "" || strings.TrimSpace(group) != group {
 			return errors.New("combination group name cannot be empty or contain surrounding whitespace")
@@ -289,14 +514,21 @@ func CheckGroupCombinations(jsonStr string) error {
 	return nil
 }
 
+func CheckGroupCombinations(jsonStr string) error {
+	_, _, err := parseGroupCombinations(jsonStr)
+	return err
+}
+
 func UpdateGroupCombinationsByJSONString(jsonStr string) error {
-	if err := CheckGroupCombinations(jsonStr); err != nil {
+	members, legacyRoutes, err := parseGroupCombinations(jsonStr)
+	if err != nil {
 		return err
 	}
 	if groupRatioSetting.GroupCombinations == nil {
-		groupRatioSetting.GroupCombinations = groupCombinationsMap
+		groupRatioSetting.GroupCombinations = groupCombinations
 	}
-	return types.LoadFromJsonString(groupRatioSetting.GroupCombinations, jsonStr)
+	groupRatioSetting.GroupCombinations.replace(members, legacyRoutes)
+	return nil
 }
 
 func GetGroupRatioCopy() map[string]float64 {

@@ -51,6 +51,15 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
+			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			if ratio_setting.IsGroupCombination(usingGroup) && modelRequest.Model != "" {
+				selectedGroup, found := service.ResolveGroupCombinationChannelGroup(usingGroup, modelRequest.Model, channel.Id)
+				if !found {
+					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("组合分组 %s 的成员分组不包含渠道 #%d", usingGroup, channel.Id))
+					return
+				}
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
+			}
 		} else {
 			// Select a channel for the user
 			// check token model mapping
@@ -115,18 +124,20 @@ func Distribute() func(c *gin.Context) {
 					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
 				}
 
-				if combinationChannel, enabled, combinationErr := service.ResolveGroupCombinationChannel(usingGroup, modelRequest.Model); enabled {
-					if combinationErr != nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, combinationErr.Error(), types.ErrorCodeModelNotFound)
+				if channel == nil && ratio_setting.IsLegacyGroupCombination(usingGroup) {
+					var enabled bool
+					channel, selectGroup, enabled, err = service.ResolveGroupCombinationChannel(usingGroup, modelRequest.Model)
+					if enabled && err != nil {
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, err.Error(), types.ErrorCodeModelNotFound)
 						return
 					}
-					channel = combinationChannel
-					selectGroup = usingGroup
-					// Exact combination routes must not retry into a different channel.
-					common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, strconv.Itoa(channel.Id))
+					if enabled && channel != nil {
+						// Legacy combinations are exact model-to-channel routes and must not retry elsewhere.
+						common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, strconv.Itoa(channel.Id))
+					}
 				}
 
-				if channel == nil {
+				if channel == nil && !ratio_setting.IsGroupCombination(usingGroup) {
 					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 						preferred, err := model.CacheGetChannel(preferredChannelID)
 						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {

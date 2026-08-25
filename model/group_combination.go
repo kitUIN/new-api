@@ -2,6 +2,7 @@ package model
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -27,46 +28,70 @@ func ChannelExposesRequestedModel(channel *Channel, modelName string) bool {
 	return channelExposesRequestedModel(channel, modelName)
 }
 
-func getEnabledGroupCombinationAbilities() ([]AbilityWithChannel, error) {
+func getEnabledGroupCombinationAbilities(abilities []AbilityWithChannel) ([]AbilityWithChannel, error) {
 	combinations := ratio_setting.GetGroupCombinationsCopy()
-	if len(combinations) == 0 {
+	legacyCombinations := ratio_setting.GetLegacyGroupCombinationsCopy()
+	if len(combinations) == 0 && len(legacyCombinations) == 0 {
 		return []AbilityWithChannel{}, nil
 	}
 
-	channelIDs := make([]int, 0)
-	seenChannelIDs := make(map[int]struct{})
-	for _, routes := range combinations {
-		for _, channelID := range routes {
-			if _, exists := seenChannelIDs[channelID]; exists {
-				continue
+	abilitiesByGroup := make(map[string][]AbilityWithChannel)
+	for _, ability := range abilities {
+		abilitiesByGroup[ability.Group] = append(abilitiesByGroup[ability.Group], ability)
+	}
+
+	combinationAbilities := make([]AbilityWithChannel, 0)
+	for combinationGroup, members := range combinations {
+		seen := make(map[string]struct{})
+		for _, ability := range abilitiesByGroup[combinationGroup] {
+			key := ability.Model + "\x00" + strconv.Itoa(ability.ChannelId)
+			seen[key] = struct{}{}
+		}
+		for _, member := range members {
+			for _, ability := range abilitiesByGroup[member.Group] {
+				if !ratio_setting.GroupCombinationMemberSupportsModel(member, ability.Model) {
+					continue
+				}
+				key := ability.Model + "\x00" + strconv.Itoa(ability.ChannelId)
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				ability.Group = combinationGroup
+				combinationAbilities = append(combinationAbilities, ability)
 			}
-			seenChannelIDs[channelID] = struct{}{}
-			channelIDs = append(channelIDs, channelID)
 		}
 	}
-	if len(channelIDs) == 0 {
-		return []AbilityWithChannel{}, nil
-	}
-
-	var channels []Channel
-	if err := DB.Where("id IN ? AND status = ?", channelIDs, common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
-		return nil, err
-	}
-	channelByID := make(map[int]*Channel, len(channels))
-	for i := range channels {
-		channelByID[channels[i].Id] = &channels[i]
-	}
-
-	abilities := make([]AbilityWithChannel, 0)
-	for group, routes := range combinations {
-		for modelName, channelID := range routes {
-			channel := channelByID[channelID]
-			if !channelExposesRequestedModel(channel, modelName) {
+	legacyChannelIDs := make([]int, 0)
+	seenLegacyChannelIDs := make(map[int]struct{})
+	for _, routes := range legacyCombinations {
+		for _, channelID := range routes {
+			if _, exists := seenLegacyChannelIDs[channelID]; exists {
 				continue
 			}
-			abilities = append(abilities, AbilityWithChannel{
+			seenLegacyChannelIDs[channelID] = struct{}{}
+			legacyChannelIDs = append(legacyChannelIDs, channelID)
+		}
+	}
+	legacyChannelsByID := make(map[int]*Channel, len(legacyChannelIDs))
+	if len(legacyChannelIDs) > 0 {
+		var legacyChannels []Channel
+		if err := DB.Where("id IN ? AND status = ?", legacyChannelIDs, common.ChannelStatusEnabled).Find(&legacyChannels).Error; err != nil {
+			return nil, err
+		}
+		for i := range legacyChannels {
+			legacyChannelsByID[legacyChannels[i].Id] = &legacyChannels[i]
+		}
+	}
+	for combinationGroup, routes := range legacyCombinations {
+		for modelName, channelID := range routes {
+			channel := legacyChannelsByID[channelID]
+			if channel == nil || !channelExposesRequestedModel(channel, modelName) {
+				continue
+			}
+			combinationAbilities = append(combinationAbilities, AbilityWithChannel{
 				Ability: Ability{
-					Group:     group,
+					Group:     combinationGroup,
 					Model:     modelName,
 					ChannelId: channelID,
 					Enabled:   true,
@@ -78,48 +103,110 @@ func getEnabledGroupCombinationAbilities() ([]AbilityWithChannel, error) {
 			})
 		}
 	}
-	return abilities, nil
+	return combinationAbilities, nil
 }
 
 func GetGroupCombinationEnabledModels(group string) []string {
-	if !ratio_setting.IsGroupCombination(group) {
+	if ratio_setting.IsLegacyGroupCombination(group) {
+		routes := ratio_setting.GetLegacyGroupCombinationsCopy()[group]
+		models := make([]string, 0, len(routes))
+		for modelName, channelID := range routes {
+			channel, err := CacheGetChannel(channelID)
+			if err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled && channelExposesRequestedModel(channel, modelName) {
+				models = append(models, modelName)
+			}
+		}
+		sort.Strings(models)
+		return models
+	}
+
+	members, configured := ratio_setting.GetGroupCombinationMembers(group)
+	if !configured {
 		return nil
 	}
-	abilities, err := getEnabledGroupCombinationAbilities()
-	if err != nil {
-		common.SysLog("failed to load combination group models: " + err.Error())
-		return []string{}
-	}
+
 	models := make([]string, 0)
 	seen := make(map[string]struct{})
-	for _, ability := range abilities {
-		if ability.Group != group {
+	var concreteModels []string
+	DB.Table("abilities").Where(channelSatisfyGroupCol()+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &concreteModels)
+	for _, modelName := range concreteModels {
+		configuredForModel := false
+		for _, member := range members {
+			if ratio_setting.GroupCombinationMemberSupportsModel(member, modelName) {
+				configuredForModel = true
+				break
+			}
+		}
+		if configuredForModel {
 			continue
 		}
-		if _, exists := seen[ability.Model]; exists {
-			continue
+		seen[modelName] = struct{}{}
+		models = append(models, modelName)
+	}
+	for _, member := range members {
+		for _, modelName := range member.Models {
+			if !hasAvailableChannelForConcreteGroupModel(member.Group, modelName) {
+				continue
+			}
+			if _, exists := seen[modelName]; exists {
+				continue
+			}
+			seen[modelName] = struct{}{}
+			models = append(models, modelName)
 		}
-		seen[ability.Model] = struct{}{}
-		models = append(models, ability.Model)
 	}
 	sort.Strings(models)
 	return models
 }
 
 func IsGroupCombinationModelAvailable(group, modelName string) bool {
-	channelID, configured, routed := ratio_setting.GetGroupCombinationChannelID(group, modelName)
-	if !configured || !routed {
+	if channelID, configured, routed := ratio_setting.GetGroupCombinationChannelID(group, modelName); configured {
+		if !routed {
+			return false
+		}
+		channel, err := CacheGetChannel(channelID)
+		return err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled && channelExposesRequestedModel(channel, modelName)
+	}
+
+	members, configured := ratio_setting.GetGroupCombinationMembers(group)
+	if !configured {
 		return false
 	}
-	channel, err := CacheGetChannel(channelID)
-	return err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled && channelExposesRequestedModel(channel, modelName)
+	configuredForModel := false
+	for _, member := range members {
+		if !ratio_setting.GroupCombinationMemberSupportsModel(member, modelName) {
+			continue
+		}
+		configuredForModel = true
+		if hasAvailableChannelForConcreteGroupModel(member.Group, modelName) {
+			return true
+		}
+	}
+	return !configuredForModel && hasAvailableChannelForConcreteGroupModel(group, modelName)
 }
 
 func IsGroupCombinationChannelAvailable(group, modelName string, channelID int) bool {
-	routedChannelID, configured, routed := ratio_setting.GetGroupCombinationChannelID(group, modelName)
-	if !configured || !routed || routedChannelID != channelID {
+	if routedChannelID, configured, routed := ratio_setting.GetGroupCombinationChannelID(group, modelName); configured {
+		if !routed || routedChannelID != channelID {
+			return false
+		}
+		channel, err := CacheGetChannel(channelID)
+		return err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled && channelExposesRequestedModel(channel, modelName)
+	}
+
+	members, configured := ratio_setting.GetGroupCombinationMembers(group)
+	if !configured {
 		return false
 	}
-	channel, err := CacheGetChannel(channelID)
-	return err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled && channelExposesRequestedModel(channel, modelName)
+	configuredForModel := false
+	for _, member := range members {
+		if !ratio_setting.GroupCombinationMemberSupportsModel(member, modelName) {
+			continue
+		}
+		configuredForModel = true
+		if isChannelEnabledForConcreteGroupModel(member.Group, modelName, channelID) {
+			return true
+		}
+	}
+	return !configuredForModel && isChannelEnabledForConcreteGroupModel(group, modelName, channelID)
 }

@@ -44,7 +44,7 @@ func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	if err != nil {
 		return nil, err
 	}
-	combinationAbilities, err := getEnabledGroupCombinationAbilities()
+	combinationAbilities, err := getEnabledGroupCombinationAbilities(abilities)
 	if err != nil {
 		return nil, err
 	}
@@ -132,11 +132,19 @@ func GetEnabledChannelGroupSet() (map[string]bool, error) {
 			}
 		}
 	}
-	combinationAbilities, err := getEnabledGroupCombinationAbilities()
+	for combinationGroup, members := range ratio_setting.GetGroupCombinationsCopy() {
+		for _, member := range members {
+			if groups[member.Group] {
+				groups[combinationGroup] = true
+				break
+			}
+		}
+	}
+	legacyCombinationAbilities, err := getEnabledGroupCombinationAbilities(nil)
 	if err != nil {
 		return nil, err
 	}
-	for _, ability := range combinationAbilities {
+	for _, ability := range legacyCombinationAbilities {
 		groups[ability.Group] = true
 	}
 	return groups, nil

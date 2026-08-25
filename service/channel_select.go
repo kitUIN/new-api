@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -110,7 +111,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
-	if IsRuleAutoGroup(param.TokenGroup) {
+	if ratio_setting.IsGroupCombination(param.TokenGroup) {
+		channel, selectGroup, _, err = resolveGroupCombinationChannelWithContext(param.Ctx, param.TokenGroup, param.ModelName, param.ExcludedChannelIDs)
+		if channel != nil {
+			common.SetContextKey(param.Ctx, constant.ContextKeyUsingGroup, selectGroup)
+		}
+		return channel, selectGroup, err
+	} else if IsRuleAutoGroup(param.TokenGroup) {
 		runtime, ok := GetRuleAutoGroupRuntime(param.Ctx)
 		if !ok || runtime.SelectedGroup == "" || runtime.CurrentIndex >= len(runtime.Candidates) {
 			return nil, selectGroup, errors.New("rule auto group has no available candidate")

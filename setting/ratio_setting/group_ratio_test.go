@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	settingconfig "github.com/QuantumNous/new-api/setting/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -141,24 +142,63 @@ func TestGroupCombinations(t *testing.T) {
 		require.NoError(t, UpdateGroupCombinationsByJSONString(original))
 	})
 
-	value := `{"codex":{"gpt-5.6-sol":1,"gpt-5.6-luna":2}}`
+	value := `{"codex":[{"group":"cheap","models":["luna"]},{"group":"premium","models":["luna","sol"]}]}`
 	require.NoError(t, CheckGroupCombinations(value))
 	require.NoError(t, UpdateGroupCombinationsByJSONString(value))
 	require.True(t, IsGroupCombination("codex"))
 
-	channelID, configured, routed := GetGroupCombinationChannelID("codex", "gpt-5.6-luna")
+	members, configured := GetGroupCombinationMembers("codex")
+	require.True(t, configured)
+	require.Equal(t, []GroupCombinationMember{
+		{Group: "cheap", Models: []string{"luna"}},
+		{Group: "premium", Models: []string{"luna", "sol"}},
+	}, members)
+	require.True(t, GroupCombinationMemberSupportsModel(members[0], "luna"))
+	require.False(t, GroupCombinationMemberSupportsModel(members[0], "sol"))
+	require.JSONEq(t, value, GroupCombinations2JSONString())
+
+	_, configured = GetGroupCombinationMembers("missing")
+	require.False(t, configured)
+
+	require.Error(t, CheckGroupCombinations(`{"codex":[]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":["luna"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":["luna"]},{"group":"","models":["sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":["luna"]},{"group":"cheap","models":["sol"]}]}`))
+	require.NoError(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":["luna"]},{"group":"codex","models":["luna","sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":["luna"]},{"group":"nested","models":["sol"]}],"nested":[{"group":"a","models":["luna"]},{"group":"b","models":["sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"a":[{"group":"b","models":["luna"]},{"group":"a","models":["luna"]}],"b":[{"group":"a","models":["luna"]},{"group":"b","models":["luna"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{" auto":[{"group":"cheap","models":["luna"]},{"group":"premium","models":["sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":[]},{"group":"premium","models":["sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":["luna","luna"]},{"group":"premium","models":["sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":[{"group":"cheap","models":[" luna"]},{"group":"premium","models":["sol"]}]}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":["cheap","premium"]}`))
+}
+
+func TestLegacyGroupCombinationsRemainRoutableAndAtomic(t *testing.T) {
+	original := GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, UpdateGroupCombinationsByJSONString(original))
+	})
+
+	legacy := `{"codex":{"gpt-5.6-sol":7}}`
+	require.NoError(t, CheckGroupCombinations(legacy))
+	require.NoError(t, UpdateGroupCombinationsByJSONString(legacy))
+	require.True(t, IsGroupCombination("codex"))
+	require.True(t, IsLegacyGroupCombination("codex"))
+	require.JSONEq(t, legacy, GroupCombinations2JSONString())
+
+	channelID, configured, routed := GetGroupCombinationChannelID("codex", "gpt-5.6-sol")
 	require.True(t, configured)
 	require.True(t, routed)
-	require.Equal(t, 2, channelID)
+	require.Equal(t, 7, channelID)
+	_, configured = GetGroupCombinationMembers("codex")
+	require.False(t, configured)
 
-	_, configured, routed = GetGroupCombinationChannelID("codex", "missing")
-	require.True(t, configured)
-	require.False(t, routed)
-
-	require.Error(t, CheckGroupCombinations(`{"codex":{}}`))
-	require.Error(t, CheckGroupCombinations(`{"codex":{"":1}}`))
-	require.Error(t, CheckGroupCombinations(`{"codex":{"gpt-5.6-sol":0}}`))
-	require.Error(t, CheckGroupCombinations(`{" auto":{"gpt-5.6-sol":1}}`))
+	invalid := `{"codex":[{"group":"only","models":["gpt-5.6-sol"]}]}`
+	require.Error(t, settingconfig.UpdateConfigFromMap(GetGroupRatioSetting(), map[string]string{
+		"group_combinations": invalid,
+	}))
+	require.JSONEq(t, legacy, GroupCombinations2JSONString())
 }
 
 func TestCompareGroupRatioChanges(t *testing.T) {

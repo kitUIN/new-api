@@ -123,18 +123,49 @@ func TestCombinationGroupModelsAndAvailability(t *testing.T) {
 		Id: 2, Name: "luna", Key: "sk-luna", Status: common.ChannelStatusEnabled,
 		Models: "gpt-5.6-luna", Group: "source-luna",
 	}).Error)
+	require.NoError(t, DB.Create(&Channel{
+		Id: 3, Name: "luna-fallback", Key: "sk-luna-fallback", Status: common.ChannelStatusEnabled,
+		Models: "gpt-5.6-luna", Group: "source-luna",
+	}).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "source-sol", Model: "gpt-5.6-sol", ChannelId: 1, Enabled: true},
+		{Group: "source-luna", Model: "gpt-5.6-luna", ChannelId: 2, Enabled: true},
+		{Group: "source-luna", Model: "gpt-5.6-luna", ChannelId: 3, Enabled: true},
+	}).Error)
 	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
-		`{"codex":{"gpt-5.6-sol":1,"gpt-5.6-luna":2}}`,
+		`{"codex":[{"group":"source-luna","models":["gpt-5.6-luna"]},{"group":"source-sol","models":["gpt-5.6-sol"]}]}`,
 	))
 
 	require.Equal(t, []string{"gpt-5.6-luna", "gpt-5.6-sol"}, GetGroupEnabledModels("codex"))
 	require.True(t, HasAvailableChannelForGroupModel("codex", "gpt-5.6-sol"))
 	require.True(t, IsChannelEnabledForGroupModel("codex", "gpt-5.6-luna", 2))
+	require.True(t, IsChannelEnabledForGroupModel("codex", "gpt-5.6-luna", 3))
 	require.False(t, IsChannelEnabledForGroupModel("codex", "gpt-5.6-luna", 1))
 
 	groups, err := GetEnabledChannelGroupSet()
 	require.NoError(t, err)
 	require.True(t, groups["codex"])
+
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
+		`{"legacy":{"gpt-5.6-sol":1}}`,
+	))
+	require.Equal(t, []string{"gpt-5.6-sol"}, GetGroupEnabledModels("legacy"))
+	require.True(t, HasAvailableChannelForGroupModel("legacy", "gpt-5.6-sol"))
+	require.True(t, IsChannelEnabledForGroupModel("legacy", "gpt-5.6-sol", 1))
+	require.False(t, IsChannelEnabledForGroupModel("legacy", "gpt-5.6-sol", 2))
+	groups, err = GetEnabledChannelGroupSet()
+	require.NoError(t, err)
+	require.True(t, groups["legacy"])
+	abilities, err := GetAllEnableAbilityWithChannels()
+	require.NoError(t, err)
+	foundLegacyAbility := false
+	for _, ability := range abilities {
+		if ability.Group == "legacy" && ability.Model == "gpt-5.6-sol" && ability.ChannelId == 1 && ability.Enabled {
+			foundLegacyAbility = true
+			break
+		}
+	}
+	require.True(t, foundLegacyAbility)
 }
 
 func TestSupportsMappedModel(t *testing.T) {

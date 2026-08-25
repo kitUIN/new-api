@@ -244,6 +244,26 @@ func TestShouldSkipRetryAfterChannelAffinityFailureAllowsAutoGroupFailover(t *te
 	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 }
 
+func TestShouldSkipRetryAfterChannelAffinityFailureAllowsGroupCombinationFailover(t *testing.T) {
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
+		`{"enhanced":[{"group":"preferred","models":["gpt-5"]},{"group":"enhanced","models":["gpt-5"]}]}`,
+	))
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-skip-retry",
+		SkipRetry:  true,
+		UsingGroup: "enhanced",
+		ModelName:  "gpt-5",
+	})
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "preferred")
+
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+}
+
 func TestPrepareAutoGroupAffinityFailoverAdvancesToNextGroup(t *testing.T) {
 	originalAutoGroups := setting.AutoGroups2JsonString()
 	originalUserUsableGroups := setting.UserUsableGroups2JSONString()

@@ -12,6 +12,10 @@ func IsChannelEnabledForGroupModel(group string, modelName string, channelID int
 	if ratio_setting.IsGroupCombination(group) {
 		return IsGroupCombinationChannelAvailable(group, modelName, channelID)
 	}
+	return isChannelEnabledForConcreteGroupModel(group, modelName, channelID)
+}
+
+func isChannelEnabledForConcreteGroupModel(group string, modelName string, channelID int) bool {
 	if !common.MemoryCacheEnabled {
 		return isChannelEnabledForGroupModelDB(group, modelName, channelID)
 	}
@@ -31,6 +35,13 @@ func IsChannelEnabledForGroupModel(group string, modelName string, channelID int
 		return isChannelIDInList(group2model2channels[group][normalized], channelID)
 	}
 	return false
+}
+
+func IsChannelEnabledForConcreteGroupModel(group string, modelName string, channelID int) bool {
+	if group == "" || modelName == "" || channelID <= 0 {
+		return false
+	}
+	return isChannelEnabledForConcreteGroupModel(group, modelName, channelID)
 }
 
 func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channelID int) bool {
@@ -62,6 +73,10 @@ func HasAvailableChannelForGroupModel(group string, modelName string) bool {
 	if ratio_setting.IsGroupCombination(group) {
 		return IsGroupCombinationModelAvailable(group, modelName)
 	}
+	return hasAvailableChannelForConcreteGroupModel(group, modelName)
+}
+
+func hasAvailableChannelForConcreteGroupModel(group string, modelName string) bool {
 	if !common.MemoryCacheEnabled {
 		return hasAvailableChannelForGroupModelDB(group, modelName)
 	}

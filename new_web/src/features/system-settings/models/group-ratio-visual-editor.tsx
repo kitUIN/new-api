@@ -93,7 +93,8 @@ import type {
 import { safeJsonParse } from '../utils/json-parser'
 import {
   GroupCombinationDialog,
-  type GroupCombinationRoutes,
+  normalizeGroupCombinationMembers,
+  type GroupCombinationMembers,
 } from './group-combination-dialog'
 
 type GroupRatioVisualEditorProps = {
@@ -121,7 +122,7 @@ type GroupPricingRow = {
   description: string
   type: 'billing' | 'user'
   mode: 'standard' | 'combination'
-  routes: GroupCombinationRoutes
+  memberGroups: GroupCombinationMembers
 }
 
 type GroupOverride = {
@@ -238,6 +239,27 @@ function calculateFinalRatio(
   return value === null ? null : Math.max(0, value)
 }
 
+function normalizeGroupCombinations(
+  combinations: unknown
+): Record<string, GroupCombinationMembers> {
+  if (
+    !combinations ||
+    typeof combinations !== 'object' ||
+    Array.isArray(combinations)
+  ) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(combinations as Record<string, unknown>).map(
+      ([group, memberGroups]) => [
+        group,
+        normalizeGroupCombinationMembers(memberGroups),
+      ]
+    )
+  )
+}
+
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
@@ -256,12 +278,11 @@ function buildGroupPricingRows(
     fallback: {},
     context: 'group types',
   })
-  const combinationsMap = safeJsonParse<Record<string, GroupCombinationRoutes>>(
-    groupCombinations,
-    {
+  const combinationsMap = normalizeGroupCombinations(
+    safeJsonParse<Record<string, unknown>>(groupCombinations, {
       fallback: {},
       context: 'group combinations',
-    }
+    })
   )
   const disabledDescriptionPrefix = '__disabled_description__:'
   const names = new Set([
@@ -287,7 +308,7 @@ function buildGroupPricingRows(
     mode: Object.prototype.hasOwnProperty.call(combinationsMap, name)
       ? 'combination'
       : 'standard',
-    routes: combinationsMap[name] ?? {},
+    memberGroups: combinationsMap[name] ?? [],
   }))
 }
 
@@ -295,7 +316,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
   const groupTypes: Record<string, string> = {}
-  const groupCombinations: Record<string, GroupCombinationRoutes> = {}
+  const groupCombinations: Record<string, GroupCombinationMembers> = {}
   const disabledDescriptionPrefix = '__disabled_description__:'
 
   for (const row of rows) {
@@ -311,7 +332,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
       groupTypes[name] = 'user'
     }
     if (row.mode === 'combination') {
-      groupCombinations[name] = row.routes
+      groupCombinations[name] = row.memberGroups
     }
   }
 
@@ -358,10 +379,12 @@ function sourceGroupPricingSignature(
       silent: true,
     }),
     groupTypes: safeJsonParse(groupTypes, { fallback: {}, silent: true }),
-    groupCombinations: safeJsonParse(groupCombinations, {
-      fallback: {},
-      silent: true,
-    }),
+    groupCombinations: normalizeGroupCombinations(
+      safeJsonParse(groupCombinations, {
+        fallback: {},
+        silent: true,
+      })
+    ),
   })
 }
 
@@ -1149,15 +1172,6 @@ function GroupPricingTable({
   })
 
   const channelBindings = channelBindingsData?.data ?? {}
-  const allChannels = useMemo(() => {
-    const channelMap = new Map<number, GroupBoundChannel>()
-    for (const channels of Object.values(channelBindings)) {
-      for (const channel of channels) {
-        channelMap.set(channel.id, channel)
-      }
-    }
-    return Array.from(channelMap.values())
-  }, [channelBindings])
 
   const sources = useMemo(() => sourcesData?.data ?? [], [sourcesData?.data])
 
@@ -1239,7 +1253,7 @@ function GroupPricingTable({
     (
       id: string,
       field: Exclude<keyof GroupPricingRow, '_id'>,
-      value: string | number | boolean | GroupCombinationRoutes
+      value: string | number | boolean | GroupCombinationMembers
     ) => {
       emitRows(
         rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
@@ -1266,7 +1280,7 @@ function GroupPricingTable({
         description: '',
         type: activeTab,
         mode: 'standard',
-        routes: {},
+        memberGroups: [],
       },
     ])
   }, [activeTab, emitRows, rows])
@@ -1299,7 +1313,11 @@ function GroupPricingTable({
       emitRows(
         rows.map((row) =>
           row._id === id
-            ? { ...row, mode, routes: mode === 'combination' ? row.routes : {} }
+            ? {
+                ...row,
+                mode,
+                memberGroups: mode === 'combination' ? row.memberGroups : [],
+              }
             : row
         )
       )
@@ -1307,12 +1325,12 @@ function GroupPricingTable({
     [emitRows, rows]
   )
 
-  const saveCombinationRoutes = useCallback(
-    (routes: GroupCombinationRoutes) => {
+  const saveCombinationGroups = useCallback(
+    (memberGroups: GroupCombinationMembers) => {
       if (!combinationDialogRowID) return
       emitRows(
         rows.map((row) =>
-          row._id === combinationDialogRowID ? { ...row, routes } : row
+          row._id === combinationDialogRowID ? { ...row, memberGroups } : row
         )
       )
       setCombinationDialogRowID(null)
@@ -1416,21 +1434,27 @@ function GroupPricingTable({
                           />
                         </TableCell>
                         <TableCell className='w-32'>
-                          <Input
-                            className='min-w-28'
-                            type='number'
-                            min={0}
-                            step={0.1}
-                            value={String(row.ratio)}
-                            disabled={!!binding}
-                            onChange={(event) =>
-                              updateRow(
-                                row._id,
-                                'ratio',
-                                normalizeRatio(event.target.value)
-                              )
-                            }
-                          />
+                          {row.mode === 'combination' ? (
+                            <Badge variant='secondary'>
+                              {t('Member group ratios')}
+                            </Badge>
+                          ) : (
+                            <Input
+                              className='min-w-28'
+                              type='number'
+                              min={0}
+                              step={0.1}
+                              value={String(row.ratio)}
+                              disabled={!!binding}
+                              onChange={(event) =>
+                                updateRow(
+                                  row._id,
+                                  'ratio',
+                                  normalizeRatio(event.target.value)
+                                )
+                              }
+                            />
+                          )}
                         </TableCell>
                         <TableCell className='w-32'>
                           <div className='flex justify-center'>
@@ -1501,13 +1525,13 @@ function GroupPricingTable({
                               <div className='min-w-0'>
                                 <Badge
                                   variant={
-                                    Object.keys(row.routes).length > 0
+                                    row.memberGroups.length >= 2
                                       ? 'secondary'
                                       : 'destructive'
                                   }
                                 >
-                                  {t('{{count}} model routes', {
-                                    count: Object.keys(row.routes).length,
+                                  {t('{{count}} member groups', {
+                                    count: row.memberGroups.length,
                                   })}
                                 </Badge>
                               </div>
@@ -1533,7 +1557,11 @@ function GroupPricingTable({
                           )}
                         </TableCell>
                         <TableCell className='w-80'>
-                          {binding ? (
+                          {row.mode === 'combination' ? (
+                            <span className='text-muted-foreground text-xs'>
+                              {t('Uses member group ratio')}
+                            </span>
+                          ) : binding ? (
                             <div className='flex items-start justify-between gap-2'>
                               <div className='min-w-0 space-y-1'>
                                 <div className='flex flex-wrap items-center gap-1.5'>
@@ -1650,12 +1678,28 @@ function GroupPricingTable({
       <GroupCombinationDialog
         open={combinationDialogRow !== null}
         groupName={combinationDialogRow?.name.trim() ?? ''}
-        routes={combinationDialogRow?.routes ?? {}}
-        channels={allChannels}
+        memberGroups={combinationDialogRow?.memberGroups ?? []}
+        groups={rows
+          .filter(
+            (row) =>
+              (row._id === combinationDialogRowID || row.mode === 'standard') &&
+              row.name.trim() !== ''
+          )
+          .map((row) => ({
+            name: row.name.trim(),
+            ratio: row.ratio,
+            models: Array.from(
+              new Set(
+                (channelBindings[row.name.trim()] ?? [])
+                  .filter((channel) => channel.status === 1)
+                  .flatMap((channel) => channel.models ?? [])
+              )
+            ).sort(),
+          }))}
         onOpenChange={(open) => {
           if (!open) setCombinationDialogRowID(null)
         }}
-        onSave={saveCombinationRoutes}
+        onSave={saveCombinationGroups}
       />
     </Card>
   )

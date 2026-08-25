@@ -245,6 +245,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		shouldRetryNow := shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
 		ruleAutoGroupSwitched := false
+		groupCombinationSwitched := false
+		if !relayInfo.HasSendResponse() && shouldRetry(c, newAPIError, 1) {
+			groupCombinationSwitched = service.PrepareGroupCombinationFailover(c, retryParam)
+		}
 		if !shouldRetryNow {
 			service.RecordSessionGroupFailoverResult(c, false)
 			if !relayInfo.HasSendResponse() {
@@ -253,10 +257,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
 
-		if !shouldRetryNow && !ruleAutoGroupSwitched {
+		if !shouldRetryNow && !ruleAutoGroupSwitched && !groupCombinationSwitched {
 			break
 		}
-		if ruleAutoGroupSwitched {
+		if groupCombinationSwitched {
+			// Retry state was reset while advancing to the next member group.
+		} else if ruleAutoGroupSwitched {
 			retryParam.SetRetry(0)
 			retryParam.ResetRetryNextTry()
 		} else {
@@ -333,13 +339,14 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
-	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
-
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if err := helper.RefreshPricingForSelectedGroup(c, info, selectGroup); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
 	}
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)

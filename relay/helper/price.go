@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -313,4 +314,49 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 
 	info.PriceData = priceData
 	return priceData, nil
+}
+
+// RefreshPricingForSelectedGroup updates group-dependent pricing state after a
+// combination route resolves to a concrete member. It intentionally leaves the
+// already pre-consumed quota unchanged; BillingSession settles the final delta.
+func RefreshPricingForSelectedGroup(c *gin.Context, info *relaycommon.RelayInfo, selectedGroup string) error {
+	if info == nil {
+		return errors.New("relay info is nil")
+	}
+	if selectedGroup != "" {
+		info.UsingGroup = selectedGroup
+	}
+	groupRatioInfo := HandleGroupRatio(c, info)
+
+	snapshot := info.TieredBillingSnapshot
+	if snapshot == nil || snapshot.BillingMode != billing_setting.BillingModeTieredExpr {
+		info.PriceData.GroupRatioInfo = groupRatioInfo
+		return nil
+	}
+	if info.BillingRequestInput == nil {
+		return fmt.Errorf("model %s tiered billing request input is missing", info.OriginModelName)
+	}
+
+	requestInput := *info.BillingRequestInput
+	requestInput.Group = info.UsingGroup
+	rawCost, trace, err := billingexpr.RunExprWithRequest(snapshot.ExprString, billingexpr.TokenParams{
+		P:   float64(snapshot.EstimatedPromptTokens),
+		C:   float64(snapshot.EstimatedCompletionTokens),
+		Len: float64(snapshot.EstimatedPromptTokens),
+	}, requestInput)
+	if err != nil {
+		return fmt.Errorf("model %s tiered expr refresh for group %s failed: %w", info.OriginModelName, info.UsingGroup, err)
+	}
+
+	quotaBeforeGroup := rawCost / 1_000_000 * snapshot.QuotaPerUnit * info.GetServiceTierBillingMultiplier()
+	estimatedQuotaAfterGroup := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+
+	info.BillingRequestInput = &requestInput
+	info.PriceData.GroupRatioInfo = groupRatioInfo
+	snapshot.Group = info.UsingGroup
+	snapshot.GroupRatio = groupRatioInfo.GroupRatio
+	snapshot.EstimatedQuotaBeforeGroup = quotaBeforeGroup
+	snapshot.EstimatedQuotaAfterGroup = estimatedQuotaAfterGroup
+	snapshot.EstimatedTier = trace.MatchedTier
+	return nil
 }

@@ -324,7 +324,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'JSON map of combination groups to model-channel routes.'
+                      'JSON map of combination groups to ordered member groups and selected models.'
                     )}
                   </FormDescription>
                   <FormMessage />
