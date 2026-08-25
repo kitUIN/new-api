@@ -135,6 +135,32 @@ func TestUpdateGroupTypesByJSONString(t *testing.T) {
 	require.Equal(t, GroupTypeUser, GetGroupType("vip"))
 }
 
+func TestGroupCombinations(t *testing.T) {
+	original := GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, UpdateGroupCombinationsByJSONString(original))
+	})
+
+	value := `{"codex":{"gpt-5.6-sol":1,"gpt-5.6-luna":2}}`
+	require.NoError(t, CheckGroupCombinations(value))
+	require.NoError(t, UpdateGroupCombinationsByJSONString(value))
+	require.True(t, IsGroupCombination("codex"))
+
+	channelID, configured, routed := GetGroupCombinationChannelID("codex", "gpt-5.6-luna")
+	require.True(t, configured)
+	require.True(t, routed)
+	require.Equal(t, 2, channelID)
+
+	_, configured, routed = GetGroupCombinationChannelID("codex", "missing")
+	require.True(t, configured)
+	require.False(t, routed)
+
+	require.Error(t, CheckGroupCombinations(`{"codex":{}}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":{"":1}}`))
+	require.Error(t, CheckGroupCombinations(`{"codex":{"gpt-5.6-sol":0}}`))
+	require.Error(t, CheckGroupCombinations(`{" auto":{"gpt-5.6-sol":1}}`))
+}
+
 func TestCompareGroupRatioChanges(t *testing.T) {
 	changes := CompareGroupRatioChanges(
 		map[string]float64{

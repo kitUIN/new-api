@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -40,7 +41,14 @@ func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 		Joins("left join channels on abilities.channel_id = channels.id").
 		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error
-	return abilities, err
+	if err != nil {
+		return nil, err
+	}
+	combinationAbilities, err := getEnabledGroupCombinationAbilities()
+	if err != nil {
+		return nil, err
+	}
+	return append(abilities, combinationAbilities...), nil
 }
 
 func GetEnabledGroupChannels() ([]EnabledGroupChannel, error) {
@@ -124,10 +132,20 @@ func GetEnabledChannelGroupSet() (map[string]bool, error) {
 			}
 		}
 	}
+	combinationAbilities, err := getEnabledGroupCombinationAbilities()
+	if err != nil {
+		return nil, err
+	}
+	for _, ability := range combinationAbilities {
+		groups[ability.Group] = true
+	}
 	return groups, nil
 }
 
 func GetGroupEnabledModels(group string) []string {
+	if ratio_setting.IsGroupCombination(group) {
+		return GetGroupCombinationEnabledModels(group)
+	}
 	var models []string
 	// Find distinct models
 	DB.Table("abilities").Where(channelSatisfyGroupCol()+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)

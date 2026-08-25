@@ -13,15 +13,18 @@ func TestRuleAutoGroupCandidatesUseEffectiveRatioAndBoundaries(t *testing.T) {
 	originalUsable := setting.UserUsableGroups2JSONString()
 	originalRatio := ratio_setting.GroupRatio2JSONString()
 	originalOverrides := ratio_setting.GroupGroupRatio2JSONString()
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
 	t.Cleanup(func() {
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsable))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatio))
 		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(originalOverrides))
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
 	})
 
-	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"codex-a":"A","codex-pro-a":"Pro A","codex-b":"B","codex-c":"C"}`))
-	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"codex-a":0.05,"codex-pro-a":0.08,"codex-b":0.1,"codex-c":0.2}`))
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"codex-a":"A","codex-pro-a":"Pro A","codex-b":"B","codex-c":"C","codex-combo":"Combo"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"codex-a":0.05,"codex-pro-a":0.08,"codex-b":0.1,"codex-c":0.2,"codex-combo":0.01}`))
 	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"vip":{"codex-c":0.03}}`))
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"codex-combo":{"gpt-5.6-sol":1}}`))
 
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", RuleAutoGroupCodexLow))
 	require.Equal(t, []string{"codex-a", "codex-pro-a"}, GetRuleAutoGroupCandidates("", "auto:codex-low"))

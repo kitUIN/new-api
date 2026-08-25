@@ -27,6 +27,7 @@ import {
   Link2,
   Unlink,
   ArrowRightLeft,
+  Settings2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -90,6 +91,10 @@ import type {
   UpstreamGroupRatioBindingSourceType,
 } from '../types'
 import { safeJsonParse } from '../utils/json-parser'
+import {
+  GroupCombinationDialog,
+  type GroupCombinationRoutes,
+} from './group-combination-dialog'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
@@ -97,6 +102,7 @@ type GroupRatioVisualEditorProps = {
   userUsableGroups: string
   groupGroupRatio: string
   groupTypes: string
+  groupCombinations: string
   autoGroups: string
   upstreamGroupRatioBindings: string
   onChange: (field: string, value: string) => void
@@ -114,6 +120,8 @@ type GroupPricingRow = {
   selectable: boolean
   description: string
   type: 'billing' | 'user'
+  mode: 'standard' | 'combination'
+  routes: GroupCombinationRoutes
 }
 
 type GroupOverride = {
@@ -233,7 +241,8 @@ function calculateFinalRatio(
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
-  groupTypes: string
+  groupTypes: string,
+  groupCombinations: string
 ): GroupPricingRow[] {
   const ratioMap = safeJsonParse<Record<string, number>>(groupRatio, {
     fallback: {},
@@ -247,6 +256,13 @@ function buildGroupPricingRows(
     fallback: {},
     context: 'group types',
   })
+  const combinationsMap = safeJsonParse<Record<string, GroupCombinationRoutes>>(
+    groupCombinations,
+    {
+      fallback: {},
+      context: 'group combinations',
+    }
+  )
   const disabledDescriptionPrefix = '__disabled_description__:'
   const names = new Set([
     ...Object.keys(ratioMap),
@@ -254,6 +270,7 @@ function buildGroupPricingRows(
       .filter((name) => !name.startsWith(disabledDescriptionPrefix))
       .map((name) => name.trim())
       .filter(Boolean),
+    ...Object.keys(combinationsMap),
   ])
 
   return Array.from(names).map((name) => ({
@@ -267,6 +284,10 @@ function buildGroupPricingRows(
     type: (typesMap[name] === 'user' ? 'user' : 'billing') as
       | 'billing'
       | 'user',
+    mode: Object.prototype.hasOwnProperty.call(combinationsMap, name)
+      ? 'combination'
+      : 'standard',
+    routes: combinationsMap[name] ?? {},
   }))
 }
 
@@ -274,6 +295,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
   const groupTypes: Record<string, string> = {}
+  const groupCombinations: Record<string, GroupCombinationRoutes> = {}
   const disabledDescriptionPrefix = '__disabled_description__:'
 
   for (const row of rows) {
@@ -288,12 +310,16 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     if (row.type === 'user') {
       groupTypes[name] = 'user'
     }
+    if (row.mode === 'combination') {
+      groupCombinations[name] = row.routes
+    }
   }
 
   return {
     GroupRatio: JSON.stringify(groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
     GroupTypes: JSON.stringify(groupTypes, null, 2),
+    GroupCombinations: JSON.stringify(groupCombinations, null, 2),
   }
 }
 
@@ -312,13 +338,18 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
       fallback: {},
       silent: true,
     }),
+    groupCombinations: safeJsonParse(serialized.GroupCombinations, {
+      fallback: {},
+      silent: true,
+    }),
   })
 }
 
 function sourceGroupPricingSignature(
   groupRatio: string,
   userUsableGroups: string,
-  groupTypes: string
+  groupTypes: string,
+  groupCombinations: string
 ): string {
   return JSON.stringify({
     groupRatio: safeJsonParse(groupRatio, { fallback: {}, silent: true }),
@@ -327,6 +358,10 @@ function sourceGroupPricingSignature(
       silent: true,
     }),
     groupTypes: safeJsonParse(groupTypes, { fallback: {}, silent: true }),
+    groupCombinations: safeJsonParse(groupCombinations, {
+      fallback: {},
+      silent: true,
+    }),
   })
 }
 
@@ -336,6 +371,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   userUsableGroups,
   groupGroupRatio,
   groupTypes,
+  groupCombinations,
   autoGroups,
   upstreamGroupRatioBindings,
   onChange,
@@ -582,6 +618,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         groupRatio={groupRatio}
         userUsableGroups={userUsableGroups}
         groupTypes={groupTypes}
+        groupCombinations={groupCombinations}
         upstreamGroupRatioBindings={upstreamGroupRatioBindings}
         onChange={onChange}
       />
@@ -924,6 +961,7 @@ type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
   groupTypes: string
+  groupCombinations: string
   upstreamGroupRatioBindings: string
   onChange: (field: string, value: string) => void
 }
@@ -1064,6 +1102,7 @@ function GroupPricingTable({
   groupRatio,
   userUsableGroups,
   groupTypes,
+  groupCombinations,
   upstreamGroupRatioBindings,
   onChange,
 }: GroupPricingTableProps) {
@@ -1071,8 +1110,16 @@ function GroupPricingTable({
   const [activeTab, setActiveTab] = useState<'billing' | 'user'>('billing')
   const [bindingDialogRow, setBindingDialogRow] =
     useState<GroupPricingRow | null>(null)
+  const [combinationDialogRowID, setCombinationDialogRowID] = useState<
+    string | null
+  >(null)
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, groupTypes)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      groupTypes,
+      groupCombinations
+    )
   )
 
   const bindings = useMemo(
@@ -1102,6 +1149,15 @@ function GroupPricingTable({
   })
 
   const channelBindings = channelBindingsData?.data ?? {}
+  const allChannels = useMemo(() => {
+    const channelMap = new Map<number, GroupBoundChannel>()
+    for (const channels of Object.values(channelBindings)) {
+      for (const channel of channels) {
+        channelMap.set(channel.id, channel)
+      }
+    }
+    return Array.from(channelMap.values())
+  }, [channelBindings])
 
   const sources = useMemo(() => sourcesData?.data ?? [], [sourcesData?.data])
 
@@ -1117,15 +1173,21 @@ function GroupPricingTable({
     const incomingSignature = sourceGroupPricingSignature(
       groupRatio,
       userUsableGroups,
-      groupTypes
+      groupTypes,
+      groupCombinations
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
         return currentRows
       }
-      return buildGroupPricingRows(groupRatio, userUsableGroups, groupTypes)
+      return buildGroupPricingRows(
+        groupRatio,
+        userUsableGroups,
+        groupTypes,
+        groupCombinations
+      )
     })
-  }, [groupRatio, userUsableGroups, groupTypes])
+  }, [groupRatio, userUsableGroups, groupTypes, groupCombinations])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -1134,6 +1196,7 @@ function GroupPricingTable({
       onChange('GroupRatio', serialized.GroupRatio)
       onChange('UserUsableGroups', serialized.UserUsableGroups)
       onChange('GroupTypes', serialized.GroupTypes)
+      onChange('GroupCombinations', serialized.GroupCombinations)
     },
     [onChange]
   )
@@ -1176,7 +1239,7 @@ function GroupPricingTable({
     (
       id: string,
       field: Exclude<keyof GroupPricingRow, '_id'>,
-      value: string | number | boolean
+      value: string | number | boolean | GroupCombinationRoutes
     ) => {
       emitRows(
         rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
@@ -1202,6 +1265,8 @@ function GroupPricingTable({
         selectable: true,
         description: '',
         type: activeTab,
+        mode: 'standard',
+        routes: {},
       },
     ])
   }, [activeTab, emitRows, rows])
@@ -1226,6 +1291,34 @@ function GroupPricingTable({
   }, [rows])
 
   const visibleRows = rows.filter((row) => row.type === activeTab)
+  const combinationDialogRow =
+    rows.find((row) => row._id === combinationDialogRowID) ?? null
+
+  const handleModeChange = useCallback(
+    (id: string, mode: GroupPricingRow['mode']) => {
+      emitRows(
+        rows.map((row) =>
+          row._id === id
+            ? { ...row, mode, routes: mode === 'combination' ? row.routes : {} }
+            : row
+        )
+      )
+    },
+    [emitRows, rows]
+  )
+
+  const saveCombinationRoutes = useCallback(
+    (routes: GroupCombinationRoutes) => {
+      if (!combinationDialogRowID) return
+      emitRows(
+        rows.map((row) =>
+          row._id === combinationDialogRowID ? { ...row, routes } : row
+        )
+      )
+      setCombinationDialogRowID(null)
+    },
+    [combinationDialogRowID, emitRows, rows]
+  )
 
   const handleMigrateGroup = useCallback(
     (id: string) => {
@@ -1269,7 +1362,7 @@ function GroupPricingTable({
       <CardContent>
         <div className='space-y-3'>
           <div className='rounded-md border'>
-            <Table className='min-w-[1220px] table-fixed'>
+            <Table className='min-w-[1380px] table-fixed'>
               <TableHeader>
                 <TableRow>
                   <TableHead className='w-44'>{t('Group name')}</TableHead>
@@ -1278,6 +1371,7 @@ function GroupPricingTable({
                     {t('User selectable')}
                   </TableHead>
                   <TableHead className='w-60'>{t('Description')}</TableHead>
+                  <TableHead className='w-40'>{t('Group mode')}</TableHead>
                   <TableHead className='w-64'>{t('Channels')}</TableHead>
                   <TableHead className='w-80'>
                     {t('Upstream binding')}
@@ -1291,7 +1385,7 @@ function GroupPricingTable({
                 {visibleRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className='text-muted-foreground h-20 text-center text-sm'
                     >
                       {t('No groups yet. Add a group to get started.')}
@@ -1366,12 +1460,77 @@ function GroupPricingTable({
                             }
                           />
                         </TableCell>
+                        <TableCell className='w-40'>
+                          <Select
+                            items={[
+                              { value: 'standard', label: t('Standard mode') },
+                              {
+                                value: 'combination',
+                                label: t('Combination mode'),
+                              },
+                            ]}
+                            value={row.mode}
+                            onValueChange={(value) => {
+                              if (
+                                value !== 'standard' &&
+                                value !== 'combination'
+                              ) {
+                                return
+                              }
+                              handleModeChange(row._id, value)
+                            }}
+                          >
+                            <SelectTrigger className='w-full'>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='standard'>
+                                  {t('Standard mode')}
+                                </SelectItem>
+                                <SelectItem value='combination'>
+                                  {t('Combination mode')}
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
                         <TableCell className='w-64'>
-                          <GroupChannelsCell
-                            channels={channelBindings[groupName] ?? []}
-                            isLoading={channelBindingsLoading}
-                            isError={channelBindingsError}
-                          />
+                          {row.mode === 'combination' ? (
+                            <div className='flex items-center justify-between gap-2'>
+                              <div className='min-w-0'>
+                                <Badge
+                                  variant={
+                                    Object.keys(row.routes).length > 0
+                                      ? 'secondary'
+                                      : 'destructive'
+                                  }
+                                >
+                                  {t('{{count}} model routes', {
+                                    count: Object.keys(row.routes).length,
+                                  })}
+                                </Badge>
+                              </div>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                disabled={!groupName}
+                                onClick={() =>
+                                  setCombinationDialogRowID(row._id)
+                                }
+                              >
+                                <Settings2 className='mr-2 h-4 w-4' />
+                                {t('Configure')}
+                              </Button>
+                            </div>
+                          ) : (
+                            <GroupChannelsCell
+                              channels={channelBindings[groupName] ?? []}
+                              isLoading={channelBindingsLoading}
+                              isError={channelBindingsError}
+                            />
+                          )}
                         </TableCell>
                         <TableCell className='w-80'>
                           {binding ? (
@@ -1487,6 +1646,16 @@ function GroupPricingTable({
         sources={sources}
         isLoading={sourcesLoading}
         onSave={saveBinding}
+      />
+      <GroupCombinationDialog
+        open={combinationDialogRow !== null}
+        groupName={combinationDialogRow?.name.trim() ?? ''}
+        routes={combinationDialogRow?.routes ?? {}}
+        channels={allChannels}
+        onOpenChange={(open) => {
+          if (!open) setCombinationDialogRowID(null)
+        }}
+        onSave={saveCombinationRoutes}
       />
     </Card>
   )

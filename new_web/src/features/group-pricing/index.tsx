@@ -82,6 +82,15 @@ const groupSchema = z.object({
       })
     }
   }),
+  GroupCombinations: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
   AutoGroups: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -166,6 +175,9 @@ export function GroupPricingPage() {
     UserUsableGroups: normalizeJsonString(getValue('UserUsableGroups', '')),
     GroupGroupRatio: normalizeJsonString(getValue('GroupGroupRatio', '')),
     GroupTypes: normalizeJsonString(getValue('GroupTypes', '{}')),
+    GroupCombinations: normalizeJsonString(
+      getValue('group_ratio_setting.group_combinations', '{}')
+    ),
     AutoGroups: normalizeJsonString(getValue('AutoGroups', '')),
     AutoGroupOrderType: getValue('AutoGroupOrderType', 'priority') as
       | 'priority'
@@ -192,6 +204,9 @@ export function GroupPricingPage() {
         UserUsableGroups: normalizeJsonString(getValue('UserUsableGroups', '')),
         GroupGroupRatio: normalizeJsonString(getValue('GroupGroupRatio', '')),
         GroupTypes: normalizeJsonString(getValue('GroupTypes', '{}')),
+        GroupCombinations: normalizeJsonString(
+          getValue('group_ratio_setting.group_combinations', '{}')
+        ),
         AutoGroups: normalizeJsonString(getValue('AutoGroups', '')),
         AutoGroupOrderType: getValue('AutoGroupOrderType', 'priority') as
           | 'priority'
@@ -226,6 +241,7 @@ export function GroupPricingPage() {
           UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
           GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
           GroupTypes: normalizeJsonString(values.GroupTypes),
+          GroupCombinations: normalizeJsonString(values.GroupCombinations),
           AutoGroups: normalizeJsonString(values.AutoGroups),
           AutoGroupOrderType: values.AutoGroupOrderType,
           DefaultUseAutoGroup: values.DefaultUseAutoGroup,
@@ -240,6 +256,7 @@ export function GroupPricingPage() {
             'group_ratio_setting.group_special_usable_group',
           UpstreamGroupRatioBindings:
             'group_ratio_setting.upstream_group_ratio_bindings',
+          GroupCombinations: 'group_ratio_setting.group_combinations',
         }
 
         const updates = (

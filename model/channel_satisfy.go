@@ -9,6 +9,9 @@ func IsChannelEnabledForGroupModel(group string, modelName string, channelID int
 	if group == "" || modelName == "" || channelID <= 0 {
 		return false
 	}
+	if ratio_setting.IsGroupCombination(group) {
+		return IsGroupCombinationChannelAvailable(group, modelName, channelID)
+	}
 	if !common.MemoryCacheEnabled {
 		return isChannelEnabledForGroupModelDB(group, modelName, channelID)
 	}
@@ -55,6 +58,9 @@ func channelSatisfyGroupCol() string {
 func HasAvailableChannelForGroupModel(group string, modelName string) bool {
 	if group == "" || modelName == "" {
 		return false
+	}
+	if ratio_setting.IsGroupCombination(group) {
+		return IsGroupCombinationModelAvailable(group, modelName)
 	}
 	if !common.MemoryCacheEnabled {
 		return hasAvailableChannelForGroupModelDB(group, modelName)

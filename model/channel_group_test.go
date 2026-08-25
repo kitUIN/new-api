@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,13 +96,45 @@ func TestGetChannelGroupBindings(t *testing.T) {
 	bindings, err := GetChannelGroupBindings()
 	require.NoError(t, err)
 	require.Equal(t, []GroupBoundChannel{
-		{Id: 1, Name: "primary", Status: common.ChannelStatusEnabled},
+		{Id: 1, Name: "primary", Status: common.ChannelStatusEnabled, Models: []string{}},
 	}, bindings["default"])
 	require.Equal(t, []GroupBoundChannel{
-		{Id: 1, Name: "primary", Status: common.ChannelStatusEnabled},
-		{Id: 2, Name: "fallback", Status: common.ChannelStatusAutoDisabled},
+		{Id: 1, Name: "primary", Status: common.ChannelStatusEnabled, Models: []string{}},
+		{Id: 2, Name: "fallback", Status: common.ChannelStatusAutoDisabled, Models: []string{}},
 	}, bindings["vip"])
 	require.NotContains(t, bindings, "")
+}
+
+func TestCombinationGroupModelsAndAvailability(t *testing.T) {
+	truncateTables(t)
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+	})
+
+	require.NoError(t, DB.Create(&Channel{
+		Id: 1, Name: "sol", Key: "sk-sol", Status: common.ChannelStatusEnabled,
+		Models: "gpt-5.6-sol", Group: "source-sol",
+	}).Error)
+	require.NoError(t, DB.Create(&Channel{
+		Id: 2, Name: "luna", Key: "sk-luna", Status: common.ChannelStatusEnabled,
+		Models: "gpt-5.6-luna", Group: "source-luna",
+	}).Error)
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
+		`{"codex":{"gpt-5.6-sol":1,"gpt-5.6-luna":2}}`,
+	))
+
+	require.Equal(t, []string{"gpt-5.6-luna", "gpt-5.6-sol"}, GetGroupEnabledModels("codex"))
+	require.True(t, HasAvailableChannelForGroupModel("codex", "gpt-5.6-sol"))
+	require.True(t, IsChannelEnabledForGroupModel("codex", "gpt-5.6-luna", 2))
+	require.False(t, IsChannelEnabledForGroupModel("codex", "gpt-5.6-luna", 1))
+
+	groups, err := GetEnabledChannelGroupSet()
+	require.NoError(t, err)
+	require.True(t, groups["codex"])
 }
 
 func TestSupportsMappedModel(t *testing.T) {

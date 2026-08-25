@@ -178,6 +178,15 @@ const groupSchema = z.object({
       })
     }
   }),
+  GroupCombinations: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
   AutoGroups: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value, {
       predicate: (parsed) =>
@@ -262,7 +271,10 @@ function preserveBoundGroupRatios(
   bindings: string
 ): string {
   try {
-    const ratioMap = JSON.parse(nextGroupRatio || '{}') as Record<string, number>
+    const ratioMap = JSON.parse(nextGroupRatio || '{}') as Record<
+      string,
+      number
+    >
     const bindingMap = JSON.parse(bindings || '{}') as Record<string, unknown>
     const currentMap = JSON.parse(currentGroupRatio || '{}') as Record<
       string,
@@ -337,6 +349,7 @@ export function RatioSettingsCard({
     UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     GroupTypes: normalizeJsonString(groupDefaults.GroupTypes),
+    GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
     AutoGroupOrderType: groupDefaults.AutoGroupOrderType,
     DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
@@ -378,6 +391,7 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       GroupTypes: formatJsonForTextarea(groupDefaults.GroupTypes),
+      GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
@@ -429,6 +443,7 @@ export function RatioSettingsCard({
       UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       GroupTypes: normalizeJsonString(groupDefaults.GroupTypes),
+      GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
       AutoGroupOrderType: groupDefaults.AutoGroupOrderType,
       DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
@@ -447,6 +462,7 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       GroupTypes: formatJsonForTextarea(groupDefaults.GroupTypes),
+      GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
@@ -516,6 +532,7 @@ export function RatioSettingsCard({
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         GroupTypes: normalizeJsonString(values.GroupTypes),
+        GroupCombinations: normalizeJsonString(values.GroupCombinations),
         AutoGroups: normalizeJsonString(values.AutoGroups),
         AutoGroupOrderType: values.AutoGroupOrderType,
         DefaultUseAutoGroup: values.DefaultUseAutoGroup,
@@ -531,6 +548,7 @@ export function RatioSettingsCard({
           'group_ratio_setting.group_special_usable_group',
         UpstreamGroupRatioBindings:
           'group_ratio_setting.upstream_group_ratio_bindings',
+        GroupCombinations: 'group_ratio_setting.group_combinations',
       }
 
       const updates = (

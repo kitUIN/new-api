@@ -136,6 +136,9 @@ func GetUserAutoGroup(userGroup string) []string {
 	groups := GetUserUsableGroups(userGroup)
 	autoGroups := make([]string, 0)
 	for _, group := range setting.GetAutoGroups() {
+		if ratio_setting.IsGroupCombination(group) {
+			continue
+		}
 		if _, ok := groups[group]; ok {
 			autoGroups = append(autoGroups, group)
 		}

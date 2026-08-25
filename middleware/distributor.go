@@ -115,33 +115,46 @@ func Distribute() func(c *gin.Context) {
 					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
 				}
 
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
-						if service.IsRuleAutoGroup(usingGroup) {
-							runtime, runtimeOk := service.GetRuleAutoGroupRuntime(c)
-							if runtimeOk && runtime.SelectedGroup != "" && model.IsChannelEnabledForGroupModel(runtime.SelectedGroup, modelRequest.Model, preferred.Id) {
-								selectGroup = runtime.SelectedGroup
-								service.SetAutoGroupAffinityIndex(c, runtime.SelectedGroup, runtime.CurrentIndex)
-								channel = preferred
-								service.MarkChannelAffinityUsed(c, runtime.SelectedGroup, preferred.Id)
-							}
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for idx, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									service.SetAutoGroupAffinityIndex(c, g, idx)
+				if combinationChannel, enabled, combinationErr := service.ResolveGroupCombinationChannel(usingGroup, modelRequest.Model); enabled {
+					if combinationErr != nil {
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, combinationErr.Error(), types.ErrorCodeModelNotFound)
+						return
+					}
+					channel = combinationChannel
+					selectGroup = usingGroup
+					// Exact combination routes must not retry into a different channel.
+					common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, strconv.Itoa(channel.Id))
+				}
+
+				if channel == nil {
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						preferred, err := model.CacheGetChannel(preferredChannelID)
+						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+							if service.IsRuleAutoGroup(usingGroup) {
+								runtime, runtimeOk := service.GetRuleAutoGroupRuntime(c)
+								if runtimeOk && runtime.SelectedGroup != "" && model.IsChannelEnabledForGroupModel(runtime.SelectedGroup, modelRequest.Model, preferred.Id) {
+									selectGroup = runtime.SelectedGroup
+									service.SetAutoGroupAffinityIndex(c, runtime.SelectedGroup, runtime.CurrentIndex)
 									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
+									service.MarkChannelAffinityUsed(c, runtime.SelectedGroup, preferred.Id)
 								}
+							} else if usingGroup == "auto" {
+								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+								autoGroups := service.GetUserAutoGroup(userGroup)
+								for idx, g := range autoGroups {
+									if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+										selectGroup = g
+										service.SetAutoGroupAffinityIndex(c, g, idx)
+										channel = preferred
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
+										break
+									}
+								}
+							} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+								channel = preferred
+								selectGroup = usingGroup
+								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
 					}
 				}

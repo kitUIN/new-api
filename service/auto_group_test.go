@@ -50,3 +50,23 @@ func TestGetUserAutoGroupCanSortByEffectiveRatio(t *testing.T) {
 
 	require.Equal(t, []string{"g3", "g2", "g1"}, GetUserAutoGroup("vip"))
 }
+
+func TestGetUserAutoGroupExcludesCombinationGroups(t *testing.T) {
+	originalAutoGroups := setting.AutoGroups2JsonString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(originalAutoGroups))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+	})
+
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"g1":"G1","combo":"Combo"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"g1":1,"combo":1}`))
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"combo":{"gpt-5.6-sol":1}}`))
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["combo","g1"]`))
+
+	require.Equal(t, []string{"g1"}, GetUserAutoGroup(""))
+}

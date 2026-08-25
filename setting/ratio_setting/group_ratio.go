@@ -103,6 +103,10 @@ const (
 
 var groupTypesMap = types.NewRWMap[string, string]()
 
+// GroupCombinations maps a virtual billing group to exact model-channel routes.
+// The virtual group remains the billing, rate-limit, and logging group.
+var groupCombinationsMap = types.NewRWMap[string, map[string]int]()
+
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 	"vip": {
 		"append_1":   "vip_special_group_1",
@@ -116,6 +120,7 @@ type GroupRatioSetting struct {
 	GroupSpecialUsableGroup    *types.RWMap[string, map[string]string]         `json:"group_special_usable_group"`
 	UpstreamGroupRatioBindings *types.RWMap[string, UpstreamGroupRatioBinding] `json:"upstream_group_ratio_bindings"`
 	GroupTypes                 *types.RWMap[string, string]                    `json:"group_types"`
+	GroupCombinations          *types.RWMap[string, map[string]int]            `json:"group_combinations"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -133,6 +138,7 @@ func init() {
 		GroupGroupRatio:            groupGroupRatioMap,
 		UpstreamGroupRatioBindings: upstreamGroupRatioBindingMap,
 		GroupTypes:                 groupTypesMap,
+		GroupCombinations:          groupCombinationsMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -148,6 +154,9 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 	}
 	if groupRatioSetting.GroupTypes == nil {
 		groupRatioSetting.GroupTypes = groupTypesMap
+	}
+	if groupRatioSetting.GroupCombinations == nil {
+		groupRatioSetting.GroupCombinations = groupCombinationsMap
 	}
 	return &groupRatioSetting
 }
@@ -200,6 +209,94 @@ func UpdateGroupTypesByJSONString(jsonStr string) error {
 		groupRatioSetting.GroupTypes = groupTypesMap
 	}
 	return types.LoadFromJsonString(groupRatioSetting.GroupTypes, jsonStr)
+}
+
+func GetGroupCombinationsCopy() map[string]map[string]int {
+	if groupRatioSetting.GroupCombinations == nil {
+		return map[string]map[string]int{}
+	}
+	combinations := groupRatioSetting.GroupCombinations.ReadAll()
+	copyOfCombinations := make(map[string]map[string]int, len(combinations))
+	for group, routes := range combinations {
+		copyOfRoutes := make(map[string]int, len(routes))
+		for modelName, channelID := range routes {
+			copyOfRoutes[modelName] = channelID
+		}
+		copyOfCombinations[group] = copyOfRoutes
+	}
+	return copyOfCombinations
+}
+
+func GroupCombinations2JSONString() string {
+	if groupRatioSetting.GroupCombinations == nil {
+		return "{}"
+	}
+	return groupRatioSetting.GroupCombinations.MarshalJSONString()
+}
+
+func IsGroupCombination(group string) bool {
+	if groupRatioSetting.GroupCombinations == nil {
+		return false
+	}
+	_, ok := groupRatioSetting.GroupCombinations.Get(group)
+	return ok
+}
+
+func GetGroupCombinationChannelID(group, modelName string) (int, bool, bool) {
+	if groupRatioSetting.GroupCombinations == nil {
+		return 0, false, false
+	}
+	routes, configured := groupRatioSetting.GroupCombinations.Get(group)
+	if !configured {
+		return 0, false, false
+	}
+	if channelID, ok := routes[modelName]; ok {
+		return channelID, true, true
+	}
+	normalizedModel := FormatMatchingModelName(modelName)
+	if normalizedModel != "" && normalizedModel != modelName {
+		if channelID, ok := routes[normalizedModel]; ok {
+			return channelID, true, true
+		}
+	}
+	return 0, true, false
+}
+
+func CheckGroupCombinations(jsonStr string) error {
+	combinations := make(map[string]map[string]int)
+	if err := common.Unmarshal([]byte(jsonStr), &combinations); err != nil {
+		return err
+	}
+	for group, routes := range combinations {
+		if strings.TrimSpace(group) == "" || strings.TrimSpace(group) != group {
+			return errors.New("combination group name cannot be empty or contain surrounding whitespace")
+		}
+		if group == "auto" {
+			return errors.New("auto cannot be configured as a combination group")
+		}
+		if len(routes) == 0 {
+			return errors.New("combination group must contain at least one model route: " + group)
+		}
+		for modelName, channelID := range routes {
+			if strings.TrimSpace(modelName) == "" || strings.TrimSpace(modelName) != modelName {
+				return errors.New("combination model name cannot be empty or contain surrounding whitespace: " + group)
+			}
+			if channelID <= 0 {
+				return fmt.Errorf("combination channel id must be greater than 0: %s/%s", group, modelName)
+			}
+		}
+	}
+	return nil
+}
+
+func UpdateGroupCombinationsByJSONString(jsonStr string) error {
+	if err := CheckGroupCombinations(jsonStr); err != nil {
+		return err
+	}
+	if groupRatioSetting.GroupCombinations == nil {
+		groupRatioSetting.GroupCombinations = groupCombinationsMap
+	}
+	return types.LoadFromJsonString(groupRatioSetting.GroupCombinations, jsonStr)
 }
 
 func GetGroupRatioCopy() map[string]float64 {

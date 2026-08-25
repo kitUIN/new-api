@@ -77,6 +77,12 @@ func GetPricing() []Pricing {
 	return pricingMap
 }
 
+func InvalidatePricingCache() {
+	updatePricingLock.Lock()
+	lastGetPricingTime = time.Time{}
+	updatePricingLock.Unlock()
+}
+
 // GetVendors 返回当前定价接口使用到的供应商信息
 func GetVendors() []PricingVendor {
 	if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {

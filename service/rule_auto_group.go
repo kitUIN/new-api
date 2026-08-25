@@ -174,7 +174,7 @@ func GetRuleAutoGroupCandidates(userGroup string, selector string) []string {
 	usableGroups := GetUserUsableGroups(userGroup)
 	candidates := make([]string, 0)
 	for group := range usableGroups {
-		if group == "auto" || IsRuleAutoGroup(group) || !ratio_setting.ContainsGroupRatio(group) {
+		if group == "auto" || IsRuleAutoGroup(group) || ratio_setting.IsGroupCombination(group) || !ratio_setting.ContainsGroupRatio(group) {
 			continue
 		}
 		ratio := GetUserGroupRatio(userGroup, group)
@@ -227,6 +227,9 @@ func GetRuleAutoGroupAdminInfos(enabledGroups map[string]bool) []RuleAutoGroupIn
 	for _, definition := range ruleAutoGroupDefinitions {
 		candidates := make([]string, 0)
 		for group, ratio := range groupRatios {
+			if ratio_setting.IsGroupCombination(group) {
+				continue
+			}
 			if enabledGroups != nil && !enabledGroups[group] {
 				continue
 			}

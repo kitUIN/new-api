@@ -3,15 +3,16 @@ package model
 import "strings"
 
 type GroupBoundChannel struct {
-	Id     int    `json:"id"`
-	Name   string `json:"name"`
-	Status int    `json:"status"`
+	Id     int      `json:"id"`
+	Name   string   `json:"name"`
+	Status int      `json:"status"`
+	Models []string `json:"models"`
 }
 
 func GetChannelGroupBindings() (map[string][]GroupBoundChannel, error) {
 	var channels []Channel
 	err := DB.Model(&Channel{}).
-		Select("id", "name", "status", commonGroupCol).
+		Select("id", "name", "status", "models", commonGroupCol).
 		Order("id ASC").
 		Find(&channels).Error
 	if err != nil {
@@ -34,6 +35,7 @@ func GetChannelGroupBindings() (map[string][]GroupBoundChannel, error) {
 				Id:     channel.Id,
 				Name:   channel.Name,
 				Status: channel.Status,
+				Models: channel.GetModels(),
 			})
 		}
 	}

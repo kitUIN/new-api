@@ -60,6 +60,7 @@ const defaultModelSettings: ModelSettings = {
   UserUsableGroups: '',
   GroupGroupRatio: '',
   GroupTypes: '{}',
+  'group_ratio_setting.group_combinations': '{}',
   AutoGroups: '',
   AutoGroupOrderType: 'priority',
   DefaultUseAutoGroup: false,

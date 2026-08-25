@@ -238,6 +238,8 @@ func UpdateOption(key string, value string) error {
 		return updateUserUsableGroupsOption(value)
 	case "GroupTypes":
 		return updateGroupTypesOption(value)
+	case "group_ratio_setting.group_combinations":
+		return updateGroupCombinationsOption(value)
 	case "group_ratio_setting.upstream_group_ratio_bindings":
 		return updateUpstreamGroupRatioBindingsOption(value)
 	case "group_ratio_setting.group_special_usable_group":
@@ -332,6 +334,19 @@ func updateGroupTypesOption(value string) error {
 		return err
 	}
 
+	return nil
+}
+
+func updateGroupCombinationsOption(value string) error {
+	if err := ratio_setting.CheckGroupCombinations(value); err != nil {
+		return err
+	}
+
+	option := Option{Key: "group_ratio_setting.group_combinations"}
+	saveOptionValue(&option, option.Key, value)
+	if err := updateOptionMap(option.Key, value); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -766,6 +781,9 @@ func handleConfigUpdate(key, value string) bool {
 	if configName == "billing_setting" {
 		billingexpr.InvalidateCache()
 		RefreshPricing()
+	}
+	if configName == "group_ratio_setting" && configKey == "group_combinations" {
+		InvalidatePricingCache()
 	}
 
 	return true // 已处理

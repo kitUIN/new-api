@@ -174,6 +174,7 @@ export type ModelSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  'group_ratio_setting.group_combinations': string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
@@ -221,6 +222,7 @@ export type BillingSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  'group_ratio_setting.group_combinations': string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
@@ -442,6 +444,7 @@ export type GroupBoundChannel = {
   id: number
   name: string
   status: number
+  models: string[]
 }
 
 export type ChannelGroupBindingsResponse = {

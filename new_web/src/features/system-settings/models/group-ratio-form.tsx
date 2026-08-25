@@ -84,6 +84,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  GroupCombinations: string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
@@ -170,6 +171,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               groupTypes={form.watch('GroupTypes')}
+              groupCombinations={form.watch('GroupCombinations')}
               autoGroups={form.watch('AutoGroups')}
               upstreamGroupRatioBindings={form.watch(
                 'UpstreamGroupRatioBindings'
@@ -304,6 +306,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON array of group identifiers. When enabled below, new tokens rotate through this list.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupCombinations'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group combinations')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={8} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON map of combination groups to model-channel routes.'
                     )}
                   </FormDescription>
                   <FormMessage />
