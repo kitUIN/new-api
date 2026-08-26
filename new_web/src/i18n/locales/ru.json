@@ -4935,6 +4935,24 @@
     "Fast": "Быстрый",
     "Fast Mode": "Быстрый режим",
     "Service Tier Multiplier": "Множитель уровня обслуживания",
-    "Service Tier": "Уровень обслуживания"
+    "Service Tier": "Уровень обслуживания",
+    "Last Week": "Прошлая неделя",
+    "Last Month": "Прошлый месяц",
+    "Daily token usage by model this week": "Ежедневное использование токенов по моделям на этой неделе",
+    "Daily token usage by model last week": "Ежедневное использование токенов по моделям за прошлую неделю",
+    "Daily token usage by model this month": "Ежедневное использование токенов по моделям в этом месяце",
+    "Daily token usage by model last month": "Ежедневное использование токенов по моделям за прошлый месяц",
+    "Token usage by model in the selected period": "Использование токенов по моделям за выбранный период",
+    "Token share by model author this week": "Доля токенов по разработчикам моделей на этой неделе",
+    "Token share by model author last week": "Доля токенов по разработчикам моделей за прошлую неделю",
+    "Token share by model author this month": "Доля токенов по разработчикам моделей в этом месяце",
+    "Token share by model author last month": "Доля токенов по разработчикам моделей за прошлый месяц",
+    "Token share by model author in the selected period": "Доля токенов по разработчикам моделей за выбранный период",
+    "Please select a complete time range": "Пожалуйста, выберите полный временной диапазон",
+    "Start time must not be after end time": "Время начала не должно быть позже времени окончания",
+    "Hourly token usage by model today": "Почасовое использование токенов по моделям сегодня",
+    "Weekly token usage by model this year": "Еженедельное использование токенов по моделям в этом году",
+    "Token share by model author today": "Доля токенов по разработчикам моделей сегодня",
+    "Token share by model author this year": "Доля токенов по разработчикам моделей в этом году"
   }
 }

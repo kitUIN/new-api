@@ -68,7 +68,9 @@ export const STATIC_I18N_KEYS = [
   'Sort',
   'All',
   'This Week',
+  'Last Week',
   'This Month',
+  'Last Month',
   'This Year',
   'Yesterday',
   'All Vendors',
@@ -76,6 +78,22 @@ export const STATIC_I18N_KEYS = [
   'All Tags',
   'More...',
   'Less',
+
+  // Rankings period descriptions
+  'Hourly token usage by model today',
+  'Daily token usage by model this week',
+  'Daily token usage by model last week',
+  'Daily token usage by model this month',
+  'Daily token usage by model last month',
+  'Token usage by model in the selected period',
+  'Weekly token usage by model this year',
+  'Token share by model author today',
+  'Token share by model author this week',
+  'Token share by model author last week',
+  'Token share by model author this month',
+  'Token share by model author last month',
+  'Token share by model author in the selected period',
+  'Token share by model author this year',
 
   // Roles
   'Super Admin',

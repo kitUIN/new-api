@@ -4935,6 +4935,24 @@
     "Fast": "Rapide",
     "Fast Mode": "Mode rapide",
     "Service Tier Multiplier": "Multiplicateur du niveau de service",
-    "Service Tier": "Niveau de service"
+    "Service Tier": "Niveau de service",
+    "Last Week": "La semaine dernière",
+    "Last Month": "Le mois dernier",
+    "Daily token usage by model this week": "Utilisation quotidienne des tokens par modèle cette semaine",
+    "Daily token usage by model last week": "Utilisation quotidienne des tokens par modèle la semaine dernière",
+    "Daily token usage by model this month": "Utilisation quotidienne des tokens par modèle ce mois-ci",
+    "Daily token usage by model last month": "Utilisation quotidienne des tokens par modèle le mois dernier",
+    "Token usage by model in the selected period": "Utilisation des tokens par modèle sur la période sélectionnée",
+    "Token share by model author this week": "Part des tokens par éditeur de modèle cette semaine",
+    "Token share by model author last week": "Part des tokens par éditeur de modèle la semaine dernière",
+    "Token share by model author this month": "Part des tokens par éditeur de modèle ce mois-ci",
+    "Token share by model author last month": "Part des tokens par éditeur de modèle le mois dernier",
+    "Token share by model author in the selected period": "Part des tokens par éditeur de modèle sur la période sélectionnée",
+    "Please select a complete time range": "Veuillez sélectionner une plage horaire complète",
+    "Start time must not be after end time": "L'heure de début ne doit pas être postérieure à l'heure de fin",
+    "Hourly token usage by model today": "Utilisation horaire des tokens par modèle aujourd'hui",
+    "Weekly token usage by model this year": "Utilisation hebdomadaire des tokens par modèle cette année",
+    "Token share by model author today": "Part des tokens par éditeur de modèle aujourd'hui",
+    "Token share by model author this year": "Part des tokens par éditeur de modèle cette année"
   }
 }

@@ -32,15 +32,22 @@ import {
   UsersRankingSection,
 } from './components'
 import { useRankings } from './hooks/use-rankings'
-import type { RankingPeriod, UserRankingMetric } from './types'
+import type {
+  RankingCustomRange,
+  RankingPeriod,
+  UserRankingMetric,
+} from './types'
 
 const VALID_PERIODS: RankingPeriod[] = [
   'today',
   'yesterday',
   'week',
+  'last_week',
   'month',
+  'last_month',
   'year',
   'all',
+  'custom',
 ]
 const VALID_USER_METRICS: UserRankingMetric[] = ['tokens', 'quota']
 
@@ -63,7 +70,15 @@ export function Rankings() {
   const [userMetric, setUserMetric] =
     useState<UserRankingMetric>(initialUserMetric)
 
-  const rankingsQuery = useRankings(period, userMetric)
+  const customRange: RankingCustomRange | undefined =
+    period === 'custom' &&
+    search.start_time &&
+    search.end_time &&
+    search.start_time <= search.end_time
+      ? { start_time: search.start_time, end_time: search.end_time }
+      : undefined
+
+  const rankingsQuery = useRankings(period, userMetric, customRange)
   const isRankingsLoading =
     rankingsQuery.isLoading || rankingsQuery.isPlaceholderData
   const snapshot = isRankingsLoading ? undefined : rankingsQuery.data?.data
@@ -78,9 +93,56 @@ export function Rankings() {
   })
 
   const handlePeriodChange = (next: RankingPeriod) => {
+    if (next === 'custom') {
+      const end = new Date()
+      const start = new Date(end)
+      start.setDate(start.getDate() - 6)
+      start.setHours(0, 0, 0, 0)
+      navigate({
+        to: '/rankings',
+        search: (prev) => ({
+          ...prev,
+          period: next,
+          start_time:
+            customRange?.start_time ?? Math.floor(start.getTime() / 1000),
+          end_time: customRange?.end_time ?? Math.floor(end.getTime() / 1000),
+        }),
+      })
+      return
+    }
     navigate({
       to: '/rankings',
-      search: (prev) => ({ ...prev, period: next }),
+      search: (prev) => ({
+        ...prev,
+        period: next,
+        start_time: undefined,
+        end_time: undefined,
+      }),
+    })
+  }
+
+  const handleCustomRangeChange = (range: { start?: Date; end?: Date }) => {
+    if (!range.start || !range.end) {
+      toast.error(t('Please select a complete time range'))
+      return
+    }
+    const startTime = Math.floor(range.start.getTime() / 1000)
+    const endTime = Math.min(
+      Math.floor(range.end.getTime() / 1000),
+      Math.floor(Date.now() / 1000)
+    )
+    if (startTime > endTime) {
+      toast.error(t('Start time must not be after end time'))
+      return
+    }
+    navigate({
+      to: '/rankings',
+      search: (prev) => ({
+        ...prev,
+        period: 'custom',
+        start_time: startTime,
+        end_time: endTime,
+      }),
     })
   }
 
@@ -107,7 +169,17 @@ export function Rankings() {
           }}
         />
         <PageTransition className='relative mx-auto w-full max-w-[1280px] space-y-8 px-3 pt-16 pb-10 sm:px-6 sm:pt-20 sm:pb-12 xl:px-8'>
-          <RankingsHero period={period} onPeriodChange={handlePeriodChange} />
+          <RankingsHero
+            period={period}
+            onPeriodChange={handlePeriodChange}
+            customStart={
+              customRange ? new Date(customRange.start_time * 1000) : undefined
+            }
+            customEnd={
+              customRange ? new Date(customRange.end_time * 1000) : undefined
+            }
+            onCustomRangeChange={handleCustomRangeChange}
+          />
 
           {isRankingsLoading ? (
             <RankingsLoading />

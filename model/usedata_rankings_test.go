@@ -83,6 +83,28 @@ func TestRankingGroupTotalsNormalizeAndLimit(t *testing.T) {
 	require.EqualValues(t, 300, totals[1].TotalTokens)
 }
 
+func TestRankingQuotaBucketsAlignToRangeStart(t *testing.T) {
+	truncateTables(t)
+
+	loc := time.FixedZone("CST", 8*3600)
+	dayStart := time.Date(2026, 8, 25, 0, 0, 0, 0, loc).Unix()
+	rows := []QuotaData{
+		{UserID: 1, ModelName: "gpt-a", Group: "default", CreatedAt: dayStart + 3600, TokenUsed: 100},
+		{UserID: 1, ModelName: "gpt-a", Group: "default", CreatedAt: dayStart + 9*3600, TokenUsed: 200},
+		{UserID: 1, ModelName: "gpt-a", Group: "default", CreatedAt: dayStart + 25*3600, TokenUsed: 300},
+	}
+	for _, row := range rows {
+		require.NoError(t, DB.Create(&row).Error)
+	}
+
+	buckets, err := GetRankingQuotaBuckets(dayStart, dayStart+2*24*3600-1, 24*3600)
+	require.NoError(t, err)
+	require.Equal(t, []RankingQuotaBucket{
+		{ModelName: "gpt-a", Bucket: dayStart, Tokens: 300},
+		{ModelName: "gpt-a", Bucket: dayStart + 24*3600, Tokens: 300},
+	}, buckets)
+}
+
 func TestRankingGroupPerfStatsIncludesFlushedAndPending(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()

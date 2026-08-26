@@ -4935,6 +4935,24 @@
     "Fast": "Fast",
     "Fast Mode": "Fast Mode",
     "Service Tier Multiplier": "Service Tier Multiplier",
-    "Service Tier": "Service Tier"
+    "Service Tier": "Service Tier",
+    "Last Week": "Last Week",
+    "Last Month": "Last Month",
+    "Daily token usage by model this week": "Daily token usage by model this week",
+    "Daily token usage by model last week": "Daily token usage by model last week",
+    "Daily token usage by model this month": "Daily token usage by model this month",
+    "Daily token usage by model last month": "Daily token usage by model last month",
+    "Token usage by model in the selected period": "Token usage by model in the selected period",
+    "Token share by model author this week": "Token share by model author this week",
+    "Token share by model author last week": "Token share by model author last week",
+    "Token share by model author this month": "Token share by model author this month",
+    "Token share by model author last month": "Token share by model author last month",
+    "Token share by model author in the selected period": "Token share by model author in the selected period",
+    "Please select a complete time range": "Please select a complete time range",
+    "Start time must not be after end time": "Start time must not be after end time",
+    "Hourly token usage by model today": "Hourly token usage by model today",
+    "Weekly token usage by model this year": "Weekly token usage by model this year",
+    "Token share by model author today": "Token share by model author today",
+    "Token share by model author this year": "Token share by model author this year"
   }
 }

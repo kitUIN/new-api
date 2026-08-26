@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  RankingCustomRange,
   RankingPeriod,
   RankingsSnapshot,
   UserRankingMetric,
@@ -31,10 +32,15 @@ type RankingsResponse = {
 
 export async function getRankings(
   period: RankingPeriod,
-  userMetric: UserRankingMetric
+  userMetric: UserRankingMetric,
+  customRange?: RankingCustomRange
 ): Promise<RankingsResponse> {
   const res = await api.get('/api/rankings', {
-    params: { period, user_metric: userMetric },
+    params: {
+      period,
+      user_metric: userMetric,
+      ...(period === 'custom' ? customRange : undefined),
+    },
   })
   return res.data
 }

@@ -4935,6 +4935,24 @@
     "Fast": "高速",
     "Fast Mode": "Fast モード",
     "Service Tier Multiplier": "サービスティア倍率",
-    "Service Tier": "サービスティア"
+    "Service Tier": "サービスティア",
+    "Last Week": "先週",
+    "Last Month": "先月",
+    "Daily token usage by model this week": "今週のモデル別日次トークン使用量",
+    "Daily token usage by model last week": "先週のモデル別日次トークン使用量",
+    "Daily token usage by model this month": "今月のモデル別日次トークン使用量",
+    "Daily token usage by model last month": "先月のモデル別日次トークン使用量",
+    "Token usage by model in the selected period": "選択した期間のモデル別トークン使用量",
+    "Token share by model author this week": "今週のモデル提供者別トークンシェア",
+    "Token share by model author last week": "先週のモデル提供者別トークンシェア",
+    "Token share by model author this month": "今月のモデル提供者別トークンシェア",
+    "Token share by model author last month": "先月のモデル提供者別トークンシェア",
+    "Token share by model author in the selected period": "選択した期間のモデル提供者別トークンシェア",
+    "Please select a complete time range": "完全な時間範囲を選択してください",
+    "Start time must not be after end time": "開始時刻は終了時刻より後に設定できません",
+    "Hourly token usage by model today": "今日のモデル別時間ごとのトークン使用量",
+    "Weekly token usage by model this year": "今年のモデル別週次トークン使用量",
+    "Token share by model author today": "今日のモデル提供者別トークンシェア",
+    "Token share by model author this year": "今年のモデル提供者別トークンシェア"
   }
 }

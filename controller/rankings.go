@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -15,10 +17,22 @@ type updateRankingPrivacyRequest struct {
 }
 
 func GetRankings(c *gin.Context) {
+	period := c.DefaultQuery("period", "week")
+	startTime, endTime, err := rankingCustomTimeRange(c, period)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	result, err := service.GetRankingsSnapshot(
-		c.DefaultQuery("period", "week"),
+		period,
 		c.GetInt("id"),
 		c.DefaultQuery("user_metric", string(service.RankingUserMetricTokens)),
+		startTime,
+		endTime,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -32,6 +46,22 @@ func GetRankings(c *gin.Context) {
 		"success": true,
 		"data":    result,
 	})
+}
+
+func rankingCustomTimeRange(c *gin.Context, period string) (int64, int64, error) {
+	if period != "custom" {
+		return 0, 0, nil
+	}
+
+	startTime, err := strconv.ParseInt(c.Query("start_time"), 10, 64)
+	if err != nil || startTime <= 0 {
+		return 0, 0, fmt.Errorf("invalid ranking start_time")
+	}
+	endTime, err := strconv.ParseInt(c.Query("end_time"), 10, 64)
+	if err != nil || endTime <= 0 {
+		return 0, 0, fmt.Errorf("invalid ranking end_time")
+	}
+	return startTime, endTime, nil
 }
 
 func UpdateRankingPrivacy(c *gin.Context) {

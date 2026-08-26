@@ -139,12 +139,14 @@ type VendorShareSeries struct {
 }
 
 type rankingPeriodConfig struct {
-	id          string
-	startTime   int64
-	endTime     int64
-	bucketSize  int64
-	labelLayout string
-	hasPrevious bool
+	id                string
+	startTime         int64
+	endTime           int64
+	bucketSize        int64
+	labelLayout       string
+	hasPrevious       bool
+	previousStartTime int64
+	previousEndTime   int64
 }
 
 type rankingCacheItem struct {
@@ -178,8 +180,8 @@ var (
 	rankingCache   = map[string]rankingCacheItem{}
 )
 
-func GetRankingsSnapshot(period string, userID int, userMetric string) (*RankingsResponse, error) {
-	config, err := rankingConfig(period, time.Now())
+func GetRankingsSnapshot(period string, userID int, userMetric string, customStartTime int64, customEndTime int64) (*RankingsResponse, error) {
+	config, err := rankingConfig(period, time.Now(), customStartTime, customEndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +221,7 @@ func NormalizeRankingUserMetric(metric string) RankingUserMetric {
 	}
 }
 
-func rankingConfig(period string, now time.Time) (rankingPeriodConfig, error) {
+func rankingConfig(period string, now time.Time, customStartTime int64, customEndTime int64) (rankingPeriodConfig, error) {
 	localNow := now
 	todayStart := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, localNow.Location())
 	weekdayOffset := (int(todayStart.Weekday()) + 6) % 7
@@ -230,6 +232,18 @@ func rankingConfig(period string, now time.Time) (rankingPeriodConfig, error) {
 	switch period {
 	case "", "week":
 		return rankingPeriodConfig{id: "week", startTime: weekStart.Unix(), endTime: localNow.Unix(), bucketSize: 24 * 3600, labelLayout: "Jan 2", hasPrevious: true}, nil
+	case "last_week":
+		lastWeekStart := weekStart.AddDate(0, 0, -7)
+		return rankingPeriodConfig{
+			id:                "last_week",
+			startTime:         lastWeekStart.Unix(),
+			endTime:           weekStart.Add(-time.Second).Unix(),
+			bucketSize:        24 * 3600,
+			labelLayout:       "Jan 2",
+			hasPrevious:       true,
+			previousStartTime: weekStart.AddDate(0, 0, -14).Unix(),
+			previousEndTime:   lastWeekStart.Add(-time.Second).Unix(),
+		}, nil
 	case "today":
 		return rankingPeriodConfig{id: "today", startTime: todayStart.Unix(), endTime: localNow.Unix(), bucketSize: 3600, labelLayout: "15:04", hasPrevious: true}, nil
 	case "yesterday":
@@ -237,17 +251,70 @@ func rankingConfig(period string, now time.Time) (rankingPeriodConfig, error) {
 		return rankingPeriodConfig{id: "yesterday", startTime: yesterdayStart.Unix(), endTime: todayStart.Add(-time.Second).Unix(), bucketSize: 3600, labelLayout: "15:04", hasPrevious: true}, nil
 	case "month":
 		return rankingPeriodConfig{id: "month", startTime: monthStart.Unix(), endTime: localNow.Unix(), bucketSize: 24 * 3600, labelLayout: "Jan 2", hasPrevious: true}, nil
+	case "last_month":
+		lastMonthStart := monthStart.AddDate(0, -1, 0)
+		return rankingPeriodConfig{
+			id:                "last_month",
+			startTime:         lastMonthStart.Unix(),
+			endTime:           monthStart.Add(-time.Second).Unix(),
+			bucketSize:        24 * 3600,
+			labelLayout:       "Jan 2",
+			hasPrevious:       true,
+			previousStartTime: monthStart.AddDate(0, -2, 0).Unix(),
+			previousEndTime:   lastMonthStart.Add(-time.Second).Unix(),
+		}, nil
 	case "year":
 		return rankingPeriodConfig{id: "year", startTime: yearStart.Unix(), endTime: localNow.Unix(), bucketSize: 7 * 24 * 3600, labelLayout: "Jan 2", hasPrevious: true}, nil
 	case "all":
 		return rankingPeriodConfig{id: "all", startTime: 0, endTime: localNow.Unix(), bucketSize: 30 * 24 * 3600, labelLayout: "Jan 2006"}, nil
+	case "custom":
+		if customStartTime <= 0 || customEndTime <= 0 {
+			return rankingPeriodConfig{}, fmt.Errorf("custom ranking period requires start_time and end_time")
+		}
+		if customEndTime > localNow.Unix() {
+			customEndTime = localNow.Unix()
+		}
+		if customStartTime > customEndTime {
+			return rankingPeriodConfig{}, fmt.Errorf("custom ranking start_time must not be after end_time")
+		}
+		duration := customEndTime - customStartTime + 1
+		bucketSize, labelLayout := customRankingBucket(duration)
+		previousEndTime := customStartTime - 1
+		previousStartTime := previousEndTime - duration + 1
+		hasPrevious := previousStartTime > 0
+		return rankingPeriodConfig{
+			id:                "custom",
+			startTime:         customStartTime,
+			endTime:           customEndTime,
+			bucketSize:        bucketSize,
+			labelLayout:       labelLayout,
+			hasPrevious:       hasPrevious,
+			previousStartTime: previousStartTime,
+			previousEndTime:   previousEndTime,
+		}, nil
 	default:
 		return rankingPeriodConfig{}, fmt.Errorf("invalid ranking period: %s", period)
 	}
 }
 
 func rankingCacheKey(config rankingPeriodConfig, userMetric RankingUserMetric) string {
+	if config.id == "custom" {
+		return fmt.Sprintf("%s:%d:%d:%s", config.id, config.startTime, config.endTime, userMetric)
+	}
 	return fmt.Sprintf("%s:%d:%s", config.id, config.startTime, userMetric)
+}
+
+func customRankingBucket(duration int64) (int64, string) {
+	switch {
+	case duration <= 2*24*3600:
+		return 3600, "Jan 2 15:04"
+	case duration <= 90*24*3600:
+		return 24 * 3600, "Jan 2"
+	case duration <= 2*365*24*3600:
+		return 7 * 24 * 3600, "Jan 2"
+	default:
+		return 30 * 24 * 3600, "Jan 2006"
+	}
 }
 
 func buildRankingsSnapshot(config rankingPeriodConfig, userMetric RankingUserMetric) (*RankingsResponse, error) {
@@ -341,6 +408,9 @@ func buildRankedSelfUser(userID int, config rankingPeriodConfig, profile ranking
 }
 
 func previousRankingTimeRange(config rankingPeriodConfig) (int64, int64) {
+	if config.previousStartTime > 0 && config.previousEndTime >= config.previousStartTime {
+		return config.previousStartTime, config.previousEndTime
+	}
 	if config.startTime <= 0 || config.endTime <= config.startTime {
 		return 0, 0
 	}
@@ -542,14 +612,11 @@ func buildModelHistory(buckets []model.RankingQuotaBucket, totals []model.Rankin
 		tokensByBucketAndModel[item.Bucket][modelName] += item.Tokens
 	}
 
-	sortedBuckets := sortedRankingBuckets(bucketSet)
+	sortedBuckets := rankingTimelineBuckets(bucketSet, config)
 	points := make([]ModelHistoryPoint, 0, len(sortedBuckets)*len(models))
 	for _, bucket := range sortedBuckets {
 		for _, historyModel := range models {
 			tokens := tokensByBucketAndModel[bucket][historyModel.Name]
-			if tokens <= 0 {
-				continue
-			}
 			points = append(points, ModelHistoryPoint{
 				Ts:     rankingBucketTs(bucket),
 				Label:  rankingBucketLabel(bucket, config),
@@ -600,14 +667,11 @@ func buildVendorShareHistory(buckets []model.RankingQuotaBucket, vendors []Ranke
 		totalsByBucket[item.Bucket] += item.Tokens
 	}
 
-	sortedBuckets := sortedRankingBuckets(bucketSet)
+	sortedBuckets := rankingTimelineBuckets(bucketSet, config)
 	points := make([]VendorSharePoint, 0, len(sortedBuckets)*len(vendorRows))
 	for _, bucket := range sortedBuckets {
 		for _, vendor := range vendorRows {
 			tokens := tokensByBucketAndVendor[bucket][vendor.Name]
-			if tokens <= 0 {
-				continue
-			}
 			points = append(points, VendorSharePoint{
 				Ts:     rankingBucketTs(bucket),
 				Label:  rankingBucketLabel(bucket, config),
@@ -673,6 +737,19 @@ func sortedRankingBuckets(bucketSet map[int64]struct{}) []int64 {
 	sort.Slice(buckets, func(i, j int) bool {
 		return buckets[i] < buckets[j]
 	})
+	return buckets
+}
+
+func rankingTimelineBuckets(bucketSet map[int64]struct{}, config rankingPeriodConfig) []int64 {
+	if config.startTime <= 0 || config.bucketSize <= 0 || config.endTime < config.startTime {
+		return sortedRankingBuckets(bucketSet)
+	}
+
+	bucketCount := (config.endTime-config.startTime)/config.bucketSize + 1
+	buckets := make([]int64, 0, int(bucketCount))
+	for index := int64(0); index < bucketCount; index++ {
+		buckets = append(buckets, config.startTime+index*config.bucketSize)
+	}
 	return buckets
 }
 

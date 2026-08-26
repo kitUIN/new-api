@@ -18,20 +18,27 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { CompactDateTimeRangePicker } from '@/components/compact-date-time-range-picker'
 import type { RankingPeriod } from '../types'
 
 const PERIODS: { id: RankingPeriod; labelKey: string }[] = [
   { id: 'today', labelKey: 'Today' },
   { id: 'yesterday', labelKey: 'Yesterday' },
   { id: 'week', labelKey: 'This Week' },
+  { id: 'last_week', labelKey: 'Last Week' },
   { id: 'month', labelKey: 'This Month' },
+  { id: 'last_month', labelKey: 'Last Month' },
   { id: 'year', labelKey: 'This Year' },
   { id: 'all', labelKey: 'All' },
+  { id: 'custom', labelKey: 'Custom' },
 ]
 
 type RankingsHeroProps = {
   period: RankingPeriod
   onPeriodChange: (period: RankingPeriod) => void
+  customStart?: Date
+  customEnd?: Date
+  onCustomRangeChange: (range: { start?: Date; end?: Date }) => void
 }
 
 /**
@@ -58,38 +65,49 @@ export function RankingsHero(props: RankingsHeroProps) {
       </div>
 
       {/* Underline tabs for period — clean and unobtrusive. */}
-      <div
-        role='tablist'
-        aria-label={t('Period')}
-        className='border-border/60 flex items-center border-b'
-      >
-        {PERIODS.map((p) => {
-          const isActive = props.period === p.id
-          return (
-            <button
-              key={p.id}
-              role='tab'
-              type='button'
-              aria-selected={isActive}
-              onClick={() => props.onPeriodChange(p.id)}
-              className={cn(
-                'focus-visible:ring-ring/40 relative -mb-px rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                isActive
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t(p.labelKey)}
-              <span
-                aria-hidden
+      <div className='space-y-3'>
+        <div
+          role='tablist'
+          aria-label={t('Period')}
+          className='border-border/60 flex items-center overflow-x-auto border-b'
+        >
+          {PERIODS.map((p) => {
+            const isActive = props.period === p.id
+            return (
+              <button
+                key={p.id}
+                role='tab'
+                type='button'
+                aria-selected={isActive}
+                onClick={() => props.onPeriodChange(p.id)}
                 className={cn(
-                  'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity',
-                  isActive ? 'opacity-100' : 'opacity-0'
+                  'focus-visible:ring-ring/40 relative -mb-px shrink-0 rounded-sm px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                  isActive
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
-              />
-            </button>
-          )
-        })}
+              >
+                {t(p.labelKey)}
+                <span
+                  aria-hidden
+                  className={cn(
+                    'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity',
+                    isActive ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
+              </button>
+            )
+          })}
+        </div>
+
+        {props.period === 'custom' && (
+          <CompactDateTimeRangePicker
+            start={props.customStart}
+            end={props.customEnd}
+            onChange={props.onCustomRangeChange}
+            className='sm:w-[360px]'
+          />
+        )}
       </div>
     </section>
   )

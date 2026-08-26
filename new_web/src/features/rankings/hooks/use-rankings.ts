@@ -18,15 +18,27 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRankings } from '../api'
-import type { RankingPeriod, UserRankingMetric } from '../types'
+import type {
+  RankingCustomRange,
+  RankingPeriod,
+  UserRankingMetric,
+} from '../types'
 
 export function useRankings(
   period: RankingPeriod,
-  userMetric: UserRankingMetric
+  userMetric: UserRankingMetric,
+  customRange?: RankingCustomRange
 ) {
   return useQuery({
-    queryKey: ['rankings', period, userMetric],
-    queryFn: () => getRankings(period, userMetric),
+    queryKey: [
+      'rankings',
+      period,
+      userMetric,
+      customRange?.start_time,
+      customRange?.end_time,
+    ],
+    queryFn: () => getRankings(period, userMetric, customRange),
+    enabled: period !== 'custom' || Boolean(customRange),
     placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
   })

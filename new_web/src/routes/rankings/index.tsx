@@ -24,10 +24,22 @@ import { Rankings } from '@/features/rankings'
 
 const rankingsSearchSchema = z.object({
   period: z
-    .enum(['today', 'yesterday', 'week', 'month', 'year', 'all'])
+    .enum([
+      'today',
+      'yesterday',
+      'week',
+      'last_week',
+      'month',
+      'last_month',
+      'year',
+      'all',
+      'custom',
+    ])
     .optional()
     .catch(undefined),
   user_metric: z.enum(['tokens', 'quota']).optional().catch(undefined),
+  start_time: z.coerce.number().int().positive().optional().catch(undefined),
+  end_time: z.coerce.number().int().positive().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/rankings/')({

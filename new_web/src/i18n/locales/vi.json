@@ -4935,6 +4935,24 @@
     "Fast": "Nhanh",
     "Fast Mode": "Chế độ nhanh",
     "Service Tier Multiplier": "Hệ số cấp dịch vụ",
-    "Service Tier": "Cấp dịch vụ"
+    "Service Tier": "Cấp dịch vụ",
+    "Last Week": "Tuần trước",
+    "Last Month": "Tháng trước",
+    "Daily token usage by model this week": "Lượng token sử dụng hằng ngày theo mô hình trong tuần này",
+    "Daily token usage by model last week": "Lượng token sử dụng hằng ngày theo mô hình trong tuần trước",
+    "Daily token usage by model this month": "Lượng token sử dụng hằng ngày theo mô hình trong tháng này",
+    "Daily token usage by model last month": "Lượng token sử dụng hằng ngày theo mô hình trong tháng trước",
+    "Token usage by model in the selected period": "Lượng token sử dụng theo mô hình trong khoảng thời gian đã chọn",
+    "Token share by model author this week": "Tỷ lệ token theo nhà phát triển mô hình trong tuần này",
+    "Token share by model author last week": "Tỷ lệ token theo nhà phát triển mô hình trong tuần trước",
+    "Token share by model author this month": "Tỷ lệ token theo nhà phát triển mô hình trong tháng này",
+    "Token share by model author last month": "Tỷ lệ token theo nhà phát triển mô hình trong tháng trước",
+    "Token share by model author in the selected period": "Tỷ lệ token theo nhà phát triển mô hình trong khoảng thời gian đã chọn",
+    "Please select a complete time range": "Vui lòng chọn đầy đủ khoảng thời gian",
+    "Start time must not be after end time": "Thời gian bắt đầu không được sau thời gian kết thúc",
+    "Hourly token usage by model today": "Lượng token sử dụng theo giờ của từng mô hình hôm nay",
+    "Weekly token usage by model this year": "Lượng token sử dụng hằng tuần theo mô hình trong năm nay",
+    "Token share by model author today": "Tỷ lệ token theo nhà phát triển mô hình hôm nay",
+    "Token share by model author this year": "Tỷ lệ token theo nhà phát triển mô hình trong năm nay"
   }
 }

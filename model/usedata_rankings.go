@@ -53,7 +53,7 @@ func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([
 	if bucketSize <= 0 {
 		bucketSize = 3600
 	}
-	bucketExpr := rankingBucketExpr(bucketSize)
+	bucketExpr := rankingBucketExpr(bucketSize, startTime)
 	var rows []RankingQuotaBucket
 	query := DB.Table("quota_data").
 		Select(fmt.Sprintf("model_name, %s as bucket, sum(token_used) as tokens", bucketExpr)).
@@ -173,11 +173,11 @@ func rankingUserMetricHaving(metric string) string {
 	return "sum(token_used) > 0"
 }
 
-func rankingBucketExpr(bucketSize int64) string {
+func rankingBucketExpr(bucketSize int64, bucketOrigin int64) string {
 	if common.UsingMySQL {
-		return fmt.Sprintf("FLOOR(created_at / %d) * %d", bucketSize, bucketSize)
+		return fmt.Sprintf("FLOOR((created_at - %d) / %d) * %d + %d", bucketOrigin, bucketSize, bucketSize, bucketOrigin)
 	}
-	return fmt.Sprintf("(created_at / %d) * %d", bucketSize, bucketSize)
+	return fmt.Sprintf("((created_at - %d) / %d) * %d + %d", bucketOrigin, bucketSize, bucketSize, bucketOrigin)
 }
 
 func rankingGroupExpr() string {

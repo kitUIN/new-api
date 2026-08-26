@@ -26,9 +26,17 @@ export type RankingPeriod =
   | 'today'
   | 'yesterday'
   | 'week'
+  | 'last_week'
   | 'month'
+  | 'last_month'
   | 'year'
   | 'all'
+  | 'custom'
+
+export type RankingCustomRange = {
+  start_time: number
+  end_time: number
+}
 
 export type RankingCategoryId =
   | 'all'
