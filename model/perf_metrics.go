@@ -41,10 +41,31 @@ type PerfMetricBucket struct {
 	UpdatedAt         int64  `json:"updated_at" gorm:"bigint"`
 }
 
+// PerfGroupHealthMetricBucket stores combination-entry health metrics without
+// duplicating requests in the general performance aggregates.
+type PerfGroupHealthMetricBucket struct {
+	Id                int    `json:"id"`
+	BucketStart       int64  `json:"bucket_start" gorm:"bigint;uniqueIndex:idx_perf_group_health_metric_bucket"`
+	BucketSeconds     int64  `json:"bucket_seconds" gorm:"bigint;uniqueIndex:idx_perf_group_health_metric_bucket"`
+	Group             string `json:"group" gorm:"size:191;uniqueIndex:idx_perf_group_health_metric_bucket;index"`
+	RequestCount      int64  `json:"request_count" gorm:"bigint;default:0"`
+	SuccessCount      int64  `json:"success_count" gorm:"bigint;default:0"`
+	TestRequestCount  int64  `json:"test_request_count" gorm:"bigint;default:0"`
+	LatencyCount      int64  `json:"latency_count" gorm:"bigint;default:0"`
+	TotalLatencyMs    int64  `json:"total_latency_ms" gorm:"bigint;default:0"`
+	TotalTTFTMs       int64  `json:"total_ttft_ms" gorm:"bigint;default:0"`
+	TTFTCount         int64  `json:"ttft_count" gorm:"bigint;default:0"`
+	CompletionTokens  int64  `json:"completion_tokens" gorm:"bigint;default:0"`
+	TotalTPSLatencyMs int64  `json:"total_tps_latency_ms" gorm:"bigint;default:0"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt         int64  `json:"updated_at" gorm:"bigint"`
+}
+
 type PerfMetricSample struct {
 	Timestamp          int64
 	ModelName          string
 	Group              string
+	EntryGroup         string
 	Success            bool
 	LatencyMs          int64
 	TTFTMs             int64
@@ -162,6 +183,12 @@ type perfMetricKey struct {
 	group         string
 }
 
+type perfGroupHealthMetricKey struct {
+	bucketStart   int64
+	bucketSeconds int64
+	group         string
+}
+
 type groupModelPerfKey struct {
 	group string
 	model string
@@ -198,9 +225,10 @@ type perfAccumulator struct {
 }
 
 var (
-	perfMetricsMu      sync.Mutex
-	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
-	recentPerfMetrics  []perfRecentMetricSample
+	perfMetricsMu                 sync.Mutex
+	pendingPerfMetrics            = make(map[perfMetricKey]perfAccumulator)
+	pendingGroupHealthPerfMetrics = make(map[perfGroupHealthMetricKey]perfAccumulator)
+	recentPerfMetrics             []perfRecentMetricSample
 )
 
 const perfRecentMetricRetentionSeconds = 30 * 60
@@ -217,6 +245,10 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 	group := strings.TrimSpace(sample.Group)
 	if group == "" {
 		group = "default"
+	}
+	entryGroup := strings.TrimSpace(sample.EntryGroup)
+	if entryGroup == "" {
+		entryGroup = group
 	}
 	if sample.Timestamp <= 0 {
 		sample.Timestamp = time.Now().Unix()
@@ -245,9 +277,7 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 		group:         group,
 	}
 
-	perfMetricsMu.Lock()
-	acc := pendingPerfMetrics[key]
-	acc.requestCount++
+	acc := perfAccumulator{requestCount: 1}
 	if sample.IsTestRequest {
 		acc.testRequestCount++
 	}
@@ -266,24 +296,44 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 			}
 		}
 	}
-	pendingPerfMetrics[key] = acc
+
+	perfMetricsMu.Lock()
+	existing := pendingPerfMetrics[key]
+	existing.add(acc)
+	pendingPerfMetrics[key] = existing
 	recentPerfMetrics = append(recentPerfMetrics, perfRecentMetricSample{
 		Timestamp:     sample.Timestamp,
 		Group:         group,
 		Success:       sample.Success,
 		IsTestRequest: sample.IsTestRequest,
 	})
+	if entryGroup != group && ratio_setting.IsGroupCombination(entryGroup) {
+		healthKey := perfGroupHealthMetricKey{
+			bucketStart:   key.bucketStart,
+			bucketSeconds: key.bucketSeconds,
+			group:         entryGroup,
+		}
+		healthAcc := pendingGroupHealthPerfMetrics[healthKey]
+		healthAcc.add(acc)
+		pendingGroupHealthPerfMetrics[healthKey] = healthAcc
+		recentPerfMetrics = append(recentPerfMetrics, perfRecentMetricSample{
+			Timestamp:     sample.Timestamp,
+			Group:         entryGroup,
+			Success:       sample.Success,
+			IsTestRequest: sample.IsTestRequest,
+		})
+	}
 	pruneRecentPerfMetricsLocked(sample.Timestamp - perfRecentMetricRetentionSeconds)
 	perfMetricsMu.Unlock()
 }
 
 func FlushPerfMetrics() error {
-	snapshot := takePendingPerfMetrics()
-	if len(snapshot) == 0 {
+	snapshot, groupHealthSnapshot := takePendingPerfMetrics()
+	if len(snapshot) == 0 && len(groupHealthSnapshot) == 0 {
 		return nil
 	}
 	if LOG_DB == nil {
-		restorePendingPerfMetrics(snapshot)
+		restorePendingPerfMetrics(snapshot, groupHealthSnapshot)
 		return errors.New("log database is not initialized")
 	}
 
@@ -297,10 +347,18 @@ func FlushPerfMetrics() error {
 				return err
 			}
 		}
+		for key, acc := range groupHealthSnapshot {
+			if acc.requestCount <= 0 {
+				continue
+			}
+			if err := upsertPerfGroupHealthMetricBucket(tx, key, acc, now); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
-		restorePendingPerfMetrics(snapshot)
+		restorePendingPerfMetrics(snapshot, groupHealthSnapshot)
 		return err
 	}
 
@@ -351,29 +409,37 @@ func CleanupPerfMetrics(retentionDays int) error {
 		return nil
 	}
 	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
-	return LOG_DB.Where("bucket_start < ?", cutoff).Delete(&PerfMetricBucket{}).Error
+	return LOG_DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("bucket_start < ?", cutoff).Delete(&PerfMetricBucket{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("bucket_start < ?", cutoff).Delete(&PerfGroupHealthMetricBucket{}).Error
+	})
 }
 
 func ResetPerfMetricsForTest() {
 	perfMetricsMu.Lock()
 	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
+	pendingGroupHealthPerfMetrics = make(map[perfGroupHealthMetricKey]perfAccumulator)
 	recentPerfMetrics = nil
 	perfMetricsMu.Unlock()
 }
 
-func takePendingPerfMetrics() map[perfMetricKey]perfAccumulator {
+func takePendingPerfMetrics() (map[perfMetricKey]perfAccumulator, map[perfGroupHealthMetricKey]perfAccumulator) {
 	perfMetricsMu.Lock()
 	defer perfMetricsMu.Unlock()
-	if len(pendingPerfMetrics) == 0 {
-		return nil
-	}
 	snapshot := pendingPerfMetrics
+	groupHealthSnapshot := pendingGroupHealthPerfMetrics
 	pendingPerfMetrics = make(map[perfMetricKey]perfAccumulator)
-	return snapshot
+	pendingGroupHealthPerfMetrics = make(map[perfGroupHealthMetricKey]perfAccumulator)
+	return snapshot, groupHealthSnapshot
 }
 
-func restorePendingPerfMetrics(snapshot map[perfMetricKey]perfAccumulator) {
-	if len(snapshot) == 0 {
+func restorePendingPerfMetrics(
+	snapshot map[perfMetricKey]perfAccumulator,
+	groupHealthSnapshot map[perfGroupHealthMetricKey]perfAccumulator,
+) {
+	if len(snapshot) == 0 && len(groupHealthSnapshot) == 0 {
 		return
 	}
 	perfMetricsMu.Lock()
@@ -382,6 +448,11 @@ func restorePendingPerfMetrics(snapshot map[perfMetricKey]perfAccumulator) {
 		existing := pendingPerfMetrics[key]
 		existing.add(acc)
 		pendingPerfMetrics[key] = existing
+	}
+	for key, acc := range groupHealthSnapshot {
+		existing := pendingGroupHealthPerfMetrics[key]
+		existing.add(acc)
+		pendingGroupHealthPerfMetrics[key] = existing
 	}
 }
 
@@ -393,6 +464,19 @@ func snapshotPendingPerfMetrics() map[perfMetricKey]perfAccumulator {
 	}
 	snapshot := make(map[perfMetricKey]perfAccumulator, len(pendingPerfMetrics))
 	for key, acc := range pendingPerfMetrics {
+		snapshot[key] = acc
+	}
+	return snapshot
+}
+
+func snapshotPendingGroupHealthPerfMetrics() map[perfGroupHealthMetricKey]perfAccumulator {
+	perfMetricsMu.Lock()
+	defer perfMetricsMu.Unlock()
+	if len(pendingGroupHealthPerfMetrics) == 0 {
+		return nil
+	}
+	snapshot := make(map[perfGroupHealthMetricKey]perfAccumulator, len(pendingGroupHealthPerfMetrics))
+	for key, acc := range pendingGroupHealthPerfMetrics {
 		snapshot[key] = acc
 	}
 	return snapshot
@@ -502,6 +586,49 @@ func upsertPerfMetricBucket(tx *gorm.DB, key perfMetricKey, acc perfAccumulator,
 			BucketStart:       key.bucketStart,
 			BucketSeconds:     key.bucketSeconds,
 			ModelName:         key.modelName,
+			Group:             key.group,
+			RequestCount:      acc.requestCount,
+			SuccessCount:      acc.successCount,
+			TestRequestCount:  acc.testRequestCount,
+			LatencyCount:      acc.latencyCount,
+			TotalLatencyMs:    acc.totalLatencyMs,
+			TotalTTFTMs:       acc.totalTTFTMs,
+			TTFTCount:         acc.ttftCount,
+			CompletionTokens:  acc.completionTokens,
+			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}).Error
+	}
+	return tx.Model(&bucket).Updates(map[string]interface{}{
+		"request_count":        gorm.Expr("request_count + ?", acc.requestCount),
+		"success_count":        gorm.Expr("success_count + ?", acc.successCount),
+		"test_request_count":   gorm.Expr("test_request_count + ?", acc.testRequestCount),
+		"latency_count":        gorm.Expr("latency_count + ?", acc.latencyCount),
+		"total_latency_ms":     gorm.Expr("total_latency_ms + ?", acc.totalLatencyMs),
+		"total_ttft_ms":        gorm.Expr("total_ttft_ms + ?", acc.totalTTFTMs),
+		"ttft_count":           gorm.Expr("ttft_count + ?", acc.ttftCount),
+		"completion_tokens":    gorm.Expr("completion_tokens + ?", acc.completionTokens),
+		"total_tps_latency_ms": gorm.Expr("total_tps_latency_ms + ?", acc.totalTPSLatencyMs),
+		"updated_at":           now,
+	}).Error
+}
+
+func upsertPerfGroupHealthMetricBucket(tx *gorm.DB, key perfGroupHealthMetricKey, acc perfAccumulator, now int64) error {
+	var bucket PerfGroupHealthMetricBucket
+	err := tx.Where(
+		"bucket_start = ? AND bucket_seconds = ? AND "+perfMetricGroupCol()+" = ?",
+		key.bucketStart,
+		key.bucketSeconds,
+		key.group,
+	).First(&bucket).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		return tx.Create(&PerfGroupHealthMetricBucket{
+			BucketStart:       key.bucketStart,
+			BucketSeconds:     key.bucketSeconds,
 			Group:             key.group,
 			RequestCount:      acc.requestCount,
 			SuccessCount:      acc.successCount,
@@ -735,7 +862,49 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	if err != nil {
 		return PerfGroupHealthSummary{}, err
 	}
+	var entryRows []perfMetricAggregateRow
+	err = LOG_DB.Model(&PerfGroupHealthMetricBucket{}).
+		Select(`bucket_start,
+			bucket_seconds,
+			`+groupCol+` AS group_name,
+			SUM(request_count) AS request_count,
+			SUM(success_count) AS success_count,
+			SUM(test_request_count) AS test_request_count,
+			SUM(latency_count) AS latency_count,
+			SUM(total_latency_ms) AS total_latency_ms,
+			SUM(total_ttft_ms) AS total_ttft_ms,
+			SUM(ttft_count) AS ttft_count,
+			SUM(completion_tokens) AS completion_tokens,
+			SUM(total_tps_latency_ms) AS total_tps_latency_ms`).
+		Where("bucket_start >= ?", startBucket).
+		Where("bucket_start < ?", endExclusive).
+		Group("bucket_start, bucket_seconds, " + groupCol).
+		Order("bucket_start ASC").
+		Scan(&entryRows).Error
+	if err != nil {
+		return PerfGroupHealthSummary{}, err
+	}
+	rows = append(rows, entryRows...)
 	for key, acc := range snapshotPendingPerfMetrics() {
+		if key.bucketStart < startBucket || key.bucketStart >= endExclusive {
+			continue
+		}
+		rows = append(rows, perfMetricAggregateRow{
+			Group:             key.group,
+			BucketStart:       key.bucketStart,
+			BucketSeconds:     key.bucketSeconds,
+			RequestCount:      acc.requestCount,
+			SuccessCount:      acc.successCount,
+			TestRequestCount:  acc.testRequestCount,
+			LatencyCount:      acc.latencyCount,
+			TotalLatencyMs:    acc.totalLatencyMs,
+			TotalTTFTMs:       acc.totalTTFTMs,
+			TTFTCount:         acc.ttftCount,
+			CompletionTokens:  acc.completionTokens,
+			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
+		})
+	}
+	for key, acc := range snapshotPendingGroupHealthPerfMetrics() {
 		if key.bucketStart < startBucket || key.bucketStart >= endExclusive {
 			continue
 		}
@@ -915,6 +1084,12 @@ type GroupProviderStats struct {
 	HasLuna          bool
 }
 
+type groupProviderBalance struct {
+	balance   float64
+	available bool
+	hasLuna   bool
+}
+
 type GroupJuiceStats struct {
 	Juice       string
 	UpdatedTime int64
@@ -928,6 +1103,7 @@ func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
 
 	stats := make(map[string]GroupJuiceStats)
 	values := make(map[string]*big.Rat)
+	channelStats := make(map[int]GroupJuiceStats, len(channels))
 	for _, channel := range channels {
 		if !channel.SupportsMappedModel(JuiceTestModel) {
 			continue
@@ -939,6 +1115,10 @@ func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
 		value, ok := new(big.Rat).SetString(juice)
 		if !ok {
 			continue
+		}
+		channelStats[channel.Id] = GroupJuiceStats{
+			Juice:       juice,
+			UpdatedTime: channel.JuiceUpdatedTime,
 		}
 		groups := channel.GetGroups()
 		if len(groups) == 0 {
@@ -955,6 +1135,43 @@ func GetGroupJuiceStats() (map[string]GroupJuiceStats, error) {
 				stat.UpdatedTime = channel.JuiceUpdatedTime
 			}
 			stats[groupName] = stat
+		}
+	}
+	mergeJuiceStat := func(groupName string, candidate GroupJuiceStats) {
+		value, ok := new(big.Rat).SetString(candidate.Juice)
+		if !ok {
+			return
+		}
+		stat := stats[groupName]
+		if current, exists := values[groupName]; !exists || value.Cmp(current) < 0 {
+			values[groupName] = new(big.Rat).Set(value)
+			stat.Juice = candidate.Juice
+		}
+		if stat.UpdatedTime == 0 || (candidate.UpdatedTime > 0 && candidate.UpdatedTime < stat.UpdatedTime) {
+			stat.UpdatedTime = candidate.UpdatedTime
+		}
+		stats[groupName] = stat
+	}
+	for combinationGroup, members := range ratio_setting.GetGroupCombinationsCopy() {
+		for _, member := range members {
+			if member.Group == combinationGroup {
+				continue
+			}
+			if stat, ok := stats[member.Group]; ok {
+				mergeJuiceStat(combinationGroup, stat)
+			}
+		}
+	}
+	for combinationGroup, routes := range ratio_setting.GetLegacyGroupCombinationsCopy() {
+		seenChannelIDs := make(map[int]struct{}, len(routes))
+		for _, channelID := range routes {
+			if _, seen := seenChannelIDs[channelID]; seen {
+				continue
+			}
+			seenChannelIDs[channelID] = struct{}{}
+			if stat, ok := channelStats[channelID]; ok {
+				mergeJuiceStat(combinationGroup, stat)
+			}
 		}
 	}
 	return stats, nil
@@ -1099,13 +1316,9 @@ func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 		}
 	}
 
-	type groupProviderBalance struct {
-		balance   float64
-		available bool
-		hasLuna   bool
-	}
-
 	groupProviders := make(map[string]map[string]groupProviderBalance)
+	channelProviderKeys := make(map[int]string, len(channels))
+	channelProviderBalances := make(map[int]groupProviderBalance, len(channels))
 	for _, channel := range channels {
 		groups := channel.GetGroups()
 		if len(groups) == 0 {
@@ -1125,6 +1338,12 @@ func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 		}
 		balanceAvailable := balance > 0 && balanceUpdatedTime > 0 && !math.IsNaN(balance) && !math.IsInf(balance, 0)
 		hasLuna := channel.SupportsMappedModel(groupHealthLunaModel)
+		channelProviderKeys[channel.Id] = providerKey
+		channelProviderBalances[channel.Id] = groupProviderBalance{
+			balance:   balance,
+			available: balanceAvailable,
+			hasLuna:   hasLuna,
+		}
 		for _, groupName := range groups {
 			groupName = strings.TrimSpace(groupName)
 			if groupName == "" {
@@ -1150,6 +1369,49 @@ func GetGroupProviderStats() (map[string]GroupProviderStats, error) {
 			existing.available = existing.available && balanceAvailable
 			existing.hasLuna = existing.hasLuna || hasLuna
 			providers[providerKey] = existing
+		}
+	}
+
+	mergeProvider := func(groupName string, providerKey string, provider groupProviderBalance) {
+		providers := groupProviders[groupName]
+		if providers == nil {
+			providers = make(map[string]groupProviderBalance)
+			groupProviders[groupName] = providers
+		}
+		existing, ok := providers[providerKey]
+		if !ok {
+			providers[providerKey] = provider
+			return
+		}
+		if provider.balance < existing.balance {
+			existing.balance = provider.balance
+		}
+		existing.available = existing.available && provider.available
+		existing.hasLuna = existing.hasLuna || provider.hasLuna
+		providers[providerKey] = existing
+	}
+	for combinationGroup, members := range ratio_setting.GetGroupCombinationsCopy() {
+		for _, member := range members {
+			if member.Group == combinationGroup {
+				continue
+			}
+			for providerKey, provider := range groupProviders[member.Group] {
+				mergeProvider(combinationGroup, providerKey, provider)
+			}
+		}
+	}
+	for combinationGroup, routes := range ratio_setting.GetLegacyGroupCombinationsCopy() {
+		seenChannelIDs := make(map[int]struct{}, len(routes))
+		for _, channelID := range routes {
+			if _, seen := seenChannelIDs[channelID]; seen {
+				continue
+			}
+			seenChannelIDs[channelID] = struct{}{}
+			provider, ok := channelProviderBalances[channelID]
+			if !ok {
+				continue
+			}
+			mergeProvider(combinationGroup, channelProviderKeys[channelID], provider)
 		}
 	}
 

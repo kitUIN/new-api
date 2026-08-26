@@ -54,7 +54,7 @@ func setupQQOpenControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.PerfMetricBucket{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.PerfMetricBucket{}, &model.PerfGroupHealthMetricBucket{}); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}
 

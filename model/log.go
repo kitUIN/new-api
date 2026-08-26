@@ -278,6 +278,9 @@ func recordRelayPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInfo, sam
 	if strings.TrimSpace(sample.Group) == "" {
 		sample.Group = relayInfo.UsingGroup
 	}
+	if strings.TrimSpace(sample.EntryGroup) == "" {
+		sample.EntryGroup = relayInfo.TokenGroup
+	}
 	if relayInfo.StartTime.IsZero() {
 		return
 	}

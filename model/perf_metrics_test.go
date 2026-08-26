@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -429,6 +430,100 @@ func TestGetPerfGroupHealthSummaryAggregatesGroupsAndTenMinuteBuckets(t *testing
 	require.Equal(t, "ok", vipBucket.Status)
 }
 
+func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+	})
+
+	const combinationGroup = "codex-pro正价"
+	const primaryGroup = "codex-pro-正价"
+	const lunaGroup = "codex-plus-luna"
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(
+		`{"codex-pro正价":1,"codex-pro-正价":1,"codex-plus-luna":1}`,
+	))
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(
+		`{"codex-pro正价":"Combination","codex-pro-正价":"Primary","codex-plus-luna":"Luna"}`,
+	))
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
+		`{"codex-pro正价":[{"group":"codex-pro-正价","models":["gpt-5.6-sol"]},{"group":"codex-plus-luna","models":["gpt-5.6-luna"]}]}`,
+	))
+	require.NoError(t, DB.Create([]Channel{
+		{
+			Id: 1, Status: common.ChannelStatusEnabled, Key: "primary-key",
+			Group: primaryGroup, Models: JuiceTestModel,
+			Balance: 8, BalanceUpdatedTime: 100, Juice: "0.8", JuiceUpdatedTime: 100,
+		},
+		{
+			Id: 2, Status: common.ChannelStatusEnabled, Key: "luna-key",
+			Group: lunaGroup, Models: groupHealthLunaModel + "," + JuiceTestModel,
+			Balance: 5, BalanceUpdatedTime: 100, Juice: "0.5", JuiceUpdatedTime: 200,
+		},
+	}).Error)
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{
+		Enabled:       true,
+		BucketTime:    "10min",
+		FlushInterval: 5,
+	})
+
+	start := time.Now().Add(-time.Second)
+	RecordRelayPerfMetric(nil, &relaycommon.RelayInfo{
+		OriginModelName: JuiceTestModel,
+		TokenGroup:      combinationGroup,
+		UsingGroup:      primaryGroup,
+		StartTime:       start,
+	}, PerfMetricSample{Success: true})
+	RecordRelayPerfMetric(nil, &relaycommon.RelayInfo{
+		OriginModelName: groupHealthLunaModel,
+		TokenGroup:      combinationGroup,
+		UsingGroup:      lunaGroup,
+		StartTime:       start,
+	}, PerfMetricSample{Success: false})
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: time.Now().Unix(),
+		ModelName: JuiceTestModel,
+		Group:     primaryGroup,
+		Success:   true,
+	})
+	require.NoError(t, FlushPerfMetrics())
+
+	summary, err := GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	combination := requirePerfGroupHealth(t, summary.Groups, combinationGroup)
+	require.EqualValues(t, 2, combination.ProviderCount)
+	require.True(t, combination.BalanceAvailable)
+	require.True(t, combination.HasLuna)
+	require.Equal(t, "0.5", combination.Juice)
+	require.EqualValues(t, 2, combination.RequestCount)
+	require.Equal(t, 50.0, combination.SuccessRate)
+
+	primary := requirePerfGroupHealth(t, summary.Groups, primaryGroup)
+	require.EqualValues(t, 2, primary.RequestCount)
+	require.Equal(t, 100.0, primary.SuccessRate)
+	luna := requirePerfGroupHealth(t, summary.Groups, lunaGroup)
+	require.EqualValues(t, 1, luna.RequestCount)
+	require.Equal(t, 0.0, luna.SuccessRate)
+
+	modelSummary, err := GetPerfMetricsSummary(24, 10)
+	require.NoError(t, err)
+	var totalRequests int64
+	for _, modelSummary := range modelSummary.Models {
+		totalRequests += modelSummary.RequestCount
+	}
+	require.EqualValues(t, 3, totalRequests)
+
+	var entryBucket PerfGroupHealthMetricBucket
+	require.NoError(t, LOG_DB.Where(commonGroupCol+" = ?", combinationGroup).First(&entryBucket).Error)
+	require.EqualValues(t, 2, entryBucket.RequestCount)
+	require.EqualValues(t, 1, entryBucket.SuccessCount)
+}
+
 func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
@@ -833,6 +928,20 @@ func TestCleanupPerfMetricsDeletesExpiredBuckets(t *testing.T) {
 			RequestCount:  1,
 		},
 	}).Error)
+	require.NoError(t, LOG_DB.Create([]PerfGroupHealthMetricBucket{
+		{
+			BucketStart:   now - int64(48*time.Hour.Seconds()),
+			BucketSeconds: 3600,
+			Group:         "old-combination",
+			RequestCount:  1,
+		},
+		{
+			BucketStart:   now,
+			BucketSeconds: 3600,
+			Group:         "new-combination",
+			RequestCount:  1,
+		},
+	}).Error)
 
 	require.NoError(t, CleanupPerfMetrics(1))
 
@@ -840,6 +949,10 @@ func TestCleanupPerfMetricsDeletesExpiredBuckets(t *testing.T) {
 	require.NoError(t, LOG_DB.Model(&PerfMetricBucket{}).Where("model_name = ?", "old-model").Count(&count).Error)
 	require.Zero(t, count)
 	require.NoError(t, LOG_DB.Model(&PerfMetricBucket{}).Where("model_name = ?", "new-model").Count(&count).Error)
+	require.EqualValues(t, 1, count)
+	require.NoError(t, LOG_DB.Model(&PerfGroupHealthMetricBucket{}).Where(commonGroupCol+" = ?", "old-combination").Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, LOG_DB.Model(&PerfGroupHealthMetricBucket{}).Where(commonGroupCol+" = ?", "new-combination").Count(&count).Error)
 	require.EqualValues(t, 1, count)
 }
 

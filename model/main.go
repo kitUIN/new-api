@@ -274,6 +274,7 @@ func migrateDB() error {
 		&Ability{},
 		&Log{},
 		&PerfMetricBucket{},
+		&PerfGroupHealthMetricBucket{},
 		&GroupRatioHistory{},
 		&GroupJuiceHistory{},
 		&Midjourney{},
@@ -340,6 +341,7 @@ func migrateDBFast() error {
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},
 		{&PerfMetricBucket{}, "PerfMetricBucket"},
+		{&PerfGroupHealthMetricBucket{}, "PerfGroupHealthMetricBucket"},
 		{&GroupRatioHistory{}, "GroupRatioHistory"},
 		{&GroupJuiceHistory{}, "GroupJuiceHistory"},
 		{&Midjourney{}, "Midjourney"},
@@ -409,7 +411,7 @@ func migrateLOGDB() error {
 	if err = migratePerfMetricBucketLatencyCount(); err != nil {
 		return err
 	}
-	if err = LOG_DB.AutoMigrate(&Log{}, &RequestDetail{}, &PerfMetricBucket{}); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &RequestDetail{}, &PerfMetricBucket{}, &PerfGroupHealthMetricBucket{}); err != nil {
 		return err
 	}
 	return nil
