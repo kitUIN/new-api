@@ -201,6 +201,8 @@ export async function getUserGroups(): Promise<{
       ratio: number | string
       is_auto_group?: boolean
       auto_group_type?: string
+      models?: string[]
+      is_combination_group?: boolean
       ratio_range?: GroupRatioRange
     }
   >
@@ -211,10 +213,21 @@ export async function getUserGroups(): Promise<{
     ratio: number | string
     is_auto_group?: boolean
     auto_group_type?: string
+    models?: string[]
+    is_combination_group?: boolean
     ratio_range?: GroupRatioRange
   }>
 }> {
   const res = await api.get('/api/user/self/groups')
+  return res.data
+}
+
+export async function getUserGroupsWithModels(): ReturnType<
+  typeof getUserGroups
+> {
+  const res = await api.get('/api/user/self/groups', {
+    params: { include_models: true },
+  })
   return res.data
 }
 

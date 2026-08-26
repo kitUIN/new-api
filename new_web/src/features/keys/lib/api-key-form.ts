@@ -24,7 +24,11 @@ import {
   normalizeRuleAutoGroupName,
 } from '@/lib/rule-auto-groups'
 import { DEFAULT_GROUP } from '../constants'
-import { type ApiKeyFormData, type ApiKey } from '../types'
+import {
+  type ApiKeyFormData,
+  type ApiKey,
+  type ModelGroupCombinationMember,
+} from '../types'
 
 // ============================================================================
 // Form Schema
@@ -43,7 +47,12 @@ export function getApiKeyFormSchema(t: TFunction) {
       group: z.string().optional(),
       cross_group_retry: z.boolean().optional(),
       auto_group_mode: z.enum(['low_ratio', 'balanced']).optional(),
-      model_group_combination_groups: z.array(z.string()),
+      model_group_combination_groups: z.array(
+        z.object({
+          group: z.string(),
+          models: z.array(z.string()),
+        })
+      ),
       session_group_failover_enabled: z.boolean().optional(),
       session_failover_groups: z.array(z.string()),
       session_failover_threshold: z.number().min(1),
@@ -63,9 +72,29 @@ export function getApiKeyFormSchema(t: TFunction) {
       }
 
       if (data.group_mode === 'combination') {
-        const groups = data.model_group_combination_groups.map((group) =>
-          group.trim()
-        )
+        const members = data.model_group_combination_groups.map((member) => ({
+          group: member.group.trim(),
+          models: member.models.map((model) => model.trim()),
+        }))
+        const groups = members.map((member) => member.group)
+        if (members.some((member) => member.models.length === 0)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['model_group_combination_groups'],
+            message: t('请为每个模型组合分组至少选择一个模型'),
+          })
+        }
+        if (
+          members.some(
+            (member) => new Set(member.models).size !== member.models.length
+          )
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['model_group_combination_groups'],
+            message: t('模型组合分组内不能选择重复模型'),
+          })
+        }
         if (groups.length < 2) {
           ctx.addIssue({
             code: 'custom',
@@ -160,8 +189,11 @@ export function transformFormDataToPayload(
   const failoverGroups = data.session_failover_groups.map((group) =>
     group.trim()
   )
-  const combinationGroups = data.model_group_combination_groups.map((group) =>
-    group.trim()
+  const combinationGroups = data.model_group_combination_groups.map(
+    (member) => ({
+      group: member.group.trim(),
+      models: member.models.map((model) => model.trim()),
+    })
   )
   const combinationEnabled =
     data.group_mode === 'combination' && combinationGroups.length >= 2
@@ -170,7 +202,7 @@ export function transformFormDataToPayload(
     !!data.session_group_failover_enabled &&
     failoverGroups.length >= 2
   const requestedGroup = combinationEnabled
-    ? combinationGroups[0]
+    ? combinationGroups[0].group
     : failoverEnabled
       ? failoverGroups[0]
       : data.group || ''
@@ -227,8 +259,34 @@ export function parseSessionFailoverGroups(raw?: string | null): string[] {
 
 export function parseModelGroupCombinationGroups(
   raw?: string | null
-): string[] {
-  return parseSessionFailoverGroups(raw)
+): ModelGroupCombinationMember[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((member): ModelGroupCombinationMember[] => {
+      if (typeof member === 'string') {
+        const group = member.trim()
+        return group ? [{ group, models: [] }] : []
+      }
+      if (!member || typeof member !== 'object' || Array.isArray(member)) {
+        return []
+      }
+      const group = (member as { group?: unknown }).group
+      const models = (member as { models?: unknown }).models
+      if (typeof group !== 'string' || !Array.isArray(models)) return []
+      return [
+        {
+          group: group.trim(),
+          models: models.flatMap((model) =>
+            typeof model === 'string' && model.trim() ? [model.trim()] : []
+          ),
+        },
+      ]
+    })
+  } catch {
+    return []
+  }
 }
 
 /**

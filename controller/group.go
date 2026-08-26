@@ -44,6 +44,14 @@ func GetUserGroups(c *gin.Context) {
 		})
 		return
 	}
+	if c.Query("include_models") == "true" {
+		for i := range groups {
+			if groups[i].IsAutoGroup || groups[i].IsCombination {
+				continue
+			}
+			groups[i].Models = model.GetGroupEnabledModels(groups[i].Name)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

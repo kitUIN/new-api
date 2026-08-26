@@ -132,6 +132,11 @@ export interface ApiKeyFormData {
   session_failover_threshold: number
 }
 
+export type ModelGroupCombinationMember = {
+  group: string
+  models: string[]
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

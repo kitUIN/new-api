@@ -34,14 +34,14 @@ func TestNormalizeTokenModelGroupCombination(t *testing.T) {
 		CrossGroupRetry:              true,
 		AutoGroupMode:                RuleAutoGroupModeBalanced,
 		ModelGroupCombinationEnabled: true,
-		ModelGroupCombinationGroups:  `[" group-a ","group-b"]`,
+		ModelGroupCombinationGroups:  `[{"group":" group-a ","models":[" shared-model "]},{"group":"group-b","models":["deepseek-v4-flash"]}]`,
 	}
 
 	require.NoError(t, NormalizeTokenModelGroupCombination(token, ""))
 	require.Equal(t, "group-a", token.Group)
 	require.False(t, token.CrossGroupRetry)
 	require.Empty(t, token.AutoGroupMode)
-	require.JSONEq(t, `["group-a","group-b"]`, token.ModelGroupCombinationGroups)
+	require.JSONEq(t, `[{"group":"group-a","models":["shared-model"]},{"group":"group-b","models":["deepseek-v4-flash"]}]`, token.ModelGroupCombinationGroups)
 }
 
 func TestNormalizeTokenModelGroupCombinationRejectsInvalidConfiguration(t *testing.T) {
@@ -51,14 +51,16 @@ func TestNormalizeTokenModelGroupCombinationRejectsInvalidConfiguration(t *testi
 		groups   string
 		failover bool
 	}{
-		{name: "single group", groups: `["group-a"]`},
-		{name: "duplicate group", groups: `["group-a","group-a"]`},
-		{name: "auto group", groups: `["group-a","auto"]`},
-		{name: "rule auto group", groups: `["group-a","自动分组:codex"]`},
-		{name: "unauthorized group", groups: `["group-a","missing"]`},
-		{name: "deprecated group", groups: `["group-a","deprecated"]`},
+		{name: "single group", groups: `[{"group":"group-a","models":["shared-model"]}]`},
+		{name: "duplicate group", groups: `[{"group":"group-a","models":["shared-model"]},{"group":"group-a","models":["shared-model"]}]`},
+		{name: "auto group", groups: `[{"group":"group-a","models":["shared-model"]},{"group":"auto","models":["shared-model"]}]`},
+		{name: "rule auto group", groups: `[{"group":"group-a","models":["shared-model"]},{"group":"自动分组:codex","models":["shared-model"]}]`},
+		{name: "unauthorized group", groups: `[{"group":"group-a","models":["shared-model"]},{"group":"missing","models":["shared-model"]}]`},
+		{name: "deprecated group", groups: `[{"group":"group-a","models":["shared-model"]},{"group":"deprecated","models":["shared-model"]}]`},
+		{name: "missing models", groups: `[{"group":"group-a","models":[]},{"group":"group-b","models":["shared-model"]}]`},
+		{name: "duplicate models", groups: `[{"group":"group-a","models":["shared-model","shared-model"]},{"group":"group-b","models":["shared-model"]}]`},
 		{name: "invalid json", groups: `{`},
-		{name: "failover enabled", groups: `["group-a","group-b"]`, failover: true},
+		{name: "failover enabled", groups: `[{"group":"group-a","models":["shared-model"]},{"group":"group-b","models":["shared-model"]}]`, failover: true},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +73,23 @@ func TestNormalizeTokenModelGroupCombinationRejectsInvalidConfiguration(t *testi
 			require.Error(t, NormalizeTokenModelGroupCombination(token, ""))
 		})
 	}
+}
+
+func TestNormalizeTokenModelGroupCombinationRejectsNestedCombination(t *testing.T) {
+	setupModelGroupCombinationSettings(t)
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
+		`{"group-c":[{"group":"group-a","models":["shared-model"]},{"group":"group-b","models":["shared-model"]}]}`,
+	))
+
+	token := &model.Token{
+		ModelGroupCombinationEnabled: true,
+		ModelGroupCombinationGroups:  `[{"group":"group-a","models":["shared-model"]},{"group":"group-c","models":["shared-model"]}]`,
+	}
+	require.ErrorContains(t, NormalizeTokenModelGroupCombination(token, ""), "模型组合不支持嵌套组合分组")
 }
 
 func TestResolveModelGroupCombinationUsesConfiguredOrderAndAvailability(t *testing.T) {
@@ -100,17 +119,18 @@ func TestResolveModelGroupCombinationUsesConfiguredOrderAndAvailability(t *testi
 		{Group: "group-a", Model: "shared-model", ChannelId: 1, Enabled: true},
 		{Group: "group-b", Model: "shared-model", ChannelId: 2, Enabled: true},
 		{Group: "group-b", Model: "deepseek-v4-flash", ChannelId: 2, Enabled: true},
+		{Group: "group-c", Model: "shared-model", ChannelId: 3, Enabled: true},
 	}).Error)
 
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationEnabled, true)
-	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationGroups, `["group-a","group-b"]`)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationGroups, `[{"group":"group-a","models":["gpt-5.6"]},{"group":"group-b","models":["shared-model","deepseek-v4-flash"]},{"group":"group-c","models":["shared-model"]}]`)
 
 	group, enabled, err := ResolveModelGroupCombination(ctx, "shared-model")
 	require.NoError(t, err)
 	require.True(t, enabled)
-	require.Equal(t, "group-a", group)
-	require.Equal(t, "group-a", common.GetContextKeyString(ctx, constant.ContextKeyTokenGroup))
+	require.Equal(t, "group-b", group)
+	require.Equal(t, "group-b", common.GetContextKeyString(ctx, constant.ContextKeyTokenGroup))
 
 	group, enabled, err = ResolveModelGroupCombination(ctx, "deepseek-v4-flash")
 	require.NoError(t, err)
@@ -120,4 +140,46 @@ func TestResolveModelGroupCombinationUsesConfiguredOrderAndAvailability(t *testi
 	_, enabled, err = ResolveModelGroupCombination(ctx, "missing-model")
 	require.True(t, enabled)
 	require.Error(t, err)
+}
+
+func TestResolveModelGroupCombinationAcceptsLegacyGroupArray(t *testing.T) {
+	setupModelGroupCombinationSettings(t)
+	setupModelGroupCombinationDatabase(t)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationGroups, `["group-a","group-b"]`)
+
+	group, enabled, err := ResolveModelGroupCombination(ctx, "shared-model")
+	require.NoError(t, err)
+	require.True(t, enabled)
+	require.Equal(t, "group-b", group)
+}
+
+func setupModelGroupCombinationDatabase(t *testing.T) {
+	t.Helper()
+	originalDB := model.DB
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+	})
+
+	common.MemoryCacheEnabled = false
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+	require.NoError(t, db.AutoMigrate(&model.Ability{}))
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "group-b", Model: "shared-model", ChannelId: 2, Enabled: true,
+	}).Error)
 }

@@ -14,7 +14,9 @@ type UserUsableGroupInfo struct {
 	Label         string                   `json:"label"`
 	Ratio         interface{}              `json:"ratio"`
 	Desc          string                   `json:"desc"`
+	Models        []string                 `json:"models,omitempty"`
 	IsAutoGroup   bool                     `json:"is_auto_group"`
+	IsCombination bool                     `json:"is_combination_group,omitempty"`
 	AutoGroupType string                   `json:"auto_group_type,omitempty"`
 	RatioRange    *RuleAutoGroupRatioRange `json:"ratio_range,omitempty"`
 }
@@ -64,11 +66,12 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 		}
 		ratio, ratioRange := getGroupCombinationRatio(userGroup, groupName)
 		groups = append(groups, UserUsableGroupInfo{
-			Name:       groupName,
-			Label:      groupName,
-			Ratio:      ratio,
-			Desc:       desc,
-			RatioRange: ratioRange,
+			Name:          groupName,
+			Label:         groupName,
+			Ratio:         ratio,
+			Desc:          desc,
+			IsCombination: ratio_setting.IsGroupCombination(groupName),
+			RatioRange:    ratioRange,
 		})
 	}
 
@@ -113,14 +116,19 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 func UserUsableGroupInfosToMap(groups []UserUsableGroupInfo) map[string]map[string]interface{} {
 	usableGroups := make(map[string]map[string]interface{}, len(groups))
 	for _, group := range groups {
-		usableGroups[group.Name] = map[string]interface{}{
-			"label":           group.Label,
-			"ratio":           group.Ratio,
-			"desc":            group.Desc,
-			"is_auto_group":   group.IsAutoGroup,
-			"auto_group_type": group.AutoGroupType,
-			"ratio_range":     group.RatioRange,
+		groupInfo := map[string]interface{}{
+			"label":                group.Label,
+			"ratio":                group.Ratio,
+			"desc":                 group.Desc,
+			"is_auto_group":        group.IsAutoGroup,
+			"is_combination_group": group.IsCombination,
+			"auto_group_type":      group.AutoGroupType,
+			"ratio_range":          group.RatioRange,
 		}
+		if group.Models != nil {
+			groupInfo["models"] = group.Models
+		}
+		usableGroups[group.Name] = groupInfo
 	}
 	return usableGroups
 }

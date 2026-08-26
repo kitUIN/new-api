@@ -59,7 +59,7 @@ func newModelCombinationListContext(t *testing.T) (*gin.Context, *httptest.Respo
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationEnabled, true)
-	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationGroups, `["group-a","group-b"]`)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationGroups, `[{"group":"group-a","models":["gpt-5.6"]},{"group":"group-b","models":["deepseek-v4-flash","shared-model"]}]`)
 	return ctx, recorder
 }
 
@@ -74,7 +74,7 @@ func decodeModelIDs(t *testing.T, recorder *httptest.ResponseRecorder) []string 
 	return ids
 }
 
-func TestListModelsReturnsCombinationUnion(t *testing.T) {
+func TestListModelsReturnsSelectedCombinationUnion(t *testing.T) {
 	setupModelGroupCombinationControllerTest(t)
 	ctx, recorder := newModelCombinationListContext(t)
 

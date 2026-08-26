@@ -152,7 +152,7 @@ function ApiKeysMobileList({
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
-        const combinationGroups = parseModelGroupCombinationGroups(
+        const combinationMembers = parseModelGroupCombinationGroups(
           apiKey.model_group_combination_groups
         )
         const runtime = apiKey.api_key_group_failover_runtime
@@ -162,7 +162,7 @@ function ApiKeysMobileList({
           apiKey.session_group_failover_enabled && failoverGroups.length >= 2
         const showCombinationGroups =
           apiKey.model_group_combination_enabled &&
-          combinationGroups.length >= 2
+          combinationMembers.length >= 2
 
         return (
           <div
@@ -220,7 +220,7 @@ function ApiKeysMobileList({
                 <div className='ml-auto flex w-max justify-end'>
                   {showCombinationGroups ? (
                     <ModelCombinationGroupsCell
-                      groups={combinationGroups}
+                      members={combinationMembers}
                       groupRatios={groupRatios}
                       compact
                     />

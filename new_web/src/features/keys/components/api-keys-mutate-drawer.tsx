@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from '@/lib/api'
+import { getUserGroupsWithModels } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import {
   getRuleAutoGroupLabel,
@@ -98,7 +98,7 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
-import { type ApiKey } from '../types'
+import { type ApiKey, type ModelGroupCombinationMember } from '../types'
 import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
@@ -117,7 +117,9 @@ type GroupSourceEntry = [
     desc: string
     ratio: ApiKeyGroupOption['ratio']
     is_auto_group?: boolean
+    is_combination_group?: boolean
     auto_group_type?: string
+    models?: string[]
   },
 ]
 
@@ -215,17 +217,10 @@ export function ApiKeysMutateDrawer({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
-  // Fetch models
-  const { data: modelsData } = useQuery({
-    queryKey: ['user-models'],
-    queryFn: getUserModels,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  })
-
   // Fetch groups
   const { data: groupsData } = useQuery({
-    queryKey: ['user-groups'],
-    queryFn: getUserGroups,
+    queryKey: ['user-groups', 'with-models'],
+    queryFn: getUserGroupsWithModels,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -248,49 +243,79 @@ export function ApiKeysMutateDrawer({
     retry: false,
   })
 
-  const models = modelsData?.data || []
-  const groupsRaw = groupsData?.data || {}
-  const groupHealthMap = new Map(
-    (groupHealthData?.data.groups ?? []).map((group) => [group.group, group])
-  )
-  const groupsSource: GroupSourceEntry[] = Array.isArray(groupsData?.groups)
-    ? groupsData.groups.map((group) => [
+  const groupsSource = useMemo<GroupSourceEntry[]>(() => {
+    if (Array.isArray(groupsData?.groups)) {
+      return groupsData.groups.map((group) => [
         group.name,
         {
           label: group.label,
           desc: group.desc,
           ratio: group.ratio,
           is_auto_group: group.is_auto_group,
+          is_combination_group: group.is_combination_group,
           auto_group_type: group.auto_group_type,
+          models: group.models,
         },
       ])
-    : Object.entries(groupsRaw).sort(([aKey, a], [bKey, b]) =>
-        compareGroupOptionsByRatio(
-          { value: aKey, label: a.label || aKey, ratio: a.ratio },
-          { value: bKey, label: b.label || bKey, ratio: b.ratio }
-        )
-      )
-  const groups: ApiKeyGroupOption[] = groupsSource.map(([key, info]) => {
-    const health = groupHealthMap.get(key)
-    return {
-      value: key,
-      label: info.is_auto_group
-        ? getRuleAutoGroupLabel(key, info.label || key, t)
-        : info.label || key,
-      desc: info.desc || key,
-      ratio: info.ratio,
-      isAutoGroup: info.is_auto_group,
-      autoGroupType: info.auto_group_type,
-      health: {
-        availability24h:
-          health && health.request_count > 0 ? health.success_rate : null,
-        availability2h: calculateWindowAvailability(health, 120),
-        ...calculateRecentAvailability(health),
-      },
     }
-  })
+    return Object.entries(groupsData?.data ?? {}).sort(([aKey, a], [bKey, b]) =>
+      compareGroupOptionsByRatio(
+        { value: aKey, label: a.label || aKey, ratio: a.ratio },
+        { value: bKey, label: b.label || bKey, ratio: b.ratio }
+      )
+    )
+  }, [groupsData])
+  const groupHealthMap = useMemo(
+    () =>
+      new Map(
+        (groupHealthData?.data.groups ?? []).map((group) => [
+          group.group,
+          group,
+        ])
+      ),
+    [groupHealthData]
+  )
+  const models = useMemo(
+    () =>
+      Array.from(
+        new Set(groupsSource.flatMap(([, info]) => info.models ?? []))
+      ).sort(),
+    [groupsSource]
+  )
+  const groups = useMemo<ApiKeyGroupOption[]>(
+    () =>
+      groupsSource.map(([key, info]) => {
+        const health = groupHealthMap.get(key)
+        return {
+          value: key,
+          label: info.is_auto_group
+            ? getRuleAutoGroupLabel(key, info.label || key, t)
+            : info.label || key,
+          desc: info.desc || key,
+          ratio: info.ratio,
+          isAutoGroup: info.is_auto_group,
+          isCombinationGroup: info.is_combination_group,
+          autoGroupType: info.auto_group_type,
+          models: [...(info.models ?? [])].sort(),
+          health: {
+            availability24h:
+              health && health.request_count > 0 ? health.success_rate : null,
+            availability2h: calculateWindowAvailability(health, 120),
+            ...calculateRecentAvailability(health),
+          },
+        }
+      }),
+    [groupHealthMap, groupsSource, t]
+  )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
-  const concreteGroups = groups.filter((g) => !g.isAutoGroup)
+  const concreteGroups = useMemo(
+    () => groups.filter((group) => !group.isAutoGroup),
+    [groups]
+  )
+  const modelCombinationGroupOptions = useMemo(
+    () => concreteGroups.filter((group) => !group.isCombinationGroup),
+    [concreteGroups]
+  )
   const schema = getApiKeyFormSchema(t)
 
   const form = useForm<ApiKeyFormValues>({
@@ -334,6 +359,39 @@ export function ApiKeysMutateDrawer({
       }
     }
   }, [groups, form])
+
+  useEffect(() => {
+    if (!open || !editingApiKey?.model_group_combination_enabled) return
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(editingApiKey.model_group_combination_groups || '')
+    } catch {
+      return
+    }
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length === 0 ||
+      !parsed.every((group) => typeof group === 'string')
+    ) {
+      return
+    }
+
+    const modelsByGroup = new Map(
+      modelCombinationGroupOptions.map((group) => [
+        group.value,
+        group.models ?? [],
+      ])
+    )
+    if (modelsByGroup.size === 0) return
+    form.setValue(
+      'model_group_combination_groups',
+      parsed.map((group) => ({
+        group: group.trim(),
+        models: modelsByGroup.get(group.trim()) ?? [],
+      })),
+      { shouldDirty: false, shouldValidate: false }
+    )
+  }, [editingApiKey, form, modelCombinationGroupOptions, open])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
@@ -428,7 +486,7 @@ export function ApiKeysMutateDrawer({
   const unlimitedQuota = form.watch('unlimited_quota')
   const sessionFailoverEnabled = form.watch('session_group_failover_enabled')
   const sessionFailoverGroups = form.watch('session_failover_groups') || []
-  const combinationGroups = form.watch('model_group_combination_groups') || []
+  const combinationMembers = form.watch('model_group_combination_groups') || []
 
   useEffect(() => {
     if (!selectedRuleAutoGroup) return
@@ -461,21 +519,25 @@ export function ApiKeysMutateDrawer({
     }
   }
 
-  const setCombinationGroups = (nextGroups: string[]) => {
-    form.setValue('model_group_combination_groups', nextGroups, {
+  const setCombinationGroups = (nextMembers: ModelGroupCombinationMember[]) => {
+    form.setValue('model_group_combination_groups', nextMembers, {
       shouldDirty: true,
       shouldValidate: true,
     })
-    if (nextGroups.length > 0) {
-      form.setValue('group', nextGroups[0], { shouldDirty: true })
+    if (nextMembers.length > 0) {
+      form.setValue('group', nextMembers[0].group, { shouldDirty: true })
     }
   }
 
   const getCombinationOptions = (index: number) => {
     const used = new Set(
-      combinationGroups.filter((_, groupIndex) => groupIndex !== index)
+      combinationMembers
+        .filter((_, groupIndex) => groupIndex !== index)
+        .map((member) => member.group)
     )
-    return concreteGroups.filter((group) => !used.has(group.value))
+    return modelCombinationGroupOptions.filter(
+      (group) => !used.has(group.value)
+    )
   }
 
   const handleGroupModeChange = (mode: 'single' | 'combination') => {
@@ -491,33 +553,39 @@ export function ApiKeysMutateDrawer({
       shouldDirty: true,
     })
     form.setValue('session_failover_groups', [], { shouldDirty: true })
-    if (combinationGroups.length >= 2) {
-      setCombinationGroups(combinationGroups)
+    if (combinationMembers.length >= 2) {
+      setCombinationGroups(combinationMembers)
       return
     }
-    const primary = concreteGroups.some(
+    const primary = modelCombinationGroupOptions.some(
       (group) => group.value === selectedGroup
     )
       ? selectedGroup
-      : concreteGroups[0]?.value
-    const secondary = concreteGroups.find((group) => group.value !== primary)
+      : modelCombinationGroupOptions[0]?.value
+    const secondary = modelCombinationGroupOptions.find(
+      (group) => group.value !== primary
+    )
     setCombinationGroups(
-      [primary, secondary?.value].filter(
-        (group): group is string => group !== undefined && group !== ''
-      )
+      [primary, secondary?.value]
+        .filter((group): group is string => group !== undefined && group !== '')
+        .map((group) => ({ group, models: [] }))
     )
   }
 
   const handleAddCombinationGroup = () => {
-    const next = concreteGroups.find(
-      (group) => !combinationGroups.includes(group.value)
+    const next = modelCombinationGroupOptions.find(
+      (group) =>
+        !combinationMembers.some((member) => member.group === group.value)
     )
     if (!next) return
-    setCombinationGroups([...combinationGroups, next.value])
+    setCombinationGroups([
+      ...combinationMembers,
+      { group: next.value, models: [] },
+    ])
   }
 
   const handleMoveCombinationGroup = (index: number, direction: -1 | 1) => {
-    const next = [...combinationGroups]
+    const next = [...combinationMembers]
     const target = index + direction
     if (target < 0 || target >= next.length) return
     ;[next[index], next[target]] = [next[target], next[index]]
@@ -526,8 +594,27 @@ export function ApiKeysMutateDrawer({
 
   const handleRemoveCombinationGroup = (index: number) => {
     setCombinationGroups(
-      combinationGroups.filter((_, groupIndex) => groupIndex !== index)
+      combinationMembers.filter((_, groupIndex) => groupIndex !== index)
     )
+  }
+
+  const handleUpdateCombinationGroup = (index: number, group: string) => {
+    const supportedModels = new Set(
+      modelCombinationGroupOptions.find((option) => option.value === group)
+        ?.models ?? []
+    )
+    const next = [...combinationMembers]
+    next[index] = {
+      group,
+      models: next[index].models.filter((model) => supportedModels.has(model)),
+    }
+    setCombinationGroups(next)
+  }
+
+  const handleUpdateCombinationModels = (index: number, models: string[]) => {
+    const next = [...combinationMembers]
+    next[index] = { ...next[index], models }
+    setCombinationGroups(next)
   }
 
   const resetCombinationDragState = () => {
@@ -570,7 +657,7 @@ export function ApiKeysMutateDrawer({
       resetCombinationDragState()
       return
     }
-    const next = [...combinationGroups]
+    const next = [...combinationMembers]
     const [moved] = next.splice(draggedCombinationIndex, 1)
     let targetIndex = index
     if (draggedCombinationIndex < index) targetIndex -= 1
@@ -861,7 +948,8 @@ export function ApiKeysMutateDrawer({
                           size='sm'
                           onClick={handleAddCombinationGroup}
                           disabled={
-                            combinationGroups.length >= concreteGroups.length
+                            combinationMembers.length >=
+                            modelCombinationGroupOptions.length
                           }
                         >
                           <Plus className='size-4' />
@@ -869,15 +957,19 @@ export function ApiKeysMutateDrawer({
                         </Button>
                       </div>
                       <div className='flex flex-col gap-2'>
-                        {combinationGroups.map((group, index) => {
+                        {combinationMembers.map((member, index) => {
                           const isDragging = draggedCombinationIndex === index
                           const isDragOver =
                             dragOverCombinationIndex === index &&
                             draggedCombinationIndex !== null &&
                             draggedCombinationIndex !== index
+                          const selectedMemberGroup =
+                            modelCombinationGroupOptions.find(
+                              (group) => group.value === member.group
+                            )
                           return (
                             <div
-                              key={`${group}-${index}`}
+                              key={`${member.group}-${index}`}
                               onDragOver={(event) =>
                                 handleCombinationDragOver(event, index)
                               }
@@ -894,7 +986,7 @@ export function ApiKeysMutateDrawer({
                                 }
                               }}
                               className={cn(
-                                'border-border bg-muted/20 relative grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded-md border p-2 transition-[opacity,box-shadow,border-color,background-color] sm:flex',
+                                'border-border bg-muted/20 relative grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded-md border p-2 transition-[opacity,box-shadow,border-color,background-color]',
                                 isDragging && 'opacity-50',
                                 isDragOver &&
                                   dragOverCombinationPosition === 'before' &&
@@ -908,12 +1000,12 @@ export function ApiKeysMutateDrawer({
                                 type='button'
                                 variant='ghost'
                                 size='icon'
-                                draggable={combinationGroups.length > 1}
+                                draggable={combinationMembers.length > 1}
                                 onDragStart={(event) =>
                                   handleCombinationDragStart(event, index)
                                 }
                                 onDragEnd={resetCombinationDragState}
-                                disabled={combinationGroups.length <= 1}
+                                disabled={combinationMembers.length <= 1}
                                 className='cursor-grab active:cursor-grabbing'
                                 aria-label={t('Drag to reorder')}
                               >
@@ -925,19 +1017,33 @@ export function ApiKeysMutateDrawer({
                               >
                                 P{index}
                               </Badge>
-                              <div className='min-w-0 flex-1'>
+                              <div className='col-span-full min-w-0'>
                                 <ApiKeyGroupCombobox
                                   options={getCombinationOptions(index)}
-                                  value={group}
-                                  onValueChange={(value) => {
-                                    const next = [...combinationGroups]
-                                    next[index] = value
-                                    setCombinationGroups(next)
-                                  }}
+                                  value={member.group}
+                                  onValueChange={(value) =>
+                                    handleUpdateCombinationGroup(index, value)
+                                  }
                                   placeholder={t('Select a group')}
                                 />
                               </div>
-                              <div className='col-span-full flex shrink-0 items-center justify-end gap-1 sm:col-span-1'>
+                              <MultiSelect
+                                className='col-span-full min-w-0'
+                                options={(
+                                  selectedMemberGroup?.models ?? []
+                                ).map((model) => ({
+                                  label: model,
+                                  value: model,
+                                }))}
+                                selected={member.models}
+                                onChange={(models) =>
+                                  handleUpdateCombinationModels(index, models)
+                                }
+                                placeholder={t('Select models')}
+                                disabled={!selectedMemberGroup}
+                                maxVisibleChips={2}
+                              />
+                              <div className='col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1'>
                                 <Button
                                   type='button'
                                   variant='ghost'
@@ -958,7 +1064,7 @@ export function ApiKeysMutateDrawer({
                                     handleMoveCombinationGroup(index, 1)
                                   }
                                   disabled={
-                                    index === combinationGroups.length - 1
+                                    index === combinationMembers.length - 1
                                   }
                                   aria-label={t('Move down')}
                                 >
@@ -981,7 +1087,9 @@ export function ApiKeysMutateDrawer({
                         })}
                       </div>
                       <FormDescription>
-                        {t('请求将按优先级使用第一个支持所请求模型的分组。')}
+                        {t(
+                          '请求只会使用成员分组中已选择的模型；多个成员包含同一模型时，按优先级选择第一个有可用渠道的分组。'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

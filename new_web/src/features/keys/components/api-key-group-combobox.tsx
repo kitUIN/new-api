@@ -52,6 +52,8 @@ export type ApiKeyGroupOption = {
   ratio?: number | string
   isAutoGroup?: boolean
   autoGroupType?: string
+  models?: string[]
+  isCombinationGroup?: boolean
   health?: ApiKeyGroupHealth
 }
 

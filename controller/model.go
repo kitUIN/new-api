@@ -126,7 +126,7 @@ func ListModels(c *gin.Context, modelType int) {
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	combinationEnabled := common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled)
 	if combinationEnabled {
-		groups, err := service.GetModelGroupCombinationGroupsFromContext(c)
+		members, err := service.GetModelGroupCombinationMembersFromContext(c)
 		if err != nil {
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
@@ -134,7 +134,7 @@ func ListModels(c *gin.Context, modelType int) {
 			})
 			return
 		}
-		models := collectGroupModels(groups)
+		models := collectModelGroupCombinationModels(members)
 		if modelLimitEnable {
 			tokenModelLimit := getTokenModelLimit(c)
 			filtered := make([]string, 0, len(models))
@@ -265,11 +265,14 @@ func getTokenModelLimit(c *gin.Context) map[string]bool {
 	return limits
 }
 
-func collectGroupModels(groups []string) []string {
+func collectModelGroupCombinationModels(members []ratio_setting.GroupCombinationMember) []string {
 	models := make([]string, 0)
 	seen := make(map[string]struct{})
-	for _, group := range groups {
-		for _, modelName := range model.GetGroupEnabledModels(group) {
+	for _, member := range members {
+		for _, modelName := range member.Models {
+			if !model.HasAvailableChannelForGroupModel(member.Group, modelName) {
+				continue
+			}
 			if _, exists := seen[modelName]; exists {
 				continue
 			}

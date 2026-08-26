@@ -38,7 +38,7 @@ import {
   parseModelGroupCombinationGroups,
   parseSessionFailoverGroups,
 } from '../lib'
-import { type ApiKey } from '../types'
+import { type ApiKey, type ModelGroupCombinationMember } from '../types'
 import {
   ApiKeyCell,
   ModelLimitsCell,
@@ -154,15 +154,15 @@ export function FailoverGroupsCell({
 }
 
 export function ModelCombinationGroupsCell({
-  groups,
+  members,
   groupRatios,
   compact = false,
 }: {
-  groups: string[]
+  members: ModelGroupCombinationMember[]
   groupRatios: Record<string, number>
   compact?: boolean
 }) {
-  const displayedGroups = groups.slice(0, 3)
+  const displayedMembers = members.slice(0, 3)
 
   return (
     <span
@@ -171,9 +171,9 @@ export function ModelCombinationGroupsCell({
         compact ? 'min-w-max' : 'min-w-[18rem]'
       )}
     >
-      {displayedGroups.map((group, index) => (
+      {displayedMembers.map((member, index) => (
         <span
-          key={`${group}-${index}`}
+          key={`${member.group}-${index}`}
           className='inline-flex min-w-max items-center gap-1'
         >
           <StatusBadge
@@ -183,15 +183,15 @@ export function ModelCombinationGroupsCell({
             className='shrink-0'
           />
           <GroupBadge
-            group={group}
-            ratio={groupRatios[group]}
+            group={member.group}
+            ratio={groupRatios[member.group]}
             ratioColor='group'
           />
         </span>
       ))}
-      {groups.length > displayedGroups.length && (
+      {members.length > displayedMembers.length && (
         <StatusBadge
-          label={`+${groups.length - displayedGroups.length}`}
+          label={`+${members.length - displayedMembers.length}`}
           variant='neutral'
           copyable={false}
         />
@@ -352,7 +352,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const failoverGroups = parseSessionFailoverGroups(
           apiKey.session_failover_groups
         )
-        const combinationGroups = parseModelGroupCombinationGroups(
+        const combinationMembers = parseModelGroupCombinationGroups(
           apiKey.model_group_combination_groups
         )
         const runtime = apiKey.api_key_group_failover_runtime
@@ -361,7 +361,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
 
         if (
           apiKey.model_group_combination_enabled &&
-          combinationGroups.length >= 2
+          combinationMembers.length >= 2
         ) {
           return (
             <Tooltip>
@@ -371,7 +371,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                 }
               >
                 <ModelCombinationGroupsCell
-                  groups={combinationGroups}
+                  members={combinationMembers}
                   groupRatios={groupRatios}
                 />
               </TooltipTrigger>
@@ -379,10 +379,10 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                 <div className='flex flex-col gap-1 text-xs'>
                   <span>{t('模型组合')}</span>
                   <span>
-                    {combinationGroups
+                    {combinationMembers
                       .map(
-                        (combinationGroup, index) =>
-                          `P${index} ${combinationGroup}`
+                        (member, index) =>
+                          `P${index} ${member.group}: ${member.models.join(', ')}`
                       )
                       .join(' -> ')}
                   </span>
