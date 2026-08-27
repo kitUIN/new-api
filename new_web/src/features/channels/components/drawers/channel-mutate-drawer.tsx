@@ -4059,6 +4059,7 @@ export function ChannelMutateDrawer({
                         icon={<Settings className='h-4 w-4' />}
                       />
                       {(currentType === 1 ||
+                        currentType === 3 ||
                         currentType === 14 ||
                         currentType === 57) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
@@ -4081,6 +4082,35 @@ export function ChannelMutateDrawer({
                                       <FormDescription>
                                         {t(
                                           'Pass through the service_tier field'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {(currentType === 1 ||
+                              currentType === 3 ||
+                              currentType === 57) && (
+                              <FormField
+                                control={form.control}
+                                name='supports_responses_websocket'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel className='text-sm'>
+                                        {t('Enable Responses WebSocket')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Allow this channel to relay GET /v1/responses WebSocket connections'
                                         )}
                                       </FormDescription>
                                     </div>

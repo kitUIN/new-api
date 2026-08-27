@@ -138,6 +138,30 @@ func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
 	require.False(t, hasAcceptEncoding)
 }
 
+func TestProcessHeaderOverride_WebSocketPassthroughSkipsCredentialsAndHandshakeHeaders(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer downstream-secret")
+	ctx.Request.Header.Set("Sec-WebSocket-Key", "downstream-key")
+	ctx.Request.Header.Set("Sec-WebSocket-Version", "13")
+	ctx.Request.Header.Set("Sec-WebSocket-Extensions", "permessage-deflate")
+	ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		HeadersOverride: map[string]any{"*": ""},
+	}}
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "trace-123", headers["x-trace-id"])
+	require.NotContains(t, headers, "authorization")
+	require.NotContains(t, headers, "sec-websocket-key")
+	require.NotContains(t, headers, "sec-websocket-version")
+	require.NotContains(t, headers, "sec-websocket-extensions")
+}
+
 func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.T) {
 	t.Parallel()
 

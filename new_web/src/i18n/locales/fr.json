@@ -3464,6 +3464,8 @@
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
     "Enable Responses web search tool": "Activer l'outil de recherche web Responses",
     "Turn off to remove web_search tools before forwarding Responses requests upstream": "Désactivez cette option pour supprimer les outils web_search avant de transmettre les requêtes Responses en amont",
+    "Enable Responses WebSocket": "Activer Responses WebSocket",
+    "Allow this channel to relay GET /v1/responses WebSocket connections": "Autoriser ce canal à relayer les connexions WebSocket GET /v1/responses",
     "Restore defaults": "Restaurer les paramètres par défaut",
     "Restrict user model request frequency (may impact high concurrency performance)": "Restreindre la fréquence des requêtes du modèle utilisateur (peut impacter les performances en cas de forte concurrence)",
     "Retain last N days": "Conserver les N derniers jours",

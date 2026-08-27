@@ -204,7 +204,7 @@ func Distribute() func(c *gin.Context) {
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		recordRelayGroupUserRequest(c, channel)
 		c.Next()
-		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
+		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest && !c.GetBool(skipDistributorPostAffinityContextKey) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}

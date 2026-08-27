@@ -7,6 +7,7 @@ const (
 	RelayFormatClaude                                = "claude"
 	RelayFormatGemini                                = "gemini"
 	RelayFormatOpenAIResponses                       = "openai_responses"
+	RelayFormatOpenAIResponsesWebSocket              = "openai_responses_websocket"
 	RelayFormatOpenAIResponsesCompaction             = "openai_responses_compaction"
 	RelayFormatOpenAIAudio                           = "openai_audio"
 	RelayFormatOpenAIImage                           = "openai_image"
@@ -16,4 +17,11 @@ const (
 
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"
+)
+
+type RelayTransport string
+
+const (
+	RelayTransportHTTP      RelayTransport = "http"
+	RelayTransportWebSocket RelayTransport = "websocket"
 )

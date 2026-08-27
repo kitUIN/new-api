@@ -127,6 +127,8 @@ type RelayInfo struct {
 	UserEmail                     string
 	UserQuota                     int
 	RelayFormat                   types.RelayFormat
+	Transport                     types.RelayTransport
+	ResponsesWebSocketState       string
 	SendResponseCount             int
 	ReceivedResponseCount         int
 	FinalPreConsumedQuota         int // 最终预消耗的配额
@@ -343,10 +345,20 @@ var streamSupportedChannels = map[int]bool{
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 	info := genBaseRelayInfo(c, nil)
 	info.RelayFormat = types.RelayFormatOpenAIRealtime
+	info.Transport = types.RelayTransportWebSocket
 	info.ClientWs = ws
 	info.InputAudioFormat = "pcm16"
 	info.OutputAudioFormat = "pcm16"
 	info.IsFirstRequest = true
+	return info
+}
+
+func GenRelayInfoResponsesWebSocket(c *gin.Context, request *dto.OpenAIResponsesRequest, ws *websocket.Conn) *RelayInfo {
+	info := GenRelayInfoResponses(c, request)
+	info.RelayFormat = types.RelayFormatOpenAIResponsesWebSocket
+	info.Transport = types.RelayTransportWebSocket
+	info.ClientWs = ws
+	info.ResponsesWebSocketState = "idle"
 	return info
 }
 
@@ -468,6 +480,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	}
 	info := &RelayInfo{
 		Request:                      request,
+		Transport:                    types.RelayTransportHTTP,
 		ServiceTier:                  serviceTierFromRequest(request),
 		ServiceTierBillingMultiplier: 1,
 
@@ -571,6 +584,12 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)
+			break
+		}
+		err = errors.New("request is not a OpenAIResponsesRequest")
+	case types.RelayFormatOpenAIResponsesWebSocket:
+		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
+			info = GenRelayInfoResponsesWebSocket(c, request, ws)
 			break
 		}
 		err = errors.New("request is not a OpenAIResponsesRequest")

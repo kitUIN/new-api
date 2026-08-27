@@ -109,17 +109,6 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode == relayconstant.RelayModeRealtime {
-		if strings.HasPrefix(info.ChannelBaseUrl, "https://") {
-			baseUrl := strings.TrimPrefix(info.ChannelBaseUrl, "https://")
-			baseUrl = "wss://" + baseUrl
-			info.ChannelBaseUrl = baseUrl
-		} else if strings.HasPrefix(info.ChannelBaseUrl, "http://") {
-			baseUrl := strings.TrimPrefix(info.ChannelBaseUrl, "http://")
-			baseUrl = "ws://" + baseUrl
-			info.ChannelBaseUrl = baseUrl
-		}
-	}
 	switch info.ChannelType {
 	case constant.ChannelTypeAzure:
 		apiVersion := info.ApiVersion

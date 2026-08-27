@@ -14,6 +14,10 @@
    - 用于标识是否将思考内容`reasoning_content`转换为`<think>`标签拼接到内容中返回
    - 类型为布尔值，设置为 true 时启用思考内容转换
 
+4. supports_responses_websocket
+   - 声明渠道上游支持 Responses WebSocket 协议
+   - 类型为布尔值，默认 true；只有显式设为 false 时才禁止处理 `GET /v1/responses`
+
 --------------------------------------------------------------
 
 ## JSON 格式示例
@@ -24,7 +28,8 @@
 {
     "force_format": true,
    "thinking_to_content": true,
-    "proxy": "socks5://xxxxxxx"
+    "proxy": "socks5://xxxxxxx",
+    "supports_responses_websocket": false
 }
 ```
 

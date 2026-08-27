@@ -3464,6 +3464,8 @@
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
     "Enable Responses web search tool": "Responses のウェブ検索ツールを有効化",
     "Turn off to remove web_search tools before forwarding Responses requests upstream": "オフにすると、Responses リクエストをアップストリームへ転送する前に web_search ツールを削除します",
+    "Enable Responses WebSocket": "Responses WebSocket を有効化",
+    "Allow this channel to relay GET /v1/responses WebSocket connections": "このチャネルで GET /v1/responses WebSocket 接続の中継を許可します",
     "Restore defaults": "既定に戻す",
     "Restrict user model request frequency (may impact high concurrency performance)": "ユーザーモデルのリクエスト頻度を制限する（高並行性パフォーマンスに影響を与える可能性があります）",
     "Retain last N days": "最新N日間を保持",

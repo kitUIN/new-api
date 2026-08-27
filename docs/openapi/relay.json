@@ -246,6 +246,29 @@
       }
     },
     "/v1/responses": {
+      "get": {
+        "summary": "建立 Responses WebSocket 连接",
+        "deprecated": false,
+        "description": "将连接升级为 Responses WebSocket。每条客户端消息必须是 response.create；同一连接同一时刻只允许一个生成回合。渠道能力默认开启，可通过 supports_responses_websocket=false 显式关闭。",
+        "operationId": "createResponsesWebSocket",
+        "tags": [
+          "OpenAI格式(Responses)"
+        ],
+        "parameters": [],
+        "responses": {
+          "101": {
+            "description": "WebSocket 协议升级成功"
+          },
+          "400": {
+            "description": "无效的 WebSocket 握手请求"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
       "post": {
         "summary": "创建响应 (OpenAI Responses API)",
         "deprecated": false,

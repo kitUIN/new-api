@@ -25,6 +25,7 @@ const (
 
 type ChannelOtherSettings struct {
 	AzureResponsesVersion                 string        `json:"azure_responses_version,omitempty"`
+	SupportsResponsesWebSocket            *bool         `json:"supports_responses_websocket,omitempty"`
 	VertexKeyType                         VertexKeyType `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 	OpenRouterEnterprise                  *bool         `json:"openrouter_enterprise,omitempty"`
 	ClaudeBetaQuery                       bool          `json:"claude_beta_query,omitempty"`         // Claude 渠道是否强制追加 ?beta=true
@@ -69,6 +70,13 @@ func (s *ChannelOtherSettings) IsAutoTestEnabled() bool {
 		return true
 	}
 	return *s.AutoTestEnabled
+}
+
+func (s *ChannelOtherSettings) IsResponsesWebSocketEnabled() bool {
+	if s == nil || s.SupportsResponsesWebSocket == nil {
+		return true
+	}
+	return *s.SupportsResponsesWebSocket
 }
 
 type BalanceQuery struct {
