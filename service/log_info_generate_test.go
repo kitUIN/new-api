@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -48,4 +49,18 @@ func TestAppendBillingInfoOmitsServiceTierMetadataForOtherChannels(t *testing.T)
 
 	require.NotContains(t, other, "service_tier")
 	require.NotContains(t, other, "service_tier_multiplier")
+}
+
+func TestAppendRelayTransportInfoMarksOnlyWebSocket(t *testing.T) {
+	webSocketOther := map[string]interface{}{}
+	AppendRelayTransportInfo(&relaycommon.RelayInfo{
+		Transport: types.RelayTransportWebSocket,
+	}, webSocketOther)
+	require.Equal(t, true, webSocketOther["ws"])
+
+	httpOther := map[string]interface{}{}
+	AppendRelayTransportInfo(&relaycommon.RelayInfo{
+		Transport: types.RelayTransportHTTP,
+	}, httpOther)
+	require.NotContains(t, httpOther, "ws")
 }

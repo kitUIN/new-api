@@ -1264,7 +1264,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
             <div className='flex items-center gap-1 text-[11px]'>
               <span className='text-muted-foreground/60'>
-                {log.is_stream ? t('Stream') : t('Non-stream')}
+                {other?.ws
+                  ? 'WS'
+                  : log.is_stream
+                    ? t('Stream')
+                    : t('Non-stream')}
                 {tokensPerSecond != null && (
                   <>
                     {' · '}

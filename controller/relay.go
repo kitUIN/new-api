@@ -452,6 +452,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
 		if len(relayInfo) > 0 && relayInfo[0] != nil {
+			service.AppendRelayTransportInfo(relayInfo[0], other)
 			service.AppendRelayTimingInfo(c, relayInfo[0], other)
 		}
 		adminInfo := make(map[string]interface{})
