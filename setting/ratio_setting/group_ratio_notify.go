@@ -16,10 +16,11 @@ const (
 )
 
 type GroupRatioChange struct {
-	Type     GroupRatioChangeType
-	Group    string
-	OldRatio float64
-	NewRatio float64
+	Type              GroupRatioChangeType
+	Group             string
+	CombinationMember string
+	OldRatio          float64
+	NewRatio          float64
 }
 
 func CompareGroupRatioChanges(previous, current map[string]float64) []GroupRatioChange {
@@ -66,9 +67,66 @@ func CompareGroupRatioChanges(previous, current map[string]float64) []GroupRatio
 	return changes
 }
 
+// AppendGroupCombinationRatioChanges adds notification-only changes for every
+// combination group that references a changed member group. The persisted
+// ratio history still records only the concrete GroupRatio values.
+func AppendGroupCombinationRatioChanges(
+	changes []GroupRatioChange,
+	combinations map[string][]GroupCombinationMember,
+) []GroupRatioChange {
+	if len(changes) == 0 || len(combinations) == 0 {
+		return changes
+	}
+
+	changesByGroup := make(map[string]GroupRatioChange, len(changes))
+	for _, change := range changes {
+		changesByGroup[change.Group] = change
+	}
+
+	combinationGroups := make([]string, 0, len(combinations))
+	for group := range combinations {
+		combinationGroups = append(combinationGroups, group)
+	}
+	sort.Strings(combinationGroups)
+
+	result := append([]GroupRatioChange(nil), changes...)
+	for _, combinationGroup := range combinationGroups {
+		for _, member := range combinations[combinationGroup] {
+			// A self-reference represents the combination group's original
+			// behavior. Its direct ratio change is already in the result.
+			if member.Group == combinationGroup {
+				continue
+			}
+			change, changed := changesByGroup[member.Group]
+			if !changed {
+				continue
+			}
+			result = append(result, GroupRatioChange{
+				Type:              change.Type,
+				Group:             combinationGroup,
+				CombinationMember: member.Group,
+				OldRatio:          change.OldRatio,
+				NewRatio:          change.NewRatio,
+			})
+		}
+	}
+	return result
+}
+
 func FormatGroupRatioChangeLines(changes []GroupRatioChange) []string {
 	lines := make([]string, 0, len(changes))
 	for _, change := range changes {
+		if change.CombinationMember != "" {
+			switch change.Type {
+			case GroupRatioChangeAdded:
+				lines = append(lines, fmt.Sprintf("* %s: 组合成员 %s 新增倍率 %g", change.Group, change.CombinationMember, change.NewRatio))
+			case GroupRatioChangeUpdated:
+				lines = append(lines, fmt.Sprintf("* %s: 组合成员 %s 倍率 %g -> %g", change.Group, change.CombinationMember, change.OldRatio, change.NewRatio))
+			case GroupRatioChangeDeleted:
+				lines = append(lines, fmt.Sprintf("* %s: 组合成员 %s 移除倍率，原倍率 %g", change.Group, change.CombinationMember, change.OldRatio))
+			}
+			continue
+		}
 		switch change.Type {
 		case GroupRatioChangeAdded:
 			lines = append(lines, fmt.Sprintf("+ %s: 倍率 %g", change.Group, change.NewRatio))

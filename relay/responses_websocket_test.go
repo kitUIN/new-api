@@ -122,6 +122,37 @@ func TestResponsesWebSocketWarmupConsumptionRequiresUsage(t *testing.T) {
 	require.True(t, shouldRecordResponsesWebSocketConsumption(responsesWebSocketStateGenerating, &dto.Usage{}))
 }
 
+func TestResponsesWebSocketTTFTStartsAtFirstToken(t *testing.T) {
+	_, round := newResponsesWebSocketTestContext(t)
+	round.StartTime = time.Now().Add(-time.Second)
+	round.FirstResponseTime = round.StartTime.Add(-time.Second)
+	session := &responsesWebSocketSession{round: round}
+
+	for _, event := range []dto.ResponsesStreamResponse{
+		{Type: "response.created"},
+		{Type: "response.in_progress"},
+		{Type: "response.output_item.added"},
+		{Type: "response.output_text.delta"},
+		{Type: "response.audio.delta", Delta: "base64-audio-bytes"},
+	} {
+		session.observeFirstToken(event)
+	}
+	require.False(t, round.FirstResponseTime.After(round.StartTime))
+
+	session.observeFirstToken(dto.ResponsesStreamResponse{
+		Type:  "response.output_text.delta",
+		Delta: "first token",
+	})
+	require.True(t, round.FirstResponseTime.After(round.StartTime))
+
+	firstTokenTime := round.FirstResponseTime
+	session.observeFirstToken(dto.ResponsesStreamResponse{
+		Type:  "response.function_call_arguments.delta",
+		Delta: `{"location":`,
+	})
+	require.Equal(t, firstTokenTime, round.FirstResponseTime)
+}
+
 func TestMergeResponsesWebSocketEnvelopePreservesExplicitEmptyStreamID(t *testing.T) {
 	raw := []byte(`{"type":"response.create","model":"gpt-4o","stream_id":""}`)
 	event, err := dto.ParseOpenAIResponsesWebSocketEvent(raw)

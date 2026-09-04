@@ -287,6 +287,7 @@ func UpdateGroupRatioOptionWithSource(value string, source string) error {
 	if err := RecordGroupRatioChanges(previousRatios, currentRatios, source); err != nil {
 		common.SysLog("failed to record group ratio changes: " + err.Error())
 	}
+	changes = ratio_setting.AppendGroupCombinationRatioChanges(changes, ratio_setting.GetGroupCombinationsCopy())
 	changes = ratio_setting.FilterGroupRatioChangesByEnabledGroups(changes, setting.GetUserUsableGroupsCopy())
 	message := ratio_setting.FormatGroupRatioChangeMessage(changes)
 	setting.SendQQGroupChangeNotification(setting.QQGroupChangeNotifyEventGroupRatio, message, "group ratio change notify")

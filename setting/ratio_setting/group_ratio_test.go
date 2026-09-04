@@ -268,6 +268,81 @@ func TestFilterGroupRatioChangesByEnabledGroups(t *testing.T) {
 	}, FormatGroupRatioChangeLines(filtered))
 }
 
+func TestAppendGroupCombinationRatioChanges(t *testing.T) {
+	changes := []GroupRatioChange{
+		{Type: GroupRatioChangeUpdated, Group: "cheap", OldRatio: 0.5, NewRatio: 0.6},
+		{Type: GroupRatioChangeUpdated, Group: "unrelated", OldRatio: 1, NewRatio: 1.1},
+	}
+
+	withCombinations := AppendGroupCombinationRatioChanges(
+		changes,
+		map[string][]GroupCombinationMember{
+			"combo-b": {
+				{Group: "cheap", Models: []string{"model-b"}},
+				{Group: "premium", Models: []string{"model-b"}},
+			},
+			"combo-a": {
+				{Group: "cheap", Models: []string{"model-a"}},
+				{Group: "combo-a", Models: []string{"model-a"}},
+			},
+		},
+	)
+
+	require.Equal(t, []GroupRatioChange{
+		{Type: GroupRatioChangeUpdated, Group: "cheap", OldRatio: 0.5, NewRatio: 0.6},
+		{Type: GroupRatioChangeUpdated, Group: "unrelated", OldRatio: 1, NewRatio: 1.1},
+		{Type: GroupRatioChangeUpdated, Group: "combo-a", CombinationMember: "cheap", OldRatio: 0.5, NewRatio: 0.6},
+		{Type: GroupRatioChangeUpdated, Group: "combo-b", CombinationMember: "cheap", OldRatio: 0.5, NewRatio: 0.6},
+	}, withCombinations)
+	require.Equal(t, []string{
+		"* cheap: 0.5 -> 0.6",
+		"* unrelated: 1 -> 1.1",
+		"* combo-a: 组合成员 cheap 倍率 0.5 -> 0.6",
+		"* combo-b: 组合成员 cheap 倍率 0.5 -> 0.6",
+	}, FormatGroupRatioChangeLines(withCombinations))
+}
+
+func TestCombinationRatioChangeSurvivesEnabledGroupFilter(t *testing.T) {
+	changes := AppendGroupCombinationRatioChanges(
+		[]GroupRatioChange{
+			{Type: GroupRatioChangeUpdated, Group: "internal", OldRatio: 0.4, NewRatio: 0.5},
+		},
+		map[string][]GroupCombinationMember{
+			"public-combo": {
+				{Group: "internal", Models: []string{"model"}},
+				{Group: "fallback", Models: []string{"model"}},
+			},
+		},
+	)
+
+	filtered := FilterGroupRatioChangesByEnabledGroups(
+		changes,
+		map[string]string{"public-combo": "公开组合分组"},
+	)
+
+	require.Equal(t, []GroupRatioChange{
+		{
+			Type:              GroupRatioChangeUpdated,
+			Group:             "public-combo",
+			CombinationMember: "internal",
+			OldRatio:          0.4,
+			NewRatio:          0.5,
+		},
+	}, filtered)
+}
+
+func TestFormatAddedAndDeletedCombinationMemberRatioChanges(t *testing.T) {
+	changes := []GroupRatioChange{
+		{Type: GroupRatioChangeAdded, Group: "combo", CombinationMember: "new", NewRatio: 0.7},
+		{Type: GroupRatioChangeDeleted, Group: "combo", CombinationMember: "old", OldRatio: 0.8},
+	}
+
+	require.Equal(t, []string{
+		"* combo: 组合成员 new 新增倍率 0.7",
+		"* combo: 组合成员 old 移除倍率，原倍率 0.8",
+	}, FormatGroupRatioChangeLines(changes))
+}
+
 func TestCompareUpstreamGroupRatioBindingChanges(t *testing.T) {
 	changes := CompareUpstreamGroupRatioBindingChanges(
 		map[string]UpstreamGroupRatioBinding{

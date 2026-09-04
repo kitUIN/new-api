@@ -323,7 +323,6 @@ func (s *responsesWebSocketSession) handleUpstreamFrame(messageType int, data []
 		return nil
 	}
 	if s.round != nil {
-		s.round.SetFirstResponseTime()
 		s.round.SendResponseCount++
 	}
 	_ = s.client.SetWriteDeadline(time.Now().Add(30 * time.Second))
@@ -335,8 +334,32 @@ func (s *responsesWebSocketSession) handleUpstreamFrame(messageType int, data []
 		logger.LogError(s.c, "failed to parse Responses WebSocket upstream event: "+err.Error())
 		return nil
 	}
+	s.observeFirstToken(event)
 	s.handleUpstreamEvent(event)
 	return nil
+}
+
+func (s *responsesWebSocketSession) observeFirstToken(event dto.ResponsesStreamResponse) {
+	if s.round == nil || event.Delta == "" {
+		return
+	}
+
+	// Responses WebSocket sends control and lifecycle events before generated
+	// content. Only token-bearing deltas count toward TTFT; audio.delta carries
+	// Base64 audio bytes rather than a token and is intentionally excluded.
+	switch event.Type {
+	case "response.output_text.delta",
+		"response.refusal.delta",
+		"response.function_call_arguments.delta",
+		"response.reasoning_summary_text.delta",
+		"response.reasoning_text.delta",
+		"response.mcp_call_arguments.delta",
+		"response.code_interpreter_call_code.delta",
+		"response.custom_tool_call_input.delta",
+		"response.audio.transcript.delta",
+		"response.shell_call_command.delta":
+		s.round.SetFirstResponseTime()
+	}
 }
 
 func (s *responsesWebSocketSession) handleUpstreamEvent(event dto.ResponsesStreamResponse) {
