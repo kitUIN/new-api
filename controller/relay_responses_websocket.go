@@ -115,6 +115,7 @@ func RelayResponsesWebSocket(c *gin.Context) {
 		target, dialErr := relay.DialResponsesWebSocketUpstream(c, info)
 		if dialErr == nil {
 			info.TargetWs = target
+			service.RecordGroupCombinationSuccess(c)
 			service.RecordChannelAffinity(c, selectedChannel.Id)
 			if runErr := relay.RunResponsesWebSocket(c, info, firstFrame); runErr != nil && !websocket.IsCloseError(runErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				logger.LogError(c, "Responses WebSocket relay ended: "+runErr.Error())
@@ -126,10 +127,17 @@ func RelayResponsesWebSocket(c *gin.Context) {
 		if dialErr.GetErrorCode() != types.ErrorCodeChannelResponsesWebSocketUnsupported {
 			processChannelError(c, *types.NewChannelError(selectedChannel.Id, selectedChannel.Type, selectedChannel.Name, selectedChannel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), selectedChannel.GetAutoBan()), dialErr, info)
 		}
-		if !shouldRetry(c, dialErr, common.RetryTimes-retryParam.GetRetry()) {
+		shouldRetryNow := shouldRetry(c, dialErr, common.RetryTimes-retryParam.GetRetry())
+		groupCombinationSwitched := false
+		if shouldRetry(c, dialErr, 1) {
+			groupCombinationSwitched = service.PrepareGroupCombinationFailover(c, retryParam)
+		}
+		if !shouldRetryNow && !groupCombinationSwitched {
 			break
 		}
-		service.PrepareAutoGroupAffinityFailover(c, retryParam)
+		if !groupCombinationSwitched {
+			service.PrepareAutoGroupAffinityFailover(c, retryParam)
+		}
 		retryParam.ExcludeChannel(selectedChannel.Id)
 	}
 	if finalErr == nil {

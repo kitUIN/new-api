@@ -4958,6 +4958,17 @@
     "Hourly token usage by model today": "Utilisation horaire des tokens par modèle aujourd'hui",
     "Weekly token usage by model this year": "Utilisation hebdomadaire des tokens par modèle cette année",
     "Token share by model author today": "Part des tokens par éditeur de modèle aujourd'hui",
-    "Token share by model author this year": "Part des tokens par éditeur de modèle cette année"
+    "Token share by model author this year": "Part des tokens par éditeur de modèle cette année",
+    "Loading runtime status...": "Chargement de l’état d’exécution...",
+    "Unable to load combination mode status": "Impossible de charger l’état du mode combiné",
+    "Automatically skipped": "Ignoré automatiquement",
+    "Consecutive failures {{count}}/{{threshold}}": "Échecs consécutifs {{count}}/{{threshold}}",
+    "Retries at {{time}}": "Nouvelle tentative à {{time}}",
+    "{{duration}} remaining": "Temps restant : {{duration}}",
+    "Reset {{group}} status": "Réinitialiser l’état de {{group}}",
+    "Reset combination group status?": "Réinitialiser l’état du groupe combiné ?",
+    "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "{{group}} sera de nouveau essayé pour les nouvelles requêtes. Les sessions utilisant déjà un groupe de secours resteront inchangées.",
+    "Failed to reset group status": "Échec de la réinitialisation de l’état du groupe",
+    "{{group}} status has been reset": "L’état de {{group}} a été réinitialisé"
   }
 }

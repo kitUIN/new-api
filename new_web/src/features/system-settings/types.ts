@@ -39,6 +39,32 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type GroupCombinationCircuitBreakerStatus = {
+  group: string
+  status: 'healthy' | 'warning' | 'skipped'
+  consecutive_failures: number
+  skipped_until: number
+  updated_at: number
+}
+
+export type GroupCombinationCircuitBreakerSummary = {
+  failure_threshold: number
+  cooldown_seconds: number
+  groups: GroupCombinationCircuitBreakerStatus[]
+}
+
+export type GroupCombinationCircuitBreakersResponse = {
+  success: boolean
+  message: string
+  data?: GroupCombinationCircuitBreakerSummary
+}
+
+export type ResetGroupCombinationCircuitBreakerResponse = {
+  success: boolean
+  message: string
+  data?: GroupCombinationCircuitBreakerStatus
+}
+
 export type DeleteLogsResponse = {
   success: boolean
   message: string

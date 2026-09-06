@@ -4958,6 +4958,17 @@
     "Hourly token usage by model today": "Lượng token sử dụng theo giờ của từng mô hình hôm nay",
     "Weekly token usage by model this year": "Lượng token sử dụng hằng tuần theo mô hình trong năm nay",
     "Token share by model author today": "Tỷ lệ token theo nhà phát triển mô hình hôm nay",
-    "Token share by model author this year": "Tỷ lệ token theo nhà phát triển mô hình trong năm nay"
+    "Token share by model author this year": "Tỷ lệ token theo nhà phát triển mô hình trong năm nay",
+    "Loading runtime status...": "Đang tải trạng thái vận hành...",
+    "Unable to load combination mode status": "Không thể tải trạng thái chế độ kết hợp",
+    "Automatically skipped": "Đã tự động bỏ qua",
+    "Consecutive failures {{count}}/{{threshold}}": "Lỗi liên tiếp {{count}}/{{threshold}}",
+    "Retries at {{time}}": "Thử lại lúc {{time}}",
+    "{{duration}} remaining": "Còn lại {{duration}}",
+    "Reset {{group}} status": "Đặt lại trạng thái {{group}}",
+    "Reset combination group status?": "Đặt lại trạng thái nhóm kết hợp?",
+    "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "Các yêu cầu mới sẽ thử lại {{group}}. Những phiên hiện có đã dùng nhóm dự phòng sẽ không thay đổi.",
+    "Failed to reset group status": "Không thể đặt lại trạng thái nhóm",
+    "{{group}} status has been reset": "Đã đặt lại trạng thái của {{group}}"
   }
 }

@@ -4958,6 +4958,17 @@
     "Hourly token usage by model today": "今天各模型的每小时 Token 用量",
     "Weekly token usage by model this year": "今年各模型的每周 Token 用量",
     "Token share by model author today": "今天各模型厂商的 Token 占比",
-    "Token share by model author this year": "今年各模型厂商的 Token 占比"
+    "Token share by model author this year": "今年各模型厂商的 Token 占比",
+    "Loading runtime status...": "正在加载运行状态...",
+    "Unable to load combination mode status": "无法加载组合模式运行状态",
+    "Automatically skipped": "已自动跳过",
+    "Consecutive failures {{count}}/{{threshold}}": "连续失败 {{count}}/{{threshold}}",
+    "Retries at {{time}}": "将在 {{time}} 恢复尝试",
+    "{{duration}} remaining": "剩余 {{duration}}",
+    "Reset {{group}} status": "重置 {{group}} 状态",
+    "Reset combination group status?": "重置组合成员分组状态？",
+    "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "新请求将重新尝试 {{group}}；已使用后备分组的现有会话不会改变。",
+    "Failed to reset group status": "重置分组状态失败",
+    "{{group}} status has been reset": "已重置 {{group}} 的状态"
   }
 }

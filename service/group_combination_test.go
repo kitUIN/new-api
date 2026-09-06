@@ -23,6 +23,9 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	originalUsingMySQL := common.UsingMySQL
 	originalUsingPostgreSQL := common.UsingPostgreSQL
 	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	groupCombinationBreakerMemoryMu.Lock()
+	groupCombinationBreakerMemory = make(map[string]GroupCombinationBreakerState)
+	groupCombinationBreakerMemoryMu.Unlock()
 	t.Cleanup(func() {
 		model.DB = originalDB
 		common.MemoryCacheEnabled = originalMemoryCacheEnabled
@@ -30,6 +33,9 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 		common.UsingMySQL = originalUsingMySQL
 		common.UsingPostgreSQL = originalUsingPostgreSQL
 		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+		groupCombinationBreakerMemoryMu.Lock()
+		groupCombinationBreakerMemory = make(map[string]GroupCombinationBreakerState)
+		groupCombinationBreakerMemoryMu.Unlock()
 	})
 
 	common.MemoryCacheEnabled = false
@@ -194,6 +200,65 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "premium", selectedGroup)
 	require.Equal(t, 9, channel.Id)
+
+	// The fifth real failover still reaches the next member while opening the
+	// breaker for subsequent sessions.
+	_, err = ResetGroupCombinationCircuitBreaker("premium")
+	require.NoError(t, err)
+	for failure := 0; failure < GroupCombinationBreakerFailureThreshold-1; failure++ {
+		_, _, err = updateGroupCombinationBreakerState("premium", false)
+		require.NoError(t, err)
+	}
+	fifthFailureCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	fifthFailureRetryParam := &RetryParam{
+		Ctx:        fifthFailureCtx,
+		TokenGroup: "cheap",
+		ModelName:  "gpt-5.6-luna",
+		Retry:      common.GetPointer(0),
+	}
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(fifthFailureRetryParam)
+	require.NoError(t, err)
+	require.Equal(t, "premium", selectedGroup)
+	require.True(t, PrepareGroupCombinationFailover(fifthFailureCtx, fifthFailureRetryParam))
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(fifthFailureRetryParam)
+	require.NoError(t, err)
+	require.Equal(t, "cheap", selectedGroup)
+	require.Equal(t, 2, channel.Id)
+
+	breakerCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        breakerCtx,
+		TokenGroup: "cheap",
+		ModelName:  "gpt-5.6-luna",
+		Retry:      common.GetPointer(0),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "cheap", selectedGroup)
+	require.Equal(t, 2, channel.Id)
+
+	// Direct requests to the concrete member group are unaffected.
+	channel, err = model.GetRandomSatisfiedChannel("premium", "gpt-5.6-luna", 0)
+	require.NoError(t, err)
+	require.Equal(t, 9, channel.Id)
+
+	_, err = ResetGroupCombinationCircuitBreaker("premium")
+	require.NoError(t, err)
+	freshCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        freshCtx,
+		TokenGroup: "cheap",
+		ModelName:  "gpt-5.6-luna",
+		Retry:      common.GetPointer(0),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "premium", selectedGroup)
+	require.Equal(t, 9, channel.Id)
+
+	// The session that failed over earlier remains pinned after the global reset.
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(nextRetryParam)
+	require.NoError(t, err)
+	require.Equal(t, "cheap", selectedGroup)
+	require.Equal(t, 2, channel.Id)
 
 	// Legacy definitions retain their exact model-to-channel semantics.
 	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(

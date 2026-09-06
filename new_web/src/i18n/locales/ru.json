@@ -4958,6 +4958,17 @@
     "Hourly token usage by model today": "Почасовое использование токенов по моделям сегодня",
     "Weekly token usage by model this year": "Еженедельное использование токенов по моделям в этом году",
     "Token share by model author today": "Доля токенов по разработчикам моделей сегодня",
-    "Token share by model author this year": "Доля токенов по разработчикам моделей в этом году"
+    "Token share by model author this year": "Доля токенов по разработчикам моделей в этом году",
+    "Loading runtime status...": "Загрузка состояния...",
+    "Unable to load combination mode status": "Не удалось загрузить состояние комбинированного режима",
+    "Automatically skipped": "Автоматически пропускается",
+    "Consecutive failures {{count}}/{{threshold}}": "Последовательные ошибки: {{count}}/{{threshold}}",
+    "Retries at {{time}}": "Повторная попытка в {{time}}",
+    "{{duration}} remaining": "Осталось {{duration}}",
+    "Reset {{group}} status": "Сбросить состояние {{group}}",
+    "Reset combination group status?": "Сбросить состояние группы комбинированного режима?",
+    "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "Группа {{group}} будет снова использоваться для новых запросов. Существующие сеансы, уже перешедшие на резервную группу, не изменятся.",
+    "Failed to reset group status": "Не удалось сбросить состояние группы",
+    "{{group}} status has been reset": "Состояние {{group}} сброшено"
   }
 }

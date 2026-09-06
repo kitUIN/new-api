@@ -16,9 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  ArrowDown,
+  ArrowUp,
+  CircleCheck,
+  CircleHelp,
+  Plus,
+  RotateCcw,
+  ShieldAlert,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +49,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { MultiSelect } from '@/components/multi-select'
+import {
+  getGroupCombinationCircuitBreakers,
+  resetGroupCombinationCircuitBreaker,
+} from '../api'
+import type { GroupCombinationCircuitBreakerStatus } from '../types'
 
 export type GroupCombinationMember = {
   group: string
@@ -68,6 +93,17 @@ type GroupCombinationDialogProps = {
 }
 
 let nextDraftID = 1
+const circuitBreakerQueryKey = ['group-combination-circuit-breakers'] as const
+
+function formatRemaining(seconds: number) {
+  const bounded = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(bounded / 3600)
+  const minutes = Math.floor((bounded % 3600) / 60)
+  const remainingSeconds = bounded % 60
+  return [hours, minutes, remainingSeconds]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':')
+}
 
 function createMemberGroupDraft(
   group = '',
@@ -102,8 +138,50 @@ export function normalizeGroupCombinationMembers(
 }
 
 export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
+  const firstGroupTriggerRef = useRef<HTMLButtonElement>(null)
   const [drafts, setDrafts] = useState<MemberGroupDraft[]>([])
+  const [resetTarget, setResetTarget] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
+
+  const statusQuery = useQuery({
+    queryKey: circuitBreakerQueryKey,
+    queryFn: getGroupCombinationCircuitBreakers,
+    enabled: props.open,
+    refetchInterval: props.open ? 10_000 : false,
+    refetchOnWindowFocus: true,
+  })
+
+  const resetMutation = useMutation({
+    mutationFn: resetGroupCombinationCircuitBreaker,
+    onSuccess: async (response) => {
+      if (!response.success || !response.data) {
+        toast.error(response.message || t('Failed to reset group status'))
+        return
+      }
+      setResetTarget(null)
+      toast.success(
+        t('{{group}} status has been reset', { group: response.data.group })
+      )
+      await queryClient.invalidateQueries({ queryKey: circuitBreakerQueryKey })
+    },
+    onError: () => toast.error(t('Failed to reset group status')),
+  })
+
+  const statusesByGroup = useMemo(
+    () =>
+      new Map(
+        (statusQuery.data?.data?.groups ?? []).map((group) => [
+          group.group,
+          group,
+        ])
+      ),
+    [statusQuery.data?.data?.groups]
+  )
+  const statusUnavailable =
+    statusQuery.isError || statusQuery.data?.success === false
+  const failureThreshold = statusQuery.data?.data?.failure_threshold ?? 5
 
   const sortedGroups = useMemo(
     () =>
@@ -125,6 +203,84 @@ export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
       )
     )
   }, [props.memberGroups, props.open])
+
+  useEffect(() => {
+    if (!props.open) return
+    const timer = window.setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      1_000
+    )
+    return () => window.clearInterval(timer)
+  }, [props.open])
+
+  const formatRecoveryTime = (timestamp: number) => {
+    try {
+      return new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+      }).format(new Date(timestamp * 1000))
+    } catch {
+      return new Date(timestamp * 1000).toLocaleString()
+    }
+  }
+
+  const getStatusDescription = (
+    status: GroupCombinationCircuitBreakerStatus | undefined
+  ) => {
+    if (statusQuery.isLoading) return t('Loading runtime status...')
+    if (statusUnavailable) return t('Unable to load combination mode status')
+    if (!status || status.status === 'healthy') return t('Healthy')
+    if (status.status === 'warning') {
+      return t('Consecutive failures {{count}}/{{threshold}}', {
+        count: status.consecutive_failures,
+        threshold: failureThreshold,
+      })
+    }
+    return `${t('Automatically skipped')}. ${t('Retries at {{time}}', {
+      time: formatRecoveryTime(status.skipped_until),
+    })} ${t('{{duration}} remaining', {
+      duration: formatRemaining(status.skipped_until - now),
+    })}`
+  }
+
+  const renderStatusIndicator = (group: string) => {
+    const status = statusesByGroup.get(group)
+    const description = group ? getStatusDescription(status) : t('Select group')
+    let icon = (
+      <CircleCheck className='size-4 text-emerald-600 dark:text-emerald-400' />
+    )
+    if (!group || statusUnavailable) {
+      icon = <CircleHelp className='text-muted-foreground size-4' />
+    } else if (statusQuery.isLoading) {
+      icon = <Spinner className='text-muted-foreground size-4' />
+    } else if (status?.status === 'warning') {
+      icon = (
+        <TriangleAlert className='size-4 text-amber-600 dark:text-amber-400' />
+      )
+    } else if (status?.status === 'skipped') {
+      icon = <ShieldAlert className='text-destructive size-4' />
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              className='focus-visible:ring-ring inline-flex size-6 cursor-help items-center justify-center rounded-md outline-none focus-visible:ring-2'
+              role='img'
+              tabIndex={0}
+              aria-label={description}
+            >
+              {icon}
+            </span>
+          }
+        />
+        <TooltipContent className='max-w-72 text-pretty'>
+          {description}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
 
   const duplicateGroups = useMemo(() => {
     const seen = new Set<string>()
@@ -195,156 +351,213 @@ export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-2xl'>
-        <DialogHeader>
-          <DialogTitle>{t('Member groups')}</DialogTitle>
-          <DialogDescription>
-            {t('{{group}} member group and model priority', {
-              group: props.groupName,
-            })}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className='max-h-[90vh] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] min-w-0 overflow-y-auto sm:w-full sm:max-w-2xl'
+        initialFocus={firstGroupTriggerRef}
+      >
+        <TooltipProvider delay={150}>
+          <DialogHeader>
+            <DialogTitle>{t('Member groups')}</DialogTitle>
+            <DialogDescription>
+              {t('{{group}} member group and model priority', {
+                group: props.groupName,
+              })}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className='max-h-[55vh] space-y-2 overflow-y-auto pr-1'>
-          {drafts.map((draft, index) => {
-            const selectedGroup = groupByName.get(draft.group)
-            return (
-              <div
-                key={draft.id}
-                className='grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b pb-3 last:border-b-0 sm:grid-cols-[3rem_minmax(0,0.8fr)_5rem_minmax(0,1.2fr)_6.75rem] sm:gap-3'
-              >
-                <span className='text-muted-foreground text-xs font-medium'>
-                  #{index + 1}
-                </span>
-
-                <Select
-                  items={sortedGroups.map((group) => ({
-                    value: group.name,
-                    label:
-                      group.name === props.groupName
-                        ? `${group.name} (${t('Original group')})`
-                        : group.name,
-                  }))}
-                  value={draft.group}
-                  onValueChange={(value) => {
-                    if (value !== null) updateDraftGroup(draft.id, value)
-                  }}
+          <div className='max-h-[55vh] space-y-2 overflow-y-auto pr-1'>
+            {drafts.map((draft, index) => {
+              const selectedGroup = groupByName.get(draft.group)
+              const runtimeStatus = statusesByGroup.get(draft.group)
+              const canResetStatus =
+                runtimeStatus && runtimeStatus.status !== 'healthy'
+              return (
+                <div
+                  key={draft.id}
+                  className='grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b pb-3 last:border-b-0 sm:grid-cols-[3rem_minmax(0,0.8fr)_5rem_minmax(0,1.2fr)_8.75rem] sm:gap-3'
                 >
-                  <SelectTrigger
-                    className='w-full min-w-0'
-                    aria-invalid={
-                      !selectedGroup || duplicateGroups.has(draft.group)
-                    }
-                  >
-                    <SelectValue placeholder={t('Select group')} />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {sortedGroups.map((group) => (
-                        <SelectItem key={group.name} value={group.name}>
-                          {group.name === props.groupName
+                  <span className='text-muted-foreground text-xs font-medium'>
+                    #{index + 1}
+                  </span>
+
+                  <div className='flex w-full min-w-0 items-center gap-1'>
+                    {renderStatusIndicator(draft.group)}
+                    <Select
+                      items={sortedGroups.map((group) => ({
+                        value: group.name,
+                        label:
+                          group.name === props.groupName
                             ? `${group.name} (${t('Original group')})`
-                            : group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                            : group.name,
+                      }))}
+                      value={draft.group}
+                      onValueChange={(value) => {
+                        if (value !== null) updateDraftGroup(draft.id, value)
+                      }}
+                    >
+                      <SelectTrigger
+                        ref={index === 0 ? firstGroupTriggerRef : undefined}
+                        className='min-w-0 flex-1'
+                        aria-invalid={
+                          !selectedGroup || duplicateGroups.has(draft.group)
+                        }
+                      >
+                        <SelectValue placeholder={t('Select group')} />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {sortedGroups.map((group) => (
+                            <SelectItem key={group.name} value={group.name}>
+                              {group.name === props.groupName
+                                ? `${group.name} (${t('Original group')})`
+                                : group.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <Badge
-                  variant='secondary'
-                  className='hidden justify-center sm:flex'
-                >
-                  {selectedGroup ? `${selectedGroup.ratio}x` : '-'}
-                </Badge>
+                  <Badge
+                    variant='secondary'
+                    className='hidden justify-center sm:flex'
+                  >
+                    {selectedGroup ? `${selectedGroup.ratio}x` : '-'}
+                  </Badge>
 
-                <MultiSelect
-                  className='col-start-2 col-end-4 min-w-0 sm:col-auto'
-                  options={(selectedGroup?.models ?? []).map((model) => ({
-                    label: model,
-                    value: model,
-                  }))}
-                  selected={draft.models}
-                  onChange={(models) => updateDraftModels(draft.id, models)}
-                  placeholder={t('Select models')}
-                  disabled={!selectedGroup}
-                  maxVisibleChips={2}
-                />
+                  <MultiSelect
+                    className='col-start-2 col-end-4 min-w-0 sm:col-auto'
+                    options={(selectedGroup?.models ?? []).map((model) => ({
+                      label: model,
+                      value: model,
+                    }))}
+                    selected={draft.models}
+                    onChange={(models) => updateDraftModels(draft.id, models)}
+                    placeholder={t('Select models')}
+                    disabled={!selectedGroup}
+                    maxVisibleChips={2}
+                  />
 
-                <div className='col-start-3 row-start-1 flex items-center justify-end sm:col-auto sm:row-auto'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    disabled={index === 0}
-                    title={t('Move group up')}
-                    aria-label={t('Move group up')}
-                    onClick={() => moveDraft(index, -1)}
-                  >
-                    <ArrowUp className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    disabled={index === drafts.length - 1}
-                    title={t('Move group down')}
-                    aria-label={t('Move group down')}
-                    onClick={() => moveDraft(index, 1)}
-                  >
-                    <ArrowDown className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    title={t('Remove group')}
-                    aria-label={t('Remove group')}
-                    onClick={() =>
-                      setDrafts((current) =>
-                        current.filter((item) => item.id !== draft.id)
-                      )
-                    }
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
+                  <div className='col-start-1 col-end-4 row-start-3 flex items-center justify-end sm:col-auto sm:row-auto'>
+                    {canResetStatus && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon'
+                              disabled={resetMutation.isPending}
+                              aria-label={t('Reset {{group}} status', {
+                                group: draft.group,
+                              })}
+                              onClick={() => setResetTarget(draft.group)}
+                            >
+                              {resetMutation.isPending &&
+                              resetTarget === draft.group ? (
+                                <Spinner className='size-4' />
+                              ) : (
+                                <RotateCcw className='size-4' />
+                              )}
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>
+                          {t('Reset {{group}} status', { group: draft.group })}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      disabled={index === 0}
+                      title={t('Move group up')}
+                      aria-label={t('Move group up')}
+                      onClick={() => moveDraft(index, -1)}
+                    >
+                      <ArrowUp className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      disabled={index === drafts.length - 1}
+                      title={t('Move group down')}
+                      aria-label={t('Move group down')}
+                      onClick={() => moveDraft(index, 1)}
+                    >
+                      <ArrowDown className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      title={t('Remove group')}
+                      aria-label={t('Remove group')}
+                      onClick={() =>
+                        setDrafts((current) =>
+                          current.filter((item) => item.id !== draft.id)
+                        )
+                      }
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-
-          {drafts.length === 0 && (
-            <p className='text-muted-foreground py-6 text-center text-sm'>
-              {t('No member groups')}
-            </p>
-          )}
-        </div>
-
-        <DialogFooter className='gap-2 sm:justify-between'>
-          <Button
-            type='button'
-            variant='outline'
-            disabled={drafts.length >= sortedGroups.length}
-            onClick={addDraft}
-          >
-            <Plus className='mr-2 h-4 w-4' />
-            {t('Add group')}
-          </Button>
-          <Button
-            type='button'
-            disabled={!canSave}
-            onClick={() =>
-              props.onSave(
-                drafts.map((draft) => ({
-                  group: draft.group,
-                  models: draft.models,
-                }))
               )
-            }
-          >
-            {t('Save')}
-          </Button>
-        </DialogFooter>
+            })}
+
+            {drafts.length === 0 && (
+              <p className='text-muted-foreground py-6 text-center text-sm'>
+                {t('No member groups')}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className='gap-2 sm:justify-between'>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={drafts.length >= sortedGroups.length}
+              onClick={addDraft}
+            >
+              <Plus className='mr-2 h-4 w-4' />
+              {t('Add group')}
+            </Button>
+            <Button
+              type='button'
+              disabled={!canSave}
+              onClick={() =>
+                props.onSave(
+                  drafts.map((draft) => ({
+                    group: draft.group,
+                    models: draft.models,
+                  }))
+                )
+              }
+            >
+              {t('Save')}
+            </Button>
+          </DialogFooter>
+        </TooltipProvider>
+
+        <ConfirmDialog
+          open={resetTarget !== null}
+          onOpenChange={(open) => {
+            if (!open && !resetMutation.isPending) setResetTarget(null)
+          }}
+          title={t('Reset combination group status?')}
+          desc={t(
+            '{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.',
+            { group: resetTarget ?? '' }
+          )}
+          confirmText={t('Reset')}
+          isLoading={resetMutation.isPending}
+          handleConfirm={() => {
+            if (resetTarget) resetMutation.mutate(resetTarget)
+          }}
+        />
       </DialogContent>
     </Dialog>
   )

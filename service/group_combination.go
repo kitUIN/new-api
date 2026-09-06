@@ -114,6 +114,14 @@ func getGroupCombinationRuntime(c *gin.Context, group, modelName string, members
 	}
 
 	candidates := groupCombinationMembersForModel(group, modelName, members)
+	availableCandidates := make([]ratio_setting.GroupCombinationMember, 0, len(candidates))
+	for _, member := range candidates {
+		if isGroupCombinationMemberSkipped(member.Group) {
+			continue
+		}
+		availableCandidates = append(availableCandidates, member)
+	}
+	candidates = availableCandidates
 	runtime := &groupCombinationRuntime{
 		RootGroup:     group,
 		ModelName:     modelName,
@@ -232,6 +240,9 @@ func PrepareGroupCombinationFailover(c *gin.Context, retryParam *RetryParam) boo
 	}
 	if nextIndex < 0 || nextIndex >= len(runtime.Members) {
 		return false
+	}
+	if runtime.SelectedIndex >= 0 && runtime.SelectedIndex < len(runtime.Members) {
+		recordGroupCombinationMemberFailure(runtime.Members[runtime.SelectedIndex].Group)
 	}
 	runtime.CurrentIndex = nextIndex
 	runtime.SelectedIndex = nextIndex

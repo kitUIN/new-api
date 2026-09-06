@@ -4958,6 +4958,17 @@
     "Hourly token usage by model today": "Hourly token usage by model today",
     "Weekly token usage by model this year": "Weekly token usage by model this year",
     "Token share by model author today": "Token share by model author today",
-    "Token share by model author this year": "Token share by model author this year"
+    "Token share by model author this year": "Token share by model author this year",
+    "Loading runtime status...": "Loading runtime status...",
+    "Unable to load combination mode status": "Unable to load combination mode status",
+    "Automatically skipped": "Automatically skipped",
+    "Consecutive failures {{count}}/{{threshold}}": "Consecutive failures {{count}}/{{threshold}}",
+    "Retries at {{time}}": "Retries at {{time}}",
+    "{{duration}} remaining": "{{duration}} remaining",
+    "Reset {{group}} status": "Reset {{group}} status",
+    "Reset combination group status?": "Reset combination group status?",
+    "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.",
+    "Failed to reset group status": "Failed to reset group status",
+    "{{group}} status has been reset": "{{group}} status has been reset"
   }
 }

@@ -21,7 +21,9 @@ import type {
   ChannelGroupBindingsResponse,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
+  GroupCombinationCircuitBreakersResponse,
   GroupQuerySourcesResponse,
+  ResetGroupCombinationCircuitBreakerResponse,
   SystemOptionsResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
@@ -49,6 +51,21 @@ export async function deleteLogsBefore(targetTimestamp: number) {
 export async function resetModelRatios() {
   const res = await api.post<UpdateOptionResponse>(
     '/api/option/rest_model_ratio'
+  )
+  return res.data
+}
+
+export async function getGroupCombinationCircuitBreakers() {
+  const res = await api.get<GroupCombinationCircuitBreakersResponse>(
+    '/api/option/group_combination_circuit_breakers'
+  )
+  return res.data
+}
+
+export async function resetGroupCombinationCircuitBreaker(group: string) {
+  const res = await api.post<ResetGroupCombinationCircuitBreakerResponse>(
+    '/api/option/group_combination_circuit_breakers/reset',
+    { group }
   )
   return res.data
 }

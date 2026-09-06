@@ -237,6 +237,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			ttftMs, hasTTFT := relayTTFT(relayInfo)
 			service.RecordRuleAutoGroupResult(c, true, false, ttftMs, hasTTFT)
 			service.RecordSessionGroupFailoverResult(c, true)
+			service.RecordGroupCombinationSuccess(c)
 			return
 		}
 

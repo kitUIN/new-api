@@ -4958,6 +4958,17 @@
     "Hourly token usage by model today": "今日のモデル別時間ごとのトークン使用量",
     "Weekly token usage by model this year": "今年のモデル別週次トークン使用量",
     "Token share by model author today": "今日のモデル提供者別トークンシェア",
-    "Token share by model author this year": "今年のモデル提供者別トークンシェア"
+    "Token share by model author this year": "今年のモデル提供者別トークンシェア",
+    "Loading runtime status...": "稼働状態を読み込んでいます...",
+    "Unable to load combination mode status": "組み合わせモードの状態を読み込めません",
+    "Automatically skipped": "自動スキップ中",
+    "Consecutive failures {{count}}/{{threshold}}": "連続失敗 {{count}}/{{threshold}}",
+    "Retries at {{time}}": "{{time}} に再試行",
+    "{{duration}} remaining": "残り {{duration}}",
+    "Reset {{group}} status": "{{group}} の状態をリセット",
+    "Reset combination group status?": "組み合わせメンバーグループの状態をリセットしますか？",
+    "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "新しいリクエストでは {{group}} を再試行します。すでにフォールバックグループを使用している既存セッションは変更されません。",
+    "Failed to reset group status": "グループ状態のリセットに失敗しました",
+    "{{group}} status has been reset": "{{group}} の状態をリセットしました"
   }
 }
