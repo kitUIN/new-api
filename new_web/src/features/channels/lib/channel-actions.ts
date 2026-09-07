@@ -26,6 +26,7 @@ import {
   testChannel,
   testChannelJuice,
   updateChannel,
+  updateChannelJuiceTestStatus,
   batchDeleteChannels,
   batchSetChannelTag,
   enableTagChannels,
@@ -290,6 +291,28 @@ export async function handleTestChannelJuice(id: number): Promise<boolean> {
         ? `${err.response.data.message}. ${retainedMessage}`
         : retainedMessage
     )
+    return false
+  }
+}
+
+export async function handleUpdateChannelJuiceTestStatus(
+  id: number,
+  enabled: boolean
+): Promise<boolean> {
+  try {
+    const response = await updateChannelJuiceTestStatus(id, enabled)
+    if (!response.success) {
+      toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+      return false
+    }
+    toast.success(
+      enabled
+        ? i18next.t('Juice detection enabled')
+        : i18next.t('Juice detection disabled')
+    )
+    return true
+  } catch (_error) {
+    toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
     return false
   }
 }

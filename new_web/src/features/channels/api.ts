@@ -205,6 +205,23 @@ export async function testChannelJuice(
   return res.data
 }
 
+export type ChannelJuiceTestStatusResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    juice_test_enabled: boolean
+    juice_test_eligible: boolean
+  }
+}
+
+export async function updateChannelJuiceTestStatus(
+  id: number,
+  enabled: boolean
+): Promise<ChannelJuiceTestStatusResponse> {
+  const res = await api.put(`/api/channel/${id}/juice/test`, { enabled })
+  return res.data
+}
+
 /**
  * Update channel balance
  */

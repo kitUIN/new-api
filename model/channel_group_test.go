@@ -68,6 +68,30 @@ func TestGetEnabledChannelGroupSet(t *testing.T) {
 	require.False(t, groups["disabled"])
 }
 
+func TestUpdateJuiceTestEnabledPersistsChannelSetting(t *testing.T) {
+	truncateTables(t)
+	channel := &Channel{
+		Id:            1,
+		Name:          "juice-toggle",
+		Key:           "sk-juice-toggle",
+		Status:        common.ChannelStatusEnabled,
+		Models:        JuiceTestModel,
+		OtherSettings: `{}`,
+	}
+	require.NoError(t, DB.Create(channel).Error)
+	require.True(t, channel.IsJuiceTestEnabled())
+
+	require.NoError(t, channel.UpdateJuiceTestEnabled(false))
+	stored, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	require.False(t, stored.IsJuiceTestEnabled())
+
+	require.NoError(t, stored.UpdateJuiceTestEnabled(true))
+	stored, err = GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	require.True(t, stored.IsJuiceTestEnabled())
+}
+
 func TestGetChannelGroupBindings(t *testing.T) {
 	truncateTables(t)
 

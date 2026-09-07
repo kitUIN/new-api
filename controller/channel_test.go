@@ -177,6 +177,21 @@ func TestShouldRunJuiceTestUsesHourlyAttemptInterval(t *testing.T) {
 	if !shouldRunJuiceTest(channel, now) {
 		t.Fatal("channel should run at the one-hour boundary")
 	}
+	channel.OtherSettings = `{"juice_test_enabled":false}`
+	if shouldRunJuiceTest(channel, now) {
+		t.Fatal("channel with Juice testing disabled should not run")
+	}
+}
+
+func TestExecuteJuiceTestRejectsDisabledJuiceTest(t *testing.T) {
+	channel := &model.Channel{
+		Status:        common.ChannelStatusEnabled,
+		Models:        model.JuiceTestModel,
+		OtherSettings: `{"juice_test_enabled":false}`,
+	}
+	if _, err := executeJuiceTest(channel); err == nil {
+		t.Fatal("executeJuiceTest() should reject a channel with Juice testing disabled")
+	}
 }
 
 func TestExecuteJuiceTestRejectsConcurrentChannelTest(t *testing.T) {

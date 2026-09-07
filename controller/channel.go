@@ -425,6 +425,7 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		channel.JuiceTestEligible = isJuiceTestEligible(channel)
+		channel.JuiceTestEnabled = channel.IsJuiceTestEnabled()
 		clearChannelInfo(channel)
 		model.AttachChannelProviderSummaries([]*model.Channel{channel})
 	}
@@ -440,6 +441,7 @@ func setChannelJuiceTestEligibility(channels []*model.Channel) {
 	for _, channel := range channels {
 		if channel != nil {
 			channel.JuiceTestEligible = isJuiceTestEligible(channel)
+			channel.JuiceTestEnabled = channel.IsJuiceTestEnabled()
 		}
 	}
 }

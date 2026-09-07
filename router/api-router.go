@@ -250,6 +250,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/test", controller.TestAllChannels)
 			channelRoute.GET("/test/:id", controller.TestChannel)
 			channelRoute.POST("/:id/juice/test", controller.TestChannelJuice)
+			channelRoute.PUT("/:id/juice/test", controller.UpdateChannelJuiceTestStatus)
 			channelRoute.GET("/update_balance", controller.UpdateAllChannelsBalance)
 			channelRoute.GET("/update_balance/:id", controller.UpdateChannelBalance)
 			channelRoute.GET("/balance_query_instances", controller.GetChannelBalanceQueryInstances)

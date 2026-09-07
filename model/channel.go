@@ -36,6 +36,7 @@ type Channel struct {
 	JuiceTestTime      int64   `json:"juice_test_time" gorm:"bigint"`
 	JuiceTestError     string  `json:"juice_test_error" gorm:"type:text"`
 	JuiceTestEligible  bool    `json:"juice_test_eligible" gorm:"-"`
+	JuiceTestEnabled   bool    `json:"juice_test_enabled" gorm:"-"`
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"` // in USD
@@ -331,6 +332,22 @@ func (channel *Channel) GetAutoBan() bool {
 func (channel *Channel) IsAutoTestEnabled() bool {
 	settings := channel.GetOtherSettings()
 	return settings.IsAutoTestEnabled()
+}
+
+func (channel *Channel) IsJuiceTestEnabled() bool {
+	settings := channel.GetOtherSettings()
+	return settings.IsJuiceTestEnabled()
+}
+
+func (channel *Channel) UpdateJuiceTestEnabled(enabled bool) error {
+	settings := channel.GetOtherSettings()
+	settings.JuiceTestEnabled = &enabled
+	channel.SetOtherSettings(settings)
+	if err := DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("settings", channel.OtherSettings).Error; err != nil {
+		return err
+	}
+	channel.JuiceTestEnabled = enabled
+	return nil
 }
 
 func (channel *Channel) Save() error {

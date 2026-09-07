@@ -37,7 +37,8 @@ type ChannelOtherSettings struct {
 	AllowIncludeObfuscation               bool          `json:"allow_include_obfuscation,omitempty"` // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
 	DisableResponsesImageGenerationFilter bool          `json:"disable_responses_image_generation_tool_filter,omitempty"`
 	DisableResponsesWebSearchTool         bool          `json:"disable_responses_web_search_tool,omitempty"`
-	AutoTestEnabled                       *bool         `json:"auto_test_enabled,omitempty"` // 是否参与定时自动测试，默认参与
+	AutoTestEnabled                       *bool         `json:"auto_test_enabled,omitempty"`  // 是否参与定时自动测试，默认参与
+	JuiceTestEnabled                      *bool         `json:"juice_test_enabled,omitempty"` // 是否参与 Juice 检测，默认参与
 	AwsKeyType                            AwsKeyType    `json:"aws_key_type,omitempty"`
 	UpstreamModelUpdateCheckEnabled       bool          `json:"upstream_model_update_check_enabled,omitempty"`        // 是否检测上游模型更新
 	UpstreamModelUpdateAutoSyncEnabled    bool          `json:"upstream_model_update_auto_sync_enabled,omitempty"`    // 是否自动同步上游模型更新
@@ -70,6 +71,13 @@ func (s *ChannelOtherSettings) IsAutoTestEnabled() bool {
 		return true
 	}
 	return *s.AutoTestEnabled
+}
+
+func (s *ChannelOtherSettings) IsJuiceTestEnabled() bool {
+	if s == nil || s.JuiceTestEnabled == nil {
+		return true
+	}
+	return *s.JuiceTestEnabled
 }
 
 func (s *ChannelOtherSettings) IsResponsesWebSocketEnabled() bool {

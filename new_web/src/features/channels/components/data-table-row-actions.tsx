@@ -34,6 +34,7 @@ import {
   RefreshCw,
   Loader2,
   BatteryCharging,
+  BatteryLow,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -57,6 +58,7 @@ import {
   handleDeleteChannel,
   handleTestChannel,
   handleTestChannelJuice,
+  handleUpdateChannelJuiceTestStatus,
   handleToggleChannelStatus,
   isChannelEnabled,
   isMultiKeyChannel,
@@ -77,6 +79,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isJuiceTesting, setIsJuiceTesting] = useState(false)
+  const [isTogglingJuiceTest, setIsTogglingJuiceTest] = useState(false)
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
@@ -116,6 +119,24 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     } finally {
       queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       setIsJuiceTesting(false)
+    }
+  }
+
+  const handleToggleJuiceTest = async (
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    e.stopPropagation()
+    setIsTogglingJuiceTest(true)
+    try {
+      const success = await handleUpdateChannelJuiceTestStatus(
+        channel.id,
+        !channel.juice_test_enabled
+      )
+      if (success) {
+        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      }
+    } finally {
+      setIsTogglingJuiceTest(false)
     }
   }
 
@@ -175,26 +196,66 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       </Tooltip>
 
       {channel.juice_test_eligible && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant='ghost'
-                size='icon-sm'
-                onClick={handleJuiceTest}
-                disabled={isJuiceTesting}
-                aria-label={t('Test Juice')}
-              />
-            }
-          >
-            {isJuiceTesting ? (
-              <Loader2 className='size-4 animate-spin' />
-            ) : (
-              <BatteryCharging className='size-4' />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>{t('Test Juice')}</TooltipContent>
-        </Tooltip>
+        <>
+          {channel.juice_test_enabled && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    size='icon-sm'
+                    onClick={handleJuiceTest}
+                    disabled={isJuiceTesting || isTogglingJuiceTest}
+                    aria-label={t('Test Juice')}
+                  />
+                }
+              >
+                {isJuiceTesting ? (
+                  <Loader2 className='size-4 animate-spin' />
+                ) : (
+                  <BatteryCharging className='size-4' />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>{t('Test Juice')}</TooltipContent>
+            </Tooltip>
+          )}
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  onClick={handleToggleJuiceTest}
+                  disabled={isJuiceTesting || isTogglingJuiceTest}
+                  aria-label={
+                    channel.juice_test_enabled
+                      ? t('Disable Juice detection')
+                      : t('Enable Juice detection')
+                  }
+                  className={
+                    channel.juice_test_enabled
+                      ? 'text-destructive hover:text-destructive'
+                      : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
+                  }
+                />
+              }
+            >
+              {isTogglingJuiceTest ? (
+                <Loader2 className='size-4 animate-spin' />
+              ) : channel.juice_test_enabled ? (
+                <BatteryLow className='size-4' />
+              ) : (
+                <BatteryCharging className='size-4' />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>
+              {channel.juice_test_enabled
+                ? t('Disable Juice detection')
+                : t('Enable Juice detection')}
+            </TooltipContent>
+          </Tooltip>
+        </>
       )}
 
       <Tooltip>

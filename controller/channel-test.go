@@ -1000,8 +1000,12 @@ func isJuiceTestEligible(channel *model.Channel) bool {
 		channel.SupportsMappedModel(model.JuiceTestModel)
 }
 
+func canRunJuiceTest(channel *model.Channel) bool {
+	return isJuiceTestEligible(channel) && channel.IsJuiceTestEnabled()
+}
+
 func shouldRunJuiceTest(channel *model.Channel, now int64) bool {
-	return isJuiceTestEligible(channel) &&
+	return canRunJuiceTest(channel) &&
 		(channel.JuiceTestTime <= 0 || now-channel.JuiceTestTime >= int64(juiceTestInterval.Seconds()))
 }
 
@@ -1048,8 +1052,8 @@ func executeDueJuiceTest(channel *model.Channel, now int64) (string, error) {
 }
 
 func executeJuiceTestWithSchedule(channel *model.Channel, enforceSchedule bool, now int64) (string, error) {
-	if !isJuiceTestEligible(channel) {
-		return "", errors.New("channel does not support gpt-5.6-sol or is disabled")
+	if !canRunJuiceTest(channel) {
+		return "", errors.New("channel does not support gpt-5.6-sol, is disabled, or has Juice testing disabled")
 	}
 	lockValue, _ := juiceTestLocks.LoadOrStore(channel.Id, &sync.Mutex{})
 	lock := lockValue.(*sync.Mutex)
@@ -1143,6 +1147,44 @@ func TestChannelJuice(c *gin.Context) {
 			"juice":              juice,
 			"juice_updated_time": channel.JuiceUpdatedTime,
 			"juice_test_time":    channel.JuiceTestTime,
+		},
+	})
+}
+
+type updateChannelJuiceTestRequest struct {
+	Enabled *bool `json:"enabled"`
+}
+
+func UpdateChannelJuiceTestStatus(c *gin.Context) {
+	channelID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	request := updateChannelJuiceTestRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil || request.Enabled == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "enabled is required",
+		})
+		return
+	}
+	channel, err := model.GetChannelById(channelID, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := channel.UpdateJuiceTestEnabled(*request.Enabled); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.CacheUpdateChannel(channel)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"juice_test_enabled":  channel.JuiceTestEnabled,
+			"juice_test_eligible": isJuiceTestEligible(channel),
 		},
 	})
 }
