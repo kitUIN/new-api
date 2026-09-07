@@ -37,6 +37,12 @@ type QuotaData struct {
 	AvgTps               float64 `json:"avg_tps,omitempty" gorm:"-"`
 }
 
+type QuotaDataUser struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	Quota    int    `json:"quota"`
+}
+
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
@@ -166,6 +172,30 @@ func GetQuotaDataGroupByGroupModel(startTime int64, endTime int64) (quotaData []
 	}
 	err = attachGroupModelPerfStats(quotaDatas, startTime, endTime)
 	return quotaDatas, err
+}
+
+func GetQuotaDataGroupByGroupUser(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	var quotaDatas []*QuotaData
+	query := DB.Table("quota_data").
+		Select(commonGroupCol+" as "+commonGroupCol+", user_id, max(username) as username, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(completion_tokens) as completion_tokens, sum(cache_read_tokens) as cache_read_tokens, sum(cache_write_tokens) as cache_write_tokens").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if userId > 0 {
+		query = query.Where("user_id = ?", userId)
+	}
+	err = query.
+		Group(commonGroupCol + ", user_id").
+		Find(&quotaDatas).Error
+	return quotaDatas, err
+}
+
+func GetQuotaDataUsers(startTime int64, endTime int64) (users []*QuotaDataUser, err error) {
+	var quotaUsers []*QuotaDataUser
+	err = DB.Table("quota_data").
+		Select("user_id, max(username) as username, sum(quota) as quota").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime).
+		Group("user_id").
+		Find(&quotaUsers).Error
+	return quotaUsers, err
 }
 
 func GetQuotaDataGroupByUserGroupModel(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {

@@ -248,6 +248,150 @@ func TestGetQuotaDataGroupByUserGroupModel(t *testing.T) {
 	require.Equal(t, 400, vipModel.TokenUsed)
 }
 
+func TestGetQuotaDataGroupByGroupUser(t *testing.T) {
+	truncateTables(t)
+
+	rows := []*QuotaData{
+		{
+			UserID:           10,
+			Username:         "alice",
+			ModelName:        "gpt-a",
+			Group:            "default",
+			CreatedAt:        1710000000,
+			Count:            1,
+			Quota:            100,
+			TokenUsed:        80,
+			PromptTokens:     50,
+			CompletionTokens: 20,
+			CacheReadTokens:  5,
+			CacheWriteTokens: 5,
+		},
+		{
+			UserID:           10,
+			Username:         "alice",
+			ModelName:        "gpt-b",
+			Group:            "default",
+			CreatedAt:        1710003600,
+			Count:            2,
+			Quota:            300,
+			TokenUsed:        240,
+			PromptTokens:     150,
+			CompletionTokens: 60,
+			CacheReadTokens:  20,
+			CacheWriteTokens: 10,
+		},
+		{
+			UserID:           11,
+			Username:         "bob",
+			ModelName:        "gpt-a",
+			Group:            "default",
+			CreatedAt:        1710000000,
+			Count:            3,
+			Quota:            500,
+			TokenUsed:        400,
+			PromptTokens:     250,
+			CompletionTokens: 100,
+			CacheReadTokens:  30,
+			CacheWriteTokens: 20,
+		},
+		{
+			UserID:           10,
+			Username:         "alice",
+			ModelName:        "gpt-c",
+			Group:            "vip",
+			CreatedAt:        1710000000,
+			Count:            1,
+			Quota:            200,
+			TokenUsed:        160,
+			PromptTokens:     100,
+			CompletionTokens: 40,
+			CacheReadTokens:  10,
+			CacheWriteTokens: 10,
+		},
+	}
+	require.NoError(t, DB.Create(rows).Error)
+
+	allRows, err := GetQuotaDataGroupByGroupUser(0, 1709990000, 1710010000)
+	require.NoError(t, err)
+	require.Len(t, allRows, 3)
+
+	byKey := make(map[string]*QuotaData)
+	for _, row := range allRows {
+		byKey[row.Group+"|"+row.Username] = row
+	}
+
+	aliceDefault := byKey["default|alice"]
+	require.NotNil(t, aliceDefault)
+	require.Equal(t, 10, aliceDefault.UserID)
+	require.Equal(t, 3, aliceDefault.Count)
+	require.Equal(t, 400, aliceDefault.Quota)
+	require.Equal(t, 320, aliceDefault.TokenUsed)
+	require.Equal(t, 200, aliceDefault.PromptTokens)
+	require.Equal(t, 80, aliceDefault.CompletionTokens)
+	require.Equal(t, 25, aliceDefault.CacheReadTokens)
+	require.Equal(t, 15, aliceDefault.CacheWriteTokens)
+
+	filteredRows, err := GetQuotaDataGroupByGroupUser(10, 1709990000, 1710010000)
+	require.NoError(t, err)
+	require.Len(t, filteredRows, 2)
+	for _, row := range filteredRows {
+		require.Equal(t, 10, row.UserID)
+		require.Equal(t, "alice", row.Username)
+	}
+}
+
+func TestGetQuotaDataUsers(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create([]*QuotaData{
+		{
+			UserID:    12,
+			Username:  "carol",
+			ModelName: "gpt-a",
+			Group:     "default",
+			CreatedAt: 1710000000,
+			Quota:     100,
+		},
+		{
+			UserID:    12,
+			Username:  "carol",
+			ModelName: "gpt-b",
+			Group:     "vip",
+			CreatedAt: 1710003600,
+			Quota:     300,
+		},
+		{
+			UserID:    13,
+			Username:  "dave",
+			ModelName: "gpt-a",
+			Group:     "default",
+			CreatedAt: 1710000000,
+			Quota:     500,
+		},
+		{
+			UserID:    14,
+			Username:  "outside",
+			ModelName: "gpt-a",
+			Group:     "default",
+			CreatedAt: 1711000000,
+			Quota:     900,
+		},
+	}).Error)
+
+	users, err := GetQuotaDataUsers(1709990000, 1710010000)
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+
+	byID := make(map[int]*QuotaDataUser)
+	for _, user := range users {
+		byID[user.UserID] = user
+	}
+	require.Equal(t, "carol", byID[12].Username)
+	require.Equal(t, 400, byID[12].Quota)
+	require.Equal(t, "dave", byID[13].Username)
+	require.Equal(t, 500, byID[13].Quota)
+}
+
 func TestGetAllQuotaDatesReturnsZeroBreakdownForLegacyRows(t *testing.T) {
 	truncateTables(t)
 

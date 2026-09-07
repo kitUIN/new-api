@@ -25,12 +25,15 @@ import {
   Layers3,
   Loader2,
   Sigma,
+  Users,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Combobox } from '@/components/ui/combobox'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -41,7 +44,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CompactDateTimeRangePicker } from '@/components/compact-date-time-range-picker'
-import { getGroupQuotaData } from '@/features/dashboard/api'
+import { getGroupQuotaData, getGroupQuotaUsers } from '@/features/dashboard/api'
 import {
   DASHBOARD_STATS_ALL_RANGE_VALUE,
   DASHBOARD_STATS_CUSTOM_RANGE_VALUE,
@@ -59,8 +62,11 @@ import {
   formatThroughput,
 } from '@/features/performance-metrics/lib/format'
 
-interface GroupModelStats {
-  model: string
+type GroupBreakdownDimension = 'model' | 'user'
+
+interface GroupDetailStats {
+  key: string
+  label: string
   quota: number
   count: number
   tokens: number
@@ -93,7 +99,7 @@ interface GroupStats {
   ttftCount: number
   perfCompletionTokens: number
   totalTPSLatencyMs: number
-  models: GroupModelStats[]
+  details: GroupDetailStats[]
 }
 
 interface GroupStatsSummary {
@@ -127,6 +133,12 @@ function normalizeModel(model?: string) {
   return trimmed || 'Unknown'
 }
 
+function formatUserLabel(username?: string, userId?: number) {
+  const trimmed = username?.trim()
+  if (trimmed && userId) return `${trimmed} (#${userId})`
+  return trimmed || (userId ? `#${userId}` : 'Unknown')
+}
+
 function getTokenTotal(item: GroupQuotaDataItem) {
   const promptTokens = Number(item.prompt_tokens) || 0
   const completionTokens = Number(item.completion_tokens) || 0
@@ -136,9 +148,12 @@ function getTokenTotal(item: GroupQuotaDataItem) {
   return tokenUsed > 0 ? tokenUsed : breakdownTotal
 }
 
-function emptyModelStats(model: string): GroupModelStats {
+const ALL_USERS_VALUE = 'all'
+
+function emptyDetailStats(key: string, label: string): GroupDetailStats {
   return {
-    model,
+    key,
+    label,
     quota: 0,
     count: 0,
     tokens: 0,
@@ -173,11 +188,11 @@ function emptyGroupStats(group: string): GroupStats {
     ttftCount: 0,
     perfCompletionTokens: 0,
     totalTPSLatencyMs: 0,
-    models: [],
+    details: [],
   }
 }
 
-function getPerformanceSummary(stats: GroupStats | GroupModelStats) {
+function getPerformanceSummary(stats: GroupStats | GroupDetailStats) {
   const avgTTFTMs =
     stats.ttftCount > 0 ? stats.totalTTFTMs / stats.ttftCount : 0
   const avgLatencyMs =
@@ -190,13 +205,23 @@ function getPerformanceSummary(stats: GroupStats | GroupModelStats) {
   return { avgTTFTMs, avgLatencyMs, avgTps }
 }
 
-function processGroupStats(data: GroupQuotaDataItem[]) {
+function processGroupStats(
+  data: GroupQuotaDataItem[],
+  dimension: GroupBreakdownDimension
+) {
   const groups = new Map<string, GroupStats>()
-  const groupModels = new Map<string, Map<string, GroupModelStats>>()
+  const groupDetails = new Map<string, Map<string, GroupDetailStats>>()
 
   data.forEach((item) => {
     const group = normalizeGroup(item.group)
-    const model = normalizeModel(item.model_name)
+    const detailKey =
+      dimension === 'user'
+        ? String(item.user_id || item.username || 'unknown')
+        : normalizeModel(item.model_name)
+    const detailLabel =
+      dimension === 'user'
+        ? formatUserLabel(item.username, item.user_id)
+        : normalizeModel(item.model_name)
     const quota = Number(item.quota) || 0
     const count = Number(item.count) || 0
     const tokens = getTokenTotal(item)
@@ -229,30 +254,31 @@ function processGroupStats(data: GroupQuotaDataItem[]) {
     groupStats.totalTPSLatencyMs += totalTPSLatencyMs
     groups.set(group, groupStats)
 
-    if (!groupModels.has(group)) groupModels.set(group, new Map())
-    const modelMap = groupModels.get(group)!
-    const modelStats = modelMap.get(model) ?? emptyModelStats(model)
-    modelStats.quota += quota
-    modelStats.count += count
-    modelStats.tokens += tokens
-    modelStats.promptTokens += promptTokens
-    modelStats.completionTokens += completionTokens
-    modelStats.cacheReadTokens += cacheReadTokens
-    modelStats.cacheWriteTokens += cacheWriteTokens
-    modelStats.perfRequestCount += perfRequestCount
-    modelStats.latencyCount += latencyCount
-    modelStats.totalLatencyMs += totalLatencyMs
-    modelStats.totalTTFTMs += totalTTFTMs
-    modelStats.ttftCount += ttftCount
-    modelStats.perfCompletionTokens += perfCompletionTokens
-    modelStats.totalTPSLatencyMs += totalTPSLatencyMs
-    modelMap.set(model, modelStats)
+    if (!groupDetails.has(group)) groupDetails.set(group, new Map())
+    const detailMap = groupDetails.get(group)!
+    const detailStats =
+      detailMap.get(detailKey) ?? emptyDetailStats(detailKey, detailLabel)
+    detailStats.quota += quota
+    detailStats.count += count
+    detailStats.tokens += tokens
+    detailStats.promptTokens += promptTokens
+    detailStats.completionTokens += completionTokens
+    detailStats.cacheReadTokens += cacheReadTokens
+    detailStats.cacheWriteTokens += cacheWriteTokens
+    detailStats.perfRequestCount += perfRequestCount
+    detailStats.latencyCount += latencyCount
+    detailStats.totalLatencyMs += totalLatencyMs
+    detailStats.totalTTFTMs += totalTTFTMs
+    detailStats.ttftCount += ttftCount
+    detailStats.perfCompletionTokens += perfCompletionTokens
+    detailStats.totalTPSLatencyMs += totalTPSLatencyMs
+    detailMap.set(detailKey, detailStats)
   })
 
   const rows = Array.from(groups.values())
     .map((group) => ({
       ...group,
-      models: Array.from(groupModels.get(group.group)?.values() ?? []).sort(
+      details: Array.from(groupDetails.get(group.group)?.values() ?? []).sort(
         (a, b) => b.quota - a.quota || b.tokens - a.tokens
       ),
     }))
@@ -296,7 +322,10 @@ function SummaryItem(props: {
   )
 }
 
-function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
+function MetricCells(props: {
+  stats: GroupStats | GroupDetailStats
+  showPerformance: boolean
+}) {
   const cacheTokens = props.stats.cacheReadTokens + props.stats.cacheWriteTokens
   const cacheRatio =
     props.stats.promptTokens > 0
@@ -315,15 +344,19 @@ function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
       <TableCell className='text-right'>
         {formatInt(props.stats.count)}
       </TableCell>
-      <TableCell className='text-right'>
-        {formatLatency(perf.avgTTFTMs)}
-      </TableCell>
-      <TableCell className='text-right'>
-        {formatLatency(perf.avgLatencyMs)}
-      </TableCell>
-      <TableCell className='text-right'>
-        {formatThroughput(perf.avgTps)}
-      </TableCell>
+      {props.showPerformance && (
+        <>
+          <TableCell className='text-right'>
+            {formatLatency(perf.avgTTFTMs)}
+          </TableCell>
+          <TableCell className='text-right'>
+            {formatLatency(perf.avgLatencyMs)}
+          </TableCell>
+          <TableCell className='text-right'>
+            {formatThroughput(perf.avgTps)}
+          </TableCell>
+        </>
+      )}
       <TableCell className='text-right'>
         <span>{formatInt(props.stats.promptTokens)}</span>
         <span className='text-muted-foreground ml-1'>
@@ -338,12 +371,12 @@ function MetricCells(props: { stats: GroupStats | GroupModelStats }) {
   )
 }
 
-function TableSkeletonRows() {
+function TableSkeletonRows({ columnCount }: { columnCount: number }) {
   return (
     <>
       {Array.from({ length: 6 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 10 }).map((__, cellIndex) => (
+          {Array.from({ length: columnCount }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className='h-4 w-full' />
             </TableCell>
@@ -361,6 +394,9 @@ interface GroupStatsTableProps {
 export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
   const { t } = useTranslation()
   const [selectedRange, setSelectedRange] = useState<string>('7')
+  const [selectedUserId, setSelectedUserId] = useState(ALL_USERS_VALUE)
+  const [breakdownDimension, setBreakdownDimension] =
+    useState<GroupBreakdownDimension>('model')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [customRange, setCustomRange] = useState<{
     start?: Date
@@ -404,17 +440,85 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
     []
   )
 
+  const {
+    data: quotaUsersData,
+    isFetching: isUsersFetching,
+    isLoading: isUsersLoading,
+  } = useQuery({
+    queryKey: ['dashboard', 'group-quota-users', timeRange],
+    queryFn: () => getGroupQuotaUsers(timeRange),
+    select: (res) => (res.success ? res.data : []),
+    staleTime: 60_000,
+    enabled: isAdmin,
+  })
+
+  const userOptions = useMemo(
+    () => [
+      { value: ALL_USERS_VALUE, label: t('All users') },
+      ...(quotaUsersData ?? [])
+        .slice()
+        .sort(
+          (a, b) =>
+            (Number(b.quota) || 0) - (Number(a.quota) || 0) ||
+            a.username.localeCompare(b.username)
+        )
+        .map((user) => ({
+          value: String(user.user_id),
+          label: formatUserLabel(user.username, user.user_id),
+        })),
+    ],
+    [quotaUsersData, t]
+  )
+
+  useEffect(() => {
+    if (
+      !isUsersLoading &&
+      quotaUsersData !== undefined &&
+      selectedUserId !== ALL_USERS_VALUE &&
+      !userOptions.some((option) => option.value === selectedUserId)
+    ) {
+      setSelectedUserId(ALL_USERS_VALUE)
+    }
+  }, [isUsersLoading, quotaUsersData, selectedUserId, userOptions])
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['dashboard', 'group-quota', isAdmin, timeRange],
-    queryFn: () => getGroupQuotaData(timeRange, isAdmin),
+    queryKey: [
+      'dashboard',
+      'group-quota',
+      isAdmin,
+      timeRange,
+      selectedUserId,
+      breakdownDimension,
+    ],
+    queryFn: () =>
+      getGroupQuotaData(
+        {
+          ...timeRange,
+          ...(isAdmin && selectedUserId !== ALL_USERS_VALUE
+            ? { user_id: Number(selectedUserId) }
+            : {}),
+          ...(isAdmin ? { dimension: breakdownDimension } : {}),
+        },
+        isAdmin
+      ),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
 
   const { rows, summary } = useMemo(
-    () => processGroupStats(isLoading ? [] : (data ?? [])),
-    [data, isLoading]
+    () =>
+      processGroupStats(
+        isLoading ? [] : (data ?? []),
+        isAdmin ? breakdownDimension : 'model'
+      ),
+    [breakdownDimension, data, isAdmin, isLoading]
   )
+
+  const showUserBreakdown = isAdmin && breakdownDimension === 'user'
+  const showPerformance =
+    !showUserBreakdown && (!isAdmin || selectedUserId === ALL_USERS_VALUE)
+  const columnCount =
+    7 + (showUserBreakdown ? 1 : 0) + (showPerformance ? 3 : 0)
 
   useEffect(() => {
     setExpandedGroups(new Set(rows.map((row) => row.group)))
@@ -434,7 +538,7 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
 
   return (
     <div className='space-y-3'>
-      <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+      <div className='flex flex-wrap items-center gap-1.5 pb-1 sm:gap-2'>
         <Tabs
           value={selectedRange}
           onValueChange={handleRangeChange}
@@ -474,7 +578,49 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
           />
         )}
 
-        {isFetching && (
+        {isAdmin && (
+          <>
+            <div className='flex items-center gap-2'>
+              <label
+                htmlFor='group-user-filter'
+                className='text-xs font-medium whitespace-nowrap'
+              >
+                {t('User')}
+              </label>
+              <Combobox
+                id='group-user-filter'
+                options={userOptions}
+                value={selectedUserId}
+                onValueChange={(value) =>
+                  setSelectedUserId(value ?? ALL_USERS_VALUE)
+                }
+                searchPlaceholder={t('Select user')}
+                emptyText={t('No users found')}
+                className='h-8 w-56 text-xs'
+              />
+            </div>
+            <label
+              htmlFor='group-user-dimension'
+              className='flex h-8 cursor-pointer items-center gap-2 px-1 text-xs font-medium whitespace-nowrap'
+            >
+              <Users
+                className='text-muted-foreground size-4'
+                aria-hidden='true'
+              />
+              {t('User dimension')}
+              <Switch
+                id='group-user-dimension'
+                checked={breakdownDimension === 'user'}
+                onCheckedChange={(checked) =>
+                  setBreakdownDimension(checked ? 'user' : 'model')
+                }
+                aria-label={t('User dimension')}
+              />
+            </label>
+          </>
+        )}
+
+        {(isFetching || isUsersFetching) && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
       </div>
@@ -506,19 +652,28 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className='min-w-56'>{t('Group / Model')}</TableHead>
+              <TableHead className='min-w-56'>
+                {showUserBreakdown ? t('Group / User') : t('Group / Model')}
+              </TableHead>
+              {showUserBreakdown && (
+                <TableHead className='text-right'>{t('Share')}</TableHead>
+              )}
               <TableHead className='text-right'>{t('Cost')}</TableHead>
               <TableHead className='text-right'>{t('Tokens')}</TableHead>
               <TableHead className='text-right'>{t('Calls')}</TableHead>
-              <TableHead className='text-right'>
-                {t('First-token latency')}
-              </TableHead>
-              <TableHead className='text-right'>
-                {t('Average latency')}
-              </TableHead>
-              <TableHead className='text-right'>
-                {t('Average token/s')}
-              </TableHead>
+              {showPerformance && (
+                <>
+                  <TableHead className='text-right'>
+                    {t('First-token latency')}
+                  </TableHead>
+                  <TableHead className='text-right'>
+                    {t('Average latency')}
+                  </TableHead>
+                  <TableHead className='text-right'>
+                    {t('Average token/s')}
+                  </TableHead>
+                </>
+              )}
               <TableHead className='text-right'>{t('Input tokens')}</TableHead>
               <TableHead className='text-right'>{t('Output tokens')}</TableHead>
               <TableHead className='text-right'>{t('Cache tokens')}</TableHead>
@@ -526,11 +681,11 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows />
+              <TableSkeletonRows columnCount={columnCount} />
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={columnCount}
                   className='text-muted-foreground h-32 text-center'
                 >
                   {t('No data available')}
@@ -561,23 +716,45 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
                           />
                           <span className='truncate'>{group.group}</span>
                           <span className='text-muted-foreground text-xs'>
-                            {t('{{count}} models', {
-                              count: group.models.length,
-                            })}
+                            {showUserBreakdown
+                              ? t('{{count}} users', {
+                                  count: group.details.length,
+                                })
+                              : t('{{count}} models', {
+                                  count: group.details.length,
+                                })}
                           </span>
                         </button>
                       </TableCell>
-                      <MetricCells stats={group} />
+                      {showUserBreakdown && (
+                        <TableCell className='text-right'>100%</TableCell>
+                      )}
+                      <MetricCells
+                        stats={group}
+                        showPerformance={showPerformance}
+                      />
                     </TableRow>
                     {expanded &&
-                      group.models.map((model) => (
-                        <TableRow key={`${group.group}-${model.model}`}>
+                      group.details.map((detail) => (
+                        <TableRow key={`${group.group}-${detail.key}`}>
                           <TableCell className='pl-10'>
                             <span className='block max-w-80 truncate'>
-                              {model.model}
+                              {detail.label}
                             </span>
                           </TableCell>
-                          <MetricCells stats={model} />
+                          {showUserBreakdown && (
+                            <TableCell className='text-right font-medium'>
+                              {formatPercent(
+                                group.quota !== 0
+                                  ? (detail.quota / group.quota) * 100
+                                  : 0
+                              )}
+                            </TableCell>
+                          )}
+                          <MetricCells
+                            stats={detail}
+                            showPerformance={showPerformance}
+                          />
                         </TableRow>
                       ))}
                   </Fragment>

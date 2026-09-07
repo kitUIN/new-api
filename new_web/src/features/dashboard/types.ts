@@ -49,6 +49,8 @@ export interface QuotaDataItem {
 }
 
 export interface GroupQuotaDataItem {
+  user_id?: number
+  username?: string
   group?: string
   model_name?: string
   token_used?: number
@@ -68,6 +70,12 @@ export interface GroupQuotaDataItem {
   avg_ttft_ms?: number
   avg_latency_ms?: number
   avg_tps?: number
+}
+
+export interface GroupQuotaUserItem {
+  user_id: number
+  username: string
+  quota?: number
 }
 
 // ============================================================================

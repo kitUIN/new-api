@@ -45,7 +45,37 @@ func GetQuotaDatesByUser(c *gin.Context) {
 func GetQuotaDatesByGroup(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	dates, err := model.GetQuotaDataGroupByGroupModel(startTimestamp, endTimestamp)
+	userId := 0
+	if rawUserId := c.Query("user_id"); rawUserId != "" {
+		parsedUserId, err := strconv.Atoi(rawUserId)
+		if err != nil || parsedUserId <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "user_id must be a positive integer",
+			})
+			return
+		}
+		userId = parsedUserId
+	}
+
+	var dates []*model.QuotaData
+	var err error
+	switch c.DefaultQuery("dimension", "model") {
+	case "model":
+		if userId > 0 {
+			dates, err = model.GetQuotaDataGroupByUserGroupModel(userId, startTimestamp, endTimestamp)
+		} else {
+			dates, err = model.GetQuotaDataGroupByGroupModel(startTimestamp, endTimestamp)
+		}
+	case "user":
+		dates, err = model.GetQuotaDataGroupByGroupUser(userId, startTimestamp, endTimestamp)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "dimension must be model or user",
+		})
+		return
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -54,6 +84,21 @@ func GetQuotaDatesByGroup(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    dates,
+	})
+}
+
+func GetQuotaDataUsers(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	users, err := model.GetQuotaDataUsers(startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    users,
 	})
 }
 

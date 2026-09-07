@@ -4969,6 +4969,12 @@
     "Reset combination group status?": "Réinitialiser l’état du groupe combiné ?",
     "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "{{group}} sera de nouveau essayé pour les nouvelles requêtes. Les sessions utilisant déjà un groupe de secours resteront inchangées.",
     "Failed to reset group status": "Échec de la réinitialisation de l’état du groupe",
-    "{{group}} status has been reset": "L’état de {{group}} a été réinitialisé"
+    "{{group}} status has been reset": "L’état de {{group}} a été réinitialisé",
+    "{{count}} users": "{{count}} utilisateurs",
+    "All users": "Tous les utilisateurs",
+    "Group / User": "Groupe / Utilisateur",
+    "No users found": "Aucun utilisateur trouvé",
+    "Select user": "Sélectionner un utilisateur",
+    "User dimension": "Dimension utilisateur"
   }
 }

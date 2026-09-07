@@ -4969,6 +4969,12 @@
     "Reset combination group status?": "組み合わせメンバーグループの状態をリセットしますか？",
     "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "新しいリクエストでは {{group}} を再試行します。すでにフォールバックグループを使用している既存セッションは変更されません。",
     "Failed to reset group status": "グループ状態のリセットに失敗しました",
-    "{{group}} status has been reset": "{{group}} の状態をリセットしました"
+    "{{group}} status has been reset": "{{group}} の状態をリセットしました",
+    "{{count}} users": "{{count}} 人のユーザー",
+    "All users": "すべてのユーザー",
+    "Group / User": "グループ / ユーザー",
+    "No users found": "ユーザーが見つかりません",
+    "Select user": "ユーザーを選択",
+    "User dimension": "ユーザー軸"
   }
 }

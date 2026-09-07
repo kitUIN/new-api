@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   GroupQuotaDataItem,
+  GroupQuotaUserItem,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -69,6 +70,8 @@ export async function getGroupQuotaData(
   params: {
     start_timestamp: number
     end_timestamp: number
+    user_id?: number
+    dimension?: 'model' | 'user'
   },
   isAdmin = false
 ) {
@@ -77,6 +80,17 @@ export async function getGroupQuotaData(
     endpoint,
     { params }
   )
+  return res.data
+}
+
+export async function getGroupQuotaUsers(params: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    data: GroupQuotaUserItem[]
+  }>('/api/data/group_users', { params })
   return res.data
 }
 

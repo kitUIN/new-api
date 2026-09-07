@@ -4969,6 +4969,12 @@
     "Reset combination group status?": "重置组合成员分组状态？",
     "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "新请求将重新尝试 {{group}}；已使用后备分组的现有会话不会改变。",
     "Failed to reset group status": "重置分组状态失败",
-    "{{group}} status has been reset": "已重置 {{group}} 的状态"
+    "{{group}} status has been reset": "已重置 {{group}} 的状态",
+    "{{count}} users": "{{count}} 个用户",
+    "All users": "全部用户",
+    "Group / User": "分组 / 用户",
+    "No users found": "未找到用户",
+    "Select user": "选择用户",
+    "User dimension": "用户维度"
   }
 }

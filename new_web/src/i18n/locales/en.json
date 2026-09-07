@@ -4969,6 +4969,12 @@
     "Reset combination group status?": "Reset combination group status?",
     "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.",
     "Failed to reset group status": "Failed to reset group status",
-    "{{group}} status has been reset": "{{group}} status has been reset"
+    "{{group}} status has been reset": "{{group}} status has been reset",
+    "{{count}} users": "{{count}} users",
+    "All users": "All users",
+    "Group / User": "Group / User",
+    "No users found": "No users found",
+    "Select user": "Select user",
+    "User dimension": "User dimension"
   }
 }

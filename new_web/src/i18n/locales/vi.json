@@ -4969,6 +4969,12 @@
     "Reset combination group status?": "Đặt lại trạng thái nhóm kết hợp?",
     "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "Các yêu cầu mới sẽ thử lại {{group}}. Những phiên hiện có đã dùng nhóm dự phòng sẽ không thay đổi.",
     "Failed to reset group status": "Không thể đặt lại trạng thái nhóm",
-    "{{group}} status has been reset": "Đã đặt lại trạng thái của {{group}}"
+    "{{group}} status has been reset": "Đã đặt lại trạng thái của {{group}}",
+    "{{count}} users": "{{count}} người dùng",
+    "All users": "Tất cả người dùng",
+    "Group / User": "Nhóm / Người dùng",
+    "No users found": "Không tìm thấy người dùng",
+    "Select user": "Chọn người dùng",
+    "User dimension": "Chiều người dùng"
   }
 }

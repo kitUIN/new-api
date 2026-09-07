@@ -4969,6 +4969,12 @@
     "Reset combination group status?": "Сбросить состояние группы комбинированного режима?",
     "{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.": "Группа {{group}} будет снова использоваться для новых запросов. Существующие сеансы, уже перешедшие на резервную группу, не изменятся.",
     "Failed to reset group status": "Не удалось сбросить состояние группы",
-    "{{group}} status has been reset": "Состояние {{group}} сброшено"
+    "{{group}} status has been reset": "Состояние {{group}} сброшено",
+    "{{count}} users": "Пользователей: {{count}}",
+    "All users": "Все пользователи",
+    "Group / User": "Группа / Пользователь",
+    "No users found": "Пользователи не найдены",
+    "Select user": "Выберите пользователя",
+    "User dimension": "По пользователям"
   }
 }
