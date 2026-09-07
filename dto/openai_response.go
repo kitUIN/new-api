@@ -92,6 +92,7 @@ type ChatCompletionsStreamResponseChoiceDelta struct {
 	Reasoning        *string            `json:"reasoning,omitempty"`
 	Role             string             `json:"role,omitempty"`
 	ToolCalls        []ToolCallResponse `json:"tool_calls,omitempty"`
+	Annotations      json.RawMessage    `json:"annotations,omitempty"`
 }
 
 func (c *ChatCompletionsStreamResponseChoiceDelta) SetContentString(s string) {
@@ -264,6 +265,7 @@ type InputTokenDetails struct {
 type OutputTokenDetails struct {
 	TextTokens      int `json:"text_tokens"`
 	AudioTokens     int `json:"audio_tokens"`
+	ImageTokens     int `json:"image_tokens"`
 	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
@@ -334,7 +336,7 @@ func (o *OpenAIResponsesResponse) GetSize() string {
 }
 
 type IncompleteDetails struct {
-	Reasoning string `json:"reasoning"`
+	Reason string `json:"reason"`
 }
 
 type ResponsesOutput struct {
@@ -348,6 +350,7 @@ type ResponsesOutput struct {
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
 	Arguments string                   `json:"arguments,omitempty"`
+	Action    json.RawMessage          `json:"action,omitempty"`
 }
 
 func (r *ResponsesOutput) UnmarshalJSON(data []byte) error {
@@ -467,11 +470,17 @@ type ResponsesReasoningSummaryPart struct {
 
 const (
 	BuildInToolWebSearchPreview = "web_search_preview"
+	BuildInToolWebSearch        = "web_search"
 	BuildInToolFileSearch       = "file_search"
+	BuildInToolGoogleSearch     = "google_search"
+	BuildInToolImageGeneration  = "image_generation"
 )
 
 const (
-	BuildInCallWebSearchCall = "web_search_call"
+	BuildInCallWebSearchCall  = "web_search_call"
+	BuildInCallFileSearchCall = "file_search_call"
+	BuildInCallFunctionCall   = "function_call"
+	BuildInCallToolUse        = "tool_use"
 )
 
 const (
@@ -481,10 +490,15 @@ const (
 
 // ResponsesStreamResponse 用于处理 /v1/responses 流式响应
 type ResponsesStreamResponse struct {
-	Type     string                   `json:"type"`
-	Response *OpenAIResponsesResponse `json:"response,omitempty"`
-	Delta    string                   `json:"delta,omitempty"`
-	Item     *ResponsesOutput         `json:"item,omitempty"`
+	Type            string                   `json:"type"`
+	Response        *OpenAIResponsesResponse `json:"response,omitempty"`
+	Code            string                   `json:"code,omitempty"`
+	Message         string                   `json:"message,omitempty"`
+	Param           string                   `json:"param,omitempty"`
+	Delta           string                   `json:"delta,omitempty"`
+	Item            *ResponsesOutput         `json:"item,omitempty"`
+	Annotation      json.RawMessage          `json:"annotation,omitempty"`
+	AnnotationIndex *int                     `json:"annotation_index,omitempty"`
 	// - response.function_call_arguments.delta
 	// - response.function_call_arguments.done
 	OutputIndex  *int                           `json:"output_index,omitempty"`

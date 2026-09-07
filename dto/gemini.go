@@ -44,9 +44,9 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 }
 
 type ToolConfig struct {
-	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
-	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
-	IncludeServerSideToolInvocations *bool       `json:"includeServerSideToolInvocations,omitempty"`
+	FunctionCallingConfig            *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
+	RetrievalConfig                  *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+	IncludeServerSideToolInvocations *bool                  `json:"includeServerSideToolInvocations,omitempty"`
 }
 
 type FunctionCallingConfig struct {
@@ -238,8 +238,20 @@ func (g *GeminiInlineData) UnmarshalJSON(data []byte) error {
 }
 
 type FunctionCall struct {
-	FunctionName string `json:"name"`
-	Arguments    any    `json:"args"`
+	ID           string             `json:"id,omitempty"`
+	FunctionName string             `json:"name"`
+	Arguments    any                `json:"args"`
+	PartialArgs  []GeminiPartialArg `json:"partialArgs,omitempty"`
+	WillContinue *bool              `json:"willContinue,omitempty"`
+}
+
+type GeminiPartialArg struct {
+	JSONPath     string          `json:"jsonPath"`
+	NumberValue  *float64        `json:"numberValue,omitempty"`
+	StringValue  *string         `json:"stringValue,omitempty"`
+	BoolValue    *bool           `json:"boolValue,omitempty"`
+	NullValue    json.RawMessage `json:"nullValue,omitempty"`
+	WillContinue *bool           `json:"willContinue,omitempty"`
 }
 
 type GeminiFunctionResponse struct {
@@ -438,10 +450,22 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 type MediaResolution string
 
 type GeminiChatCandidate struct {
-	Content       GeminiChatContent        `json:"content"`
-	FinishReason  *string                  `json:"finishReason"`
-	Index         int64                    `json:"index"`
-	SafetyRatings []GeminiChatSafetyRating `json:"safetyRatings"`
+	Content           GeminiChatContent        `json:"content"`
+	FinishReason      *string                  `json:"finishReason"`
+	Index             int64                    `json:"index"`
+	SafetyRatings     []GeminiChatSafetyRating `json:"safetyRatings"`
+	GroundingMetadata *GeminiGroundingMetadata `json:"groundingMetadata,omitempty"`
+}
+
+type GeminiGroundingMetadata struct {
+	WebSearchQueries             []string        `json:"webSearchQueries,omitempty"`
+	RetrievalQueries             []string        `json:"retrievalQueries,omitempty"`
+	GroundingChunks              json.RawMessage `json:"groundingChunks,omitempty"`
+	GroundingSupports            json.RawMessage `json:"groundingSupports,omitempty"`
+	SearchEntryPoint             json.RawMessage `json:"searchEntryPoint,omitempty"`
+	RetrievalMetadata            json.RawMessage `json:"retrievalMetadata,omitempty"`
+	SourceFlaggingUris           json.RawMessage `json:"sourceFlaggingUris,omitempty"`
+	GoogleMapsWidgetContextToken string          `json:"googleMapsWidgetContextToken,omitempty"`
 }
 
 type GeminiChatSafetyRating struct {
@@ -469,6 +493,7 @@ type GeminiUsageMetadata struct {
 	CachedContentTokenCount    int                         `json:"cachedContentTokenCount"`
 	PromptTokensDetails        []GeminiPromptTokensDetails `json:"promptTokensDetails"`
 	ToolUsePromptTokensDetails []GeminiPromptTokensDetails `json:"toolUsePromptTokensDetails"`
+	CandidatesTokensDetails    []GeminiPromptTokensDetails `json:"candidatesTokensDetails"`
 }
 
 type GeminiPromptTokensDetails struct {

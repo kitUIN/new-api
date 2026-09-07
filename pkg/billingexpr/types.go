@@ -22,6 +22,7 @@ type TokenParams struct {
 	CC   float64 // cache creation tokens (5-min TTL for Claude, generic for others)
 	CC1h float64 // cache creation tokens — 1-hour TTL (Claude only)
 	Img  float64 // image input tokens
+	ImgO float64 // image output tokens
 	AI   float64 // audio input tokens
 	AO   float64 // audio output tokens
 }

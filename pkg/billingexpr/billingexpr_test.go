@@ -383,10 +383,13 @@ func TestNegativeResultRejected(t *testing.T) {
 	}
 }
 
-func TestUnsupportedImageOutputVariable(t *testing.T) {
-	_, _, err := billingexpr.RunExpr(`tier("bad", img_o * 1)`, billingexpr.TokenParams{})
-	if err == nil {
-		t.Error("expected img_o compile error")
+func TestImageOutputVariable(t *testing.T) {
+	cost, _, err := billingexpr.RunExpr(`tier("image", c + img_o * 2)`, billingexpr.TokenParams{C: 100, ImgO: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cost != 150 {
+		t.Fatalf("cost = %f, want 150", cost)
 	}
 }
 

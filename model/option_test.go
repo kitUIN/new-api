@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,4 +49,21 @@ func TestUpdateOptionPersistsGroupTypes(t *testing.T) {
 	assert.JSONEq(t, value, common.OptionMap["GroupTypes"])
 	common.OptionMapRWMutex.RUnlock()
 	assert.Equal(t, ratio_setting.GroupTypeBilling, ratio_setting.GetGroupType("missing"))
+}
+
+func TestHandleConfigUpdateRebuildsToolPriceIndex(t *testing.T) {
+	cfg := config.GlobalConfig.Get("tool_price_setting")
+	require.NotNil(t, cfg)
+	before, err := config.ConfigToMap(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		handled, cleanupErr := handleConfigUpdate(operation_setting.ToolPriceOptionKey, before["prices"])
+		require.True(t, handled)
+		require.NoError(t, cleanupErr)
+	})
+
+	handled, err := handleConfigUpdate(operation_setting.ToolPriceOptionKey, `{"model_option_fn":6}`)
+	require.True(t, handled)
+	require.NoError(t, err)
+	assert.Equal(t, 6.0, operation_setting.GetToolPriceForModel("model_option_fn", "gemini-2.5-flash"))
 }

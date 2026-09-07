@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -396,6 +397,31 @@ func TestCalculateTextQuotaSummaryAppliesOpenAIFastModeMultiplier(t *testing.T) 
 	require.Equal(t, int(float64(standardSummary.Quota)*2.5), fastSummary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryBillsGeminiGoogleSearch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	usage := &dto.Usage{PromptTokens: 1000, TotalTokens: 1000}
+	newRelayInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			OriginModelName: "gemini-2.5-flash",
+			PriceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 1,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			StartTime: time.Now(),
+		}
+	}
+
+	withoutSearch := calculateTextQuotaSummary(ctx, newRelayInfo(), usage)
+	ctx.Set("gemini_google_search_call", true)
+	withSearch := calculateTextQuotaSummary(ctx, newRelayInfo(), usage)
+
+	require.Equal(t, 1, withSearch.WebSearchCallCount)
+	require.Equal(t, operation_setting.GetGeminiGoogleSearchPricePerThousand(), withSearch.WebSearchPrice)
+	require.Equal(t, int(operation_setting.GetGeminiGoogleSearchPricePerThousand()/1000*common.QuotaPerUnit), withSearch.Quota-withoutSearch.Quota)
+}
+
 func TestApplyTieredTextQuotaAppliesFastMultiplierOnceBeforeToolSurcharge(t *testing.T) {
 	expr := `tier("base", p * 1) * (param("service_tier") == "fast" ? 2 : 1)`
 	snapshot := &billingexpr.BillingSnapshot{
@@ -434,4 +460,84 @@ func TestApplyTieredTextQuotaAppliesFastMultiplierOnceBeforeToolSurcharge(t *tes
 	require.InDelta(t, expectedBeforeGroup, result.ActualQuotaBeforeGroup, 0.000001)
 	require.Equal(t, expectedTokenQuota, result.ActualQuotaAfterGroup)
 	require.Equal(t, expectedTokenQuota+toolSurcharge, summary.Quota)
+}
+
+func TestCalculateTextQuotaSummaryBillsConfiguredCustomToolCalls(t *testing.T) {
+	operation_setting.SetToolPriceForTest("priced_lookup", 5)
+	t.Cleanup(func() {
+		operation_setting.DeleteToolPriceForTest("priced_lookup")
+	})
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	usage := &dto.Usage{PromptTokens: 1000, TotalTokens: 1000}
+	newRelayInfo := func(withTool bool) *relaycommon.RelayInfo {
+		info := &relaycommon.RelayInfo{
+			OriginModelName: "gemini-2.5-flash",
+			PriceData: types.PriceData{
+				ModelRatio:      1,
+				CompletionRatio: 1,
+				GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			},
+			StartTime: time.Now(),
+		}
+		if withTool {
+			info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+				"priced_lookup": {ToolName: "priced_lookup", CallCount: 2},
+			}}
+		}
+		return info
+	}
+
+	withoutTool := calculateTextQuotaSummary(ctx, newRelayInfo(false), usage)
+	withTool := calculateTextQuotaSummary(ctx, newRelayInfo(true), usage)
+
+	require.Equal(t, 1, len(withTool.ToolSurchargeItems))
+	require.Equal(t, "priced_lookup", withTool.ToolSurchargeItems[0].Name)
+	require.Equal(t, 2, withTool.ToolSurchargeItems[0].Count)
+	expectedSurcharge := int(5.0 / 1000 * 2 * common.QuotaPerUnit)
+	require.Equal(t, expectedSurcharge, withTool.Quota-withoutTool.Quota)
+}
+
+func TestApplyTieredTextQuotaIncludesConfiguredCustomToolCalls(t *testing.T) {
+	operation_setting.SetToolPriceForTest("tiered_lookup", 4)
+	t.Cleanup(func() {
+		operation_setting.DeleteToolPriceForTest("tiered_lookup")
+	})
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	expr := `tier("base", p * 1)`
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:   "tiered_expr",
+		ModelName:     "gemini-2.5-flash",
+		ExprString:    expr,
+		ExprHash:      billingexpr.ExprHashString(expr),
+		GroupRatio:    1,
+		EstimatedTier: "base",
+		QuotaPerUnit:  common.QuotaPerUnit,
+		ExprVersion:   billingexpr.ExprVersion(expr),
+	}
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName:       "gemini-2.5-flash",
+		TieredBillingSnapshot: snapshot,
+		BillingRequestInput:   &billingexpr.RequestInput{Body: []byte(`{}`)},
+		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+			"tiered_lookup": {ToolName: "tiered_lookup", CallCount: 1},
+		}},
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+	usage := &dto.Usage{PromptTokens: 1000, TotalTokens: 1000}
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	result := applyTieredTextQuota(relayInfo, &summary, usage)
+	require.NotNil(t, result)
+	expectedTokenQuota := billingexpr.QuotaRound(float64(usage.PromptTokens) / 1_000_000 * common.QuotaPerUnit)
+	expectedToolQuota := int(4.0 / 1000 * common.QuotaPerUnit)
+	require.Equal(t, expectedTokenQuota+expectedToolQuota, summary.Quota)
 }
