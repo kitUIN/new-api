@@ -14,6 +14,8 @@ type QuotaData struct {
 	Id               int    `json:"id"`
 	UserID           int    `json:"user_id" gorm:"index"`
 	Username         string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
+	DisplayName      string `json:"display_name,omitempty" gorm:"-"`
+	QQId             string `json:"qq_id,omitempty" gorm:"-"`
 	ModelName        string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
 	Group            string `json:"group" gorm:"column:group;index;size:64;default:''"`
 	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
@@ -38,9 +40,87 @@ type QuotaData struct {
 }
 
 type QuotaDataUser struct {
-	UserID   int    `json:"user_id"`
-	Username string `json:"username"`
-	Quota    int    `json:"quota"`
+	UserID      int    `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name,omitempty"`
+	QQId        string `json:"qq_id,omitempty"`
+	Quota       int    `json:"quota"`
+}
+
+type quotaDataUserProfile struct {
+	ID          int
+	DisplayName string
+	QQId        string
+}
+
+func getQuotaDataUserProfiles(userIDs map[int]struct{}) (map[int]quotaDataUserProfile, error) {
+	profilesByID := make(map[int]quotaDataUserProfile, len(userIDs))
+	if len(userIDs) == 0 {
+		return profilesByID, nil
+	}
+
+	ids := make([]int, 0, len(userIDs))
+	for userID := range userIDs {
+		if userID > 0 {
+			ids = append(ids, userID)
+		}
+	}
+	if len(ids) == 0 {
+		return profilesByID, nil
+	}
+
+	var profiles []quotaDataUserProfile
+	err := DB.Unscoped().Model(&User{}).
+		Select("id, display_name, qq_id").
+		Where("id IN ?", ids).
+		Find(&profiles).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, profile := range profiles {
+		profilesByID[profile.ID] = profile
+	}
+	return profilesByID, nil
+}
+
+func attachQuotaDataProfiles(rows []*QuotaData) error {
+	userIDs := make(map[int]struct{}, len(rows))
+	for _, row := range rows {
+		userIDs[row.UserID] = struct{}{}
+	}
+	profilesByID, err := getQuotaDataUserProfiles(userIDs)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		profile, ok := profilesByID[row.UserID]
+		if !ok {
+			continue
+		}
+		row.DisplayName = profile.DisplayName
+		row.QQId = profile.QQId
+	}
+	return nil
+}
+
+func attachQuotaDataUserProfiles(rows []*QuotaDataUser) error {
+	userIDs := make(map[int]struct{}, len(rows))
+	for _, row := range rows {
+		userIDs[row.UserID] = struct{}{}
+	}
+	profilesByID, err := getQuotaDataUserProfiles(userIDs)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		profile, ok := profilesByID[row.UserID]
+		if !ok {
+			continue
+		}
+		row.DisplayName = profile.DisplayName
+		row.QQId = profile.QQId
+	}
+	return nil
 }
 
 func UpdateQuotaData() {
@@ -185,6 +265,10 @@ func GetQuotaDataGroupByGroupUser(userId int, startTime int64, endTime int64) (q
 	err = query.
 		Group(commonGroupCol + ", user_id").
 		Find(&quotaDatas).Error
+	if err != nil {
+		return quotaDatas, err
+	}
+	err = attachQuotaDataProfiles(quotaDatas)
 	return quotaDatas, err
 }
 
@@ -195,6 +279,10 @@ func GetQuotaDataUsers(startTime int64, endTime int64) (users []*QuotaDataUser, 
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
 		Group("user_id").
 		Find(&quotaUsers).Error
+	if err != nil {
+		return quotaUsers, err
+	}
+	err = attachQuotaDataUserProfiles(quotaUsers)
 	return quotaUsers, err
 }
 

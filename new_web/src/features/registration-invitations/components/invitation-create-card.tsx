@@ -45,13 +45,14 @@ import {
   invitationFormSchema,
   type InvitationFormValues,
 } from '../lib/invitation-form'
+import { InviterUserSelect } from './inviter-user-select'
 
 export function InvitationCreateCard() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const form = useForm<InvitationFormValues>({
     resolver: zodResolver(invitationFormSchema),
-    defaultValues: { code: '', remark: '' },
+    defaultValues: { code: '', inviter_id: '', remark: '' },
   })
 
   const createMutation = useMutation({
@@ -68,6 +69,7 @@ export function InvitationCreateCard() {
     createMutation.mutate({
       code: values.code.trim(),
       remark: values.remark.trim(),
+      inviter_id: Number(values.inviter_id),
     })
   }
 
@@ -85,7 +87,7 @@ export function InvitationCreateCard() {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] lg:items-start'
+            className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto] lg:items-start'
           >
             <FormField
               control={form.control}
@@ -108,10 +110,29 @@ export function InvitationCreateCard() {
 
             <FormField
               control={form.control}
+              name='inviter_id'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Inviter')}</FormLabel>
+                  <FormControl>
+                    <InviterUserSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      disabled={createMutation.isPending}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name='remark'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Remark')}</FormLabel>
+                  <FormLabel>{t('Remark (optional)')}</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder={t('Enter invitation remark')}
@@ -119,11 +140,6 @@ export function InvitationCreateCard() {
                       {...field}
                     />
                   </FormControl>
-                  <p className='text-muted-foreground text-xs'>
-                    {t(
-                      "The remark will be copied to the user's remark after registration."
-                    )}
-                  </p>
                   <FormMessage />
                 </FormItem>
               )}

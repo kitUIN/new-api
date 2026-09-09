@@ -24,11 +24,12 @@ export const invitationFormSchema = z.object({
     .trim()
     .min(1, 'Invitation code is required')
     .regex(/^\d{5,20}$/, 'Invitation code must be a valid QQ number'),
-  remark: z
+  inviter_id: z
     .string()
     .trim()
-    .min(1, 'Remark is required')
-    .max(255, 'Remark must be at most 255 characters'),
+    .min(1, 'Inviter is required')
+    .regex(/^[1-9]\d*$/, 'Inviter must be a valid user ID'),
+  remark: z.string().trim().max(255, 'Remark must be at most 255 characters'),
 })
 
 export type InvitationFormValues = z.infer<typeof invitationFormSchema>

@@ -28,9 +28,15 @@ import {
   Users,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import {
+  getQQAvatarUrl,
+  getUserAvatarFallback,
+  getUserAvatarStyle,
+} from '@/lib/avatar'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Combobox } from '@/components/ui/combobox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
@@ -67,6 +73,10 @@ type GroupBreakdownDimension = 'model' | 'user'
 interface GroupDetailStats {
   key: string
   label: string
+  userId?: number
+  username?: string
+  displayName?: string
+  qqId?: string
   quota: number
   count: number
   tokens: number
@@ -133,10 +143,36 @@ function normalizeModel(model?: string) {
   return trimmed || 'Unknown'
 }
 
-function formatUserLabel(username?: string, userId?: number) {
+function getUserDisplayName(
+  displayName?: string,
+  username?: string,
+  userId?: number
+) {
+  const nickname = displayName?.trim()
   const trimmed = username?.trim()
-  if (trimmed && userId) return `${trimmed} (#${userId})`
-  return trimmed || (userId ? `#${userId}` : 'Unknown')
+  return nickname || trimmed || (userId ? `#${userId}` : 'Unknown')
+}
+
+function formatUserSecondary(
+  displayName?: string,
+  username?: string,
+  userId?: number
+) {
+  const nickname = displayName?.trim()
+  const trimmed = username?.trim()
+  const usernameLabel = trimmed && trimmed !== nickname ? trimmed : ''
+  const idLabel = userId ? `#${userId}` : ''
+  return [usernameLabel, idLabel].filter(Boolean).join(' / ')
+}
+
+function formatUserLabel(
+  displayName?: string,
+  username?: string,
+  userId?: number
+) {
+  const primary = getUserDisplayName(displayName, username, userId)
+  const secondary = formatUserSecondary(displayName, username, userId)
+  return secondary ? `${primary} (${secondary})` : primary
 }
 
 function getTokenTotal(item: GroupQuotaDataItem) {
@@ -220,7 +256,7 @@ function processGroupStats(
         : normalizeModel(item.model_name)
     const detailLabel =
       dimension === 'user'
-        ? formatUserLabel(item.username, item.user_id)
+        ? formatUserLabel(item.display_name, item.username, item.user_id)
         : normalizeModel(item.model_name)
     const quota = Number(item.quota) || 0
     const count = Number(item.count) || 0
@@ -258,6 +294,12 @@ function processGroupStats(
     const detailMap = groupDetails.get(group)!
     const detailStats =
       detailMap.get(detailKey) ?? emptyDetailStats(detailKey, detailLabel)
+    if (dimension === 'user') {
+      detailStats.userId = item.user_id
+      detailStats.username = item.username
+      detailStats.displayName = item.display_name
+      detailStats.qqId = item.qq_id
+    }
     detailStats.quota += quota
     detailStats.count += count
     detailStats.tokens += tokens
@@ -387,6 +429,70 @@ function TableSkeletonRows({ columnCount }: { columnCount: number }) {
   )
 }
 
+function UserAvatar(props: {
+  displayName?: string
+  username?: string
+  userId?: number
+  qqId?: string
+  className?: string
+}) {
+  const avatarName = getUserDisplayName(
+    props.displayName,
+    props.username,
+    props.userId
+  )
+  const avatarUrl = getQQAvatarUrl(props.qqId)
+
+  return (
+    <Avatar className={cn('ring-border/60 size-6 ring-1', props.className)}>
+      {avatarUrl && <AvatarImage src={avatarUrl} alt={avatarName} />}
+      <AvatarFallback
+        className='text-[10px] font-semibold text-white'
+        style={getUserAvatarStyle(avatarName)}
+      >
+        {getUserAvatarFallback(avatarName)}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
+function UserIdentity(props: {
+  displayName?: string
+  username?: string
+  userId?: number
+  qqId?: string
+}) {
+  const primary = getUserDisplayName(
+    props.displayName,
+    props.username,
+    props.userId
+  )
+  const secondary = formatUserSecondary(
+    props.displayName,
+    props.username,
+    props.userId
+  )
+
+  return (
+    <div className='flex max-w-80 min-w-0 items-center gap-2'>
+      <UserAvatar
+        displayName={props.displayName}
+        username={props.username}
+        userId={props.userId}
+        qqId={props.qqId}
+      />
+      <div className='min-w-0'>
+        <div className='truncate font-medium'>{primary}</div>
+        {secondary && (
+          <div className='text-muted-foreground truncate text-xs'>
+            {secondary}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface GroupStatsTableProps {
   isAdmin?: boolean
 }
@@ -454,7 +560,11 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
 
   const userOptions = useMemo(
     () => [
-      { value: ALL_USERS_VALUE, label: t('All users') },
+      {
+        value: ALL_USERS_VALUE,
+        label: t('All users'),
+        icon: <Users className='text-muted-foreground size-4' />,
+      },
       ...(quotaUsersData ?? [])
         .slice()
         .sort(
@@ -464,7 +574,20 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
         )
         .map((user) => ({
           value: String(user.user_id),
-          label: formatUserLabel(user.username, user.user_id),
+          label: formatUserLabel(
+            user.display_name,
+            user.username,
+            user.user_id
+          ),
+          icon: (
+            <UserAvatar
+              displayName={user.display_name}
+              username={user.username}
+              userId={user.user_id}
+              qqId={user.qq_id}
+              className='size-5'
+            />
+          ),
         })),
     ],
     [quotaUsersData, t]
@@ -738,9 +861,18 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
                       group.details.map((detail) => (
                         <TableRow key={`${group.group}-${detail.key}`}>
                           <TableCell className='pl-10'>
-                            <span className='block max-w-80 truncate'>
-                              {detail.label}
-                            </span>
+                            {showUserBreakdown ? (
+                              <UserIdentity
+                                displayName={detail.displayName}
+                                username={detail.username}
+                                userId={detail.userId}
+                                qqId={detail.qqId}
+                              />
+                            ) : (
+                              <span className='block max-w-80 truncate'>
+                                {detail.label}
+                              </span>
+                            )}
                           </TableCell>
                           {showUserBreakdown && (
                             <TableCell className='text-right font-medium'>

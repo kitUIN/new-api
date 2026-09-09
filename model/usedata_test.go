@@ -251,6 +251,25 @@ func TestGetQuotaDataGroupByUserGroupModel(t *testing.T) {
 func TestGetQuotaDataGroupByGroupUser(t *testing.T) {
 	truncateTables(t)
 
+	require.NoError(t, DB.Create([]*User{
+		{
+			Id:          10,
+			Username:    "alice",
+			Password:    "password",
+			DisplayName: "Alice Nickname",
+			QQId:        "10010",
+			AffCode:     "aff-10",
+		},
+		{
+			Id:          11,
+			Username:    "bob",
+			Password:    "password",
+			DisplayName: "Bob Nickname",
+			QQId:        "10011",
+			AffCode:     "aff-11",
+		},
+	}).Error)
+
 	rows := []*QuotaData{
 		{
 			UserID:           10,
@@ -330,6 +349,8 @@ func TestGetQuotaDataGroupByGroupUser(t *testing.T) {
 	require.Equal(t, 80, aliceDefault.CompletionTokens)
 	require.Equal(t, 25, aliceDefault.CacheReadTokens)
 	require.Equal(t, 15, aliceDefault.CacheWriteTokens)
+	require.Equal(t, "Alice Nickname", aliceDefault.DisplayName)
+	require.Equal(t, "10010", aliceDefault.QQId)
 
 	filteredRows, err := GetQuotaDataGroupByGroupUser(10, 1709990000, 1710010000)
 	require.NoError(t, err)
@@ -337,11 +358,32 @@ func TestGetQuotaDataGroupByGroupUser(t *testing.T) {
 	for _, row := range filteredRows {
 		require.Equal(t, 10, row.UserID)
 		require.Equal(t, "alice", row.Username)
+		require.Equal(t, "Alice Nickname", row.DisplayName)
+		require.Equal(t, "10010", row.QQId)
 	}
 }
 
 func TestGetQuotaDataUsers(t *testing.T) {
 	truncateTables(t)
+
+	require.NoError(t, DB.Create([]*User{
+		{
+			Id:          12,
+			Username:    "carol",
+			Password:    "password",
+			DisplayName: "Carol Nickname",
+			QQId:        "10012",
+			AffCode:     "aff-12",
+		},
+		{
+			Id:          13,
+			Username:    "dave",
+			Password:    "password",
+			DisplayName: "Dave Nickname",
+			QQId:        "10013",
+			AffCode:     "aff-13",
+		},
+	}).Error)
 
 	require.NoError(t, DB.Create([]*QuotaData{
 		{
@@ -387,8 +429,12 @@ func TestGetQuotaDataUsers(t *testing.T) {
 		byID[user.UserID] = user
 	}
 	require.Equal(t, "carol", byID[12].Username)
+	require.Equal(t, "Carol Nickname", byID[12].DisplayName)
+	require.Equal(t, "10012", byID[12].QQId)
 	require.Equal(t, 400, byID[12].Quota)
 	require.Equal(t, "dave", byID[13].Username)
+	require.Equal(t, "Dave Nickname", byID[13].DisplayName)
+	require.Equal(t, "10013", byID[13].QQId)
 	require.Equal(t, 500, byID[13].Quota)
 }
 

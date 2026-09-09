@@ -180,8 +180,13 @@ export function ComboboxInput({
           setOpen(true)
         }}
         onKeyDown={handleKeyDown}
-        className={cn('pr-9', className)}
+        className={cn('pr-9', selectedOption?.icon && 'pl-9', className)}
       />
+      {selectedOption?.icon && (
+        <span className='pointer-events-none absolute top-1/2 left-2.5 flex size-5 -translate-y-1/2 items-center justify-center'>
+          {selectedOption.icon}
+        </span>
+      )}
       <ChevronsUpDown className='pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50' />
 
       {showDropdown && (
@@ -216,7 +221,11 @@ export function ComboboxInput({
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  {option.icon && <span>{option.icon}</span>}
+                  {option.icon && (
+                    <span className='flex size-5 shrink-0 items-center justify-center'>
+                      {option.icon}
+                    </span>
+                  )}
                   <span className='truncate'>{option.label}</span>
                 </li>
               ))}

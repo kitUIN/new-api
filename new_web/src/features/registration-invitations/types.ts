@@ -25,6 +25,7 @@ export interface RegistrationInvitation {
   id: number
   code: string
   remark: string
+  inviter_id: number
   status: number
   created_by: number
   created_time: number
@@ -52,4 +53,5 @@ export interface InvitationResponse {
 export interface CreateInvitationPayload {
   code: string
   remark: string
+  inviter_id: number
 }

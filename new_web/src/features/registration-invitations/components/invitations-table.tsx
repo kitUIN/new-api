@@ -119,6 +119,7 @@ export function InvitationsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Invitation code')}</TableHead>
+                <TableHead>{t('Inviter')}</TableHead>
                 <TableHead>{t('Remark')}</TableHead>
                 <TableHead>{t('Status')}</TableHead>
                 <TableHead>{t('Created')}</TableHead>
@@ -134,8 +135,13 @@ export function InvitationsTable() {
                     <TableCell className='font-mono font-medium'>
                       {invitation.code}
                     </TableCell>
+                    <TableCell className='font-mono text-sm'>
+                      {t('User {{id}}', { id: invitation.inviter_id })}
+                    </TableCell>
                     <TableCell className='max-w-md whitespace-normal'>
-                      {invitation.remark}
+                      {invitation.remark || (
+                        <span className='text-muted-foreground'>-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={isUsed ? 'secondary' : 'default'}>

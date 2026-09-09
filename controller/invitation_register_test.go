@@ -75,11 +75,22 @@ func setupInvitationRegisterControllerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestRegisterUsesInvitationAsUsernameAndCopiesProfileFields(t *testing.T) {
+func TestRegisterUsesInvitationAsUsernameAndSetsInviter(t *testing.T) {
 	db := setupInvitationRegisterControllerTestDB(t)
+	inviter := model.User{
+		Username:    "registration-inviter",
+		Password:    "hashed-password",
+		DisplayName: "Inviter",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+	}
+	if err := db.Create(&inviter).Error; err != nil {
+		t.Fatalf("failed to seed inviter: %v", err)
+	}
 	invitation := model.Invitation{
 		Code:        "123456789",
 		Remark:      "企业客户 A",
+		InviterId:   inviter.Id,
 		Status:      model.InvitationStatusAvailable,
 		CreatedTime: common.GetTimestamp(),
 	}
@@ -114,7 +125,7 @@ func TestRegisterUsesInvitationAsUsernameAndCopiesProfileFields(t *testing.T) {
 	if err := db.Where("username = ?", invitation.Code).First(&user).Error; err != nil {
 		t.Fatalf("failed to load registered user: %v", err)
 	}
-	if user.DisplayName != "用户昵称" || user.QQId != invitation.Code || user.Remark != invitation.Remark {
+	if user.DisplayName != "用户昵称" || user.QQId != invitation.Code || user.Remark != "" || user.InviterId != inviter.Id {
 		t.Fatalf("unexpected registered user fields: %+v", user)
 	}
 
@@ -130,10 +141,21 @@ func TestRegisterUsesInvitationAsUsernameAndCopiesProfileFields(t *testing.T) {
 func TestRegisterAllowsInvitationWhenGeneralRegistrationDisabled(t *testing.T) {
 	db := setupInvitationRegisterControllerTestDB(t)
 	common.RegisterEnabled = false
+	inviter := model.User{
+		Username:    "disabled-registration-inviter",
+		Password:    "hashed-password",
+		DisplayName: "Inviter",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+	}
+	if err := db.Create(&inviter).Error; err != nil {
+		t.Fatalf("failed to seed inviter: %v", err)
+	}
 
 	invitation := model.Invitation{
 		Code:        "987654321",
 		Remark:      "invitation-only user",
+		InviterId:   inviter.Id,
 		Status:      model.InvitationStatusAvailable,
 		CreatedTime: common.GetTimestamp(),
 	}

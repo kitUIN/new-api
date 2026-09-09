@@ -61,11 +61,29 @@ func setupInvitationTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestRegisterUserWithInvitationConsumesCodeAndCopiesRemark(t *testing.T) {
+func createInvitationTestInviter(t *testing.T, db *gorm.DB) User {
+	t.Helper()
+	inviter := User{
+		Username:    "inviter-" + strings.ReplaceAll(t.Name(), "/", "-"),
+		Password:    "hashed-password",
+		DisplayName: "Inviter",
+		AffCode:     "inviter-code",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+	}
+	if err := db.Create(&inviter).Error; err != nil {
+		t.Fatalf("failed to create inviter: %v", err)
+	}
+	return inviter
+}
+
+func TestRegisterUserWithInvitationConsumesCodeAndSetsInviter(t *testing.T) {
 	db := setupInvitationTestDB(t)
+	inviter := createInvitationTestInviter(t, db)
 	invitation := Invitation{
 		Code:        "12345678",
 		Remark:      "渠道合作伙伴",
+		InviterId:   inviter.Id,
 		Status:      InvitationStatusAvailable,
 		CreatedTime: common.GetTimestamp(),
 	}
@@ -91,8 +109,11 @@ func TestRegisterUserWithInvitationConsumesCodeAndCopiesRemark(t *testing.T) {
 	if user.QQId != invitation.Code {
 		t.Fatalf("expected qq id %q, got %q", invitation.Code, user.QQId)
 	}
-	if user.Remark != invitation.Remark {
-		t.Fatalf("expected copied remark %q, got %q", invitation.Remark, user.Remark)
+	if user.Remark != "" {
+		t.Fatalf("invitation remark must not be copied to the user, got %q", user.Remark)
+	}
+	if user.InviterId != inviter.Id {
+		t.Fatalf("expected inviter ID %d, got %d", inviter.Id, user.InviterId)
 	}
 	if user.Password == "password123" {
 		t.Fatal("expected password to be hashed")
@@ -121,9 +142,11 @@ func TestRegisterUserWithInvitationConsumesCodeAndCopiesRemark(t *testing.T) {
 
 func TestRegisterUserWithInvitationLeavesCodeAvailableOnUsernameConflict(t *testing.T) {
 	db := setupInvitationTestDB(t)
+	inviter := createInvitationTestInviter(t, db)
 	invitation := Invitation{
 		Code:        "22334455",
 		Remark:      "冲突测试",
+		InviterId:   inviter.Id,
 		Status:      InvitationStatusAvailable,
 		CreatedTime: common.GetTimestamp(),
 	}
@@ -134,6 +157,7 @@ func TestRegisterUserWithInvitationLeavesCodeAvailableOnUsernameConflict(t *test
 		Username:    invitation.Code,
 		Password:    "hashed-password",
 		DisplayName: "Existing",
+		AffCode:     "conflict-code",
 		Role:        common.RoleCommonUser,
 	}).Error; err != nil {
 		t.Fatalf("failed to create conflicting user: %v", err)
@@ -178,9 +202,11 @@ func TestDeleteInvitationRejectsUsedCode(t *testing.T) {
 
 func TestRegisterUserWithInvitationRejectsDuplicateQQWithoutConsumingCode(t *testing.T) {
 	db := setupInvitationTestDB(t)
+	inviter := createInvitationTestInviter(t, db)
 	invitation := Invitation{
 		Code:        "11223344",
 		Remark:      "QQ 冲突测试",
+		InviterId:   inviter.Id,
 		Status:      InvitationStatusAvailable,
 		CreatedTime: common.GetTimestamp(),
 	}
@@ -192,6 +218,7 @@ func TestRegisterUserWithInvitationRejectsDuplicateQQWithoutConsumingCode(t *tes
 		Password:    "hashed-password",
 		DisplayName: "Existing QQ",
 		QQId:        invitation.Code,
+		AffCode:     "qq-conflict-code",
 		Role:        common.RoleCommonUser,
 	}).Error; err != nil {
 		t.Fatalf("failed to create existing QQ user: %v", err)
@@ -212,5 +239,95 @@ func TestRegisterUserWithInvitationRejectsDuplicateQQWithoutConsumingCode(t *tes
 	}
 	if savedInvitation.Status != InvitationStatusAvailable || savedInvitation.UsedUserId != 0 {
 		t.Fatalf("invitation should remain available after QQ conflict: %+v", savedInvitation)
+	}
+}
+
+func TestMigrateInvitationInvitersMovesLegacyRemark(t *testing.T) {
+	db := setupInvitationTestDB(t)
+	inviter := createInvitationTestInviter(t, db)
+	invitedUser := User{
+		Username:    "legacy-invitee",
+		Password:    "hashed-password",
+		DisplayName: "Legacy Invitee",
+		Remark:      fmt.Sprintf("%d", inviter.Id),
+		AffCode:     "legacy-code",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+	}
+	if err := db.Create(&invitedUser).Error; err != nil {
+		t.Fatalf("failed to create legacy invited user: %v", err)
+	}
+
+	invitation := Invitation{
+		Code:        "55667788",
+		Remark:      fmt.Sprintf("%d", inviter.Id),
+		Status:      InvitationStatusUsed,
+		CreatedTime: common.GetTimestamp(),
+		UsedUserId:  invitedUser.Id,
+		UsedTime:    common.GetTimestamp(),
+	}
+	if err := db.Create(&invitation).Error; err != nil {
+		t.Fatalf("failed to create legacy invitation: %v", err)
+	}
+
+	if err := MigrateInvitationInviters(); err != nil {
+		t.Fatalf("failed to migrate invitation inviter: %v", err)
+	}
+	if err := MigrateInvitationInviters(); err != nil {
+		t.Fatalf("idempotent migration failed: %v", err)
+	}
+
+	var migratedInvitation Invitation
+	if err := db.First(&migratedInvitation, invitation.Id).Error; err != nil {
+		t.Fatalf("failed to reload migrated invitation: %v", err)
+	}
+	if migratedInvitation.InviterId != inviter.Id || migratedInvitation.Remark != "" {
+		t.Fatalf("unexpected migrated invitation: %+v", migratedInvitation)
+	}
+
+	var migratedUser User
+	if err := db.First(&migratedUser, invitedUser.Id).Error; err != nil {
+		t.Fatalf("failed to reload migrated user: %v", err)
+	}
+	if migratedUser.InviterId != inviter.Id || migratedUser.Remark != "" {
+		t.Fatalf("unexpected migrated user: %+v", migratedUser)
+	}
+}
+
+func TestMigrateInvitationInvitersPreservesUnrelatedUserRemark(t *testing.T) {
+	db := setupInvitationTestDB(t)
+	inviter := createInvitationTestInviter(t, db)
+	invitedUser := User{
+		Username:    "edited-invitee",
+		Password:    "hashed-password",
+		DisplayName: "Edited Invitee",
+		Remark:      "manually edited",
+		AffCode:     "edited-code",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+	}
+	if err := db.Create(&invitedUser).Error; err != nil {
+		t.Fatalf("failed to create invited user: %v", err)
+	}
+	invitation := Invitation{
+		Code:       "66778899",
+		Remark:     fmt.Sprintf("%d", inviter.Id),
+		Status:     InvitationStatusUsed,
+		UsedUserId: invitedUser.Id,
+	}
+	if err := db.Create(&invitation).Error; err != nil {
+		t.Fatalf("failed to create legacy invitation: %v", err)
+	}
+
+	if err := MigrateInvitationInviters(); err != nil {
+		t.Fatalf("failed to migrate invitation inviter: %v", err)
+	}
+
+	var migratedUser User
+	if err := db.First(&migratedUser, invitedUser.Id).Error; err != nil {
+		t.Fatalf("failed to reload migrated user: %v", err)
+	}
+	if migratedUser.InviterId != inviter.Id || migratedUser.Remark != invitedUser.Remark {
+		t.Fatalf("unrelated user remark was not preserved: %+v", migratedUser)
 	}
 }

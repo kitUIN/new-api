@@ -313,6 +313,9 @@ func migrateDB() error {
 	if err := MigrateChannelProviders(); err != nil {
 		return err
 	}
+	if err := MigrateInvitationInviters(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -397,6 +400,9 @@ func migrateDBFast() error {
 		}
 	}
 	if err := MigrateChannelProviders(); err != nil {
+		return err
+	}
+	if err := MigrateInvitationInviters(); err != nil {
 		return err
 	}
 	common.SysLog("database migrated")

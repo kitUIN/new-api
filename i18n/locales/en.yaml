@@ -63,8 +63,9 @@ redemption.expire_time_invalid: "Expiration time cannot be earlier than current 
 # Registration invitation messages
 invitation.code_required: "Invitation code is required"
 invitation.code_invalid_qq: "Invitation code must be a valid QQ number"
-invitation.remark_required: "Invitation remark is required"
 invitation.remark_too_long: "Invitation remark must be at most 255 characters"
+invitation.inviter_required: "Inviter is required"
+invitation.inviter_invalid: "Inviter user does not exist"
 invitation.code_exists: "Invitation code already exists or conflicts with an existing username or QQ number"
 invitation.invalid: "Invalid invitation code"
 invitation.used: "This invitation code has already been used"

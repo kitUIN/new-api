@@ -13,8 +13,9 @@ import (
 )
 
 type createInvitationRequest struct {
-	Code   string `json:"code"`
-	Remark string `json:"remark"`
+	Code      string `json:"code"`
+	Remark    string `json:"remark"`
+	InviterId int    `json:"inviter_id"`
 }
 
 func GetAllInvitations(c *gin.Context) {
@@ -46,8 +47,8 @@ func AddInvitation(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvitationCodeInvalidQQ)
 		return
 	}
-	if request.Remark == "" {
-		common.ApiErrorI18n(c, i18n.MsgInvitationRemarkRequired)
+	if request.InviterId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvitationInviterRequired)
 		return
 	}
 	if utf8.RuneCountInString(request.Remark) > 255 {
@@ -86,11 +87,16 @@ func AddInvitation(c *gin.Context) {
 	invitation := model.Invitation{
 		Code:        request.Code,
 		Remark:      request.Remark,
+		InviterId:   request.InviterId,
 		Status:      model.InvitationStatusAvailable,
 		CreatedBy:   c.GetInt("id"),
 		CreatedTime: common.GetTimestamp(),
 	}
 	if err := invitation.Insert(); err != nil {
+		if errors.Is(err, model.ErrInvitationInviter) {
+			common.ApiErrorI18n(c, i18n.MsgInvitationInviterInvalid)
+			return
+		}
 		if exists, checkErr := model.InvitationCodeExists(request.Code); checkErr == nil && exists {
 			common.ApiErrorI18n(c, i18n.MsgInvitationCodeExists)
 			return

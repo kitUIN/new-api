@@ -75,8 +75,9 @@ const (
 const (
 	MsgInvitationCodeRequired            = "invitation.code_required"
 	MsgInvitationCodeInvalidQQ           = "invitation.code_invalid_qq"
-	MsgInvitationRemarkRequired          = "invitation.remark_required"
 	MsgInvitationRemarkTooLong           = "invitation.remark_too_long"
+	MsgInvitationInviterRequired         = "invitation.inviter_required"
+	MsgInvitationInviterInvalid          = "invitation.inviter_invalid"
 	MsgInvitationCodeExists              = "invitation.code_exists"
 	MsgInvitationInvalid                 = "invitation.invalid"
 	MsgInvitationUsed                    = "invitation.used"

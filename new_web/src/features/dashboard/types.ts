@@ -51,6 +51,8 @@ export interface QuotaDataItem {
 export interface GroupQuotaDataItem {
   user_id?: number
   username?: string
+  display_name?: string
+  qq_id?: string
   group?: string
   model_name?: string
   token_used?: number
@@ -75,6 +77,8 @@ export interface GroupQuotaDataItem {
 export interface GroupQuotaUserItem {
   user_id: number
   username: string
+  display_name?: string
+  qq_id?: string
   quota?: number
 }
 
