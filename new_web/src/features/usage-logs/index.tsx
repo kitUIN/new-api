@@ -20,10 +20,11 @@ import { useCallback, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { ActiveSessions } from './components/active-sessions'
 import { RequestDetailDialog } from './components/dialogs/request-detail-dialog'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
@@ -131,7 +132,24 @@ function UsageLogsContent() {
                 </TabsList>
               </Tabs>
             )}
-            <UsageLogsTable logCategory={activeCategory} />
+            {activeCategory === 'common' ? (
+              <Tabs defaultValue='logs'>
+                <TabsList>
+                  <TabsTrigger value='logs'>{t('Common Logs')}</TabsTrigger>
+                  <TabsTrigger value='sessions'>
+                    {t('usageLogs.sessions.title')}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='logs'>
+                  <UsageLogsTable logCategory='common' />
+                </TabsContent>
+                <TabsContent value='sessions'>
+                  <ActiveSessions />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <UsageLogsTable logCategory={activeCategory} />
+            )}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

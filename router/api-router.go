@@ -333,6 +333,10 @@ func SetApiRouter(router *gin.Engine) {
 			invitationRoute.DELETE("/:id", controller.DeleteInvitation)
 		}
 		logRoute := apiRouter.Group("/log")
+		logRoute.GET("/sessions", middleware.AdminAuth(), controller.GetAllRelaySessions)
+		logRoute.GET("/self/sessions", middleware.UserAuth(), controller.GetSelfRelaySessions)
+		logRoute.GET("/sessions/:id/groups", middleware.AdminAuth(), controller.GetRelaySessionGroups)
+		logRoute.PUT("/sessions/:id/group", middleware.AdminAuth(), controller.UpdateRelaySessionGroup)
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)

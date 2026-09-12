@@ -91,37 +91,47 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				if resolvedGroup, enabled, resolveErr := service.ResolveModelGroupCombination(c, modelRequest.Model); enabled {
-					if resolveErr != nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, resolveErr.Error(), types.ErrorCodeModelNotFound)
-						return
-					}
-					usingGroup = resolvedGroup
+				manualSessionGroup, sessionErr := service.PrepareRelaySession(c, modelRequest.Model)
+				if sessionErr != nil {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, sessionErr.Error())
+					return
 				}
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-					playgroundRequest := &dto.PlayGroundRequest{}
-					err = common.UnmarshalBodyReusable(c, playgroundRequest)
-					if err != nil {
-						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
-						return
-					}
-					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+				usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				if !manualSessionGroup {
+					if resolvedGroup, enabled, resolveErr := service.ResolveModelGroupCombination(c, modelRequest.Model); enabled {
+						if resolveErr != nil {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, resolveErr.Error(), types.ErrorCodeModelNotFound)
 							return
 						}
-						usingGroup = playgroundRequest.Group
-						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+						usingGroup = resolvedGroup
 					}
-				}
+					// check path is /pg/chat/completions
+					if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+						playgroundRequest := &dto.PlayGroundRequest{}
+						err = common.UnmarshalBodyReusable(c, playgroundRequest)
+						if err != nil {
+							abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
+							return
+						}
+						if playgroundRequest.Group != "" {
+							if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
+								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+								return
+							}
+							usingGroup = playgroundRequest.Group
+							common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+						}
+					}
 
-				if service.IsRuleAutoGroup(usingGroup) {
-					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
-					service.ApplyRuleAutoGroup(c, modelRequest.Model)
+					if service.IsRuleAutoGroup(usingGroup) {
+						service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+						service.ApplyRuleAutoGroup(c, modelRequest.Model)
+					} else {
+						service.ApplySessionGroupFailover(c, modelRequest.Model)
+						usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+						service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+					}
 				} else {
-					service.ApplySessionGroupFailover(c, modelRequest.Model)
-					usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
 				}
 
@@ -204,8 +214,10 @@ func Distribute() func(c *gin.Context) {
 			common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		}
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		service.RecordRelaySessionRoute(c)
 		recordRelayGroupUserRequest(c, channel)
 		c.Next()
+		service.RecordRelaySessionRoute(c)
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest && !c.GetBool(skipDistributorPostAffinityContextKey) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}

@@ -296,6 +296,7 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&RequestDetail{},
 		&DrawingSession{},
+		&RelaySession{},
 		&DrawingMessage{},
 	)
 	if err != nil {
@@ -365,6 +366,7 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&DrawingSession{}, "DrawingSession"},
+		{&RelaySession{}, "RelaySession"},
 		{&DrawingMessage{}, "DrawingMessage"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
