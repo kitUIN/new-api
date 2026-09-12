@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SectionPageLayout } from '@/components/layout'
 import { closeTicket, getTicket, sendTicketMessage } from '../api'
+import { invalidateTicketQueries } from '../lib/queries'
 import type { TicketInput } from '../types'
 import { MessageComposer } from './message-composer'
 import { TicketConversation } from './ticket-conversation'
@@ -47,8 +48,7 @@ export function TicketDetail(props: { id: number }) {
     refetchInterval: (state) =>
       state.state.data?.status === 'closed' ? false : 10_000,
   })
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ['tickets', userId] })
+  const refresh = () => invalidateTicketQueries(queryClient, userId)
   const reply = useMutation({
     mutationFn: (input: TicketInput) => sendTicketMessage(input, props.id),
     onSuccess: (ticket) => {
@@ -80,7 +80,7 @@ export function TicketDetail(props: { id: number }) {
         </Button>
         {ticket?.status === 'open' && (
           <Button
-            variant='outline'
+            variant='destructive'
             disabled={reply.isPending || close.isPending}
             onClick={() => setClosing(true)}
           >
@@ -137,6 +137,7 @@ export function TicketDetail(props: { id: number }) {
         </div>
         <ConfirmDialog
           open={closing}
+          destructive
           onOpenChange={setClosing}
           title={t('tickets.close')}
           desc={t('tickets.closeConfirm')}

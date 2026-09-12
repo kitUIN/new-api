@@ -1,6 +1,8 @@
 {
   "translation": {
+    "usageLogs.routedFromGroup": "{{group}} からルーティング",
     "tickets.title": "サポートチケット",
+    "navigation.unreadMessages": "未読メッセージ：{{count}} 件",
     "tickets.create": "チケット作成",
     "tickets.subject": "件名",
     "tickets.message": "メッセージ",

@@ -194,6 +194,12 @@ var (
 	SearchRateLimitEnable         = true
 	SearchRateLimitNum            = 10
 	SearchRateLimitDuration int64 = 60
+
+	TicketRateLimitNum            = 20
+	TicketRateLimitDuration int64 = 60
+
+	TicketAttachmentRateLimitNum            = 240
+	TicketAttachmentRateLimitDuration int64 = 60
 )
 
 var RateLimitKeyExpirationDuration = 20 * time.Minute

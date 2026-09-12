@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -48,6 +49,47 @@ type TicketAttachment struct {
 	MimeType  string `json:"mime_type" gorm:"size:32"`
 	Size      int    `json:"size"`
 	Data      []byte `json:"-"`
+}
+
+// TicketRead stores each account's read cursor independently, including admins.
+type TicketRead struct {
+	UserId            int `gorm:"primaryKey;autoIncrement:false"`
+	TicketId          int `gorm:"primaryKey;autoIncrement:false"`
+	LastReadMessageId int
+}
+
+func CountUnreadTicketMessages(userId int, admin bool) (int64, error) {
+	query := DB.Model(&TicketMessage{}).
+		Joins("JOIN tickets ON tickets.id = ticket_messages.ticket_id").
+		Joins("LEFT JOIN ticket_reads ON ticket_reads.ticket_id = ticket_messages.ticket_id AND ticket_reads.user_id = ?", userId).
+		Where("ticket_messages.user_id <> ?", userId).
+		Where("ticket_reads.last_read_message_id IS NULL OR ticket_messages.id > ticket_reads.last_read_message_id")
+	if !admin {
+		query = query.Where("tickets.user_id = ?", userId)
+	}
+	var count int64
+	err := query.Count(&count).Error
+	return count, err
+}
+
+func MarkTicketRead(id, userId int, admin bool, messageId int) error {
+	if _, err := GetTicket(id, userId, admin); err != nil {
+		return err
+	}
+	// Bind the cursor to a real message in this ticket. Never use the current
+	// maximum: a new reply may arrive after the client loaded its message page.
+	var message TicketMessage
+	if err := DB.Select("id").Where("id = ? AND ticket_id = ?", messageId, id).First(&message).Error; err != nil {
+		return err
+	}
+	lastRead := clause.Column{Table: "ticket_reads", Name: "last_read_message_id"}
+	return DB.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "user_id"}, {Name: "ticket_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			// Out-of-order acknowledgements from multiple tabs cannot move backwards.
+			"last_read_message_id": gorm.Expr("CASE WHEN ? < ? THEN ? ELSE ? END", lastRead, messageId, messageId, lastRead),
+		}),
+	}).Create(&TicketRead{UserId: userId, TicketId: id, LastReadMessageId: messageId}).Error
 }
 
 func ticketScope(db *gorm.DB, userId int, admin bool) *gorm.DB {

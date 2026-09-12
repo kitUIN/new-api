@@ -52,6 +52,11 @@ func ValidateTicketInput(title, content string, images [][]byte, creating bool) 
 		if err != nil || mimeType == "" || config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > 25_000_000 {
 			return "", "", nil, ticketInputError(i18n.MsgTicketInvalidImage)
 		}
+		// Check dimensions before allocating decoded pixels, then reject truncated
+		// or corrupt image data that DecodeConfig alone would accept.
+		if _, _, err := image.Decode(bytes.NewReader(data)); err != nil {
+			return "", "", nil, ticketInputError(i18n.MsgTicketInvalidImage)
+		}
 		attachments = append(attachments, model.TicketAttachment{MimeType: mimeType, Size: len(data), Data: data})
 	}
 	return title, content, attachments, nil

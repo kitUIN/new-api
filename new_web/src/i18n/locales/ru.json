@@ -1,6 +1,8 @@
 {
   "translation": {
+    "usageLogs.routedFromGroup": "Маршрутизировано из {{group}}",
     "tickets.title": "Обращения",
+    "navigation.unreadMessages": "Непрочитанных сообщений: {{count}}",
     "tickets.create": "Новое обращение",
     "tickets.subject": "Тема",
     "tickets.message": "Сообщение",

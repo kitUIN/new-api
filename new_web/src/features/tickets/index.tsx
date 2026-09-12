@@ -50,6 +50,7 @@ import { getTickets, sendTicketMessage } from './api'
 import { MessageComposer } from './components/message-composer'
 import { TicketDetail } from './components/ticket-detail'
 import { TicketStatus } from './components/ticket-status'
+import { invalidateTicketQueries } from './lib/queries'
 import type { TicketInput } from './types'
 
 export function Tickets(props: { ticketId?: number }) {
@@ -74,7 +75,7 @@ function TicketList() {
   const create = useMutation({
     mutationFn: (input: TicketInput) => sendTicketMessage(input),
     onSuccess: (ticket) => {
-      void queryClient.invalidateQueries({ queryKey: ['tickets', user?.id] })
+      void invalidateTicketQueries(queryClient, user?.id)
       setCreating(false)
       void navigate({ to: '/tickets', search: { ticket: ticket.id } })
     },
@@ -141,26 +142,26 @@ function TicketList() {
                 <Link
                   to='/tickets'
                   search={{ ticket: ticket.id }}
-                  className='hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-wrap items-center justify-between gap-3 px-2 py-4 focus-visible:ring-2'
+                  className='hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 items-center gap-3 px-2 py-4 focus-visible:ring-2'
                 >
-                  <div className='flex min-w-0 flex-1 basis-48 flex-col gap-1.5'>
-                    <span className='text-sm font-medium wrap-anywhere'>
-                      {ticket.title}
-                    </span>
-                    <span className='text-muted-foreground text-xs wrap-anywhere'>
-                      #{ticket.id}
-                      {(user?.role ?? 0) >= ROLE.ADMIN &&
-                        ` · ${ticket.username}`}{' '}
-                      ·{' '}
-                      {t('tickets.messageCount', {
-                        count: ticket.message_count,
-                      })}
-                    </span>
-                  </div>
-                  <div className='flex shrink-0 flex-col items-end gap-1.5'>
-                    <TicketStatus ticket={ticket} />
+                  <TicketStatus ticket={ticket} iconOnly />
+                  <div className='flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1.5'>
+                    <div className='flex min-w-0 flex-1 basis-48 flex-col gap-1.5'>
+                      <span className='text-sm font-medium wrap-anywhere'>
+                        {ticket.title}
+                      </span>
+                      <span className='text-muted-foreground text-xs wrap-anywhere'>
+                        #{ticket.id}
+                        {(user?.role ?? 0) >= ROLE.ADMIN &&
+                          ` · ${ticket.username}`}{' '}
+                        ·{' '}
+                        {t('tickets.messageCount', {
+                          count: ticket.message_count,
+                        })}
+                      </span>
+                    </div>
                     <time
-                      className='text-muted-foreground text-xs'
+                      className='text-muted-foreground shrink-0 text-xs'
                       dateTime={new Date(
                         ticket.updated_time * 1000
                       ).toISOString()}

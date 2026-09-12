@@ -1,6 +1,8 @@
 {
   "translation": {
+    "usageLogs.routedFromGroup": "自 {{group}} 路由",
     "tickets.title": "工单",
+    "navigation.unreadMessages": "{{count}} 条未读消息",
     "tickets.create": "新建工单",
     "tickets.subject": "标题",
     "tickets.message": "消息",

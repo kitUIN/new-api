@@ -1,6 +1,8 @@
 {
   "translation": {
+    "usageLogs.routedFromGroup": "Định tuyến từ {{group}}",
     "tickets.title": "Phiếu hỗ trợ",
+    "navigation.unreadMessages": "Tin nhắn chưa đọc: {{count}}",
     "tickets.create": "Tạo phiếu",
     "tickets.subject": "Tiêu đề",
     "tickets.message": "Tin nhắn",

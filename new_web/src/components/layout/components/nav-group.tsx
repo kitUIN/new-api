@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { type ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
@@ -119,18 +121,38 @@ function NavBadge({ children }: { children: ReactNode }) {
  * Sidebar menu link item
  */
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
-  const { setOpenMobile } = useSidebar()
+  const { t } = useTranslation()
+  const { setOpenMobile, state, isMobile } = useSidebar()
+  const unreadCount = item.unreadCount ?? 0
+  const label =
+    unreadCount > 0
+      ? `${item.title} · ${t('navigation.unreadMessages', { count: unreadCount })}`
+      : item.title
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={checkIsActive(href, item)}
-        tooltip={item.title}
+        tooltip={label}
+        aria-label={label}
+        className={unreadCount > 0 ? 'pe-10' : undefined}
         render={<Link to={item.url} onClick={() => setOpenMobile(false)} />}
       >
         {item.icon && <item.icon className='shrink-0' />}
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
       </SidebarMenuButton>
+      {unreadCount > 0 && (
+        <Badge
+          variant='destructive'
+          aria-hidden='true'
+          className={cn(
+            'pointer-events-none absolute end-2 top-1.5 min-w-5 px-1 tabular-nums',
+            state === 'collapsed' && !isMobile && '-end-1 -top-1'
+          )}
+        >
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </Badge>
+      )}
     </SidebarMenuItem>
   )
 }

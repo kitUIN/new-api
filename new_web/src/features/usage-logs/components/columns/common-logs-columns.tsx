@@ -1108,7 +1108,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
       const groupRatioText = getGroupRatioText(other)
       const combinationGroup = other?.group_combination
-      const combinationLabel = `${t('Group combinations')}: ${sensitiveVisible ? combinationGroup : '••••'}`
+      const combinationLabel = t('usageLogs.routedFromGroup', {
+        group: sensitiveVisible ? combinationGroup : '••••',
+      })
 
       return (
         <div className='flex max-w-[200px] flex-col gap-0.5'>

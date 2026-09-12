@@ -100,6 +100,34 @@ func GetTickets(c *gin.Context) {
 	common.ApiSuccess(c, page)
 }
 
+func GetUnreadTicketCount(c *gin.Context) {
+	count, err := model.CountUnreadTicketMessages(c.GetInt("id"), c.GetInt("role") >= common.RoleAdminUser)
+	if err != nil {
+		ticketError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"unread_count": count})
+}
+
+func MarkTicketRead(c *gin.Context) {
+	id, ok := ticketParam(c, "id")
+	if !ok {
+		return
+	}
+	var input struct {
+		MessageId int `json:"message_id"`
+	}
+	if err := common.DecodeJson(http.MaxBytesReader(c.Writer, c.Request.Body, 1024), &input); err != nil || input.MessageId <= 0 {
+		ticketFailure(c, http.StatusBadRequest, i18n.MsgInvalidParams)
+		return
+	}
+	if err := model.MarkTicketRead(id, c.GetInt("id"), c.GetInt("role") >= common.RoleAdminUser, input.MessageId); err != nil {
+		ticketError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func AddTicket(c *gin.Context) {
 	title, content, images, ok := readTicketInput(c)
 	if !ok {

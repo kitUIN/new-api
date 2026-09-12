@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useInView } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,20 @@ import type { TicketAttachment } from '../types'
 import { BlobImage } from './blob-image'
 
 export function TicketImage(props: { attachment: TicketAttachment }) {
+  const container = useRef<HTMLDivElement>(null)
+  const visible = useInView(container, { once: true, margin: '200px' })
+  return (
+    <div ref={container} className='w-28 shrink-0 sm:w-36'>
+      {visible ? (
+        <TicketImageContent attachment={props.attachment} />
+      ) : (
+        <Skeleton className='aspect-square w-full' />
+      )}
+    </div>
+  )
+}
+
+function TicketImageContent(props: { attachment: TicketAttachment }) {
   const { t } = useTranslation()
   const userId = useAuthStore((state) => state.auth.user?.id)
   const [open, setOpen] = useState(false)

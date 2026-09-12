@@ -1,6 +1,8 @@
 {
   "translation": {
+    "usageLogs.routedFromGroup": "Routed from {{group}}",
     "tickets.title": "Support Tickets",
+    "navigation.unreadMessages": "Unread messages: {{count}}",
     "tickets.create": "New ticket",
     "tickets.subject": "Subject",
     "tickets.message": "Message",

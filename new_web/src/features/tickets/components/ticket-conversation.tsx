@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useRef } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
@@ -25,12 +25,15 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTicketMessages } from '../api'
+import { useTicketRead } from '../hooks/use-ticket-read'
+import { refreshClosedTicketMessages } from '../lib/queries'
 import type { Ticket } from '../types'
 import { TicketImage } from './ticket-image'
 
 export function TicketConversation(props: { ticket: Ticket }) {
   const { t } = useTranslation()
   const userId = useAuthStore((state) => state.auth.user?.id)
+  const queryClient = useQueryClient()
   const end = useRef<HTMLDivElement>(null)
   const query = useInfiniteQuery({
     queryKey: ['tickets', userId, 'messages', props.ticket.id],
@@ -43,6 +46,16 @@ export function TicketConversation(props: { ticket: Ticket }) {
     .reverse()
     .flatMap((page) => page.items)
   const latestId = messages.at(-1)?.id
+  useTicketRead(
+    props.ticket.id,
+    query.isError ? undefined : latestId,
+    query.dataUpdatedAt
+  )
+  useEffect(() => {
+    if (props.ticket.status === 'closed') {
+      void refreshClosedTicketMessages(queryClient, userId, props.ticket.id)
+    }
+  }, [props.ticket.status, props.ticket.id, queryClient, userId])
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'nearest' })
   }, [latestId])

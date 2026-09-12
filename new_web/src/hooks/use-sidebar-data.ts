@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type SidebarData } from '@/components/layout/types'
+import { useTicketUnreadCount } from '@/features/tickets/hooks/use-ticket-unread-count'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -48,6 +49,7 @@ import { type SidebarData } from '@/components/layout/types'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const ticketUnreadCount = useTicketUnreadCount()
 
   return {
     navGroups: [
@@ -113,6 +115,7 @@ export function useSidebarData(): SidebarData {
             title: t('tickets.title'),
             url: '/tickets',
             icon: Headset,
+            unreadCount: ticketUnreadCount,
           },
           {
             title: t('Wallet'),

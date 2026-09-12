@@ -16,6 +16,9 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
+	// Register attachment downloads before the shared API quota: a message page can
+	// contain 200 images. Authentication and a separate per-user quota still apply.
+	apiRouter.GET("/ticket/:id/attachments/:attachment_id", middleware.UserAuth(), middleware.TicketAttachmentRateLimit(), controller.GetTicketImage)
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
@@ -162,12 +165,13 @@ func SetApiRouter(router *gin.Engine) {
 		ticketRoute.Use(middleware.UserAuth())
 		{
 			ticketRoute.GET("/", controller.GetTickets)
-			ticketRoute.POST("/", middleware.CriticalRateLimit(), controller.AddTicket)
+			ticketRoute.GET("/unread", controller.GetUnreadTicketCount)
+			ticketRoute.POST("/", middleware.TicketRateLimit(), controller.AddTicket)
 			ticketRoute.GET("/:id", controller.GetTicket)
 			ticketRoute.GET("/:id/messages", controller.GetTicketMessages)
-			ticketRoute.POST("/:id/messages", middleware.CriticalRateLimit(), controller.ReplyTicket)
+			ticketRoute.POST("/:id/messages", middleware.TicketRateLimit(), controller.ReplyTicket)
 			ticketRoute.POST("/:id/close", controller.CloseTicket)
-			ticketRoute.GET("/:id/attachments/:attachment_id", controller.GetTicketImage)
+			ticketRoute.POST("/:id/read", controller.MarkTicketRead)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

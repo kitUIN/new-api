@@ -31,6 +31,26 @@ function unwrap<T>(response: Response<T>): T {
   return response.data
 }
 
+export async function getUnreadTicketCount(
+  signal: AbortSignal
+): Promise<number> {
+  const response = await api.get<Response<{ unread_count: number }>>(
+    '/api/ticket/unread',
+    { signal, ...{ disableDuplicate: true } }
+  )
+  return unwrap(response.data).unread_count
+}
+
+export async function markTicketRead(
+  id: number,
+  messageId: number
+): Promise<void> {
+  const response = await api.post<Response<null>>(`/api/ticket/${id}/read`, {
+    message_id: messageId,
+  })
+  unwrap(response.data)
+}
+
 export async function getTickets(
   page: number,
   status: string

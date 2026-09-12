@@ -34,7 +34,7 @@ func setupTicketTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	originalDB := model.DB
 	model.DB = db
 	t.Cleanup(func() { model.DB = originalDB; _ = sqlDB.Close() })
-	require.NoError(t, db.AutoMigrate(&model.Ticket{}, &model.TicketMessage{}, &model.TicketAttachment{}))
+	require.NoError(t, db.AutoMigrate(&model.Ticket{}, &model.TicketMessage{}, &model.TicketAttachment{}, &model.TicketRead{}))
 	router := gin.New()
 	// Controller tests provide the identity normally populated by UserAuth.
 	router.Use(func(c *gin.Context) {
@@ -46,17 +46,19 @@ func setupTicketTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		c.Set("id", id)
 		c.Set("username", fmt.Sprintf("user-%d", id))
 		role := common.RoleCommonUser
-		if id == 99 {
+		if id == 99 || id == 100 {
 			role = common.RoleAdminUser
 		}
 		c.Set("role", role)
 	})
 	router.GET("/ticket/", GetTickets)
+	router.GET("/ticket/unread", GetUnreadTicketCount)
 	router.POST("/ticket/", AddTicket)
 	router.GET("/ticket/:id", GetTicket)
 	router.GET("/ticket/:id/messages", GetTicketMessages)
 	router.POST("/ticket/:id/messages", ReplyTicket)
 	router.POST("/ticket/:id/close", CloseTicket)
+	router.POST("/ticket/:id/read", MarkTicketRead)
 	router.GET("/ticket/:id/attachments/:attachment_id", GetTicketImage)
 	return db, router
 }
@@ -220,6 +222,28 @@ func TestTicketValidationAndAdminClose(t *testing.T) {
 	for _, user := range []int{1, 99} {
 		require.Equal(t, 409, ticketRequest(t, router, user, "POST", path+"/messages", "", "text").Code)
 	}
+}
+
+func TestTicketRejectsTruncatedImagesWithoutSavingMessages(t *testing.T) {
+	db, router := setupTicketTest(t)
+	oldAddress := common.QQCallbackAddress
+	common.QQCallbackAddress = ""
+	t.Cleanup(func() { common.QQCallbackAddress = oldAddress })
+	truncated := ticketPNG(t)[:33] // Complete PNG header, missing pixel data.
+	_, _, err := image.DecodeConfig(bytes.NewReader(truncated))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, ticketRequest(t, router, 1, "POST", "/ticket/", "title", "", truncated).Code)
+	var count int64
+	require.NoError(t, db.Model(&model.Ticket{}).Count(&count).Error)
+	require.Zero(t, count)
+	created := ticketData[model.Ticket](t, ticketRequest(t, router, 1, "POST", "/ticket/", "title", "first"))
+	path := fmt.Sprintf("/ticket/%d/messages", created.Id)
+	require.Equal(t, http.StatusBadRequest, ticketRequest(t, router, 1, "POST", path, "", "", truncated).Code)
+	stored, err := model.GetTicket(created.Id, 1, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, stored.MessageCount)
+	require.NoError(t, db.Model(&model.TicketAttachment{}).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestTicketMessagePaginationAndRollback(t *testing.T) {

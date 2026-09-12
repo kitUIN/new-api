@@ -203,3 +203,15 @@ func SearchRateLimit() func(c *gin.Context) {
 	}
 	return userRateLimitFactory(common.SearchRateLimitNum, common.SearchRateLimitDuration, "SR")
 }
+
+// TicketRateLimit shares a per-user quota between creating and replying to tickets.
+// It must run after UserAuth and does not consume the login/critical-action quota.
+func TicketRateLimit() func(c *gin.Context) {
+	return userRateLimitFactory(common.TicketRateLimitNum, common.TicketRateLimitDuration, "TK")
+}
+
+// TicketAttachmentRateLimit keeps image downloads separate from dashboard requests.
+// It must run after UserAuth.
+func TicketAttachmentRateLimit() func(c *gin.Context) {
+	return userRateLimitFactory(common.TicketAttachmentRateLimitNum, common.TicketAttachmentRateLimitDuration, "TA")
+}

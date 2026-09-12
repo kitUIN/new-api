@@ -16,15 +16,69 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  Clock01Icon,
+  LockKeyIcon,
+  Message02Icon,
+} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { Ticket } from '../types'
 
-export function TicketStatus(props: { ticket: Ticket }) {
+function getTicketStatus(ticket: Ticket) {
+  if (ticket.status === 'closed') {
+    return {
+      labelKey: 'tickets.closed',
+      variant: 'secondary' as const,
+      icon: LockKeyIcon,
+      iconClassName: 'text-muted-foreground',
+    }
+  }
+  if (ticket.last_reply_by_admin) {
+    return {
+      labelKey: 'tickets.replied',
+      variant: 'outline' as const,
+      icon: Message02Icon,
+      iconClassName: 'text-success',
+    }
+  }
+  return {
+    labelKey: 'tickets.awaitingReply',
+    variant: 'default' as const,
+    icon: Clock01Icon,
+    iconClassName: 'text-warning',
+  }
+}
+
+export function TicketStatus(props: { ticket: Ticket; iconOnly?: boolean }) {
   const { t } = useTranslation()
-  if (props.ticket.status === 'closed')
-    return <Badge variant='secondary'>{t('tickets.closed')}</Badge>
-  if (props.ticket.last_reply_by_admin)
-    return <Badge variant='outline'>{t('tickets.replied')}</Badge>
-  return <Badge>{t('tickets.awaitingReply')}</Badge>
+  const status = getTicketStatus(props.ticket)
+  const label = t(status.labelKey)
+  if (props.iconOnly) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={<span />}
+          className='inline-flex size-5 shrink-0 items-center justify-center'
+          aria-label={label}
+          role='img'
+        >
+          <HugeiconsIcon
+            icon={status.icon}
+            size={18}
+            className={status.iconClassName}
+            aria-hidden='true'
+          />
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    )
+  }
+  return <Badge variant={status.variant}>{label}</Badge>
 }
