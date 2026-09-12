@@ -1,5 +1,15 @@
 # English translations
 
+ticket.operation_failed: "Ticket operation failed. Please try again later."
+ticket.not_found: "Ticket or image not found."
+ticket.closed: "This ticket is closed and cannot receive further messages."
+ticket.invalid_title: "The ticket subject must contain 1 to 120 characters."
+ticket.invalid_content: "Enter text or attach an image. Text is limited to 10,000 characters."
+ticket.too_many_images: "Each message can include up to 4 images."
+ticket.image_too_large: "Each image must be nonempty and no larger than 2 MB."
+ticket.invalid_image: "Invalid image. Use PNG, JPEG, GIF or WebP, up to 25 megapixels."
+ticket.invalid_upload: "Invalid ticket form or upload size exceeded."
+
 # Common messages
 common.invalid_params: "Invalid parameters"
 common.database_error: "Database error, please contact the administrator"

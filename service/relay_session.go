@@ -86,6 +86,7 @@ func PrepareRelaySession(c *gin.Context, modelName string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	session.LastGroup = stored.LastGroup
 	if stored.OverrideGroup == "" {
 		return false, nil
 	}

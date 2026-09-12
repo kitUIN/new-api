@@ -158,6 +158,18 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		ticketRoute := apiRouter.Group("/ticket")
+		ticketRoute.Use(middleware.UserAuth())
+		{
+			ticketRoute.GET("/", controller.GetTickets)
+			ticketRoute.POST("/", middleware.CriticalRateLimit(), controller.AddTicket)
+			ticketRoute.GET("/:id", controller.GetTicket)
+			ticketRoute.GET("/:id/messages", controller.GetTicketMessages)
+			ticketRoute.POST("/:id/messages", middleware.CriticalRateLimit(), controller.ReplyTicket)
+			ticketRoute.POST("/:id/close", controller.CloseTicket)
+			ticketRoute.GET("/:id/attachments/:attachment_id", controller.GetTicketImage)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())

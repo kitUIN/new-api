@@ -20,6 +20,7 @@ import {
   Activity,
   Box,
   CreditCard,
+  Headset,
   FileText,
   FlaskConical,
   Image,
@@ -108,6 +109,11 @@ export function useSidebarData(): SidebarData {
         id: 'personal',
         title: t('Personal'),
         items: [
+          {
+            title: t('tickets.title'),
+            url: '/tickets',
+            icon: Headset,
+          },
           {
             title: t('Wallet'),
             url: '/wallet',

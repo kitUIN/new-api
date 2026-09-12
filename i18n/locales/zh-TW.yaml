@@ -1,6 +1,16 @@
 # Chinese (Traditional) translations
 # 中文（繁體）翻譯檔案
 
+ticket.operation_failed: "工單操作失敗，請稍後重試"
+ticket.not_found: "工單或圖片不存在"
+ticket.closed: "工單已關閉，無法繼續回覆"
+ticket.invalid_title: "工單標題不能為空且最多 120 字"
+ticket.invalid_content: "請填寫文字或新增圖片，文字最多 10000 字"
+ticket.too_many_images: "每則訊息最多 4 張圖片"
+ticket.image_too_large: "圖片不能為空且每張不能超過 2 MB"
+ticket.invalid_image: "圖片格式無效，僅支援 PNG、JPEG、GIF、WebP，最多 2500 萬像素"
+ticket.invalid_upload: "工單表單無效或上傳內容過大"
+
 # Common messages
 common.invalid_params: "無效的參數"
 common.database_error: "資料庫出錯，請聯繫管理員"

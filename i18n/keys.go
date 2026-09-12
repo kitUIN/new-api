@@ -1,5 +1,17 @@
 package i18n
 
+const (
+	MsgTicketOperationFailed = "ticket.operation_failed"
+	MsgTicketNotFound        = "ticket.not_found"
+	MsgTicketClosed          = "ticket.closed"
+	MsgTicketInvalidTitle    = "ticket.invalid_title"
+	MsgTicketInvalidContent  = "ticket.invalid_content"
+	MsgTicketTooManyImages   = "ticket.too_many_images"
+	MsgTicketImageTooLarge   = "ticket.image_too_large"
+	MsgTicketInvalidImage    = "ticket.invalid_image"
+	MsgTicketInvalidUpload   = "ticket.invalid_upload"
+)
+
 // Message keys for i18n translations
 // Use these constants instead of hardcoded strings
 

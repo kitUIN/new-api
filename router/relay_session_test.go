@@ -136,4 +136,11 @@ func TestRelaySessionOverrideControlsDistributedChannel(t *testing.T) {
 	require.Equal(t, "B", result["group"])
 	require.Equal(t, "B", result["token_group"])
 	require.EqualValues(t, 1, request("conversation-two", false)["channel_id"])
+	updated, err = model.UpdateRelaySessionGroup(session.ID, "")
+	require.NoError(t, err)
+	require.True(t, updated)
+	require.EqualValues(t, 1, request("conversation-one", false)["channel_id"])
+	stored, err := model.GetActiveRelaySession(session.ID)
+	require.NoError(t, err)
+	require.Equal(t, "A", stored.LastGroup)
 }

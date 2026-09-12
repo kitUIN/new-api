@@ -1,6 +1,16 @@
 # Chinese (Simplified) translations
 # 中文（简体）翻译文件
 
+ticket.operation_failed: "工单操作失败，请稍后重试"
+ticket.not_found: "工单或图片不存在"
+ticket.closed: "工单已关闭，无法继续回复"
+ticket.invalid_title: "工单标题不能为空且最多 120 字"
+ticket.invalid_content: "请填写文字或添加图片，文字最多 10000 字"
+ticket.too_many_images: "每条消息最多 4 张图片"
+ticket.image_too_large: "图片不能为空且每张不能超过 2 MB"
+ticket.invalid_image: "图片格式无效，仅支持 PNG、JPEG、GIF、WebP，最多 2500 万像素"
+ticket.invalid_upload: "工单表单无效或上传内容过大"
+
 # Common messages
 common.invalid_params: "无效的参数"
 common.database_error: "数据库出错，请联系管理员"
