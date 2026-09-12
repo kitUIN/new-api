@@ -229,7 +229,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	httpResp = resp
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
-		c.Set("upstream_response_body", string(responseBody))
+		if common.LogRequestDetailEnabled.Load() {
+			c.Set("upstream_response_body", string(responseBody))
+		}
 		resp.Body = io.NopCloser(bytes.NewReader(responseBody))
 		recordDetail()
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)

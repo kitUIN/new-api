@@ -257,7 +257,9 @@ func claudeCountTokensPassthrough(c *gin.Context, info *relaycommon.RelayInfo, a
 		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
-	c.Set("upstream_response_body", string(body))
+	if common.LogRequestDetailEnabled.Load() {
+		c.Set("upstream_response_body", string(body))
+	}
 	if httpResp.StatusCode != http.StatusOK {
 		recordDetail()
 	}

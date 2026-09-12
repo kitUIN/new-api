@@ -3290,6 +3290,7 @@
     "Recommended to keep this high to avoid upstream throttling.": "Khuyến nghị giữ mức này cao để tránh điều tiết từ phía thượng nguồn.",
     "Record IP Address": "Ghi lại địa chỉ IP",
     "Record quota usage": "Ghi lại mức sử dụng hạn mức",
+    "Record failed request and response bodies": "Ghi lại nội dung yêu cầu và phản hồi khi yêu cầu thất bại",
     "Recursion Strategy": "Chiến lược đệ quy",
     "Recursive": "Đệ quy",
     "Redeem": "Đổi",

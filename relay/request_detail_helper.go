@@ -15,10 +15,17 @@ import (
 )
 
 func buildRecordDetailFunc(c *gin.Context, info *relaycommon.RelayInfo, reqBody string, httpResp **http.Response) func() {
+	if !common.LogRequestDetailEnabled.Load() {
+		return func() {}
+	}
+
 	requestId := c.GetString(common.RequestIdKey)
 	userId := c.GetInt("id")
 	var recordOnce sync.Once
 	return func() {
+		if !common.LogRequestDetailEnabled.Load() {
+			return
+		}
 		recordOnce.Do(func() {
 			if reqBody == "" {
 				if v, exists := c.Get("upstream_request_body"); exists {
@@ -61,6 +68,10 @@ func buildRecordDetailFunc(c *gin.Context, info *relaycommon.RelayInfo, reqBody 
 }
 
 func requestBodySnapshot(c *gin.Context, requestBody io.Reader) string {
+	if !common.LogRequestDetailEnabled.Load() {
+		return ""
+	}
+
 	switch body := requestBody.(type) {
 	case nil:
 		return ""

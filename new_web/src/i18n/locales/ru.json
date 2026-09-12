@@ -3290,6 +3290,7 @@
     "Recommended to keep this high to avoid upstream throttling.": "Рекомендуется поддерживать это значение высоким, чтобы избежать регулирования со стороны вышестоящего поставщика.",
     "Record IP Address": "Записывать IP-адрес",
     "Record quota usage": "Записывать использование квоты",
+    "Record failed request and response bodies": "Записывать тела запросов и ответов при ошибках",
     "Recursion Strategy": "Стратегия рекурсии",
     "Recursive": "Рекурсивно",
     "Redeem": "Обменять квоту",

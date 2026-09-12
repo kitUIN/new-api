@@ -57,12 +57,14 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  LogRequestDetailEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultRequestDetailEnabled: boolean
 }
 
 const HOURS_IN_DAY = 24
@@ -90,15 +92,14 @@ const quickSelectOptions = [
   },
 ]
 
-export function LogSettingsSection({
-  defaultEnabled,
-}: LogSettingsSectionProps) {
+export function LogSettingsSection(props: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
-      LogConsumeEnabled: defaultEnabled,
+      LogConsumeEnabled: props.defaultEnabled,
+      LogRequestDetailEnabled: props.defaultRequestDetailEnabled,
     },
   })
 
@@ -109,8 +110,11 @@ export function LogSettingsSection({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: props.defaultEnabled,
+      LogRequestDetailEnabled: props.defaultRequestDetailEnabled,
+    })
+  }, [props.defaultEnabled, props.defaultRequestDetailEnabled, form])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -123,11 +127,18 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    if (values.LogConsumeEnabled !== props.defaultEnabled) {
+      await updateOption.mutateAsync({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.LogRequestDetailEnabled !== props.defaultRequestDetailEnabled) {
+      await updateOption.mutateAsync({
+        key: 'LogRequestDetailEnabled',
+        value: values.LogRequestDetailEnabled,
+      })
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -172,7 +183,7 @@ export function LogSettingsSection({
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            isSaving={form.formState.isSubmitting}
             saveLabel='Save log settings'
           />
           <FormField
@@ -187,6 +198,27 @@ export function LogSettingsSection({
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
                     )}
                   </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='LogRequestDetailEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Record failed request and response bodies')}
+                  </FormLabel>
                 </SettingsSwitchContent>
                 <FormControl>
                   <Switch

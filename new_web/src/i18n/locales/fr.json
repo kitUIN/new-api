@@ -3290,6 +3290,7 @@
     "Recommended to keep this high to avoid upstream throttling.": "Il est recommandé de maintenir cette valeur élevée pour éviter la limitation en amont.",
     "Record IP Address": "Enregistrer l'adresse IP",
     "Record quota usage": "Enregistrer l'utilisation du quota",
+    "Record failed request and response bodies": "Enregistrer les corps de requête et de réponse en cas d'échec",
     "Recursion Strategy": "Stratégie de récursion",
     "Recursive": "Récursif",
     "Redeem": "Utiliser",

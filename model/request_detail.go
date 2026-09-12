@@ -27,6 +27,10 @@ type RequestDetailSummary struct {
 }
 
 func RecordRequestDetail(requestId string, userId int, reqHeaders, reqBody, respHeaders, respBody string) {
+	if !common.LogRequestDetailEnabled.Load() {
+		return
+	}
+
 	detail := &RequestDetail{
 		RequestId:       requestId,
 		UserId:          userId,

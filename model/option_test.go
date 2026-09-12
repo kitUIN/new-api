@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,6 +11,58 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestLogRequestDetailOptionControlsRecording(t *testing.T) {
+	const optionKey = "LogRequestDetailEnabled"
+	const requestId = "request-detail-option-test"
+	require.False(t, common.LogRequestDetailEnabled.Load())
+	require.NoError(t, LOG_DB.AutoMigrate(&RequestDetail{}))
+
+	common.OptionMapRWMutex.Lock()
+	previousOptions := common.OptionMap
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.LogRequestDetailEnabled.Store(false)
+		require.NoError(t, DB.Where("key = ?", optionKey).Delete(&Option{}).Error)
+		require.NoError(t, LOG_DB.Where("request_id = ?", requestId).Delete(&RequestDetail{}).Error)
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptions
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	InitOptionMap()
+	common.OptionMapRWMutex.RLock()
+	defaultValue := common.OptionMap[optionKey]
+	common.OptionMapRWMutex.RUnlock()
+	require.Equal(t, "false", defaultValue)
+
+	recordAndCount := func() int64 {
+		RecordRequestDetail(requestId, 1, "{}", "request body", "{}", "response body")
+		var count int64
+		require.NoError(t, LOG_DB.Model(&RequestDetail{}).Where("request_id = ?", requestId).Count(&count).Error)
+		return count
+	}
+	require.Zero(t, recordAndCount())
+
+	for _, enabled := range []bool{true, false} {
+		value := strconv.FormatBool(enabled)
+		require.NoError(t, UpdateOption(optionKey, value))
+		require.Equal(t, enabled, common.LogRequestDetailEnabled.Load())
+		var saved Option
+		require.NoError(t, DB.First(&saved, "key = ?", optionKey).Error)
+		require.Equal(t, value, saved.Value)
+
+		common.LogRequestDetailEnabled.Store(!enabled)
+		loadOptionsFromDatabase()
+		require.Equal(t, enabled, common.LogRequestDetailEnabled.Load())
+		require.EqualValues(t, 1, recordAndCount())
+	}
+
+	var detail RequestDetail
+	require.NoError(t, LOG_DB.First(&detail, "request_id = ?", requestId).Error)
+	require.Equal(t, "request body", detail.RequestBody)
+	require.Equal(t, "response body", detail.ResponseBody)
+}
 
 func TestUpdateOptionPersistsGroupTypes(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&Option{}))

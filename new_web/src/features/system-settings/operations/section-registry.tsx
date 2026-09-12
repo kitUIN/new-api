@@ -102,6 +102,7 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultRequestDetailEnabled={Boolean(settings.LogRequestDetailEnabled)}
       />
     ),
   },

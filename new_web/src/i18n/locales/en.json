@@ -3290,6 +3290,7 @@
     "Recommended to keep this high to avoid upstream throttling.": "Recommended to keep this high to avoid upstream throttling.",
     "Record IP Address": "Record IP Address",
     "Record quota usage": "Record quota usage",
+    "Record failed request and response bodies": "Record failed request and response bodies",
     "Recursion Strategy": "Recursion Strategy",
     "Recursive": "Recursive",
     "Redeem": "Redeem",

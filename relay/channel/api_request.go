@@ -563,7 +563,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
-	c.Set("upstream_request_headers", req.Header.Clone())
+	if common2.LogRequestDetailEnabled.Load() {
+		c.Set("upstream_request_headers", req.Header.Clone())
+	}
 
 	info.MarkUpstreamRequestStart()
 	resp, err := client.Do(req)
@@ -578,7 +580,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	info.MarkUpstreamResponseHeader()
 
-	if !info.IsStream {
+	if !info.IsStream && common2.LogRequestDetailEnabled.Load() {
 		var buf bytes.Buffer
 		resp.Body = io.NopCloser(io.TeeReader(resp.Body, &buf))
 		c.Set("upstream_response_body_buf", &buf)

@@ -3,6 +3,7 @@ package relay
 import (
 	"bytes"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 )
 
 func TestRequestBodySnapshotPreservesReadSeekerPosition(t *testing.T) {
+	setRequestDetailLogging(t, true)
 	reader := bytes.NewReader([]byte(`{"model":"test"}`))
 	_, err := reader.Seek(3, io.SeekStart)
 	require.NoError(t, err)
@@ -26,6 +28,7 @@ func TestRequestBodySnapshotPreservesReadSeekerPosition(t *testing.T) {
 }
 
 func TestRequestBodySnapshotFallsBackToBodyStorage(t *testing.T) {
+	setRequestDetailLogging(t, true)
 	gin.SetMode(gin.TestMode)
 
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -39,4 +42,38 @@ func TestRequestBodySnapshotFallsBackToBodyStorage(t *testing.T) {
 
 	snapshot := requestBodySnapshot(ctx, struct{ io.Reader }{storage})
 	require.Equal(t, `{"messages":[]}`, snapshot)
+}
+
+func setRequestDetailLogging(t *testing.T, enabled bool) {
+	t.Helper()
+	previous := common.LogRequestDetailEnabled.Swap(enabled)
+	t.Cleanup(func() { common.LogRequestDetailEnabled.Store(previous) })
+}
+
+func TestRequestBodySnapshotDisabled(t *testing.T) {
+	setRequestDetailLogging(t, false)
+
+	// An opaque reader would require accessing the context to obtain body storage.
+	reader := struct{ io.Reader }{bytes.NewBufferString("request body")}
+	require.Empty(t, requestBodySnapshot(nil, reader))
+}
+
+func TestRecordDetailDisabledDoesNotReadResponse(t *testing.T) {
+	for _, initiallyEnabled := range []bool{false, true} {
+		name := "disabled before request"
+		if initiallyEnabled {
+			name = "disabled during request"
+		}
+		t.Run(name, func(t *testing.T) {
+			setRequestDetailLogging(t, initiallyEnabled)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			body := bytes.NewBufferString("response body")
+			resp := &http.Response{Body: io.NopCloser(body)}
+			recordDetail := buildRecordDetailFunc(ctx, nil, "request body", &resp)
+
+			common.LogRequestDetailEnabled.Store(false)
+			recordDetail()
+			require.Equal(t, "response body", body.String())
+		})
+	}
 }
