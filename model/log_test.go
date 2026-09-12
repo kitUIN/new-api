@@ -1,13 +1,64 @@
 package model
 
 import (
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRecordLogsPreservesGroupCombination(t *testing.T) {
+	for _, logType := range []int{LogTypeConsume, LogTypeError} {
+		for _, tc := range []struct {
+			name        string
+			combination string
+			group       string
+			other       map[string]interface{}
+		}{
+			{name: "combination", combination: "A", group: "B", other: map[string]interface{}{"group_ratio": 2}},
+			{name: "failover", combination: "A", group: "C"},
+			{name: "original member", combination: "A", group: "A"},
+			{name: "regular group", group: "B", other: map[string]interface{}{"group_ratio": 2}},
+		} {
+			t.Run(tc.name+"/"+common.GetJsonString(logType), func(t *testing.T) {
+				truncateTables(t)
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				common.SetContextKey(ctx, constant.ContextKeyGroupCombination, tc.combination)
+				if logType == LogTypeConsume {
+					RecordConsumeLog(ctx, 42, RecordConsumeLogParams{
+						TokenId: 9,
+						Group:   tc.group,
+						Other:   tc.other,
+					})
+				} else {
+					RecordErrorLog(ctx, 42, 7, "test-model", "test-token", "error", 9, 1, false, tc.group, tc.other)
+				}
+
+				logs, total, err := GetUserLogs(42, logType, 0, 0, "", "", 0, 10, "", "", "")
+				require.NoError(t, err)
+				require.EqualValues(t, 1, total)
+				require.Len(t, logs, 1)
+				require.Equal(t, tc.group, logs[0].Group)
+				var other map[string]interface{}
+				require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+				if tc.combination != "" {
+					require.Equal(t, tc.combination, other["group_combination"])
+				} else {
+					require.NotContains(t, other, "group_combination")
+				}
+				if _, ok := tc.other["group_ratio"]; ok {
+					require.EqualValues(t, 2, other["group_ratio"])
+				}
+			})
+		}
+	}
+}
 
 func TestGetUserLogsPreservesErrorDetails(t *testing.T) {
 	truncateTables(t)

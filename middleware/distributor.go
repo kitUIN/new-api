@@ -58,6 +58,7 @@ func Distribute() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("组合分组 %s 的成员分组不包含渠道 #%d", usingGroup, channel.Id))
 					return
 				}
+				common.SetContextKey(c, constant.ContextKeyGroupCombination, usingGroup)
 				common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
 			}
 		} else {
@@ -132,6 +133,7 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if enabled && channel != nil {
+						common.SetContextKey(c, constant.ContextKeyGroupCombination, usingGroup)
 						// Legacy combinations are exact model-to-channel routes and must not retry elsewhere.
 						common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, strconv.Itoa(channel.Id))
 					}

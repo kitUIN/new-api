@@ -109,6 +109,7 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "cheap", selectedGroup)
 	require.Equal(t, "cheap", common.GetContextKeyString(ctx, constant.ContextKeyUsingGroup))
+	require.Equal(t, "codex", common.GetContextKeyString(ctx, constant.ContextKeyGroupCombination))
 	require.Equal(t, 2, channel.Id)
 
 	retryParam.ExcludeChannel(2)
@@ -117,6 +118,7 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "premium", selectedGroup)
 	require.Equal(t, "premium", common.GetContextKeyString(ctx, constant.ContextKeyUsingGroup))
+	require.Equal(t, "codex", common.GetContextKeyString(ctx, constant.ContextKeyGroupCombination))
 	require.Equal(t, 9, channel.Id)
 
 	channel, selectedGroup, enabled, err = ResolveGroupCombinationChannel("default", "gpt-5.6-sol")

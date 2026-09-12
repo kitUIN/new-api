@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -130,6 +131,19 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
+func appendGroupCombinationLogInfo(c *gin.Context, other map[string]interface{}) map[string]interface{} {
+	if c == nil {
+		return other
+	}
+	if group := common.GetContextKeyString(c, constant.ContextKeyGroupCombination); group != "" {
+		if other == nil {
+			other = make(map[string]interface{})
+		}
+		other["group_combination"] = group
+	}
+	return other
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}, relayInfo ...*relaycommon.RelayInfo) {
 	if len(relayInfo) > 0 && relayInfo[0] != nil {
@@ -143,7 +157,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	otherStr := common.MapToJsonStr(other)
+	otherStr := common.MapToJsonStr(appendGroupCombinationLogInfo(c, other))
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -205,7 +219,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	otherStr := common.MapToJsonStr(params.Other)
+	otherStr := common.MapToJsonStr(appendGroupCombinationLogInfo(c, params.Other))
 	log := &Log{
 		UserId:              userId,
 		Username:            username,

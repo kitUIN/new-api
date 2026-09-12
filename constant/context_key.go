@@ -49,6 +49,7 @@ const (
 	ContextKeyAutoGroupIndex       ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex  ContextKey = "auto_group_retry_index"
 	ContextKeyRuleAutoGroupRuntime ContextKey = "rule_auto_group_runtime"
+	ContextKeyGroupCombination     ContextKey = "group_combination"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"

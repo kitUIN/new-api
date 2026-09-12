@@ -165,6 +165,7 @@ export interface LogOtherData {
   completion_ratio?: number
   model_price?: number
   group_ratio?: number
+  group_combination?: string
   user_group_ratio?: number
   service_tier?: string
   tier?: string

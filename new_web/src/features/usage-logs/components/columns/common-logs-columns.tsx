@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
+import { Layers01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import {
   CircleAlert,
   Sparkles,
@@ -1091,6 +1093,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       <DataTableColumnHeader column={column} title={t('Token')} />
     ),
     cell: function TokenNameCell({ row }) {
+      const { t } = useTranslation()
       const { sensitiveVisible } = useUsageLogsContext()
       const log = row.original
       if (!isDisplayableLogType(log.type)) return null
@@ -1103,12 +1106,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       let group = log.group
       if (!group) group = other?.group || ''
 
-      const metaParts: string[] = []
       const groupRatioText = getGroupRatioText(other)
-      if (group) {
-        metaParts.push(sensitiveVisible ? group : '••••')
-      }
-      if (groupRatioText) metaParts.push(groupRatioText)
+      const combinationGroup = other?.group_combination
+      const combinationLabel = `${t('Group combinations')}: ${sensitiveVisible ? combinationGroup : '••••'}`
 
       return (
         <div className='flex max-w-[200px] flex-col gap-0.5'>
@@ -1130,10 +1130,39 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               )}
             </Tooltip>
           </TooltipProvider>
-          {metaParts.length > 0 && (
-            <span className='text-muted-foreground/60 truncate text-[11px]'>
-              {metaParts.join(' · ')}
-            </span>
+          {(group || groupRatioText) && (
+            <div className='text-muted-foreground/60 flex min-w-0 items-center gap-1 text-[11px]'>
+              {group && (
+                <span className='truncate'>
+                  {sensitiveVisible ? group : '••••'}
+                </span>
+              )}
+              {group && combinationGroup && (
+                <TooltipProvider delay={300}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      className='text-muted-foreground inline-flex size-4 shrink-0 cursor-help items-center justify-center'
+                      aria-label={combinationLabel}
+                    >
+                      <HugeiconsIcon
+                        icon={Layers01Icon}
+                        size={12}
+                        aria-hidden='true'
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-xs break-all'>
+                      {combinationLabel}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {groupRatioText && (
+                <span className='shrink-0'>
+                  {group && '· '}
+                  {groupRatioText}
+                </span>
+              )}
+            </div>
           )}
         </div>
       )
