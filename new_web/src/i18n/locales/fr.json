@@ -4991,6 +4991,7 @@
     "单分组": "Groupe unique",
     "模型组合": "Combinaison de modèles",
     "组合分组": "Groupes de la combinaison",
+    "普通分组": "Groupe standard",
     "请至少选择两个模型组合分组": "Sélectionnez au moins deux groupes de combinaison de modèles",
     "模型组合分组不能重复": "Les groupes de combinaison de modèles ne peuvent pas être dupliqués",
     "请为每个模型组合分组至少选择一个模型": "Sélectionnez au moins un modèle pour chaque groupe de combinaison de modèles",

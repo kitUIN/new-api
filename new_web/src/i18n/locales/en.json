@@ -4991,6 +4991,7 @@
     "单分组": "Single group",
     "模型组合": "Model combination",
     "组合分组": "Combination groups",
+    "普通分组": "Regular group",
     "请至少选择两个模型组合分组": "Select at least two model combination groups",
     "模型组合分组不能重复": "Model combination groups cannot be duplicated",
     "请为每个模型组合分组至少选择一个模型": "Select at least one model for each model combination group",

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Box, Boxes, Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { formatUptimePct } from '@/features/performance-metrics/lib/format'
 
 export type ApiKeyGroupHealth = {
@@ -63,6 +69,59 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+}
+
+function GroupTypeIcon({
+  isCombinationGroup,
+  isAutoGroup,
+}: {
+  isCombinationGroup?: boolean
+  isAutoGroup?: boolean
+}) {
+  const { t } = useTranslation()
+  let label = t('普通分组')
+  if (isAutoGroup) label = t('Group')
+  if (isCombinationGroup) label = t('组合分组')
+  const Icon = isCombinationGroup ? Boxes : Box
+
+  return (
+    <TooltipProvider delay={300}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              className={cn(
+                'inline-flex size-5 shrink-0 items-center justify-center',
+                isCombinationGroup ? 'text-primary' : 'text-muted-foreground'
+              )}
+              role='img'
+              aria-label={label}
+            >
+              <Icon className='size-4' aria-hidden='true' />
+            </span>
+          }
+        />
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function GroupOptionName({ option }: { option: ApiKeyGroupOption }) {
+  return (
+    <span className='flex min-w-0 items-center gap-1.5'>
+      <GroupTypeIcon
+        isCombinationGroup={option.isCombinationGroup}
+        isAutoGroup={option.isAutoGroup}
+      />
+      <span className='min-w-0 truncate'>{option.label}</span>
+    </span>
+  )
+}
+
+function getVisibleGroupDescription(option?: ApiKeyGroupOption) {
+  if (!option || option.isCombinationGroup) return undefined
+  return option.desc
 }
 
 function formatGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
@@ -177,6 +236,7 @@ export function ApiKeyGroupCombobox({
   const popoverActionsRef = useRef<PopoverPrimitive.Root.Actions | null>(null)
   const clearSearchTimerRef = useRef<number | null>(null)
   const selectedOption = options.find((option) => option.value === value)
+  const selectedDescription = getVisibleGroupDescription(selectedOption)
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
@@ -187,7 +247,7 @@ export function ApiKeyGroupCombobox({
       return (
         option.value.toLowerCase().includes(search) ||
         option.label.toLowerCase().includes(search) ||
-        option.desc?.toLowerCase().includes(search) ||
+        getVisibleGroupDescription(option)?.toLowerCase().includes(search) ||
         ratioText.includes(search) ||
         String(option.health?.availability24h ?? '')
           .toLowerCase()
@@ -255,12 +315,18 @@ export function ApiKeyGroupCombobox({
       >
         <span className='flex min-h-full min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='flex min-h-full min-w-0 flex-1 flex-col justify-center'>
-            <span className='block truncate font-medium'>
-              {selectedOption?.label || placeholder || t('Select a group')}
+            <span className='block min-w-0 font-medium'>
+              {selectedOption ? (
+                <GroupOptionName option={selectedOption} />
+              ) : (
+                <span className='block truncate'>
+                  {placeholder || t('Select a group')}
+                </span>
+              )}
             </span>
-            {selectedOption?.desc && (
+            {selectedDescription && (
               <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
-                {selectedOption.desc}
+                {selectedDescription}
               </span>
             )}
             <span className='mt-1 flex min-w-0'>
@@ -302,12 +368,12 @@ export function ApiKeyGroupCombobox({
                     )}
                   />
                   <span className='flex min-h-full min-w-0 flex-1 flex-col justify-center self-stretch'>
-                    <span className='block truncate font-medium'>
-                      {option.label}
+                    <span className='block min-w-0 font-medium'>
+                      <GroupOptionName option={option} />
                     </span>
-                    {option.desc && (
+                    {getVisibleGroupDescription(option) && (
                       <span className='text-muted-foreground block truncate text-xs'>
-                        {option.desc}
+                        {getVisibleGroupDescription(option)}
                       </span>
                     )}
                     <span className='mt-1 flex min-w-0'>
