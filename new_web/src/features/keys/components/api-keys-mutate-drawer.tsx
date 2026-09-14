@@ -19,17 +19,21 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  CircleCheck,
+  CircleHelp,
   GripVertical,
   KeyRound,
   Plus,
   RotateCcw,
   Settings2,
+  ShieldAlert,
   Trash2,
+  TriangleAlert,
   WalletCards,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -68,9 +72,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DateTimePicker } from '@/components/datetime-picker'
 import {
   SideDrawerSection,
@@ -88,6 +100,8 @@ import {
   createApiKey,
   updateApiKey,
   getApiKey,
+  getApiKeyModelCombinationCircuitBreakers,
+  resetApiKeyModelCombinationCircuitBreaker,
   resetApiKeyFailoverToP0,
 } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -98,7 +112,11 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
-import { type ApiKey, type ModelGroupCombinationMember } from '../types'
+import {
+  type ApiKey,
+  type ModelGroupCombinationCircuitBreakerStatus,
+  type ModelGroupCombinationMember,
+} from '../types'
 import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
@@ -107,6 +125,16 @@ import { useApiKeys } from './api-keys-provider'
 
 const GROUP_HEALTH_WINDOW_HOURS = 24
 const GROUP_HEALTH_INTERVAL_MINUTES = 10
+
+function formatRemaining(seconds: number) {
+  const bounded = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(bounded / 3600)
+  const minutes = Math.floor((bounded % 3600) / 60)
+  const remainingSeconds = bounded % 60
+  return [hours, minutes, remainingSeconds]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':')
+}
 
 type FailoverDragPosition = 'before' | 'after'
 
@@ -189,12 +217,17 @@ export function ApiKeysMutateDrawer({
   onOpenChange,
   currentRow,
 }: ApiKeyMutateDrawerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResettingFailover, setIsResettingFailover] = useState(false)
+  const [resetCombinationTarget, setResetCombinationTarget] = useState<
+    string | null
+  >(null)
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const [editingApiKey, setEditingApiKey] = useState<ApiKey | undefined>(
     currentRow
   )
@@ -487,6 +520,136 @@ export function ApiKeysMutateDrawer({
   const sessionFailoverEnabled = form.watch('session_group_failover_enabled')
   const sessionFailoverGroups = form.watch('session_failover_groups') || []
   const combinationMembers = form.watch('model_group_combination_groups') || []
+
+  const combinationStatusQuery = useQuery({
+    queryKey: ['api-key-model-combination-breakers', currentRow?.id],
+    queryFn: () =>
+      getApiKeyModelCombinationCircuitBreakers(currentRow?.id ?? 0),
+    enabled:
+      open &&
+      isUpdate &&
+      groupMode === 'combination' &&
+      !!currentRow?.id &&
+      !!editingApiKey?.model_group_combination_enabled,
+    refetchInterval: open && groupMode === 'combination' ? 10_000 : false,
+    refetchOnWindowFocus: true,
+  })
+  const combinationResetMutation = useMutation({
+    mutationFn: ({ id, group }: { id: number; group: string }) =>
+      resetApiKeyModelCombinationCircuitBreaker(id, group),
+    onSuccess: async (response) => {
+      if (!response.success || !response.data) {
+        toast.error(response.message || t('Failed to reset group status'))
+        return
+      }
+      setResetCombinationTarget(null)
+      toast.success(
+        t('{{group}} status has been reset', { group: response.data.group })
+      )
+      await queryClient.invalidateQueries({
+        queryKey: ['api-key-model-combination-breakers', currentRow?.id],
+      })
+    },
+    onError: () => toast.error(t('Failed to reset group status')),
+  })
+  const combinationStatusesByGroup = useMemo(
+    () =>
+      new Map(
+        (combinationStatusQuery.data?.data?.groups ?? []).map((group) => [
+          group.group,
+          group,
+        ])
+      ),
+    [combinationStatusQuery.data?.data?.groups]
+  )
+  const combinationStatusUnavailable =
+    combinationStatusQuery.isError ||
+    combinationStatusQuery.data?.success === false
+  const combinationFailureThreshold =
+    combinationStatusQuery.data?.data?.failure_threshold ?? 5
+
+  useEffect(() => {
+    if (!open || groupMode !== 'combination') return
+    const timer = window.setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      1_000
+    )
+    return () => window.clearInterval(timer)
+  }, [groupMode, open])
+
+  const formatRecoveryTime = (timestamp: number) => {
+    try {
+      return new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+      }).format(new Date(timestamp * 1000))
+    } catch {
+      return new Date(timestamp * 1000).toLocaleString()
+    }
+  }
+
+  const getCombinationStatusDescription = (
+    status: ModelGroupCombinationCircuitBreakerStatus | undefined
+  ) => {
+    if (combinationStatusQuery.isLoading) return t('Loading runtime status...')
+    if (combinationStatusUnavailable)
+      return t('Unable to load combination mode status')
+    if (!status || status.status === 'healthy') return t('Healthy')
+    if (status.status === 'warning') {
+      return t('Consecutive failures {{count}}/{{threshold}}', {
+        count: status.consecutive_failures,
+        threshold: combinationFailureThreshold,
+      })
+    }
+    return `${t('Automatically skipped')}. ${t('Retries at {{time}}', {
+      time: formatRecoveryTime(status.skipped_until),
+    })} ${t('{{duration}} remaining', {
+      duration: formatRemaining(status.skipped_until - now),
+    })}`
+  }
+
+  const renderCombinationStatusIndicator = (group: string) => {
+    const status = combinationStatusesByGroup.get(group)
+    const description = group
+      ? getCombinationStatusDescription(status)
+      : t('Select group')
+    let icon = (
+      <CircleCheck className='size-4 text-emerald-600 dark:text-emerald-400' />
+    )
+    if (!group || combinationStatusUnavailable) {
+      icon = <CircleHelp className='text-muted-foreground size-4' />
+    } else if (combinationStatusQuery.isLoading) {
+      icon = <Spinner className='text-muted-foreground size-4' />
+    } else if (status?.status === 'warning') {
+      icon = (
+        <TriangleAlert className='size-4 text-amber-600 dark:text-amber-400' />
+      )
+    } else if (status?.status === 'skipped') {
+      icon = <ShieldAlert className='text-destructive size-4' />
+    }
+
+    return (
+      <TooltipProvider delay={150}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                className='focus-visible:ring-ring inline-flex size-6 cursor-help items-center justify-center rounded-md outline-none focus-visible:ring-2'
+                role='img'
+                tabIndex={0}
+                aria-label={description}
+              >
+                {icon}
+              </span>
+            }
+          />
+          <TooltipContent className='max-w-72 text-pretty'>
+            {description}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   useEffect(() => {
     if (!selectedRuleAutoGroup) return
@@ -967,6 +1130,13 @@ export function ApiKeysMutateDrawer({
                             modelCombinationGroupOptions.find(
                               (group) => group.value === member.group
                             )
+                          const runtimeStatus = combinationStatusesByGroup.get(
+                            member.group
+                          )
+                          const canResetCombinationStatus =
+                            isUpdate &&
+                            runtimeStatus &&
+                            runtimeStatus.status !== 'healthy'
                           return (
                             <div
                               key={`${member.group}-${index}`}
@@ -1011,12 +1181,19 @@ export function ApiKeysMutateDrawer({
                               >
                                 <GripVertical className='size-4' />
                               </Button>
-                              <Badge
-                                variant='outline'
-                                className='w-10 shrink-0'
-                              >
-                                P{index}
-                              </Badge>
+                              <div className='flex shrink-0 items-center gap-1'>
+                                <Badge
+                                  variant='outline'
+                                  className='w-10 shrink-0'
+                                >
+                                  P{index}
+                                </Badge>
+                                {isUpdate &&
+                                  editingApiKey?.model_group_combination_enabled &&
+                                  renderCombinationStatusIndicator(
+                                    member.group
+                                  )}
+                              </div>
                               <div className='col-span-full min-w-0'>
                                 <ApiKeyGroupCombobox
                                   options={getCombinationOptions(index)}
@@ -1044,6 +1221,29 @@ export function ApiKeysMutateDrawer({
                                 maxVisibleChips={2}
                               />
                               <div className='col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1'>
+                                {canResetCombinationStatus && (
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    size='icon'
+                                    disabled={
+                                      combinationResetMutation.isPending
+                                    }
+                                    onClick={() =>
+                                      setResetCombinationTarget(member.group)
+                                    }
+                                    aria-label={t('Reset {{group}} status', {
+                                      group: member.group,
+                                    })}
+                                  >
+                                    {combinationResetMutation.isPending &&
+                                    resetCombinationTarget === member.group ? (
+                                      <Spinner className='size-4' />
+                                    ) : (
+                                      <RotateCcw className='size-4' />
+                                    )}
+                                  </Button>
+                                )}
                                 <Button
                                   type='button'
                                   variant='ghost'
@@ -1088,7 +1288,7 @@ export function ApiKeysMutateDrawer({
                       </div>
                       <FormDescription>
                         {t(
-                          '请求只会使用成员分组中已选择的模型；多个成员包含同一模型时，按优先级选择第一个有可用渠道的分组。'
+                          '请求按成员优先级选择分组；成员请求失败时自动切换并在当前会话保持，连续失败的成员会被暂时跳过。'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -1660,6 +1860,29 @@ export function ApiKeysMutateDrawer({
           </Button>
         </SheetFooter>
       </SheetContent>
+      <ConfirmDialog
+        open={resetCombinationTarget !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !combinationResetMutation.isPending) {
+            setResetCombinationTarget(null)
+          }
+        }}
+        title={t('Reset combination group status?')}
+        desc={t(
+          '{{group}} will be tried again on new requests. Existing sessions already using a fallback group will remain unchanged.',
+          { group: resetCombinationTarget ?? '' }
+        )}
+        confirmText={t('Reset')}
+        isLoading={combinationResetMutation.isPending}
+        handleConfirm={() => {
+          if (currentRow && resetCombinationTarget) {
+            combinationResetMutation.mutate({
+              id: currentRow.id,
+              group: resetCombinationTarget,
+            })
+          }
+        }}
+      />
     </Sheet>
   )
 }

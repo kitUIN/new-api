@@ -312,6 +312,8 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.GET("/:id", controller.GetToken)
 			tokenRoute.POST("/:id/key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKey)
 			tokenRoute.POST("/:id/failover/reset", controller.ResetTokenFailover)
+			tokenRoute.GET("/:id/model_group_combination_circuit_breakers", controller.GetTokenModelCombinationCircuitBreakers)
+			tokenRoute.POST("/:id/model_group_combination_circuit_breakers/reset", controller.ResetTokenModelCombinationCircuitBreaker)
 			tokenRoute.POST("/", controller.AddToken)
 			tokenRoute.PUT("/", controller.UpdateToken)
 			tokenRoute.DELETE("/:id", controller.DeleteToken)

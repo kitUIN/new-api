@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -18,6 +19,8 @@ import (
 const (
 	ginKeyGroupCombinationRuntime         = "group_combination_runtime"
 	groupCombinationSessionCacheNamespace = "new-api:group_combination_session:v1"
+	groupCombinationSourceSetting         = "setting"
+	groupCombinationSourceToken           = "token"
 )
 
 var (
@@ -26,13 +29,16 @@ var (
 )
 
 type groupCombinationRuntime struct {
-	RootGroup     string
-	ModelName     string
-	Members       []ratio_setting.GroupCombinationMember
-	CurrentIndex  int
-	SelectedIndex int
-	CacheKey      string
-	TTLSeconds    int
+	RootGroup       string
+	ModelName       string
+	Members         []ratio_setting.GroupCombinationMember
+	CurrentIndex    int
+	SelectedIndex   int
+	CacheKey        string
+	TTLSeconds      int
+	Source          string
+	BreakerScope    string
+	ConfigSignature string
 }
 
 func getGroupCombinationSessionCache() *cachex.HybridCache[string] {
@@ -66,14 +72,14 @@ func getGroupCombinationSessionCache() *cachex.HybridCache[string] {
 	return groupCombinationSessionCache
 }
 
-func groupCombinationMembersForModel(group, modelName string, members []ratio_setting.GroupCombinationMember) []ratio_setting.GroupCombinationMember {
+func groupCombinationMembersForModel(group, modelName string, members []ratio_setting.GroupCombinationMember, fallbackToRoot bool) []ratio_setting.GroupCombinationMember {
 	candidates := make([]ratio_setting.GroupCombinationMember, 0, len(members))
 	for _, member := range members {
 		if ratio_setting.GroupCombinationMemberSupportsModel(member, modelName) {
 			candidates = append(candidates, member)
 		}
 	}
-	if len(candidates) == 0 {
+	if len(candidates) == 0 && fallbackToRoot {
 		// Models without an explicit override retain the original group's behavior.
 		candidates = append(candidates, ratio_setting.GroupCombinationMember{
 			Group:  group,
@@ -81,6 +87,13 @@ func groupCombinationMembersForModel(group, modelName string, members []ratio_se
 		})
 	}
 	return candidates
+}
+
+func isGroupCombinationRuntimeMemberSkipped(source, scope, signature, group string) bool {
+	if source == groupCombinationSourceToken {
+		return isScopedGroupCombinationMemberSkipped(scope, group, signature)
+	}
+	return isGroupCombinationMemberSkipped(group)
 }
 
 func groupCombinationSessionCacheKey(c *gin.Context, group, modelName string, members []ratio_setting.GroupCombinationMember) (string, int, bool) {
@@ -104,49 +117,67 @@ func groupCombinationSessionCacheKey(c *gin.Context, group, modelName string, me
 	return common.Sha1([]byte(keyMaterial)), meta.TTLSeconds, true
 }
 
-func getGroupCombinationRuntime(c *gin.Context, group, modelName string, members []ratio_setting.GroupCombinationMember) *groupCombinationRuntime {
+func groupCombinationSessionState(c *gin.Context, rootGroup, modelName string, candidates []ratio_setting.GroupCombinationMember) (string, int, int) {
+	cacheKey, ttlSeconds, ok := groupCombinationSessionCacheKey(c, rootGroup, modelName, candidates)
+	if !ok {
+		return "", 0, 0
+	}
+	currentIndex := 0
+	selectedGroup, found, err := getGroupCombinationSessionCache().Get(cacheKey)
+	if err != nil {
+		common.SysError(fmt.Sprintf("group combination session cache get failed: err=%v", err))
+	} else if found {
+		for i, member := range candidates {
+			if member.Group == selectedGroup {
+				currentIndex = i
+				break
+			}
+		}
+	}
+	return cacheKey, ttlSeconds, currentIndex
+}
+
+func getGroupCombinationRuntimeForCandidates(c *gin.Context, rootGroup, modelName string, candidates []ratio_setting.GroupCombinationMember, source, breakerScope, configSignature string) *groupCombinationRuntime {
 	if c != nil {
 		if existing, ok := c.Get(ginKeyGroupCombinationRuntime); ok {
-			if runtime, ok := existing.(*groupCombinationRuntime); ok && runtime != nil && runtime.RootGroup == group && runtime.ModelName == modelName {
+			if runtime, ok := existing.(*groupCombinationRuntime); ok && runtime != nil && runtime.RootGroup == rootGroup && runtime.ModelName == modelName && runtime.Source == source {
 				return runtime
 			}
 		}
 	}
 
-	candidates := groupCombinationMembersForModel(group, modelName, members)
 	availableCandidates := make([]ratio_setting.GroupCombinationMember, 0, len(candidates))
 	for _, member := range candidates {
-		if isGroupCombinationMemberSkipped(member.Group) {
+		if isGroupCombinationRuntimeMemberSkipped(source, breakerScope, configSignature, member.Group) {
 			continue
 		}
 		availableCandidates = append(availableCandidates, member)
 	}
 	candidates = availableCandidates
 	runtime := &groupCombinationRuntime{
-		RootGroup:     group,
-		ModelName:     modelName,
-		Members:       candidates,
-		CurrentIndex:  0,
-		SelectedIndex: -1,
+		RootGroup:       rootGroup,
+		ModelName:       modelName,
+		Members:         candidates,
+		CurrentIndex:    0,
+		SelectedIndex:   -1,
+		Source:          source,
+		BreakerScope:    breakerScope,
+		ConfigSignature: configSignature,
 	}
-	if cacheKey, ttlSeconds, ok := groupCombinationSessionCacheKey(c, group, modelName, candidates); ok {
+	if cacheKey, ttlSeconds, currentIndex := groupCombinationSessionState(c, rootGroup, modelName, candidates); cacheKey != "" {
 		runtime.CacheKey = cacheKey
 		runtime.TTLSeconds = ttlSeconds
-		if selectedGroup, found, err := getGroupCombinationSessionCache().Get(cacheKey); err != nil {
-			common.SysError(fmt.Sprintf("group combination session cache get failed: err=%v", err))
-		} else if found {
-			for i, member := range candidates {
-				if member.Group == selectedGroup {
-					runtime.CurrentIndex = i
-					break
-				}
-			}
-		}
+		runtime.CurrentIndex = currentIndex
 	}
 	if c != nil {
 		c.Set(ginKeyGroupCombinationRuntime, runtime)
 	}
 	return runtime
+}
+
+func getGroupCombinationRuntime(c *gin.Context, group, modelName string, members []ratio_setting.GroupCombinationMember) *groupCombinationRuntime {
+	candidates := groupCombinationMembersForModel(group, modelName, members, true)
+	return getGroupCombinationRuntimeForCandidates(c, group, modelName, candidates, groupCombinationSourceSetting, "", "")
 }
 
 func persistGroupCombinationRuntime(runtime *groupCombinationRuntime) {
@@ -160,6 +191,28 @@ func persistGroupCombinationRuntime(runtime *groupCombinationRuntime) {
 	if err := getGroupCombinationSessionCache().SetWithTTL(runtime.CacheKey, runtime.Members[runtime.CurrentIndex].Group, time.Duration(ttlSeconds)*time.Second); err != nil {
 		common.SysError(fmt.Sprintf("group combination session cache set failed: err=%v", err))
 	}
+}
+
+func resolveGroupCombinationRuntimeChannel(runtime *groupCombinationRuntime, combinationName, modelName string, excludedChannelIDs []int) (*model.Channel, string, error) {
+	if runtime == nil {
+		return nil, "", fmt.Errorf("%s 运行状态未初始化", combinationName)
+	}
+	for i := runtime.CurrentIndex; i < len(runtime.Members); i++ {
+		member := runtime.Members[i]
+		runtime.SelectedIndex = i
+		channel, err := model.GetRandomSatisfiedChannelWithExclusions(member.Group, modelName, 0, excludedChannelIDs)
+		if err != nil {
+			return nil, member.Group, fmt.Errorf("%s 从成员分组 %s 选择渠道失败: %w", combinationName, member.Group, err)
+		}
+		if channel != nil {
+			if i > runtime.CurrentIndex {
+				runtime.CurrentIndex = i
+				persistGroupCombinationRuntime(runtime)
+			}
+			return channel, member.Group, nil
+		}
+	}
+	return nil, "", fmt.Errorf("%s 的成员分组均没有模型 %s 的可用渠道", combinationName, modelName)
 }
 
 // ResolveGroupCombinationChannel selects the first member group that has an
@@ -201,29 +254,14 @@ func resolveGroupCombinationChannelWithContext(c *gin.Context, group, modelName 
 	}
 
 	runtime := getGroupCombinationRuntime(c, group, modelName, members)
-	for i := runtime.CurrentIndex; i < len(runtime.Members); i++ {
-		member := runtime.Members[i]
-		runtime.SelectedIndex = i
-		channel, err := model.GetRandomSatisfiedChannelWithExclusions(member.Group, modelName, 0, excludedChannelIDs)
-		if err != nil {
-			return nil, member.Group, true, fmt.Errorf("组合分组 %s 从成员分组 %s 选择渠道失败: %w", group, member.Group, err)
-		}
-		if channel != nil {
-			if i > runtime.CurrentIndex {
-				runtime.CurrentIndex = i
-				persistGroupCombinationRuntime(runtime)
-			}
-			return channel, member.Group, true, nil
-		}
-	}
-
-	return nil, "", true, fmt.Errorf("组合分组 %s 的成员分组均没有模型 %s 的可用渠道", group, modelName)
+	channel, selectedGroup, err := resolveGroupCombinationRuntimeChannel(runtime, "组合分组 "+group, modelName, excludedChannelIDs)
+	return channel, selectedGroup, true, err
 }
 
 // PrepareGroupCombinationFailover advances a retryable request to the next
 // configured member and persists that downgrade for the same model/session.
 func PrepareGroupCombinationFailover(c *gin.Context, retryParam *RetryParam) bool {
-	if c == nil || retryParam == nil || !ratio_setting.IsGroupCombination(retryParam.TokenGroup) {
+	if c == nil || retryParam == nil {
 		return false
 	}
 	anyRuntime, ok := c.Get(ginKeyGroupCombinationRuntime)
@@ -231,7 +269,13 @@ func PrepareGroupCombinationFailover(c *gin.Context, retryParam *RetryParam) boo
 		return false
 	}
 	runtime, ok := anyRuntime.(*groupCombinationRuntime)
-	if !ok || runtime == nil || runtime.RootGroup != retryParam.TokenGroup || runtime.ModelName != retryParam.ModelName {
+	if !ok || runtime == nil || runtime.ModelName != retryParam.ModelName {
+		return false
+	}
+	if runtime.Source == groupCombinationSourceSetting && runtime.RootGroup != retryParam.TokenGroup {
+		return false
+	}
+	if runtime.Source == groupCombinationSourceToken && !common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
 		return false
 	}
 	nextIndex := runtime.SelectedIndex + 1
@@ -242,7 +286,7 @@ func PrepareGroupCombinationFailover(c *gin.Context, retryParam *RetryParam) boo
 		return false
 	}
 	if runtime.SelectedIndex >= 0 && runtime.SelectedIndex < len(runtime.Members) {
-		recordGroupCombinationMemberFailure(runtime.Members[runtime.SelectedIndex].Group)
+		recordGroupCombinationRuntimeMemberFailure(runtime, runtime.Members[runtime.SelectedIndex].Group)
 	}
 	runtime.CurrentIndex = nextIndex
 	runtime.SelectedIndex = nextIndex

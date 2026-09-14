@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -313,5 +314,50 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestTokenModelCombinationCircuitBreakerHandlersRequireOwnership(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "combination-token", "combo1234breaker5678")
+	token.ModelGroupCombinationEnabled = true
+	token.ModelGroupCombinationGroups = `[{"group":"group-a","models":["shared-model"]},{"group":"group-b","models":["shared-model"]}]`
+	if err := db.Save(token).Error; err != nil {
+		t.Fatalf("failed to enable model group combination: %v", err)
+	}
+
+	getCtx, getRecorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/1/model_group_combination_circuit_breakers", nil, 1)
+	getCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetTokenModelCombinationCircuitBreakers(getCtx)
+	getResponse := decodeAPIResponse(t, getRecorder)
+	if !getResponse.Success {
+		t.Fatalf("expected combination status request to succeed, got %s", getResponse.Message)
+	}
+	var summary service.GroupCombinationBreakerSummary
+	if err := common.Unmarshal(getResponse.Data, &summary); err != nil {
+		t.Fatalf("failed to decode combination status: %v", err)
+	}
+	if len(summary.Groups) != 2 {
+		t.Fatalf("expected two combination members, got %d", len(summary.Groups))
+	}
+
+	resetCtx, resetRecorder := newAuthenticatedContext(
+		t,
+		http.MethodPost,
+		"/api/token/1/model_group_combination_circuit_breakers/reset",
+		map[string]any{"group": "group-a"},
+		1,
+	)
+	resetCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	ResetTokenModelCombinationCircuitBreaker(resetCtx)
+	if response := decodeAPIResponse(t, resetRecorder); !response.Success {
+		t.Fatalf("expected owned combination member reset to succeed, got %s", response.Message)
+	}
+
+	unauthorizedCtx, unauthorizedRecorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/1/model_group_combination_circuit_breakers", nil, 2)
+	unauthorizedCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetTokenModelCombinationCircuitBreakers(unauthorizedCtx)
+	if response := decodeAPIResponse(t, unauthorizedRecorder); response.Success {
+		t.Fatal("expected another user to be unable to read model combination state")
 	}
 }

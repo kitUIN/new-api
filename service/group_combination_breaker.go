@@ -79,12 +79,26 @@ func groupCombinationBreakerRedisOn() bool {
 }
 
 func groupCombinationBreakerStateKey(group string) string {
-	return common.Sha1([]byte(strings.TrimSpace(group)))
+	return groupCombinationBreakerScopedStateKey("", group)
 }
 
 func groupCombinationBreakerRedisKey(group string) string {
+	return groupCombinationBreakerScopedRedisKey("", group)
+}
+
+func groupCombinationBreakerScopedStateKey(scope, group string) string {
+	if strings.TrimSpace(scope) == "" {
+		return common.Sha1([]byte(strings.TrimSpace(group)))
+	}
+	return common.Sha1([]byte(strings.Join([]string{
+		strings.TrimSpace(scope),
+		strings.TrimSpace(group),
+	}, "\x00")))
+}
+
+func groupCombinationBreakerScopedRedisKey(scope, group string) string {
 	namespace := cachex.Namespace(groupCombinationBreakerNamespace)
-	return namespace.FullKey(groupCombinationBreakerStateKey(group))
+	return namespace.FullKey(groupCombinationBreakerScopedStateKey(scope, group))
 }
 
 func groupCombinationMemberConfigSignatures() map[string]string {
@@ -133,12 +147,16 @@ func normalizeGroupCombinationBreakerState(state GroupCombinationBreakerState, g
 }
 
 func readGroupCombinationBreakerState(group, signature string) (GroupCombinationBreakerState, bool, error) {
+	return readScopedGroupCombinationBreakerState("", group, signature)
+}
+
+func readScopedGroupCombinationBreakerState(scope, group, signature string) (GroupCombinationBreakerState, bool, error) {
 	now := groupCombinationBreakerNow().Unix()
-	key := groupCombinationBreakerStateKey(group)
+	key := groupCombinationBreakerScopedStateKey(scope, group)
 	if groupCombinationBreakerRedisOn() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		raw, err := common.RDB.Get(ctx, groupCombinationBreakerRedisKey(group)).Result()
+		raw, err := common.RDB.Get(ctx, groupCombinationBreakerScopedRedisKey(scope, group)).Result()
 		if errors.Is(err, redis.Nil) {
 			return GroupCombinationBreakerState{}, false, nil
 		}
@@ -151,7 +169,7 @@ func readGroupCombinationBreakerState(group, signature string) (GroupCombination
 		}
 		state, valid := normalizeGroupCombinationBreakerState(state, group, signature, now)
 		if !valid {
-			if err := deleteGroupCombinationBreakerRedisStateIfUnchanged(ctx, group, raw); err != nil {
+			if err := deleteGroupCombinationBreakerRedisStateIfUnchanged(ctx, scope, group, raw); err != nil {
 				return GroupCombinationBreakerState{}, false, err
 			}
 		}
@@ -172,8 +190,8 @@ func readGroupCombinationBreakerState(group, signature string) (GroupCombination
 	return state, true, nil
 }
 
-func deleteGroupCombinationBreakerRedisStateIfUnchanged(ctx context.Context, group, expected string) error {
-	redisKey := groupCombinationBreakerRedisKey(group)
+func deleteGroupCombinationBreakerRedisStateIfUnchanged(ctx context.Context, scope, group, expected string) error {
+	redisKey := groupCombinationBreakerScopedRedisKey(scope, group)
 	err := common.RDB.Watch(ctx, func(tx *redis.Tx) error {
 		current, err := tx.Get(ctx, redisKey).Result()
 		if errors.Is(err, redis.Nil) || (err == nil && current != expected) {
@@ -208,10 +226,22 @@ func isGroupCombinationMemberSkipped(group string) bool {
 	return found && state.SkippedUntil > groupCombinationBreakerNow().Unix()
 }
 
-func updateGroupCombinationBreakerStateRedis(group, signature string, success bool) (GroupCombinationBreakerState, bool, error) {
+func isScopedGroupCombinationMemberSkipped(scope, group, signature string) bool {
+	if strings.TrimSpace(scope) == "" || strings.TrimSpace(signature) == "" {
+		return false
+	}
+	state, found, err := readScopedGroupCombinationBreakerState(scope, group, signature)
+	if err != nil {
+		common.SysError(fmt.Sprintf("group combination breaker read failed: scope=%s group=%s err=%v", scope, group, err))
+		return false
+	}
+	return found && state.SkippedUntil > groupCombinationBreakerNow().Unix()
+}
+
+func updateGroupCombinationBreakerStateRedis(scope, group, signature string, success bool) (GroupCombinationBreakerState, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	redisKey := groupCombinationBreakerRedisKey(group)
+	redisKey := groupCombinationBreakerScopedRedisKey(scope, group)
 	codec := groupCombinationBreakerCodec{}
 
 	var result GroupCombinationBreakerState
@@ -280,12 +310,12 @@ func updateGroupCombinationBreakerStateRedis(group, signature string, success bo
 	return GroupCombinationBreakerState{}, false, redis.TxFailedErr
 }
 
-func updateGroupCombinationBreakerStateMemory(group, signature string, success bool) (GroupCombinationBreakerState, bool) {
+func updateGroupCombinationBreakerStateMemory(scope, group, signature string, success bool) (GroupCombinationBreakerState, bool) {
 	groupCombinationBreakerMemoryMu.Lock()
 	defer groupCombinationBreakerMemoryMu.Unlock()
 
 	now := groupCombinationBreakerNow().Unix()
-	key := groupCombinationBreakerStateKey(group)
+	key := groupCombinationBreakerScopedStateKey(scope, group)
 	state, _ := normalizeGroupCombinationBreakerState(groupCombinationBreakerMemory[key], group, signature, now)
 	if success {
 		if state.SkippedUntil > now {
@@ -318,10 +348,20 @@ func updateGroupCombinationBreakerState(group string, success bool) (GroupCombin
 	if !ok {
 		return GroupCombinationBreakerState{}, false, nil
 	}
-	if groupCombinationBreakerRedisOn() {
-		return updateGroupCombinationBreakerStateRedis(group, signature, success)
+	return updateScopedGroupCombinationBreakerState("", group, signature, success)
+}
+
+func updateScopedGroupCombinationBreakerState(scope, group, signature string, success bool) (GroupCombinationBreakerState, bool, error) {
+	scope = strings.TrimSpace(scope)
+	group = strings.TrimSpace(group)
+	signature = strings.TrimSpace(signature)
+	if group == "" || signature == "" {
+		return GroupCombinationBreakerState{}, false, nil
 	}
-	state, opened := updateGroupCombinationBreakerStateMemory(group, signature, success)
+	if groupCombinationBreakerRedisOn() {
+		return updateGroupCombinationBreakerStateRedis(scope, group, signature, success)
+	}
+	state, opened := updateGroupCombinationBreakerStateMemory(scope, group, signature, success)
 	return state, opened, nil
 }
 
@@ -333,6 +373,21 @@ func recordGroupCombinationMemberFailure(group string) {
 	}
 	if opened {
 		common.SysLog(fmt.Sprintf("group combination member skipped after %d consecutive failures: group=%s skipped_until=%d", state.ConsecutiveFailures, group, state.SkippedUntil))
+	}
+}
+
+func recordGroupCombinationRuntimeMemberFailure(runtime *groupCombinationRuntime, group string) {
+	if runtime == nil || runtime.Source != groupCombinationSourceToken {
+		recordGroupCombinationMemberFailure(group)
+		return
+	}
+	state, opened, err := updateScopedGroupCombinationBreakerState(runtime.BreakerScope, group, runtime.ConfigSignature, false)
+	if err != nil {
+		common.SysError(fmt.Sprintf("group combination breaker update failed: scope=%s group=%s err=%v", runtime.BreakerScope, group, err))
+		return
+	}
+	if opened {
+		common.SysLog(fmt.Sprintf("API key model combination member skipped after %d consecutive failures: scope=%s group=%s skipped_until=%d", state.ConsecutiveFailures, runtime.BreakerScope, group, state.SkippedUntil))
 	}
 }
 
@@ -349,14 +404,24 @@ func RecordGroupCombinationSuccess(c *gin.Context) {
 		return
 	}
 	group := runtime.Members[runtime.SelectedIndex].Group
-	if _, _, err := updateGroupCombinationBreakerState(group, true); err != nil {
+	var err error
+	if runtime.Source == groupCombinationSourceToken {
+		_, _, err = updateScopedGroupCombinationBreakerState(runtime.BreakerScope, group, runtime.ConfigSignature, true)
+	} else {
+		_, _, err = updateGroupCombinationBreakerState(group, true)
+	}
+	if err != nil {
 		common.SysError(fmt.Sprintf("group combination breaker success update failed: group=%s err=%v", group, err))
 	}
 }
 
 func groupCombinationBreakerStatus(group, signature string) (GroupCombinationBreakerStatus, error) {
+	return scopedGroupCombinationBreakerStatus("", group, signature)
+}
+
+func scopedGroupCombinationBreakerStatus(scope, group, signature string) (GroupCombinationBreakerStatus, error) {
 	status := GroupCombinationBreakerStatus{Group: group, Status: GroupCombinationBreakerStatusHealthy}
-	state, found, err := readGroupCombinationBreakerState(group, signature)
+	state, found, err := readScopedGroupCombinationBreakerState(scope, group, signature)
 	if err != nil {
 		return status, err
 	}
@@ -402,17 +467,24 @@ func ResetGroupCombinationCircuitBreaker(group string) (GroupCombinationBreakerS
 	if !ok {
 		return GroupCombinationBreakerStatus{}, fmt.Errorf("分组 %s 不是当前组合模式成员", group)
 	}
+	status, err := resetScopedGroupCombinationCircuitBreaker("", group, signature)
+	if err == nil {
+		common.SysLog(fmt.Sprintf("group combination circuit breaker manually reset: group=%s", group))
+	}
+	return status, err
+}
+
+func resetScopedGroupCombinationCircuitBreaker(scope, group, signature string) (GroupCombinationBreakerStatus, error) {
 	if groupCombinationBreakerRedisOn() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		if err := common.RDB.Del(ctx, groupCombinationBreakerRedisKey(group)).Err(); err != nil {
+		if err := common.RDB.Del(ctx, groupCombinationBreakerScopedRedisKey(scope, group)).Err(); err != nil {
 			return GroupCombinationBreakerStatus{}, err
 		}
 	} else {
 		groupCombinationBreakerMemoryMu.Lock()
-		delete(groupCombinationBreakerMemory, groupCombinationBreakerStateKey(group))
+		delete(groupCombinationBreakerMemory, groupCombinationBreakerScopedStateKey(scope, group))
 		groupCombinationBreakerMemoryMu.Unlock()
 	}
-	common.SysLog(fmt.Sprintf("group combination circuit breaker manually reset: group=%s", group))
-	return groupCombinationBreakerStatus(group, signature)
+	return scopedGroupCombinationBreakerStatus(scope, group, signature)
 }

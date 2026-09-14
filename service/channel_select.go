@@ -111,7 +111,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
-	if ratio_setting.IsGroupCombination(param.TokenGroup) {
+	if modelCombinationChannel, modelCombinationGroup, enabled, modelCombinationErr := ResolveModelGroupCombinationChannel(param.Ctx, param.ModelName, param.ExcludedChannelIDs); enabled {
+		return modelCombinationChannel, modelCombinationGroup, modelCombinationErr
+	} else if ratio_setting.IsGroupCombination(param.TokenGroup) {
 		common.SetContextKey(param.Ctx, constant.ContextKeyGroupCombination, param.TokenGroup)
 		channel, selectGroup, _, err = resolveGroupCombinationChannelWithContext(param.Ctx, param.TokenGroup, param.ModelName, param.ExcludedChannelIDs)
 		if channel != nil {

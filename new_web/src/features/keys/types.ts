@@ -137,6 +137,20 @@ export type ModelGroupCombinationMember = {
   models: string[]
 }
 
+export type ModelGroupCombinationCircuitBreakerStatus = {
+  group: string
+  status: 'healthy' | 'warning' | 'skipped'
+  consecutive_failures: number
+  skipped_until: number
+  updated_at: number
+}
+
+export type ModelGroupCombinationCircuitBreakerSummary = {
+  failure_threshold: number
+  cooldown_seconds: number
+  groups: ModelGroupCombinationCircuitBreakerStatus[]
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

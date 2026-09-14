@@ -24,6 +24,8 @@ import type {
   GetApiKeysResponse,
   SearchApiKeysParams,
   ApiKeyFormData,
+  ModelGroupCombinationCircuitBreakerStatus,
+  ModelGroupCombinationCircuitBreakerSummary,
 } from './types'
 
 // ============================================================================
@@ -79,6 +81,26 @@ export async function resetApiKeyFailoverToP0(
   id: number
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.post(`/api/token/${id}/failover/reset`)
+  return res.data
+}
+
+export async function getApiKeyModelCombinationCircuitBreakers(
+  id: number
+): Promise<ApiResponse<ModelGroupCombinationCircuitBreakerSummary>> {
+  const res = await api.get(
+    `/api/token/${id}/model_group_combination_circuit_breakers`
+  )
+  return res.data
+}
+
+export async function resetApiKeyModelCombinationCircuitBreaker(
+  id: number,
+  group: string
+): Promise<ApiResponse<ModelGroupCombinationCircuitBreakerStatus>> {
+  const res = await api.post(
+    `/api/token/${id}/model_group_combination_circuit_breakers/reset`,
+    { group }
+  )
   return res.data
 }
 

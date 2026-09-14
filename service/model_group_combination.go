@@ -194,8 +194,184 @@ func GetModelGroupCombinationGroupsFromContext(c *gin.Context) ([]string, error)
 	return groups, nil
 }
 
-// ResolveModelGroupCombination selects the first configured member that explicitly
-// includes the requested model and currently has an enabled channel for it.
+func modelGroupCombinationCandidates(members []ratio_setting.GroupCombinationMember, modelName string) []ratio_setting.GroupCombinationMember {
+	candidates := make([]ratio_setting.GroupCombinationMember, 0, len(members))
+	for _, member := range members {
+		if ratio_setting.GroupCombinationMemberSupportsModel(member, modelName) {
+			candidates = append(candidates, member)
+		}
+	}
+	return candidates
+}
+
+func modelGroupCombinationRuntimeIdentity(tokenID int, members []ratio_setting.GroupCombinationMember) (string, string, string, error) {
+	data, err := common.Marshal(members)
+	if err != nil {
+		return "", "", "", err
+	}
+	signature := common.Sha1(data)
+	scope := fmt.Sprintf("token:%d", tokenID)
+	root := strings.Join([]string{"model-combination", scope, signature}, ":")
+	return root, scope, signature, nil
+}
+
+func getTokenModelGroupCombinationMembers(token *model.Token) ([]ratio_setting.GroupCombinationMember, error) {
+	if token == nil || !token.ModelGroupCombinationEnabled {
+		return nil, errors.New("API Key 未启用模型组合")
+	}
+	members, legacy, err := ParseModelGroupCombinationMembers(token.ModelGroupCombinationGroups)
+	if err != nil {
+		return nil, fmt.Errorf("模型组合分组格式错误: %w", err)
+	}
+	if legacy {
+		for i := range members {
+			members[i].Models = model.GetGroupEnabledModels(strings.TrimSpace(members[i].Group))
+			sort.Strings(members[i].Models)
+		}
+	}
+	return members, nil
+}
+
+func GetModelGroupCombinationCircuitBreakerSummary(token *model.Token) (GroupCombinationBreakerSummary, error) {
+	summary := GroupCombinationBreakerSummary{
+		FailureThreshold: GroupCombinationBreakerFailureThreshold,
+		CooldownSeconds:  GroupCombinationBreakerCooldownSeconds,
+		Groups:           make([]GroupCombinationBreakerStatus, 0),
+	}
+	members, err := getTokenModelGroupCombinationMembers(token)
+	if err != nil {
+		return summary, err
+	}
+	_, scope, signature, err := modelGroupCombinationRuntimeIdentity(token.Id, members)
+	if err != nil {
+		return summary, err
+	}
+	seen := make(map[string]struct{}, len(members))
+	for _, member := range members {
+		group := strings.TrimSpace(member.Group)
+		if group == "" {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		status, statusErr := scopedGroupCombinationBreakerStatus(scope, group, signature)
+		if statusErr != nil {
+			return summary, statusErr
+		}
+		summary.Groups = append(summary.Groups, status)
+	}
+	return summary, nil
+}
+
+func ResetModelGroupCombinationCircuitBreaker(token *model.Token, group string) (GroupCombinationBreakerStatus, error) {
+	members, err := getTokenModelGroupCombinationMembers(token)
+	if err != nil {
+		return GroupCombinationBreakerStatus{}, err
+	}
+	group = strings.TrimSpace(group)
+	found := false
+	for _, member := range members {
+		if strings.TrimSpace(member.Group) == group {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return GroupCombinationBreakerStatus{}, fmt.Errorf("分组 %s 不是当前模型组合成员", group)
+	}
+	_, scope, signature, err := modelGroupCombinationRuntimeIdentity(token.Id, members)
+	if err != nil {
+		return GroupCombinationBreakerStatus{}, err
+	}
+	status, err := resetScopedGroupCombinationCircuitBreaker(scope, group, signature)
+	if err == nil {
+		common.SysLog(fmt.Sprintf("API key model combination circuit breaker manually reset: token_id=%d group=%s", token.Id, group))
+	}
+	return status, err
+}
+
+func prepareModelGroupCombinationRuntime(c *gin.Context, modelName string) (*groupCombinationRuntime, bool, error) {
+	if c == nil || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
+		return nil, false, nil
+	}
+	members, err := GetModelGroupCombinationMembersFromContext(c)
+	if err != nil {
+		return nil, true, err
+	}
+	candidates := modelGroupCombinationCandidates(members, modelName)
+	if len(candidates) == 0 {
+		return nil, true, fmt.Errorf("模型组合中没有配置模型 %s", modelName)
+	}
+	root, scope, signature, err := modelGroupCombinationRuntimeIdentity(
+		common.GetContextKeyInt(c, constant.ContextKeyTokenId),
+		members,
+	)
+	if err != nil {
+		return nil, true, err
+	}
+	runtime := getGroupCombinationRuntimeForCandidates(
+		c,
+		root,
+		modelName,
+		candidates,
+		groupCombinationSourceToken,
+		scope,
+		signature,
+	)
+	if len(runtime.Members) == 0 {
+		return nil, true, fmt.Errorf("模型组合中支持模型 %s 的分组当前均已自动跳过", modelName)
+	}
+	return runtime, true, nil
+}
+
+func PrepareModelGroupCombination(c *gin.Context, modelName string) (bool, error) {
+	_, enabled, err := prepareModelGroupCombinationRuntime(c, modelName)
+	return enabled, err
+}
+
+func ResolveModelGroupCombinationChannel(c *gin.Context, modelName string, excludedChannelIDs []int) (*model.Channel, string, bool, error) {
+	if c == nil {
+		return nil, "", false, nil
+	}
+	value, ok := c.Get(ginKeyGroupCombinationRuntime)
+	if !ok {
+		return nil, "", false, nil
+	}
+	runtime, ok := value.(*groupCombinationRuntime)
+	if !ok || runtime == nil || runtime.Source != groupCombinationSourceToken || runtime.ModelName != modelName {
+		return nil, "", false, nil
+	}
+	channel, selectedGroup, err := resolveGroupCombinationRuntimeChannel(runtime, "模型组合", modelName, excludedChannelIDs)
+	if channel != nil {
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, selectedGroup)
+	}
+	return channel, selectedGroup, true, err
+}
+
+func ResolveModelGroupCombinationChannelGroup(c *gin.Context, modelName string, channelID int) (string, bool, error) {
+	if c == nil || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
+		return "", false, nil
+	}
+	members, err := GetModelGroupCombinationMembersFromContext(c)
+	if err != nil {
+		return "", true, err
+	}
+	for _, member := range modelGroupCombinationCandidates(members, modelName) {
+		if model.IsChannelEnabledForConcreteGroupModel(member.Group, modelName, channelID) {
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, member.Group)
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, member.Group)
+			return member.Group, true, nil
+		}
+	}
+	return "", true, fmt.Errorf("模型组合的成员分组不包含渠道 #%d", channelID)
+}
+
+// ResolveModelGroupCombination selects the current session member, or the next
+// configured member, that explicitly includes the requested model and has an
+// enabled channel for it.
 func ResolveModelGroupCombination(c *gin.Context, modelName string) (string, bool, error) {
 	if c == nil || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
 		return "", false, nil
@@ -204,15 +380,35 @@ func ResolveModelGroupCombination(c *gin.Context, modelName string) (string, boo
 	if err != nil {
 		return "", true, err
 	}
-	for _, member := range members {
-		if !ratio_setting.GroupCombinationMemberSupportsModel(member, modelName) {
+	candidates := modelGroupCombinationCandidates(members, modelName)
+	root, scope, signature, err := modelGroupCombinationRuntimeIdentity(
+		common.GetContextKeyInt(c, constant.ContextKeyTokenId),
+		members,
+	)
+	if err != nil {
+		return "", true, err
+	}
+	availableCandidates := make([]ratio_setting.GroupCombinationMember, 0, len(candidates))
+	for _, member := range candidates {
+		if isScopedGroupCombinationMemberSkipped(scope, member.Group, signature) {
 			continue
 		}
+		availableCandidates = append(availableCandidates, member)
+	}
+	_, _, currentIndex := groupCombinationSessionState(c, root, modelName, availableCandidates)
+	for i := currentIndex; i < len(availableCandidates); i++ {
+		member := availableCandidates[i]
 		if model.HasAvailableChannelForGroupModel(member.Group, modelName) {
 			common.SetContextKey(c, constant.ContextKeyUsingGroup, member.Group)
 			common.SetContextKey(c, constant.ContextKeyTokenGroup, member.Group)
 			return member.Group, true, nil
 		}
+	}
+	if len(candidates) == 0 {
+		return "", true, fmt.Errorf("模型组合中没有配置模型 %s", modelName)
+	}
+	if len(availableCandidates) == 0 {
+		return "", true, fmt.Errorf("模型组合中支持模型 %s 的分组当前均已自动跳过", modelName)
 	}
 	return "", true, fmt.Errorf("模型组合中没有支持模型 %s 的可用分组", modelName)
 }

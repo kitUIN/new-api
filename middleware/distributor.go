@@ -60,6 +60,12 @@ func Distribute() func(c *gin.Context) {
 				}
 				common.SetContextKey(c, constant.ContextKeyGroupCombination, usingGroup)
 				common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
+			} else if common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) && modelRequest.Model != "" {
+				_, enabled, resolveErr := service.ResolveModelGroupCombinationChannelGroup(c, modelRequest.Model, channel.Id)
+				if enabled && resolveErr != nil {
+					abortWithOpenAiMessage(c, http.StatusForbidden, resolveErr.Error())
+					return
+				}
 			}
 		} else {
 			// Select a channel for the user
@@ -92,19 +98,13 @@ func Distribute() func(c *gin.Context) {
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				manualSessionGroup, sessionErr := service.PrepareRelaySession(c, modelRequest.Model)
+				modelCombinationEnabled := false
 				if sessionErr != nil {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, sessionErr.Error())
 					return
 				}
 				usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				if !manualSessionGroup {
-					if resolvedGroup, enabled, resolveErr := service.ResolveModelGroupCombination(c, modelRequest.Model); enabled {
-						if resolveErr != nil {
-							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, resolveErr.Error(), types.ErrorCodeModelNotFound)
-							return
-						}
-						usingGroup = resolvedGroup
-					}
 					// check path is /pg/chat/completions
 					if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 						playgroundRequest := &dto.PlayGroundRequest{}
@@ -123,13 +123,24 @@ func Distribute() func(c *gin.Context) {
 						}
 					}
 
-					if service.IsRuleAutoGroup(usingGroup) {
+					if common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
 						service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
-						service.ApplyRuleAutoGroup(c, modelRequest.Model)
-					} else {
-						service.ApplySessionGroupFailover(c, modelRequest.Model)
-						usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-						service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+						modelCombinationEnabled, err = service.PrepareModelGroupCombination(c, modelRequest.Model)
+						if err != nil {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, err.Error(), types.ErrorCodeModelNotFound)
+							return
+						}
+					}
+
+					if !modelCombinationEnabled {
+						if service.IsRuleAutoGroup(usingGroup) {
+							service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+							service.ApplyRuleAutoGroup(c, modelRequest.Model)
+						} else {
+							service.ApplySessionGroupFailover(c, modelRequest.Model)
+							usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+							service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+						}
 					}
 				} else {
 					service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
@@ -149,7 +160,7 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				if channel == nil && !ratio_setting.IsGroupCombination(usingGroup) {
+				if channel == nil && !modelCombinationEnabled && !ratio_setting.IsGroupCombination(usingGroup) {
 					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 						preferred, err := model.CacheGetChannel(preferredChannelID)
 						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {

@@ -179,12 +179,25 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		successMaxCount := setting.ModelRequestRateLimitSuccessCount
 
 		// 获取分组
+		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 		if common.GetContextKeyBool(c, constant.ContextKeyTokenModelGroupCombinationEnabled) {
 			if modelRequest, shouldSelectChannel, err := getModelRequest(c); err == nil && shouldSelectChannel && modelRequest.Model != "" {
-				_, _, _ = service.ResolveModelGroupCombination(c, modelRequest.Model)
+				originalUsingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				originalTokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+				usingGroup := originalUsingGroup
+				if usingGroup == "" {
+					usingGroup = group
+				}
+				service.EnsureChannelAffinitySessionKey(c, modelRequest.Model, usingGroup)
+				if resolvedGroup, enabled, resolveErr := service.ResolveModelGroupCombination(c, modelRequest.Model); enabled && resolveErr == nil {
+					group = resolvedGroup
+				}
+				// Group resolution here only chooses the rate-limit policy. Routing
+				// must still start from the API key's configured root group.
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, originalUsingGroup)
+				common.SetContextKey(c, constant.ContextKeyTokenGroup, originalTokenGroup)
 			}
 		}
-		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 		if group == "" {
 			group = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 		}

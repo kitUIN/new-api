@@ -140,6 +140,52 @@ func ResetTokenFailover(c *gin.Context) {
 	common.ApiSuccess(c, buildMaskedTokenResponse(token))
 }
 
+func GetTokenModelCombinationCircuitBreakers(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	token, err := model.GetTokenByIds(id, c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	summary, err := service.GetModelGroupCombinationCircuitBreakerSummary(token)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, summary)
+}
+
+func ResetTokenModelCombinationCircuitBreaker(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	token, err := model.GetTokenByIds(id, c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var request groupCombinationBreakerResetRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	status, err := service.ResetModelGroupCombinationCircuitBreaker(token, request.Group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
 func GetTokenStatus(c *gin.Context) {
 	tokenId := c.GetInt("token_id")
 	userId := c.GetInt("id")

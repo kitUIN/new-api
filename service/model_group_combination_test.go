@@ -1,8 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -182,4 +184,157 @@ func setupModelGroupCombinationDatabase(t *testing.T) {
 	require.NoError(t, db.Create(&model.Ability{
 		Group: "group-b", Model: "shared-model", ChannelId: 2, Enabled: true,
 	}).Error)
+}
+
+func TestModelGroupCombinationUsesSharedFailoverRuntime(t *testing.T) {
+	setupModelGroupCombinationSettings(t)
+	originalDB := model.DB
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+	})
+
+	common.MemoryCacheEnabled = false
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	priority := int64(10)
+	channels := []model.Channel{
+		{Id: 1, Name: "group-a", Key: "sk-a", Status: common.ChannelStatusEnabled, Models: "shared-model", Group: "group-a", Priority: &priority},
+		{Id: 2, Name: "group-b", Key: "sk-b", Status: common.ChannelStatusEnabled, Models: "shared-model", Group: "group-b", Priority: &priority},
+	}
+	for i := range channels {
+		require.NoError(t, db.Create(&channels[i]).Error)
+		require.NoError(t, channels[i].AddAbilities(nil))
+	}
+
+	rawMembers := `[{"group":"group-a","models":["shared-model"]},{"group":"group-b","models":["shared-model"]}]`
+	members, _, err := ParseModelGroupCombinationMembers(rawMembers)
+	require.NoError(t, err)
+	_, breakerScope, _, err := modelGroupCombinationRuntimeIdentity(42, members)
+	require.NoError(t, err)
+	groupCombinationBreakerMemoryMu.Lock()
+	delete(groupCombinationBreakerMemory, groupCombinationBreakerScopedStateKey(breakerScope, "group-a"))
+	delete(groupCombinationBreakerMemory, groupCombinationBreakerScopedStateKey(breakerScope, "group-b"))
+	groupCombinationBreakerMemoryMu.Unlock()
+	t.Cleanup(func() {
+		groupCombinationBreakerMemoryMu.Lock()
+		delete(groupCombinationBreakerMemory, groupCombinationBreakerScopedStateKey(breakerScope, "group-a"))
+		delete(groupCombinationBreakerMemory, groupCombinationBreakerScopedStateKey(breakerScope, "group-b"))
+		groupCombinationBreakerMemoryMu.Unlock()
+	})
+
+	newContext := func(tokenID int, sessionSuffix string) *gin.Context {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		common.SetContextKey(ctx, constant.ContextKeyTokenId, tokenID)
+		common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "group-a")
+		common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "group-a")
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationEnabled, true)
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelGroupCombinationGroups, rawMembers)
+		if sessionSuffix != "" {
+			setChannelAffinityContext(ctx, channelAffinityMeta{
+				CacheKeySuffix: sessionSuffix,
+				TTLSeconds:     60,
+			})
+		}
+		return ctx
+	}
+
+	sessionSuffix := fmt.Sprintf("%s-%d", t.Name(), time.Now().UnixNano())
+	ctx := newContext(42, sessionSuffix)
+	enabled, err := PrepareModelGroupCombination(ctx, "shared-model")
+	require.NoError(t, err)
+	require.True(t, enabled)
+	retryParam := &RetryParam{
+		Ctx: ctx, TokenGroup: "group-a", ModelName: "shared-model", Retry: common.GetPointer(0),
+	}
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(retryParam)
+	require.NoError(t, err)
+	require.Equal(t, 1, channel.Id)
+	require.Equal(t, "group-a", selectedGroup)
+	require.True(t, PrepareGroupCombinationFailover(ctx, retryParam))
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(retryParam)
+	require.NoError(t, err)
+	require.Equal(t, 2, channel.Id)
+	require.Equal(t, "group-b", selectedGroup)
+	require.Equal(t, "group-b", common.GetContextKeyString(ctx, constant.ContextKeyTokenGroup))
+
+	runtimeValue, ok := ctx.Get(ginKeyGroupCombinationRuntime)
+	require.True(t, ok)
+	cacheKey := runtimeValue.(*groupCombinationRuntime).CacheKey
+	t.Cleanup(func() {
+		if cacheKey != "" {
+			_, _ = getGroupCombinationSessionCache().DeleteMany([]string{cacheKey})
+		}
+	})
+
+	nextCtx := newContext(42, sessionSuffix)
+	resolvedGroup, enabled, err := ResolveModelGroupCombination(nextCtx, "shared-model")
+	require.NoError(t, err)
+	require.True(t, enabled)
+	require.Equal(t, "group-b", resolvedGroup)
+	require.Equal(t, "group-b", common.GetContextKeyString(nextCtx, constant.ContextKeyTokenGroup))
+	_, runtimePrepared := nextCtx.Get(ginKeyGroupCombinationRuntime)
+	require.False(t, runtimePrepared)
+	_, err = PrepareModelGroupCombination(nextCtx, "shared-model")
+	require.NoError(t, err)
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx: nextCtx, TokenGroup: "group-a", ModelName: "shared-model", Retry: common.GetPointer(0),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, channel.Id)
+	require.Equal(t, "group-b", selectedGroup)
+
+	for failure := 1; failure < GroupCombinationBreakerFailureThreshold; failure++ {
+		failureCtx := newContext(42, "")
+		_, err = PrepareModelGroupCombination(failureCtx, "shared-model")
+		require.NoError(t, err)
+		failureRetryParam := &RetryParam{
+			Ctx: failureCtx, TokenGroup: "group-a", ModelName: "shared-model", Retry: common.GetPointer(0),
+		}
+		channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(failureRetryParam)
+		require.NoError(t, err)
+		require.Equal(t, "group-a", selectedGroup)
+		require.True(t, PrepareGroupCombinationFailover(failureCtx, failureRetryParam))
+	}
+
+	token := &model.Token{Id: 42, ModelGroupCombinationEnabled: true, ModelGroupCombinationGroups: rawMembers}
+	summary, err := GetModelGroupCombinationCircuitBreakerSummary(token)
+	require.NoError(t, err)
+	require.Equal(t, GroupCombinationBreakerStatusSkipped, summary.Groups[0].Status)
+
+	skippedCtx := newContext(42, "")
+	_, err = PrepareModelGroupCombination(skippedCtx, "shared-model")
+	require.NoError(t, err)
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx: skippedCtx, TokenGroup: "group-a", ModelName: "shared-model", Retry: common.GetPointer(0),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, channel.Id)
+	require.Equal(t, "group-b", selectedGroup)
+
+	otherTokenCtx := newContext(43, "")
+	_, err = PrepareModelGroupCombination(otherTokenCtx, "shared-model")
+	require.NoError(t, err)
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx: otherTokenCtx, TokenGroup: "group-a", ModelName: "shared-model", Retry: common.GetPointer(0),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, channel.Id)
+	require.Equal(t, "group-a", selectedGroup)
+
+	status, err := ResetModelGroupCombinationCircuitBreaker(token, "group-a")
+	require.NoError(t, err)
+	require.Equal(t, GroupCombinationBreakerStatusHealthy, status.Status)
 }
