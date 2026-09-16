@@ -22,12 +22,13 @@ import (
 )
 
 const (
-	githubAPIBaseURL         = "https://api.github.com"
-	maxReleaseResponseBytes  = 4 << 20
-	maxChecksumsBytes        = 1 << 20
-	maxUpdateBinaryBytes     = 512 << 20
-	restartDelayEnvironment  = "NEW_API_RESTART_DELAY"
-	restartBackupEnvironment = "NEW_API_RESTART_BACKUP"
+	githubAPIBaseURL        = "https://api.github.com"
+	maxReleaseResponseBytes = 4 << 20
+	maxChecksumsBytes       = 1 << 20
+	maxUpdateBinaryBytes    = 512 << 20
+	systemUpdateAssetName   = "nachoai"
+	systemdServiceName      = "nachoai.service"
+	systemdRestartDelay     = 1500 * time.Millisecond
 )
 
 type githubReleaseAsset struct {
@@ -186,24 +187,19 @@ func fetchGitHubReleases(ctx context.Context, repository string) ([]githubReleas
 	return releases, nil
 }
 
-func updateAssetSuffix() string {
-	suffix := "-" + runtime.GOOS + "-" + runtime.GOARCH
-	if runtime.GOOS == "windows" {
-		suffix += ".exe"
-	}
-	return suffix
+func systemUpdatePlatformSupported() bool {
+	return runtime.GOOS == "linux" && runtime.GOARCH == "amd64"
 }
 
 func selectSystemUpdateAssets(release githubRelease) (*githubReleaseAsset, *githubReleaseAsset) {
 	var binaryAsset *githubReleaseAsset
 	var checksumsAsset *githubReleaseAsset
-	suffix := updateAssetSuffix()
 	for index := range release.Assets {
 		asset := &release.Assets[index]
 		switch {
 		case asset.Name == "checksums.txt":
 			checksumsAsset = asset
-		case strings.HasPrefix(asset.Name, "new-api-") && strings.HasSuffix(asset.Name, suffix):
+		case systemUpdatePlatformSupported() && asset.Name == systemUpdateAssetName:
 			binaryAsset = asset
 		}
 	}
@@ -330,10 +326,7 @@ func downloadUpdateBinary(ctx context.Context, asset githubReleaseAsset, targetP
 		return "", fmt.Errorf("binary download returned status %d", response.StatusCode)
 	}
 
-	pattern := ".new-api-update-*"
-	if runtime.GOOS == "windows" {
-		pattern += ".exe"
-	}
+	pattern := ".nachoai-update-*"
 	stagedFile, err := os.CreateTemp(filepath.Dir(targetPath), pattern)
 	if err != nil {
 		return "", fmt.Errorf("cannot create update file beside the executable: %w", err)
@@ -432,37 +425,57 @@ func rollbackInstalledBinary(targetPath string, backupPath string) error {
 	return nil
 }
 
-func restartEnvironment(backupPath string) []string {
-	environment := make([]string, 0, len(os.Environ())+2)
-	for _, entry := range os.Environ() {
-		if strings.HasPrefix(entry, restartDelayEnvironment+"=") || strings.HasPrefix(entry, restartBackupEnvironment+"=") {
-			continue
-		}
-		environment = append(environment, entry)
+func systemctlForUpdate(ctx context.Context) (string, error) {
+	if !systemUpdatePlatformSupported() {
+		return "", fmt.Errorf("binary self-update requires linux/amd64 with %s", systemdServiceName)
 	}
-	return append(
-		environment,
-		restartDelayEnvironment+"=2s",
-		restartBackupEnvironment+"="+backupPath,
-	)
+	systemctlPath, err := exec.LookPath("systemctl")
+	if err != nil {
+		return "", errors.New("systemctl was not found")
+	}
+
+	commandContext, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(
+		commandContext,
+		systemctlPath,
+		"show",
+		"--property=LoadState",
+		"--value",
+		systemdServiceName,
+	).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("cannot inspect %s: %w", systemdServiceName, err)
+	}
+	if strings.TrimSpace(string(output)) != "loaded" {
+		return "", fmt.Errorf("systemd service %s is not loaded", systemdServiceName)
+	}
+	return systemctlPath, nil
 }
 
-func scheduleUpdatedProcess(targetPath string, backupPath string) error {
-	command := exec.Command(targetPath, os.Args[1:]...)
-	command.Env = restartEnvironment(backupPath)
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	if err := command.Start(); err != nil {
-		return err
-	}
-	_ = command.Process.Release()
-
+func scheduleSystemdRestart(systemctlPath string, targetPath string, backupPath string) {
 	go func() {
-		time.Sleep(750 * time.Millisecond)
-		os.Exit(0)
+		time.Sleep(systemdRestartDelay)
+		output, err := exec.Command(
+			systemctlPath,
+			"--no-block",
+			"restart",
+			systemdServiceName,
+		).CombinedOutput()
+		if err == nil {
+			return
+		}
+
+		common.SysError(fmt.Sprintf(
+			"failed to restart %s after update: %v: %s",
+			systemdServiceName,
+			err,
+			strings.TrimSpace(string(output)),
+		))
+		if rollbackErr := rollbackInstalledBinary(targetPath, backupPath); rollbackErr != nil {
+			common.SysError("failed to roll back system update: " + rollbackErr.Error())
+		}
 	}()
-	return nil
 }
 
 func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion string) (*SystemUpdateInfo, error) {
@@ -482,6 +495,17 @@ func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion s
 	if binaryAsset == nil || checksumsAsset == nil {
 		return nil, fmt.Errorf("release does not contain an update for %s", info.Platform)
 	}
+	targetPath, err := currentExecutablePath()
+	if err != nil {
+		return nil, fmt.Errorf("cannot locate the current executable: %w", err)
+	}
+	if filepath.Base(targetPath) != systemUpdateAssetName {
+		return nil, fmt.Errorf("self-update requires the running executable to be named %s", systemUpdateAssetName)
+	}
+	systemctlPath, err := systemctlForUpdate(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	checksums, err := downloadUpdateBytes(ctx, checksumsAsset.BrowserDownloadURL, maxChecksumsBytes)
 	if err != nil {
@@ -492,10 +516,6 @@ func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion s
 		return nil, err
 	}
 
-	targetPath, err := currentExecutablePath()
-	if err != nil {
-		return nil, fmt.Errorf("cannot locate the current executable: %w", err)
-	}
 	stagedPath, err := downloadUpdateBinary(ctx, *binaryAsset, targetPath, expectedChecksum)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download update binary: %w", err)
@@ -516,33 +536,6 @@ func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion s
 	}
 	removeStaged = false
 
-	if err := scheduleUpdatedProcess(targetPath, backupPath); err != nil {
-		if rollbackErr := rollbackInstalledBinary(targetPath, backupPath); rollbackErr != nil {
-			return nil, fmt.Errorf("failed to restart after update: %v; rollback failed: %w", err, rollbackErr)
-		}
-		return nil, fmt.Errorf("failed to restart after update: %w", err)
-	}
+	scheduleSystemdRestart(systemctlPath, targetPath, backupPath)
 	return info, nil
-}
-
-func PrepareRestartedProcess() {
-	delayValue := os.Getenv(restartDelayEnvironment)
-	backupPath := os.Getenv(restartBackupEnvironment)
-	_ = os.Unsetenv(restartDelayEnvironment)
-	_ = os.Unsetenv(restartBackupEnvironment)
-
-	if delay, err := time.ParseDuration(delayValue); err == nil && delay > 0 && delay <= 10*time.Second {
-		time.Sleep(delay)
-	}
-	if backupPath == "" {
-		return
-	}
-
-	executablePath, err := currentExecutablePath()
-	if err != nil {
-		return
-	}
-	if filepath.Clean(backupPath) == filepath.Clean(executablePath+".old") {
-		_ = os.Remove(backupPath)
-	}
 }

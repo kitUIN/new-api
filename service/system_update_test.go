@@ -38,34 +38,37 @@ func TestNormalizeGitHubRepository(t *testing.T) {
 
 func TestChecksumForAsset(t *testing.T) {
 	checksum := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	content := []byte(checksum + "  new-api-continuous-1-linux-amd64\n")
+	content := []byte(checksum + "  nachoai\n")
 
-	actual, err := checksumForAsset(content, "new-api-continuous-1-linux-amd64")
+	actual, err := checksumForAsset(content, "nachoai")
 	require.NoError(t, err)
 	require.Equal(t, checksum, actual)
 
-	_, err = checksumForAsset(content, "new-api-continuous-1-linux-arm64")
+	_, err = checksumForAsset(content, "other-binary")
 	require.Error(t, err)
 }
 
 func TestSelectSystemUpdateAssets(t *testing.T) {
-	binaryName := "new-api-continuous-12-deadbee" + updateAssetSuffix()
 	release := githubRelease{Assets: []githubReleaseAsset{
-		{Name: "new-api-continuous-12-deadbee-other-platform"},
-		{Name: binaryName, Size: 1234},
+		{Name: "other-binary", Size: 1234},
+		{Name: systemUpdateAssetName, Size: 1234},
 		{Name: "checksums.txt", Size: 456},
 	}}
 
 	binaryAsset, checksumsAsset := selectSystemUpdateAssets(release)
-	require.NotNil(t, binaryAsset)
-	require.Equal(t, binaryName, binaryAsset.Name)
+	if systemUpdatePlatformSupported() {
+		require.NotNil(t, binaryAsset)
+		require.Equal(t, systemUpdateAssetName, binaryAsset.Name)
+	} else {
+		require.Nil(t, binaryAsset)
+	}
 	require.NotNil(t, checksumsAsset)
 	require.Equal(t, "checksums.txt", checksumsAsset.Name)
 }
 
 func TestValidateGitHubDownloadURL(t *testing.T) {
 	allowed := []string{
-		"https://github.com/owner/repository/releases/download/v1/new-api-linux-amd64",
+		"https://github.com/owner/repository/releases/download/v1/nachoai",
 		"https://release-assets.githubusercontent.com/example",
 	}
 	for _, value := range allowed {
@@ -75,7 +78,7 @@ func TestValidateGitHubDownloadURL(t *testing.T) {
 	}
 
 	blocked := []string{
-		"http://github.com/owner/repository/releases/download/v1/new-api-linux-amd64",
+		"http://github.com/owner/repository/releases/download/v1/nachoai",
 		"https://github.com.example.test/update",
 		"https://example.com/update",
 	}

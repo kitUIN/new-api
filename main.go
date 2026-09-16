@@ -42,7 +42,6 @@ var buildFS embed.FS
 var indexPage []byte
 
 func main() {
-	service.PrepareRestartedProcess()
 	startTime := time.Now()
 
 	err := InitResources()

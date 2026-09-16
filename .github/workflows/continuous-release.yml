@@ -57,24 +57,18 @@ jobs:
       - name: Download Go modules
         run: go mod download
 
-      - name: Build release binaries
+      - name: Build release binary
         shell: bash
         run: |
           mkdir -p dist
           LDFLAGS="-s -w -X 'github.com/QuantumNous/new-api/common.Version=${VERSION}'"
-
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-linux-amd64"
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-linux-arm64"
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-darwin-amd64"
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-darwin-arm64"
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-windows-amd64.exe"
-          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-windows-arm64.exe"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/nachoai"
 
       - name: Generate checksums
         shell: bash
         run: |
           cd dist
-          sha256sum new-api-* > checksums.txt
+          sha256sum nachoai > checksums.txt
 
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
