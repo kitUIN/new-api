@@ -1549,6 +1549,7 @@
     "Enter a new name": "Enter a new name",
     "Enter a positive or negative amount to adjust the quota": "Enter a positive or negative amount to adjust the quota",
     "Enter a valid email or leave blank": "Enter a valid email or leave blank",
+    "Enter a valid GitHub repository, for example owner/repository.": "Enter a valid GitHub repository, for example owner/repository.",
     "Enter a value and press Enter": "Enter a value and press Enter",
     "Enter amount in {{currency}}": "Enter amount in {{currency}}",
     "Enter amount in tokens": "Enter amount in tokens",
@@ -1966,6 +1967,7 @@
     "Get started": "Get started",
     "Get Started": "Get Started",
     "GitHub": "GitHub",
+    "GitHub release repository": "GitHub release repository",
     "Give the group a recognizable name and optional description.": "Give the group a recognizable name and optional description.",
     "Give this group a recognizable name.": "Give this group a recognizable name.",
     "Global configuration and administrative tools.": "Global configuration and administrative tools.",
@@ -2747,6 +2749,7 @@
     "No Redemption Codes Found": "No Redemption Codes Found",
     "No related models available for this channel type": "No related models available for this channel type",
     "No release notes provided.": "No release notes provided.",
+    "No releases found in this repository": "No releases found in this repository",
     "No Reset": "No Reset",
     "No restriction": "No restriction",
     "No results for \"{{query}}\". Try adjusting your search or filters.": "No results for \"{{query}}\". Try adjusting your search or filters.",
@@ -5036,6 +5039,17 @@
     "Group / User": "Group / User",
     "No users found": "No users found",
     "Select user": "Select user",
-    "User dimension": "User dimension"
+    "User dimension": "User dimension",
+    "Latest version": "Latest version",
+    "Not checked": "Not checked",
+    "Updating...": "Updating...",
+    "Update and restart": "Update and restart",
+    "Failed to update system": "Failed to update system",
+    "Update installed. Waiting for the service to restart...": "Update installed. Waiting for the service to restart...",
+    "The service did not come back online in time.": "The service did not come back online in time.",
+    "No compatible binary is available for {{platform}}.": "No compatible binary is available for {{platform}}.",
+    "Confirm system update": "Confirm system update",
+    "The binary will be verified, replaced, and the service will restart.": "The binary will be verified, replaced, and the service will restart.",
+    "Confirm your identity before updating the system.": "Confirm your identity before updating the system."
   }
 }

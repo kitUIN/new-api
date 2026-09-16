@@ -1549,6 +1549,7 @@
     "Enter a new name": "输入新名称",
     "Enter a positive or negative amount to adjust the quota": "输入正数或负数以调整配额",
     "Enter a valid email or leave blank": "请输入有效的邮箱地址或留空",
+    "Enter a valid GitHub repository, for example owner/repository.": "请输入有效的 GitHub 仓库，例如 owner/repository。",
     "Enter a value and press Enter": "输入值并按回车键",
     "Enter amount in {{currency}}": "输入金额（{{currency}}）",
     "Enter amount in tokens": "输入额度（Token）",
@@ -1966,6 +1967,7 @@
     "Get started": "开始使用",
     "Get Started": "开始使用",
     "GitHub": "GitHub",
+    "GitHub release repository": "GitHub 发布仓库",
     "Give the group a recognizable name and optional description.": "为该分组提供一个可识别的名称和可选的描述。",
     "Give this group a recognizable name.": "为此分组提供一个可识别的名称。",
     "Global configuration and administrative tools.": "全局配置和管理工具。",
@@ -2747,6 +2749,7 @@
     "No Redemption Codes Found": "未找到兑换码",
     "No related models available for this channel type": "此渠道类型没有相关模型可用",
     "No release notes provided.": "未提供发布说明。",
+    "No releases found in this repository": "此仓库中未找到发布版本",
     "No Reset": "不重置",
     "No restriction": "无限制",
     "No results for \"{{query}}\". Try adjusting your search or filters.": "未找到 \"{{query}}\" 的结果。请尝试调整搜索或筛选条件。",
@@ -5036,6 +5039,17 @@
     "Group / User": "分组 / 用户",
     "No users found": "未找到用户",
     "Select user": "选择用户",
-    "User dimension": "用户维度"
+    "User dimension": "用户维度",
+    "Latest version": "最新版本",
+    "Not checked": "尚未检查",
+    "Updating...": "正在更新...",
+    "Update and restart": "更新并重启",
+    "Failed to update system": "系统更新失败",
+    "Update installed. Waiting for the service to restart...": "更新已安装，正在等待服务重启...",
+    "The service did not come back online in time.": "服务未能在规定时间内恢复在线。",
+    "No compatible binary is available for {{platform}}.": "没有适用于 {{platform}} 的兼容二进制文件。",
+    "Confirm system update": "确认系统更新",
+    "The binary will be verified, replaced, and the service will restart.": "将验证并替换二进制文件，然后重启服务。",
+    "Confirm your identity before updating the system.": "更新系统前请验证身份。"
   }
 }

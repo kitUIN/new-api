@@ -39,6 +39,32 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type SystemUpdateInfo = {
+  repository: string
+  current_version: string
+  latest_version: string
+  update_available: boolean
+  can_update: boolean
+  asset_name?: string
+  asset_size?: number
+  platform: string
+  release_url?: string
+  release_notes?: string
+  published_at?: string
+  prerelease: boolean
+}
+
+export type SystemUpdateResponse = {
+  success: boolean
+  message: string
+  data?: SystemUpdateInfo
+}
+
+export type ApplySystemUpdateRequest = {
+  repository: string
+  version: string
+}
+
 export type GroupCombinationCircuitBreakerStatus = {
   group: string
   status: 'healthy' | 'warning' | 'skipped'
@@ -337,6 +363,7 @@ export type OperationsSettings = {
   WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
   LogRequestDetailEnabled: boolean
+  GitHubUpdateRepository: string
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number

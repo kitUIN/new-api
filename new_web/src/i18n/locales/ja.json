@@ -1549,6 +1549,7 @@
     "Enter a new name": "新しい名前を入力してください",
     "Enter a positive or negative amount to adjust the quota": "クォータを調整するために正または負の値を入力してください",
     "Enter a valid email or leave blank": "有効なメールアドレスを入力するか空白にしてください",
+    "Enter a valid GitHub repository, for example owner/repository.": "有効な GitHub リポジトリを入力してください（例: owner/repository）。",
     "Enter a value and press Enter": "値を入力してEnterを押してください",
     "Enter amount in {{currency}}": "{{currency}}で金額を入力",
     "Enter amount in tokens": "トークンで金額を入力",
@@ -1966,6 +1967,7 @@
     "Get started": "はじめる",
     "Get Started": "開始する",
     "GitHub": "GitHub",
+    "GitHub release repository": "GitHub リリースリポジトリ",
     "Give the group a recognizable name and optional description.": "グループに認識しやすい名前とオプションの説明を付けます。",
     "Give this group a recognizable name.": "このグループに認識しやすい名前を付けます。",
     "Global configuration and administrative tools.": "グローバル設定と管理ツール。",
@@ -2747,6 +2749,7 @@
     "No Redemption Codes Found": "引き換えコードが見つかりません",
     "No related models available for this channel type": "このチャンネルタイプに関連するモデルが利用できません",
     "No release notes provided.": "リリースノートは提供されていません。",
+    "No releases found in this repository": "このリポジトリにはリリースがありません",
     "No Reset": "リセットなし",
     "No restriction": "制限なし",
     "No results for \"{{query}}\". Try adjusting your search or filters.": "\"{{query}}\" の結果が見つかりません。検索条件やフィルターを調整してみてください。",
@@ -5036,6 +5039,17 @@
     "Group / User": "グループ / ユーザー",
     "No users found": "ユーザーが見つかりません",
     "Select user": "ユーザーを選択",
-    "User dimension": "ユーザー軸"
+    "User dimension": "ユーザー軸",
+    "Latest version": "最新バージョン",
+    "Not checked": "未確認",
+    "Updating...": "更新中...",
+    "Update and restart": "更新して再起動",
+    "Failed to update system": "システムの更新に失敗しました",
+    "Update installed. Waiting for the service to restart...": "更新をインストールしました。サービスの再起動を待っています...",
+    "The service did not come back online in time.": "時間内にサービスがオンラインに戻りませんでした。",
+    "No compatible binary is available for {{platform}}.": "{{platform}} 用の互換バイナリはありません。",
+    "Confirm system update": "システム更新の確認",
+    "The binary will be verified, replaced, and the service will restart.": "バイナリを検証して置き換えた後、サービスを再起動します。",
+    "Confirm your identity before updating the system.": "システムを更新する前に本人確認を行ってください。"
   }
 }

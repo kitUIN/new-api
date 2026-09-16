@@ -1549,6 +1549,7 @@
     "Enter a new name": "Entrez un nouveau nom",
     "Enter a positive or negative amount to adjust the quota": "Saisir un montant positif ou négatif pour ajuster le quota",
     "Enter a valid email or leave blank": "Entrez un e-mail valide ou laissez vide",
+    "Enter a valid GitHub repository, for example owner/repository.": "Saisissez un dépôt GitHub valide, par exemple propriétaire/dépôt.",
     "Enter a value and press Enter": "Saisir une valeur et appuyer sur Entrée",
     "Enter amount in {{currency}}": "Entrez le montant en {{currency}}",
     "Enter amount in tokens": "Entrez le montant en tokens",
@@ -1966,6 +1967,7 @@
     "Get started": "Commencer",
     "Get Started": "Commencer",
     "GitHub": "GitHub",
+    "GitHub release repository": "Dépôt des versions GitHub",
     "Give the group a recognizable name and optional description.": "Donnez au groupe un nom reconnaissable et une description facultative.",
     "Give this group a recognizable name.": "Donnez un nom reconnaissable à ce groupe.",
     "Global configuration and administrative tools.": "Configuration globale et outils d'administration.",
@@ -2747,6 +2749,7 @@
     "No Redemption Codes Found": "Aucun code d'échange trouvé",
     "No related models available for this channel type": "Aucun modèle associé disponible pour ce type de canal",
     "No release notes provided.": "Aucune note de version fournie.",
+    "No releases found in this repository": "Aucune version trouvée dans ce dépôt",
     "No Reset": "Pas de réinitialisation",
     "No restriction": "Aucune restriction",
     "No results for \"{{query}}\". Try adjusting your search or filters.": "Aucun résultat pour \"{{query}}\". Essayez d'ajuster votre recherche ou vos filtres.",
@@ -5036,6 +5039,17 @@
     "Group / User": "Groupe / Utilisateur",
     "No users found": "Aucun utilisateur trouvé",
     "Select user": "Sélectionner un utilisateur",
-    "User dimension": "Dimension utilisateur"
+    "User dimension": "Dimension utilisateur",
+    "Latest version": "Dernière version",
+    "Not checked": "Non vérifié",
+    "Updating...": "Mise à jour...",
+    "Update and restart": "Mettre à jour et redémarrer",
+    "Failed to update system": "Échec de la mise à jour du système",
+    "Update installed. Waiting for the service to restart...": "Mise à jour installée. En attente du redémarrage du service...",
+    "The service did not come back online in time.": "Le service n'est pas revenu en ligne à temps.",
+    "No compatible binary is available for {{platform}}.": "Aucun binaire compatible n'est disponible pour {{platform}}.",
+    "Confirm system update": "Confirmer la mise à jour du système",
+    "The binary will be verified, replaced, and the service will restart.": "Le binaire sera vérifié et remplacé, puis le service redémarrera.",
+    "Confirm your identity before updating the system.": "Confirmez votre identité avant de mettre à jour le système."
   }
 }

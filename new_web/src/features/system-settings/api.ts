@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  ApplySystemUpdateRequest,
   ChannelGroupBindingsResponse,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
@@ -25,6 +26,7 @@ import type {
   GroupQuerySourcesResponse,
   ResetGroupCombinationCircuitBreakerResponse,
   SystemOptionsResponse,
+  SystemUpdateResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
   UpstreamChannelsResponse,
@@ -38,6 +40,27 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function checkSystemUpdate(repository: string) {
+  const res = await api.get<SystemUpdateResponse>('/api/system/update', {
+    params: { repository },
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function applySystemUpdate(request: ApplySystemUpdateRequest) {
+  const res = await api.post<SystemUpdateResponse>(
+    '/api/system/update',
+    request,
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
   return res.data
 }
 

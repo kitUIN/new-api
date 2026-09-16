@@ -1,0 +1,90 @@
+name: Continuous Build and Release
+
+on:
+  push:
+    branches:
+      - nacho
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and publish GitHub prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Determine build version
+        id: metadata
+        shell: bash
+        run: |
+          VERSION="continuous-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+          RELEASE_TAG="${VERSION}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build frontend
+        working-directory: new_web
+        run: |
+          bun install --frozen-lockfile
+          bun run build:check
+
+      - name: Prepare embedded frontend
+        shell: bash
+        run: |
+          rm -rf web/dist
+          mkdir -p web/dist
+          cp -R new_web/dist/. web/dist/
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          mkdir -p dist
+          LDFLAGS="-s -w -X 'github.com/QuantumNous/new-api/common.Version=${VERSION}'"
+
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-linux-amd64"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-linux-arm64"
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-darwin-amd64"
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-darwin-arm64"
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-windows-amd64.exe"
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o "dist/new-api-${VERSION}-windows-arm64.exe"
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum new-api-* > checksums.txt
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.release_tag }}
+          name: Continuous build ${{ steps.metadata.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          body: |
+            Automated build for `${{ github.ref_name }}` at commit `${{ github.sha }}`.
+          files: dist/*
+          fail_on_unmatched_files: true

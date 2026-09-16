@@ -1549,6 +1549,7 @@
     "Enter a new name": "Nhập tên mới",
     "Enter a positive or negative amount to adjust the quota": "Nhập một giá trị dương hoặc âm để điều chỉnh hạn ngạch",
     "Enter a valid email or leave blank": "Nhập email hợp lệ hoặc để trống",
+    "Enter a valid GitHub repository, for example owner/repository.": "Nhập kho lưu trữ GitHub hợp lệ, ví dụ owner/repository.",
     "Enter a value and press Enter": "Nhập giá trị và nhấn Enter",
     "Enter amount in {{currency}}": "Nhập số tiền bằng {{currency}}",
     "Enter amount in tokens": "Nhập số lượng token",
@@ -1966,6 +1967,7 @@
     "Get started": "Bắt đầu",
     "Get Started": "Bắt đầu",
     "GitHub": "GitHub",
+    "GitHub release repository": "Kho lưu trữ bản phát hành GitHub",
     "Give the group a recognizable name and optional description.": "Đặt cho nhóm một cái tên dễ nhận biết và mô tả tùy chọn.",
     "Give this group a recognizable name.": "Hãy đặt cho nhóm này một cái tên dễ nhận biết.",
     "Global configuration and administrative tools.": "Cấu hình toàn cục và công cụ quản trị.",
@@ -2747,6 +2749,7 @@
     "No Redemption Codes Found": "Không tìm thấy mã đổi thưởng",
     "No related models available for this channel type": "Không có mô hình liên quan nào cho loại kênh này",
     "No release notes provided.": "Không có ghi chú phát hành nào được cung cấp.",
+    "No releases found in this repository": "Không tìm thấy bản phát hành trong kho lưu trữ này",
     "No Reset": "Không đặt lại",
     "No restriction": "Không giới hạn",
     "No results for \"{{query}}\". Try adjusting your search or filters.": "Không tìm thấy kết quả cho \"{{query}}\". Hãy thử điều chỉnh tìm kiếm hoặc bộ lọc.",
@@ -5036,6 +5039,17 @@
     "Group / User": "Nhóm / Người dùng",
     "No users found": "Không tìm thấy người dùng",
     "Select user": "Chọn người dùng",
-    "User dimension": "Chiều người dùng"
+    "User dimension": "Chiều người dùng",
+    "Latest version": "Phiên bản mới nhất",
+    "Not checked": "Chưa kiểm tra",
+    "Updating...": "Đang cập nhật...",
+    "Update and restart": "Cập nhật và khởi động lại",
+    "Failed to update system": "Không thể cập nhật hệ thống",
+    "Update installed. Waiting for the service to restart...": "Đã cài đặt bản cập nhật. Đang chờ dịch vụ khởi động lại...",
+    "The service did not come back online in time.": "Dịch vụ không hoạt động trở lại trong thời gian cho phép.",
+    "No compatible binary is available for {{platform}}.": "Không có tệp nhị phân tương thích cho {{platform}}.",
+    "Confirm system update": "Xác nhận cập nhật hệ thống",
+    "The binary will be verified, replaced, and the service will restart.": "Tệp nhị phân sẽ được xác minh, thay thế và dịch vụ sẽ khởi động lại.",
+    "Confirm your identity before updating the system.": "Hãy xác minh danh tính trước khi cập nhật hệ thống."
   }
 }

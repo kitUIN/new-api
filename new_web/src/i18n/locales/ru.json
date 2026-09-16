@@ -1549,6 +1549,7 @@
     "Enter a new name": "Введите новое имя",
     "Enter a positive or negative amount to adjust the quota": "Введите положительную или отрицательную сумму для корректировки квоты",
     "Enter a valid email or leave blank": "Введите действительный email или оставьте пустым",
+    "Enter a valid GitHub repository, for example owner/repository.": "Введите корректный репозиторий GitHub, например owner/repository.",
     "Enter a value and press Enter": "Введите значение и нажмите Enter",
     "Enter amount in {{currency}}": "Введите сумму в {{currency}}",
     "Enter amount in tokens": "Введите сумму в токенах",
@@ -1966,6 +1967,7 @@
     "Get started": "Начало работы",
     "Get Started": "Начать",
     "GitHub": "GitHub",
+    "GitHub release repository": "Репозиторий релизов GitHub",
     "Give the group a recognizable name and optional description.": "Дайте группе узнаваемое имя и необязательное описание.",
     "Give this group a recognizable name.": "Дайте этой группе узнаваемое имя.",
     "Global configuration and administrative tools.": "Глобальная конфигурация и административные инструменты.",
@@ -2747,6 +2749,7 @@
     "No Redemption Codes Found": "Коды активации не найдены",
     "No related models available for this channel type": "Для этого типа канала нет доступных связанных моделей",
     "No release notes provided.": "Примечания к выпуску не предоставлены.",
+    "No releases found in this repository": "В этом репозитории не найдено релизов",
     "No Reset": "Без сброса",
     "No restriction": "Без ограничений",
     "No results for \"{{query}}\". Try adjusting your search or filters.": "Нет результатов для \"{{query}}\". Попробуйте изменить поиск или фильтры.",
@@ -5036,6 +5039,17 @@
     "Group / User": "Группа / Пользователь",
     "No users found": "Пользователи не найдены",
     "Select user": "Выберите пользователя",
-    "User dimension": "По пользователям"
+    "User dimension": "По пользователям",
+    "Latest version": "Последняя версия",
+    "Not checked": "Не проверено",
+    "Updating...": "Обновление...",
+    "Update and restart": "Обновить и перезапустить",
+    "Failed to update system": "Не удалось обновить систему",
+    "Update installed. Waiting for the service to restart...": "Обновление установлено. Ожидание перезапуска службы...",
+    "The service did not come back online in time.": "Служба не возобновила работу вовремя.",
+    "No compatible binary is available for {{platform}}.": "Для {{platform}} нет совместимого бинарного файла.",
+    "Confirm system update": "Подтвердите обновление системы",
+    "The binary will be verified, replaced, and the service will restart.": "Бинарный файл будет проверен и заменён, после чего служба перезапустится.",
+    "Confirm your identity before updating the system.": "Подтвердите свою личность перед обновлением системы."
   }
 }
