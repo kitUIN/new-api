@@ -115,7 +115,6 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
           <div className='mt-2 flex flex-col gap-2'>
             {props.stats}
             <div className='flex items-center justify-end gap-1.5'>
-              {props.actions}
               <DrawerTrigger asChild>
                 <Button
                   type='button'
@@ -143,6 +142,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                 {t('Search')}
               </Button>
               <DataTableViewOptions table={props.table} />
+              {props.actions}
             </div>
           </div>
         </div>
@@ -202,7 +202,6 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
       <div className='mt-2 flex flex-wrap items-center gap-2'>
         {props.stats}
         <div className='ms-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2'>
-          {props.actions}
           {hasAdvancedFilters && (
             <Button
               type='button'
@@ -248,6 +247,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
             {t('Search')}
           </Button>
           <DataTableViewOptions table={props.table} />
+          {props.actions}
         </div>
       </div>
     </div>
