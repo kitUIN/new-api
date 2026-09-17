@@ -278,6 +278,11 @@ func InitResources() error {
 		return err
 	}
 
+	// Load stable signing keys before initializing caches or accepting sessions.
+	if err = model.InitSessionSecret(); err != nil {
+		return fmt.Errorf("failed to initialize session secret: %w", err)
+	}
+
 	model.CheckSetup()
 
 	// Initialize options, should after model.InitDB()

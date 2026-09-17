@@ -7,8 +7,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 var StartTime = time.Now().Unix() // unit: second
@@ -33,8 +31,9 @@ var DefaultCollapseSidebar = false // default value of collapse sidebar
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 
-var SessionSecret = uuid.New().String()
-var CryptoSecret = uuid.New().String()
+// Initialized after the database is ready, before serving requests.
+var SessionSecret string
+var CryptoSecret string
 
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex

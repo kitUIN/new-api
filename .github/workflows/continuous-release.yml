@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -70,6 +72,44 @@ jobs:
           cd dist
           sha256sum nachoai > checksums.txt
 
+      - name: Generate release notes
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          REPOSITORY_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 --match 'continuous-*' --exclude "$RELEASE_TAG" "$GITHUB_SHA" 2>/dev/null || true)
+          BASE_COMMIT=""
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            BASE_COMMIT=$(git rev-parse "refs/tags/${PREVIOUS_TAG}^{commit}")
+          elif [[ -n "$PUSH_BEFORE" && "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]] &&
+               git merge-base --is-ancestor "$PUSH_BEFORE" "$GITHUB_SHA" 2>/dev/null; then
+            BASE_COMMIT="$PUSH_BEFORE"
+          fi
+
+          LOG_ARGS=(-1 "$GITHUB_SHA")
+          if [[ -n "$BASE_COMMIT" ]]; then
+            LOG_ARGS=("${BASE_COMMIT}..${GITHUB_SHA}")
+          fi
+          COMMITS=$(git log --reverse --format="- [%h](${REPOSITORY_URL}/commit/%H) %s — %an" "${LOG_ARGS[@]}")
+
+          {
+            printf 'Automated build for `%s` at commit [%s](%s/commit/%s).\n\n' \
+              "$GITHUB_REF_NAME" "$GITHUB_SHA" "$REPOSITORY_URL" "$GITHUB_SHA"
+            printf '### Commits\n\n'
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              printf 'Changes since `%s`:\n\n' "$PREVIOUS_TAG"
+            elif [[ -n "$BASE_COMMIT" ]]; then
+              printf 'Commits included in this push:\n\n'
+            else
+              printf 'No previous release or push base found; showing the current commit.\n\n'
+            fi
+            printf '%s\n' "${COMMITS:-- No new commits since the previous release.}"
+            if [[ -n "$BASE_COMMIT" ]]; then
+              printf '\n[Full changelog](%s/compare/%s...%s)\n' "$REPOSITORY_URL" "$BASE_COMMIT" "$GITHUB_SHA"
+            fi
+          } > release-notes.md
+
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         with:
@@ -78,7 +118,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: true
           make_latest: false
-          body: |
-            Automated build for `${{ github.ref_name }}` at commit `${{ github.sha }}`.
+          body_path: release-notes.md
           files: dist/*
           fail_on_unmatched_files: true

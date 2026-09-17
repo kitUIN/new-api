@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,7 +28,8 @@ var groupRatioOptionUpdateMutex sync.Mutex
 func AllOption() ([]*Option, error) {
 	var options []*Option
 	var err error
-	err = DB.Find(&options).Error
+	// The session signing key is internal and must not enter the settings map.
+	err = DB.Not(&Option{Key: sessionSecretOptionKey}).Find(&options).Error
 	return options, err
 }
 
@@ -233,6 +235,10 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	// MySQL option keys may use a case-insensitive, space-padding collation.
+	if strings.EqualFold(strings.TrimSpace(key), sessionSecretOptionKey) {
+		return errors.New("session secret cannot be changed through options; configure SESSION_SECRET and restart instead")
+	}
 	switch key {
 	case "GroupRatio":
 		return updateGroupRatioOption(value)
