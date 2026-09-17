@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
@@ -40,6 +40,7 @@ type TaskLogsFilters = DrawingLogFilters | TaskLogFilters
 interface TaskLogsFilterBarProps<TData> {
   table: Table<TData>
   logCategory: TaskLikeLogCategory
+  actions?: ReactNode
 }
 
 function getFilterValue(
@@ -201,6 +202,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   return (
     <LogsFilterToolbar
       table={props.table}
+      actions={props.actions}
       primaryFilters={
         <>
           {dateRangeFilter}

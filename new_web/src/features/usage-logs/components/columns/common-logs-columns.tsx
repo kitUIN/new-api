@@ -83,7 +83,7 @@ import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
-interface DetailSegment {
+export interface DetailSegment {
   text: string
   muted?: boolean
   danger?: boolean
@@ -140,7 +140,7 @@ function formatCompactId(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-6)}`
 }
 
-function getGroupRatioText(other: LogOtherData | null): string | null {
+export function getGroupRatioText(other: LogOtherData | null): string | null {
   const userGroupRatio = other?.user_group_ratio
   if (
     userGroupRatio != null &&
@@ -168,11 +168,14 @@ function formatTokenCount(value: number): string {
   return toPositiveNumber(value).toLocaleString()
 }
 
-function getCacheReadTokens(log: UsageLog, other: LogOtherData | null): number {
+export function getCacheReadTokens(
+  log: UsageLog,
+  other: LogOtherData | null
+): number {
   return toPositiveNumber(log.cache_read_tokens || other?.cache_tokens)
 }
 
-function getCacheWriteTokens(
+export function getCacheWriteTokens(
   log: UsageLog,
   other: LogOtherData | null
 ): number {
@@ -187,7 +190,7 @@ function getCacheWriteTokens(
   return toPositiveNumber(other?.cache_creation_tokens)
 }
 
-function getPrimaryInputTokens(
+export function getPrimaryInputTokens(
   log: UsageLog,
   other: LogOtherData | null
 ): number {
@@ -582,7 +585,7 @@ function getReasoningEffortVariant(
   }
 }
 
-function buildDetailSegments(
+export function buildDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string

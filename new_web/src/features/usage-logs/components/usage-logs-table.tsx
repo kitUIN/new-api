@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -30,11 +30,13 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
+import { Download, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { DataTablePage } from '@/components/data-table'
 import {
@@ -43,10 +45,12 @@ import {
   LOG_TYPE_ENUM,
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
+import { exportUsageLogsToExcel } from '../lib/export'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
+import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -69,6 +73,12 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
+  const { sensitiveVisible } = useUsageLogsContext()
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState<{
+    current: number
+    total: number
+  } | null>(null)
 
   const {
     columnFilters,
@@ -178,6 +188,69 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   }, [pageCount, ensurePageInRange])
 
   const isCommon = logCategory === 'common'
+  const exportColumns = table.getVisibleLeafColumns().map((column) => ({
+    id: column.id,
+    label: column.columnDef.meta?.label || column.id,
+  }))
+
+  const handleExport = async () => {
+    setIsExporting(true)
+    setExportProgress(null)
+    try {
+      const result = await exportUsageLogsToExcel({
+        logCategory,
+        isAdmin,
+        searchParams,
+        columnFilters,
+        columns: exportColumns,
+        sensitiveVisible,
+        t,
+        onProgress: (current, total) => setExportProgress({ current, total }),
+      })
+      if (result.count === 0) {
+        toast.info(t('No logs to export.'))
+        return
+      }
+      toast.success(
+        t('Exported {{count}} log entries.', { count: result.count })
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      toast.error(message || t('Failed to export logs'))
+    } finally {
+      setIsExporting(false)
+      setExportProgress(null)
+    }
+  }
+
+  const exportAction = (
+    <Button
+      type='button'
+      variant='outline'
+      onClick={handleExport}
+      disabled={
+        isExporting || (data?.total || 0) === 0 || exportColumns.length === 0
+      }
+      aria-label={
+        isExporting && exportProgress
+          ? `${t('Exporting...')} ${exportProgress.current}/${exportProgress.total}`
+          : t('Export Excel')
+      }
+      title={t('Export Excel')}
+      className='sm:min-w-36'
+    >
+      {isExporting ? (
+        <Loader2 className='animate-spin' />
+      ) : (
+        <Download aria-hidden='true' />
+      )}
+      <span className='hidden sm:inline'>
+        {isExporting && exportProgress
+          ? `${t('Exporting...')} ${exportProgress.current}/${exportProgress.total}`
+          : t('Export Excel')}
+      </span>
+    </Button>
+  )
 
   return (
     <DataTablePage
@@ -194,9 +267,13 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
       toolbar={
         isCommon ? (
-          <CommonLogsFilterBar table={table} />
+          <CommonLogsFilterBar table={table} actions={exportAction} />
         ) : (
-          <TaskLogsFilterBar table={table} logCategory={logCategory} />
+          <TaskLogsFilterBar
+            table={table}
+            logCategory={logCategory}
+            actions={exportAction}
+          />
         )
       }
       renderRow={(row) => {

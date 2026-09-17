@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
@@ -61,6 +67,7 @@ function isLogTypeValue(value: string): value is LogTypeValue {
 
 interface CommonLogsFilterBarProps<TData> {
   table: Table<TData>
+  actions?: ReactNode
 }
 
 export function CommonLogsFilterBar<TData>(
@@ -345,6 +352,7 @@ export function CommonLogsFilterBar<TData>(
   return (
     <LogsFilterToolbar
       table={props.table}
+      actions={props.actions}
       stats={statsBar}
       primaryFilters={
         <>
