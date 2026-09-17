@@ -195,7 +195,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
 
   const handleExport = async () => {
     setIsExporting(true)
-    setExportProgress(null)
+    setExportProgress({ current: 0, total: data?.total || 0 })
     try {
       const result = await exportUsageLogsToExcel({
         logCategory,
@@ -223,6 +223,14 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     }
   }
 
+  const exportPercentage =
+    exportProgress && exportProgress.total > 0
+      ? Math.min(
+          100,
+          Math.round((exportProgress.current / exportProgress.total) * 100)
+        )
+      : 0
+
   const exportAction = (
     <Button
       type='button'
@@ -237,18 +245,21 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           : t('Export Excel')
       }
       title={t('Export Excel')}
-      className='sm:min-w-36'
+      className='relative overflow-hidden'
     >
-      {isExporting ? (
-        <Loader2 className='animate-spin' />
-      ) : (
-        <Download aria-hidden='true' />
+      {isExporting && (
+        <span
+          aria-hidden='true'
+          className='bg-primary/20 pointer-events-none absolute inset-y-0 left-0 transition-[width] duration-200'
+          style={{ width: `${exportPercentage}%` }}
+        />
       )}
-      <span className='hidden sm:inline'>
-        {isExporting && exportProgress
-          ? `${t('Exporting...')} ${exportProgress.current}/${exportProgress.total}`
-          : t('Export Excel')}
-      </span>
+      {isExporting ? (
+        <Loader2 className='relative z-10 animate-spin' />
+      ) : (
+        <Download aria-hidden='true' className='relative z-10' />
+      )}
+      <span className='relative z-10'>{t('Export Excel')}</span>
     </Button>
   )
 
