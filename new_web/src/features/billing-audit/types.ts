@@ -25,6 +25,13 @@ export interface BillingCost {
   name: string
   amount_cents: number
   remark: string
+  allocation: 'month' | 'subscription'
+  cycle_month: string
+  period_start: string
+  period_end: string
+  period_amount_cents: number
+  allocated_days: number
+  period_days: number
 }
 
 export interface BillingSummary {
@@ -61,6 +68,9 @@ export interface CostInput {
   remark: string
   recurring: boolean
   scope: 'month' | 'future'
+  allocation: 'month' | 'subscription'
+  start_date: string
+  end_date: string
 }
 
 export interface CostAction {

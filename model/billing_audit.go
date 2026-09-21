@@ -16,6 +16,9 @@ type BillingCost struct {
 	ID         int    `json:"id"`
 	StartMonth string `json:"start_month" gorm:"size:7;not null;index"`
 	Recurring  bool   `json:"recurring"`
+	Allocation string `json:"allocation" gorm:"size:16;default:month"`
+	StartDate  string `json:"start_date" gorm:"size:10"`
+	EndDate    string `json:"end_date" gorm:"size:10"`
 	CreatedBy  int    `json:"created_by"`
 	CreatedAt  int64  `json:"created_at"`
 	UpdatedBy  int    `json:"updated_by"`
@@ -52,20 +55,39 @@ type BillingCostException struct {
 }
 
 type BillingCostRow struct {
-	ID          int    `json:"id"`
-	Month       string `json:"month"`
-	StartMonth  string `json:"start_month"`
-	Recurring   bool   `json:"recurring"`
-	Exception   bool   `json:"exception"`
-	Name        string `json:"name"`
-	AmountCents int64  `json:"amount_cents"`
-	Remark      string `json:"remark"`
+	ID                int    `json:"id"`
+	Month             string `json:"month"`
+	StartMonth        string `json:"start_month"`
+	Recurring         bool   `json:"recurring"`
+	Exception         bool   `json:"exception"`
+	Name              string `json:"name"`
+	AmountCents       int64  `json:"amount_cents"`
+	Remark            string `json:"remark"`
+	Allocation        string `json:"allocation"`
+	CycleMonth        string `json:"cycle_month"`
+	PeriodStart       string `json:"period_start"`
+	PeriodEnd         string `json:"period_end"`
+	PeriodAmountCents int64  `json:"period_amount_cents"`
+	AllocatedDays     int    `json:"allocated_days"`
+	PeriodDays        int    `json:"period_days"`
 }
 
 func CreateBillingCost(month, name, remark string, cents int64, recurring bool, actor int) error {
+	return CreateBillingCostWithPeriod(month, name, remark, cents, recurring, actor, BillingCostPeriod{})
+}
+
+func CreateBillingCostWithPeriod(month, name, remark string, cents int64, recurring bool, actor int, period BillingCostPeriod) error {
+	period, err := NormalizeBillingCostPeriod(period, recurring)
+	if err != nil {
+		return err
+	}
+	if period.Allocation == BillingAllocationSubscription {
+		month = period.StartDate[:7]
+	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		now := time.Now().Unix()
 		cost := BillingCost{StartMonth: month, Recurring: recurring, CreatedBy: actor, CreatedAt: now, UpdatedBy: actor, UpdatedAt: now}
+		cost.Allocation, cost.StartDate, cost.EndDate = period.Allocation, period.StartDate, period.EndDate
 		if err := tx.Create(&cost).Error; err != nil {
 			return err
 		}
@@ -120,52 +142,73 @@ func ChangeBillingCost(id int, month, scope, name, remark string, cents int64, d
 }
 
 func GetBillingCosts(month string) ([]BillingCostRow, error) {
+	monthDate, err := time.Parse("2006-01", month)
+	if err != nil {
+		return nil, err
+	}
+	previousMonth := monthDate.AddDate(0, -1, 0).Format("2006-01")
 	rows := make([]BillingCostRow, 0)
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		var costs []BillingCost
-		if err := tx.Where("start_month <= ? AND (recurring = ? OR start_month = ?)", month, true, month).Find(&costs).Error; err != nil {
+		if err := tx.Where("start_month <= ? AND (recurring = ? OR start_month = ? OR (allocation = ? AND end_date >= ?))", month, true, month, BillingAllocationSubscription, month+"-01").Find(&costs).Error; err != nil {
 			return err
 		}
 		if len(costs) == 0 {
 			return nil
 		}
 		ids := make([]int, 0, len(costs))
+		exceptionMonths := []string{month, previousMonth}
 		for _, cost := range costs {
 			ids = append(ids, cost.ID)
+			if cost.Allocation == BillingAllocationSubscription && !cost.Recurring {
+				exceptionMonths = append(exceptionMonths, cost.StartMonth)
+			}
 		}
 		var versions []BillingCostVersion
 		if err := tx.Where("cost_id IN ? AND month <= ?", ids, month).Order("month ASC, id ASC").Find(&versions).Error; err != nil {
 			return err
 		}
-		latest := make(map[int]BillingCostVersion)
+		byCost := make(map[int][]BillingCostVersion)
 		for _, version := range versions {
-			latest[version.CostID] = version
+			byCost[version.CostID] = append(byCost[version.CostID], version)
 		}
 		var exceptions []BillingCostException
-		if err := tx.Where("cost_id IN ? AND month = ?", ids, month).Find(&exceptions).Error; err != nil {
+		if err := tx.Where("cost_id IN ? AND month IN ?", ids, exceptionMonths).Find(&exceptions).Error; err != nil {
 			return err
 		}
-		overrides := make(map[int]BillingCostException)
+		overrides := make(map[int]map[string]BillingCostException)
 		for _, exception := range exceptions {
-			overrides[exception.CostID] = exception
+			if overrides[exception.CostID] == nil {
+				overrides[exception.CostID] = make(map[string]BillingCostException)
+			}
+			overrides[exception.CostID][exception.Month] = exception
 		}
 		for _, cost := range costs {
-			version, ok := latest[cost.ID]
-			if !ok || version.Disabled {
-				continue
-			}
-			row := BillingCostRow{ID: cost.ID, Month: month, StartMonth: cost.StartMonth, Recurring: cost.Recurring, Name: version.Name, AmountCents: version.AmountCents, Remark: version.Remark}
-			if exception, ok := overrides[cost.ID]; ok {
-				if exception.Disabled {
-					continue
+			cycles := []string{month}
+			if cost.Allocation == BillingAllocationSubscription {
+				cycles = []string{cost.StartMonth}
+				if cost.Recurring {
+					cycles = []string{previousMonth, month}
 				}
-				row.Exception, row.Name, row.AmountCents, row.Remark = true, exception.Name, exception.AmountCents, exception.Remark
 			}
-			rows = append(rows, row)
+			for _, cycle := range cycles {
+				row, err := resolveBillingCostRow(cost, cycle, month, byCost[cost.ID], overrides[cost.ID])
+				if err != nil {
+					return err
+				}
+				if row != nil {
+					rows = append(rows, *row)
+				}
+			}
 		}
 		return nil
 	})
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ID == rows[j].ID {
+			return rows[i].CycleMonth < rows[j].CycleMonth
+		}
+		return rows[i].ID < rows[j].ID
+	})
 	return rows, err
 }
 

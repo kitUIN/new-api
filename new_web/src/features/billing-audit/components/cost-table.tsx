@@ -49,22 +49,36 @@ export function CostTable(props: {
             <TableHead>{t('billingAudit.type')}</TableHead>
             <TableHead>{t('billingAudit.remark')}</TableHead>
             <TableHead className='text-right'>
-              {t('billingAudit.amountUSD')}
+              {t('billingAudit.allocatedAmount')}
             </TableHead>
             <TableHead className='text-right'>{t('Actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {props.costs.map((cost) => (
-            <TableRow key={cost.id}>
-              <TableCell>{cost.name}</TableCell>
+            <TableRow key={`${cost.id}-${cost.cycle_month}`}>
+              <TableCell>
+                {cost.name}
+                {cost.allocation === 'subscription' && (
+                  <div className='text-muted-foreground mt-1 text-xs'>
+                    {cost.period_start} → {cost.period_end}
+                  </div>
+                )}
+              </TableCell>
               <TableCell>
                 {cost.recurring
                   ? t('billingAudit.recurring')
                   : t('billingAudit.oneTime')}
+                {cost.allocation === 'subscription' && (
+                  <div className='text-muted-foreground text-xs'>
+                    {t('billingAudit.subscriptionAllocation')}
+                  </div>
+                )}
                 {cost.exception && (
                   <span className='text-muted-foreground ml-2'>
-                    {t('billingAudit.exception')}
+                    {cost.allocation === 'subscription'
+                      ? t('billingAudit.cycleException')
+                      : t('billingAudit.exception')}
                   </span>
                 )}
               </TableCell>
@@ -73,6 +87,15 @@ export function CostTable(props: {
               </TableCell>
               <TableCell className='text-right tabular-nums'>
                 {auditMoney(cost.amount_cents / 100)}
+                {cost.allocation === 'subscription' && (
+                  <div className='text-muted-foreground mt-1 text-xs'>
+                    {t('billingAudit.prorationDetail', {
+                      days: cost.allocated_days,
+                      total: cost.period_days,
+                      amount: auditMoney(cost.period_amount_cents / 100),
+                    })}
+                  </div>
+                )}
               </TableCell>
               <TableCell>
                 <div className='flex justify-end gap-2'>

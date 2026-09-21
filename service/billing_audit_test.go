@@ -84,6 +84,17 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "0", result.EstimatedCost)
 	require.Equal(t, "0.00", result.RechargeAmount)
+	// Subscription accrual is included only in actual/total costs, month by month.
+	require.NoError(t, SaveBillingCost(0, 1, BillingCostInput{Month: "2026-10", Name: "Subscription", Amount: "1400", Allocation: model.BillingAllocationSubscription, StartDate: "2026-10-07", EndDate: "2026-11-07"}, false))
+	result, err = GetBillingAuditSummary("2026-10")
+	require.NoError(t, err)
+	require.Equal(t, "1113.87", result.ActualCost)
+	require.Equal(t, result.ActualCost, result.TotalCost)
+	require.Equal(t, "199.999998", result.EstimatedCost)
+	result, err = GetBillingAuditSummary("2026-11")
+	require.NoError(t, err)
+	require.Equal(t, "346.13", result.ActualCost)
+	require.Equal(t, "0", result.EstimatedCost)
 }
 
 func TestBillingAuditCostInputValidation(t *testing.T) {

@@ -55,16 +55,25 @@ export async function saveBillingCost(action: CostAction, input: CostInput) {
     return unwrap((await api.post<Response<unknown>>(path, input)).data)
   }
   if (!action.cost) throw new Error('Missing cost')
+  // Dates define the immutable billing anchor; mutations address a whole cycle.
+  const update = {
+    month: input.month,
+    name: input.name,
+    amount: input.amount,
+    remark: input.remark,
+    recurring: input.recurring,
+    scope: input.scope,
+  }
   if (action.kind === 'delete') {
     return unwrap(
       (
         await api.delete<Response<unknown>>(`${path}/${action.cost.id}`, {
-          data: input,
+          data: update,
         })
       ).data
     )
   }
   return unwrap(
-    (await api.put<Response<unknown>>(`${path}/${action.cost.id}`, input)).data
+    (await api.put<Response<unknown>>(`${path}/${action.cost.id}`, update)).data
   )
 }

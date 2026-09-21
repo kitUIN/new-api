@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -34,7 +33,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { saveBillingCost } from '../api'
+import { costSchema } from '../lib/cost-schema'
 import type { CostAction, CostInput } from '../types'
+import { CostPeriodFields } from './cost-period-fields'
 
 interface Props {
   action: CostAction
@@ -47,55 +48,29 @@ export function CostDialog(props: Props) {
   const queryClient = useQueryClient()
   const removing = props.action.kind === 'delete'
   const creating = props.action.kind === 'create'
-  const schema = z
-    .object({
-      month: z.string().regex(/^(?:20\d{2}|[3-9]\d{3})-(0[1-9]|1[0-2])$/),
-      name: z.string().trim().max(128),
-      amount: z.string(),
-      remark: z.string().trim().max(1000),
-      recurring: z.boolean(),
-      scope: z.enum(['month', 'future']),
-    })
-    .superRefine((value, ctx) => {
-      if (value.month > '9998-12') {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['month'],
-          message: t('billingAudit.invalidMonth'),
-        })
-      }
-      if (
-        !removing &&
-        (!value.name ||
-          !/^\d+(\.\d{1,2})?$/.test(value.amount) ||
-          Number(value.amount) <= 0 ||
-          Number(value.amount) > 1_000_000_000)
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['amount'],
-          message: t('billingAudit.invalidCost'),
-        })
-      }
-      if (props.action.cost && value.month < props.action.cost.start_month) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['month'],
-          message: t('billingAudit.invalidMonth'),
-        })
-      }
-    })
+  const cycleMonth = props.action.cost?.cycle_month || props.month
+  const schema = costSchema(props.action, {
+    invalidCost: t('billingAudit.invalidCost'),
+    invalidMonth: t('billingAudit.invalidMonth'),
+    invalidDates: t('billingAudit.invalidDates'),
+  })
   const form = useForm<CostInput>({
     resolver: zodResolver(schema),
     defaultValues: {
-      month: props.month,
+      month: cycleMonth,
       name: props.action.cost?.name ?? '',
       amount: props.action.cost
-        ? (props.action.cost.amount_cents / 100).toFixed(2)
+        ? (
+            (props.action.cost.period_amount_cents ??
+              props.action.cost.amount_cents) / 100
+          ).toFixed(2)
         : '',
       remark: props.action.cost?.remark ?? '',
       recurring: props.action.cost?.recurring ?? false,
       scope: 'month',
+      allocation: props.action.cost?.allocation ?? 'month',
+      start_date: props.action.cost?.period_start ?? '',
+      end_date: props.action.cost?.period_end ?? '',
     },
   })
   const mutation = useMutation({
@@ -111,6 +86,23 @@ export function CostDialog(props: Props) {
   if (removing) title = t('billingAudit.removeCost')
   const scope = form.watch('scope')
   const future = !creating && scope === 'future'
+  const subscription = form.watch('allocation') === 'subscription'
+  let scopeLabel = t('billingAudit.onlyMonth')
+  let futureLabel = t('billingAudit.fromMonth')
+  let monthLabel = future
+    ? t('billingAudit.effectiveMonth')
+    : t('billingAudit.month')
+  let removeHint = future
+    ? t('billingAudit.confirmStop')
+    : t('billingAudit.confirmDelete')
+  if (subscription) {
+    scopeLabel = t('billingAudit.onlyCycle')
+    futureLabel = t('billingAudit.fromCycle')
+    monthLabel = t('billingAudit.cycleMonth')
+    removeHint = future
+      ? t('billingAudit.confirmStopSubscription')
+      : t('billingAudit.confirmDeleteCycle')
+  }
   const errors = Object.keys(form.formState.errors).length > 0
 
   return (
@@ -120,11 +112,13 @@ export function CostDialog(props: Props) {
         if (!open && !mutation.isPending) props.onClose()
       }}
     >
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {t('billingAudit.costDescription')}
+            {subscription
+              ? t('billingAudit.subscriptionDescription')
+              : t('billingAudit.costDescription')}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -138,29 +132,39 @@ export function CostDialog(props: Props) {
                 id='cost-scope'
                 className='border-input bg-background h-9 w-full rounded-md border px-3'
                 {...form.register('scope', {
-                  onChange: () => form.setValue('month', props.month),
+                  onChange: (event) =>
+                    form.setValue(
+                      'month',
+                      event.target.value === 'future' ? props.month : cycleMonth
+                    ),
                 })}
               >
-                <option value='month'>{t('billingAudit.onlyMonth')}</option>
-                <option value='future'>{t('billingAudit.fromMonth')}</option>
+                <option value='month'>{scopeLabel}</option>
+                <option value='future'>{futureLabel}</option>
               </select>
             </div>
           )}
-          <div className='space-y-2'>
-            <Label htmlFor='cost-month'>
-              {future
-                ? t('billingAudit.effectiveMonth')
-                : t('billingAudit.month')}
-            </Label>
-            <Input
-              id='cost-month'
-              type='month'
-              min={props.action.cost?.start_month ?? '2000-01'}
-              max='9998-12'
-              readOnly={!creating && !future}
-              {...form.register('month')}
-            />
-          </div>
+          {creating && <CostPeriodFields form={form} month={props.month} />}
+          {!creating && (
+            <div className='space-y-2'>
+              <Label htmlFor='cost-month'>{monthLabel}</Label>
+              <Input
+                id='cost-month'
+                type='month'
+                min={props.action.cost?.start_month ?? '2000-01'}
+                max='9998-12'
+                readOnly={!creating && !future}
+                {...form.register('month')}
+              />
+            </div>
+          )}
+          {!creating && subscription && (
+            <p className='text-muted-foreground text-sm'>
+              {props.action.cost?.period_start} →{' '}
+              {props.action.cost?.period_end} ·{' '}
+              {t('billingAudit.editCycleHint')}
+            </p>
+          )}
           {!removing && (
             <>
               <div className='space-y-2'>
@@ -173,7 +177,9 @@ export function CostDialog(props: Props) {
               </div>
               <div className='space-y-2'>
                 <Label htmlFor='cost-amount'>
-                  {t('billingAudit.amountUSD')}
+                  {subscription
+                    ? t('billingAudit.periodAmount')
+                    : t('billingAudit.amountUSD')}
                 </Label>
                 <Input
                   id='cost-amount'
@@ -190,29 +196,21 @@ export function CostDialog(props: Props) {
                   {...form.register('remark')}
                 />
               </div>
-              {creating && (
-                <label className='flex items-center gap-2 text-sm'>
-                  <input type='checkbox' {...form.register('recurring')} />
-                  {t('billingAudit.recurring')}
-                </label>
-              )}
             </>
           )}
           {future && (
             <p className='text-muted-foreground text-sm'>
-              {t('billingAudit.futureHint')}
+              {subscription
+                ? t('billingAudit.futureCycleHint')
+                : t('billingAudit.futureHint')}
             </p>
           )}
-          {removing && (
-            <p className='text-destructive text-sm'>
-              {future
-                ? t('billingAudit.confirmStop')
-                : t('billingAudit.confirmDelete')}
-            </p>
-          )}
+          {removing && <p className='text-destructive text-sm'>{removeHint}</p>}
           {errors && (
             <p role='alert' className='text-destructive text-sm'>
-              {t('billingAudit.invalidCost')}
+              {form.formState.errors.end_date?.message ||
+                form.formState.errors.month?.message ||
+                t('billingAudit.invalidCost')}
             </p>
           )}
           {mutation.isError && (

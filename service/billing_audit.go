@@ -33,12 +33,15 @@ func BillingAuditMonth(month string) (string, int64, int64, error) {
 }
 
 type BillingCostInput struct {
-	Month     string `json:"month"`
-	Name      string `json:"name"`
-	Amount    string `json:"amount"`
-	Remark    string `json:"remark"`
-	Recurring bool   `json:"recurring"`
-	Scope     string `json:"scope"`
+	Month      string `json:"month"`
+	Name       string `json:"name"`
+	Amount     string `json:"amount"`
+	Remark     string `json:"remark"`
+	Recurring  bool   `json:"recurring"`
+	Scope      string `json:"scope"`
+	Allocation string `json:"allocation"`
+	StartDate  string `json:"start_date"`
+	EndDate    string `json:"end_date"`
 }
 
 func SaveBillingCost(id, actor int, input BillingCostInput, remove bool) error {
@@ -68,7 +71,10 @@ func SaveBillingCost(id, actor int, input BillingCostInput, remove bool) error {
 		if remove {
 			return errors.New("cost id is required")
 		}
-		return model.CreateBillingCost(month, name, remark, cents, input.Recurring, actor)
+		return model.CreateBillingCostWithPeriod(month, name, remark, cents, input.Recurring, actor, model.BillingCostPeriod{Allocation: input.Allocation, StartDate: input.StartDate, EndDate: input.EndDate})
+	}
+	if input.Allocation != "" || input.StartDate != "" || input.EndDate != "" {
+		return errors.New("allocation dates are fixed at creation; edit a cycle amount or create a new subscription")
 	}
 	return model.ChangeBillingCost(id, month, input.Scope, name, remark, cents, remove, actor)
 }
