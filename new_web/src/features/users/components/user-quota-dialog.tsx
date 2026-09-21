@@ -49,6 +49,13 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   const [mode, setMode] = useState<QuotaAdjustMode>('add')
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
+  const modes: { value: QuotaAdjustMode; label: string }[] = [
+    { value: 'add', label: t('Add') },
+    { value: 'subtract', label: t('Subtract') },
+    { value: 'override', label: t('Override') },
+    { value: 'recharge', label: t('Recharge') },
+    { value: 'refund', label: t('Refund') },
+  ]
 
   const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
@@ -62,8 +69,10 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
     const val = quotaValue
     switch (mode) {
       case 'add':
+      case 'recharge':
         return `${t('Current quota')}: ${formatQuota(current)}  +${formatQuota(val)} = ${formatQuota(current + val)}`
       case 'subtract':
+      case 'refund':
         return `${t('Current quota')}: ${formatQuota(current)}  -${formatQuota(val)} = ${formatQuota(current - val)}`
       case 'override': {
         const overrideQuota = parseQuotaFromDollars(amountValue)
@@ -75,6 +84,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   }
 
   const handleConfirm = async () => {
+    if (loading) return
     if (!amount && mode !== 'override') return
     if (quotaValue <= 0 && mode !== 'override') return
 
@@ -130,27 +140,23 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
 
           <div className='space-y-2'>
             <Label>{t('Mode')}</Label>
-            <div className='flex gap-1'>
-              {(['add', 'subtract', 'override'] as const).map((m) => (
+            <div className='flex flex-wrap gap-1'>
+              {modes.map((option) => (
                 <Button
-                  key={m}
+                  key={option.value}
                   type='button'
                   variant='outline'
                   size='sm'
                   className={cn(
-                    mode === m &&
+                    mode === option.value &&
                       'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                   )}
                   onClick={() => {
-                    setMode(m)
+                    setMode(option.value)
                     setAmount('')
                   }}
                 >
-                  {m === 'add'
-                    ? t('Add')
-                    : m === 'subtract'
-                      ? t('Subtract')
-                      : t('Override')}
+                  {option.label}
                 </Button>
               ))}
             </div>

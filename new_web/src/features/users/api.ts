@@ -116,7 +116,7 @@ export async function manageUser(
 }
 
 /**
- * Adjust user quota atomically (add/subtract/override)
+ * Adjust user quota atomically (add/subtract/override/recharge/refund)
  */
 export async function adjustUserQuota(
   payload: ManageUserQuotaPayload

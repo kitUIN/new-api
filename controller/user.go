@@ -997,7 +997,7 @@ func ManageUser(c *gin.Context) {
 			"admin_username": adminName,
 		}
 		switch req.Mode {
-		case "add":
+		case "add", "recharge":
 			if req.Value <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
 				return
@@ -1006,9 +1006,13 @@ func ManageUser(c *gin.Context) {
 				common.ApiError(c, err)
 				return
 			}
-			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
-		case "subtract":
+			logType, content := model.LogTypeManage, "管理员增加用户额度 %s"
+			if req.Mode == "recharge" {
+				logType, content = model.LogTypeTopup, "管理员充值用户额度 %s"
+			}
+			model.RecordLogWithAdminInfo(user.Id, logType,
+				fmt.Sprintf(content, logger.LogQuota(req.Value)), adminInfo)
+		case "subtract", "refund":
 			if req.Value <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
 				return
@@ -1017,8 +1021,12 @@ func ManageUser(c *gin.Context) {
 				common.ApiError(c, err)
 				return
 			}
-			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+			logType, content := model.LogTypeManage, "管理员减少用户额度 %s"
+			if req.Mode == "refund" {
+				logType, content = model.LogTypeRefund, "管理员退款扣减用户额度 %s"
+			}
+			model.RecordLogWithAdminInfo(user.Id, logType,
+				fmt.Sprintf(content, logger.LogQuota(req.Value)), adminInfo)
 		case "override":
 			oldQuota := user.Quota
 			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
