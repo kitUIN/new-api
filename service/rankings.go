@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -163,6 +164,7 @@ type rankingUserProfile struct {
 	displayName   string
 	avatarURL     string
 	rankingPublic bool
+	isAdmin       bool
 }
 
 type vendorAggregate struct {
@@ -375,10 +377,12 @@ func withRankingUserPresentation(data *RankingsResponse, config rankingPeriodCon
 	clone := *data
 	userIDs := rankingUserIDs(clone.Users, userID)
 	profiles := buildRankingUserProfiles(userIDs)
+	// Apply viewer permissions only to the response copy, never to the shared cache.
+	showAnonymousUsers := profiles[userID].isAdmin
 
 	clone.Users = make([]RankedUser, 0, len(data.Users))
 	for _, row := range data.Users {
-		clone.Users = append(clone.Users, rankingUserRow(row.Rank, row.UserID, row.TotalTokens, row.TotalQuota, profiles[row.UserID], false))
+		clone.Users = append(clone.Users, rankingUserRow(row.Rank, row.UserID, row.TotalTokens, row.TotalQuota, profiles[row.UserID], showAnonymousUsers))
 	}
 
 	if userID > 0 {
@@ -838,7 +842,7 @@ func buildRankingUserProfiles(userIDs []int) map[int]rankingUserProfile {
 	}
 
 	var users []model.User
-	if err := model.DB.Select("id, username, display_name, qq_id, setting").Where("id IN ?", userIDs).Find(&users).Error; err != nil {
+	if err := model.DB.Select("id, username, display_name, qq_id, setting, role, status").Where("id IN ?", userIDs).Find(&users).Error; err != nil {
 		return profiles
 	}
 
@@ -852,6 +856,7 @@ func buildRankingUserProfiles(userIDs []int) map[int]rankingUserProfile {
 			displayName:   displayName,
 			avatarURL:     rankingQQAvatarURL(user.QQId),
 			rankingPublic: setting.RankingPublic,
+			isAdmin:       user.Role >= common.RoleAdminUser && user.Status == common.UserStatusEnabled,
 		}
 	}
 	return profiles

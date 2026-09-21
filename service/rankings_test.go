@@ -4,9 +4,75 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func TestRankingUserPresentationAdminPrivacy(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	originalDB := model.DB
+	model.DB = db
+	t.Cleanup(func() {
+		model.DB = originalDB
+		_ = sqlDB.Close()
+	})
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.QuotaData{}))
+	users := []model.User{
+		{Id: 1, Username: "private", DisplayName: "Private User", QQId: "12345", Role: common.RoleCommonUser, Status: common.UserStatusEnabled},
+		{Id: 2, Username: "admin", Role: common.RoleAdminUser, Status: common.UserStatusEnabled},
+		{Id: 3, Username: "root", Role: common.RoleRootUser, Status: common.UserStatusEnabled},
+		{Id: 4, Username: "disabled-admin", Role: common.RoleAdminUser, Status: common.UserStatusDisabled},
+		{Id: 5, Username: "public", Setting: `{"ranking_public":true}`, Role: common.RoleCommonUser, Status: common.UserStatusEnabled},
+	}
+	for i := range users {
+		users[i].AffCode = users[i].Username
+	}
+	require.NoError(t, db.Create(&users).Error)
+	data := &RankingsResponse{Users: buildRankedUsers([]model.RankingUserTotal{
+		{UserID: 1, TotalTokens: 100, TotalQuota: 200},
+		{UserID: 5, TotalTokens: 50, TotalQuota: 100},
+	})}
+	originalRows := append([]RankedUser(nil), data.Users...)
+	for _, test := range []struct {
+		name     string
+		viewer   int
+		wantReal bool
+	}{
+		{name: "admin", viewer: 2, wantReal: true},
+		{name: "guest after admin"},
+		{name: "root", viewer: 3, wantReal: true},
+		{name: "ordinary user after root", viewer: 1},
+		{name: "disabled admin", viewer: 4},
+		{name: "missing user", viewer: 99},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := withRankingUserPresentation(data, rankingPeriodConfig{}, test.viewer, RankingUserMetricTokens)
+			require.NoError(t, err)
+			if test.wantReal {
+				require.Equal(t, "Private User", result.Users[0].DisplayName)
+				require.Equal(t, rankingQQAvatarURL("12345"), result.Users[0].AvatarURL)
+			} else {
+				require.Equal(t, "匿名用户1", result.Users[0].DisplayName)
+				require.Empty(t, result.Users[0].AvatarURL)
+			}
+			require.False(t, result.Users[0].RankingPublic)
+			require.Equal(t, "public", result.Users[1].DisplayName)
+			require.True(t, result.Users[1].RankingPublic)
+			require.Equal(t, originalRows, data.Users)
+			if test.viewer == 1 {
+				require.Equal(t, "Private User", result.SelfUser.DisplayName)
+				require.False(t, result.SelfUser.RankingPublic)
+			}
+		})
+	}
+}
 
 func TestRankingConfigUsesNaturalPeriods(t *testing.T) {
 	loc := time.FixedZone("CST", 8*3600)
