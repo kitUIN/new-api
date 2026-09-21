@@ -46,6 +46,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -106,10 +107,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
+  const [showRuleAutoGroups, setShowRuleAutoGroups] = useState(false)
   const { data: groupsResponse } = useQuery({
     queryKey: ['groups', 'rule-auto-groups'],
     queryFn: () => getGroups(),
     staleTime: 5 * 60 * 1000,
+    enabled: showRuleAutoGroups,
   })
 
   const handleFieldChange = useCallback(
@@ -128,7 +131,17 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
   return (
     <div className='space-y-6'>
-      <div className='flex flex-wrap justify-end gap-2'>
+      <div className='flex flex-wrap items-center justify-end gap-2'>
+        <div className='mr-auto flex items-center gap-2'>
+          <Switch
+            id='rule-auto-groups-toggle'
+            checked={showRuleAutoGroups}
+            onCheckedChange={setShowRuleAutoGroups}
+          />
+          <Label htmlFor='rule-auto-groups-toggle'>
+            {t('Rule-based auto groups')}
+          </Label>
+        </div>
         <Button variant='outline' size='sm' onClick={() => setGuideOpen(true)}>
           <HelpCircle className='mr-2 h-4 w-4' />
           {t('Usage guide')}
@@ -150,7 +163,9 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
       <GroupPricingGuide open={guideOpen} onOpenChange={setGuideOpen} />
 
-      <RuleAutoGroupsCard groups={groupsResponse?.auto_groups ?? []} />
+      {showRuleAutoGroups && (
+        <RuleAutoGroupsCard groups={groupsResponse?.auto_groups ?? []} />
+      )}
 
       <Form {...form}>
         <SettingsPageActionsPortal>

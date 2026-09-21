@@ -410,6 +410,8 @@ func TestGetPerfGroupHealthSummaryAggregatesGroupsAndTenMinuteBuckets(t *testing
 
 	defaultGroup := requirePerfGroupHealth(t, summary.Groups, "default")
 	require.Equal(t, 1.0, defaultGroup.Ratio)
+	require.False(t, defaultGroup.IsCombinationGroup)
+	require.Nil(t, defaultGroup.RatioRange)
 	require.EqualValues(t, 2, defaultGroup.RequestCount)
 	require.Equal(t, 50.0, defaultGroup.SuccessRate)
 	require.Equal(t, 1000.0, defaultGroup.AvgLatencyMs)
@@ -446,7 +448,7 @@ func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
 	const primaryGroup = "codex-pro-正价"
 	const lunaGroup = "codex-plus-luna"
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(
-		`{"codex-pro正价":1,"codex-pro-正价":1,"codex-plus-luna":1}`,
+		`{"codex-pro正价":9,"codex-pro-正价":1.5,"codex-plus-luna":0}`,
 	))
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(
 		`{"codex-pro正价":"Combination","codex-pro-正价":"Primary","codex-plus-luna":"Luna"}`,
@@ -496,6 +498,9 @@ func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
 	summary, err := GetPerfGroupHealthSummary(24, 10)
 	require.NoError(t, err)
 	combination := requirePerfGroupHealth(t, summary.Groups, combinationGroup)
+	require.True(t, combination.IsCombinationGroup)
+	require.Equal(t, 9.0, combination.Ratio)
+	require.Equal(t, &PerfGroupRatioRange{Min: 0, Max: 1.5}, combination.RatioRange)
 	require.EqualValues(t, 2, combination.ProviderCount)
 	require.True(t, combination.BalanceAvailable)
 	require.True(t, combination.HasLuna)
@@ -522,6 +527,85 @@ func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
 	require.NoError(t, LOG_DB.Where(commonGroupCol+" = ?", combinationGroup).First(&entryBucket).Error)
 	require.EqualValues(t, 2, entryBucket.RequestCount)
 	require.EqualValues(t, 1, entryBucket.SuccessCount)
+}
+
+func TestGetPerfGroupHealthSummaryCombinationRatioRanges(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+	})
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"combo":"Combination","first":"First","second":"Second","third":"Third"}`))
+	require.NoError(t, DB.Create(&Channel{
+		Id: 1, Status: common.ChannelStatusEnabled, Key: "test-key",
+		Group: "first,second,third", Models: "test-model",
+	}).Error)
+
+	const members = `{"combo":[{"group":"first","models":["test-model"]},{"group":"second","models":["test-model"]},{"group":"third","models":["test-model"]}]}`
+	tests := []struct {
+		name         string
+		ratios       string
+		combinations string
+		wantRange    PerfGroupRatioRange
+	}{
+		{
+			name:         "all members determine range",
+			ratios:       `{"combo":9,"first":0.5,"second":2,"third":0.1}`,
+			combinations: members,
+			wantRange:    PerfGroupRatioRange{Min: 0.1, Max: 2},
+		},
+		{
+			name:         "equal member ratios still expose range",
+			ratios:       `{"combo":9,"first":0.5,"second":0.5,"third":0.5}`,
+			combinations: members,
+			wantRange:    PerfGroupRatioRange{Min: 0.5, Max: 0.5},
+		},
+		{
+			name:         "zero ratios are preserved",
+			ratios:       `{"combo":9,"first":0,"second":0,"third":0}`,
+			combinations: members,
+			wantRange:    PerfGroupRatioRange{Min: 0, Max: 0},
+		},
+		{
+			name:         "missing member ratio defaults to one",
+			ratios:       `{"combo":9,"first":0.5,"second":0.25}`,
+			combinations: members,
+			wantRange:    PerfGroupRatioRange{Min: 0.25, Max: 1},
+		},
+		{
+			name:         "legacy combinations use their own ratio",
+			ratios:       `{"combo":9,"first":0.5,"second":2,"third":0.1}`,
+			combinations: `{"combo":{"test-model":1}}`,
+			wantRange:    PerfGroupRatioRange{Min: 9, Max: 9},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(test.ratios))
+			require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(test.combinations))
+			summary, err := GetPerfGroupHealthSummary(24, 10)
+			require.NoError(t, err)
+			combination := requirePerfGroupHealth(t, summary.Groups, "combo")
+			require.True(t, combination.IsCombinationGroup)
+			require.Equal(t, 9.0, combination.Ratio)
+			require.Equal(t, &test.wantRange, combination.RatioRange)
+
+			var serialized struct {
+				IsCombinationGroup bool                 `json:"is_combination_group"`
+				RatioRange         *PerfGroupRatioRange `json:"ratio_range"`
+			}
+			payload, err := common.Marshal(combination)
+			require.NoError(t, err)
+			require.NoError(t, common.Unmarshal(payload, &serialized))
+			require.True(t, serialized.IsCombinationGroup)
+			require.Equal(t, &test.wantRange, serialized.RatioRange)
+		})
+	}
 }
 
 func TestGetPerfGroupHealthSummaryIncludesPendingSamples(t *testing.T) {

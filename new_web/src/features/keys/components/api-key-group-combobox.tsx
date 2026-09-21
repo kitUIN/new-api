@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { Box, Boxes, Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -36,12 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { GroupTypeIcon } from '@/components/group-type-icon'
 import { formatUptimePct } from '@/features/performance-metrics/lib/format'
 
 export type ApiKeyGroupHealth = {
@@ -69,42 +64,6 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
-}
-
-function GroupTypeIcon({
-  isCombinationGroup,
-  isAutoGroup,
-}: {
-  isCombinationGroup?: boolean
-  isAutoGroup?: boolean
-}) {
-  const { t } = useTranslation()
-  let label = t('普通分组')
-  if (isAutoGroup) label = t('Group')
-  if (isCombinationGroup) label = t('组合分组')
-  const Icon = isCombinationGroup ? Boxes : Box
-
-  return (
-    <TooltipProvider delay={300}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span
-              className={cn(
-                'inline-flex size-5 shrink-0 items-center justify-center',
-                isCombinationGroup ? 'text-primary' : 'text-muted-foreground'
-              )}
-              role='img'
-              aria-label={label}
-            >
-              <Icon className='size-4' aria-hidden='true' />
-            </span>
-          }
-        />
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
 }
 
 function GroupOptionName({ option }: { option: ApiKeyGroupOption }) {

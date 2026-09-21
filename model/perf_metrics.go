@@ -104,6 +104,8 @@ type PerfGroupHealthBucket struct {
 type PerfGroupHealth struct {
 	Group               string                  `json:"group"`
 	Ratio               float64                 `json:"ratio"`
+	IsCombinationGroup  bool                    `json:"is_combination_group"`
+	RatioRange          *PerfGroupRatioRange    `json:"ratio_range,omitempty"`
 	ProviderCount       int                     `json:"provider_count"`
 	BalanceLevel        int                     `json:"balance_level"`
 	BalanceAvailable    bool                    `json:"balance_available"`
@@ -119,6 +121,11 @@ type PerfGroupHealth struct {
 	RecentSuccessRate   float64                 `json:"recent_success_rate"`
 	RecentWindowMinutes int                     `json:"recent_window_minutes"`
 	Buckets             []PerfGroupHealthBucket `json:"buckets"`
+}
+
+type PerfGroupRatioRange struct {
+	Min float64 `json:"min"`
+	Max float64 `json:"max"`
 }
 
 type PerfGroupHealthSummary struct {
@@ -989,6 +996,24 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if !ok {
 			ratio = 1
 		}
+		isCombination := ratio_setting.IsGroupCombination(groupName)
+		var ratioRange *PerfGroupRatioRange
+		if isCombination {
+			ratioRange = &PerfGroupRatioRange{Min: ratio, Max: ratio}
+			members, _ := ratio_setting.GetGroupCombinationMembers(groupName)
+			for index, member := range members {
+				memberRatio, exists := ratios[member.Group]
+				if !exists {
+					memberRatio = 1
+				}
+				if index == 0 || memberRatio < ratioRange.Min {
+					ratioRange.Min = memberRatio
+				}
+				if index == 0 || memberRatio > ratioRange.Max {
+					ratioRange.Max = memberRatio
+				}
+			}
+		}
 		recentRequestCount, recentSuccessRate, recentWindowMinutes := chooseRecentWindowSummary(
 			recentStats[groupName],
 		)
@@ -1028,6 +1053,8 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		resultGroups = append(resultGroups, PerfGroupHealth{
 			Group:               groupName,
 			Ratio:               ratio,
+			IsCombinationGroup:  isCombination,
+			RatioRange:          ratioRange,
 			ProviderCount:       stats.ProviderCount,
 			BalanceLevel:        perfGroupBalanceLevel(stats.MinBalance),
 			BalanceAvailable:    stats.BalanceAvailable,

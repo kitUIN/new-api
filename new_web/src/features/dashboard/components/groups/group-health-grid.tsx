@@ -62,6 +62,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { GroupTypeIcon } from '@/components/group-type-icon'
 import {
   getGroupJuiceHistory,
   getGroupRatioHistory,
@@ -193,6 +194,13 @@ function formatRatio(ratio: number): string {
   return `x${ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}`
 }
 
+function formatGroupRatio(group: PerfGroupHealth): string {
+  if (group.is_combination_group && group.ratio_range) {
+    return `${formatRatio(group.ratio_range.min)} ~ ${formatRatio(group.ratio_range.max)}`
+  }
+  return formatRatio(group.ratio)
+}
+
 function formatWindow(bucket: PerfGroupHealthBucket): string {
   return `${dayjs.unix(bucket.ts).format('MM-DD HH:mm')} ~ ${dayjs
     .unix(bucket.end_ts)
@@ -303,6 +311,9 @@ function compareGroupHealth(
 ): number {
   const leftRecent = getTwoHourGroupHealth(left)
   const rightRecent = getTwoHourGroupHealth(right)
+  const ratioDiff =
+    (left.ratio_range?.min ?? left.ratio) -
+    (right.ratio_range?.min ?? right.ratio)
 
   if (leftRecent.requestCount !== rightRecent.requestCount) {
     if (leftRecent.requestCount === 0) return 1
@@ -310,14 +321,14 @@ function compareGroupHealth(
   }
   const primaryDiff =
     sortMode === 'ratio'
-      ? left.ratio - right.ratio
+      ? ratioDiff
       : rightRecent.successRate - leftRecent.successRate
   if (primaryDiff !== 0) return primaryDiff
 
   const secondaryDiff =
     sortMode === 'ratio'
       ? rightRecent.successRate - leftRecent.successRate
-      : left.ratio - right.ratio
+      : ratioDiff
   if (secondaryDiff !== 0) return secondaryDiff
 
   if (left.provider_count !== right.provider_count) {
@@ -960,6 +971,7 @@ function GroupHealthCard(props: {
         <div className='min-w-0'>
           <div className='flex min-w-0 items-center gap-2.5'>
             <div className='flex min-w-0 items-center gap-2'>
+              <GroupTypeIcon isCombinationGroup={group.is_combination_group} />
               <span className='flex size-5 shrink-0 items-center justify-center'>
                 {getGroupProviderIcon(group.group)}
               </span>
@@ -986,7 +998,7 @@ function GroupHealthCard(props: {
           </div>
           <div className='mt-1 flex flex-wrap items-center gap-1.5'>
             <Badge variant='outline' className='font-mono'>
-              {formatRatio(group.ratio)}
+              {formatGroupRatio(group)}
             </Badge>
             {juice && (
               <Tooltip>

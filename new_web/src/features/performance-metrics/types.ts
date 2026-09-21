@@ -78,6 +78,11 @@ export type PerfGroupHealthBucket = {
 export type PerfGroupHealth = {
   group: string
   ratio: number
+  is_combination_group?: boolean
+  ratio_range?: {
+    min: number
+    max: number
+  }
   provider_count: number
   balance_level: 0 | 1 | 2
   balance_available: boolean
