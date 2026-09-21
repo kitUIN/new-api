@@ -21,6 +21,12 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.GET("/ticket/:id/attachments/:attachment_id", middleware.UserAuth(), middleware.TicketAttachmentRateLimit(), controller.GetTicketImage)
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
+		billingAudit := apiRouter.Group("/billing-audit", middleware.AdminAuth())
+		billingAudit.GET("", controller.GetBillingAudit)
+		billingAudit.GET("/topups", controller.GetBillingAuditTopUps)
+		billingAudit.POST("/costs", controller.SaveBillingAuditCost)
+		billingAudit.PUT("/costs/:id", controller.SaveBillingAuditCost)
+		billingAudit.DELETE("/costs/:id", controller.SaveBillingAuditCost)
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)

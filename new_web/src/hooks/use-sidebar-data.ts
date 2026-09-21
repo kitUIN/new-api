@@ -149,6 +149,11 @@ export function useSidebarData(): SidebarData {
             icon: Users,
           },
           {
+            title: t('billingAudit.title'),
+            url: '/billing-audit',
+            icon: ReceiptText,
+          },
+          {
             title: t('Invitation Codes'),
             url: '/registration-invitations',
             icon: MailPlus,
