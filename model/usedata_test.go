@@ -6,6 +6,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetQuotaDataGroupByUserIncludesProfiles(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.Create(&User{Id: 101, Username: "alice", DisplayName: "Alice Nickname", QQId: "12345", AffCode: "rank-alice"}).Error)
+	require.NoError(t, DB.Create(&[]QuotaData{
+		{UserID: 101, Username: "alice", CreatedAt: 100, Quota: 20, TokenUsed: 30},
+		{UserID: 101, Username: "alice", CreatedAt: 100, Quota: 40, TokenUsed: 50},
+		{UserID: 101, Username: "alice", CreatedAt: 200, Quota: 10},
+		{UserID: 102, Username: "missing", CreatedAt: 100, Quota: 5},
+		{UserID: 101, Username: "alice", CreatedAt: 300, Quota: 999},
+	}).Error)
+	rows, err := GetQuotaDataGroupByUser(100, 200)
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	for _, row := range rows {
+		if row.UserID == 102 {
+			require.Equal(t, "missing", row.Username)
+			require.Empty(t, row.DisplayName)
+			require.Empty(t, row.QQId)
+			continue
+		}
+		require.Equal(t, 101, row.UserID)
+		require.Equal(t, "Alice Nickname", row.DisplayName)
+		require.Equal(t, "12345", row.QQId)
+		if row.CreatedAt == 100 {
+			require.Equal(t, 60, row.Quota)
+			require.Equal(t, 80, row.TokenUsed)
+		} else {
+			require.Equal(t, 10, row.Quota)
+		}
+	}
+}
+
 func TestLogQuotaDataPersistsTokenBreakdown(t *testing.T) {
 	truncateTables(t)
 	CacheQuotaDataLock.Lock()

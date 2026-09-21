@@ -46,6 +46,7 @@ import {
   processUserChartData,
 } from '@/features/dashboard/lib'
 import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import { UserConsumptionRanking } from './user-consumption-ranking'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -293,18 +294,25 @@ export function UserCharts() {
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
                 ) : (
-                  themeReady &&
-                  spec && (
-                    <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
-                      spec={{
-                        ...spec,
-                        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                        background: 'transparent',
-                      }}
-                      option={VCHART_OPTION}
-                    />
-                  )
+                  <>
+                    {chart.value === 'rank' && (
+                      <UserConsumptionRanking
+                        data={userData ?? []}
+                        limit={topUserLimit}
+                      />
+                    )}
+                    {chart.value !== 'rank' && themeReady && spec && (
+                      <VChart
+                        key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
+                        spec={{
+                          ...spec,
+                          theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                          background: 'transparent',
+                        }}
+                        option={VCHART_OPTION}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </div>

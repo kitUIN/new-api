@@ -233,10 +233,14 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	err = DB.Table("quota_data").
-		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(completion_tokens) as completion_tokens, sum(cache_read_tokens) as cache_read_tokens, sum(cache_write_tokens) as cache_write_tokens").
+		Select("user_id, max(username) as username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(completion_tokens) as completion_tokens, sum(cache_read_tokens) as cache_read_tokens, sum(cache_write_tokens) as cache_write_tokens").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
+		Group("user_id, created_at").
 		Find(&quotaDatas).Error
+	if err != nil {
+		return quotaDatas, err
+	}
+	err = attachQuotaDataProfiles(quotaDatas)
 	return quotaDatas, err
 }
 

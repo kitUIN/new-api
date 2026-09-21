@@ -26,6 +26,8 @@ export interface QuotaDataItem {
   id?: number
   user_id?: number
   username?: string
+  display_name?: string
+  qq_id?: string
   model_name?: string
   group?: string
   created_at: number
