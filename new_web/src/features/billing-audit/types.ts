@@ -56,9 +56,27 @@ export interface BillingTopUp {
   trade_no: string
   payment_method: string
   complete_time: number
+  billing_time: number
   money: number
   refunded_cents: number
   status: string
+  manual_amount?: string
+  original_amount?: string
+  user: BillingAuditUser
+}
+
+export interface BillingAuditUser {
+  username: string
+  display_name: string
+  qq_id: string
+}
+
+export interface BillingUserTopUp {
+  user_id: number
+  user: BillingAuditUser
+  received: string
+  refunded: string
+  unconverted_count: number
 }
 
 export interface CostInput {

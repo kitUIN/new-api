@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -48,6 +48,13 @@ export function BillingAudit() {
     queryFn: () => getBillingSummary(month),
   })
   const data = query.data
+  const sortedGroups = useMemo(
+    () =>
+      [...(data?.groups ?? [])].sort(
+        (a, b) => Number(b.estimated_cost) - Number(a.estimated_cost)
+      ),
+    [data?.groups]
+  )
   const cards = data
     ? [
         {
@@ -160,13 +167,13 @@ export function BillingAudit() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.groups.map((group) => (
+                      {sortedGroups.map((group) => (
                         <TableRow key={group.group}>
                           <TableCell>
                             {group.group || t('billingAudit.unknownGroup')}
                           </TableCell>
                           <TableCell className='text-right tabular-nums'>
-                            {auditMoney(group.estimated_cost)}
+                            {auditMoney(group.estimated_cost, 6)}
                           </TableCell>
                         </TableRow>
                       ))}

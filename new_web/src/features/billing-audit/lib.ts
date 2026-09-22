@@ -25,11 +25,15 @@ export function currentAuditMonth(): string {
   return `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}`
 }
 
-export function auditMoney(value: string | number): string {
+export function auditMoney(
+  value: string | number,
+  minimumFractionDigits = 2
+): string {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 2,
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits,
     maximumFractionDigits: 6,
   }).format(Number(value))
 }

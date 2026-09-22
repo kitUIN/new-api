@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 import type {
   BillingSummary,
   BillingTopUp,
+  BillingUserTopUp,
   CostAction,
   CostInput,
 } from './types'
@@ -46,6 +47,15 @@ export async function getBillingTopUps(month: string, page: number) {
   const result = await api.get<
     Response<{ items: BillingTopUp[]; total: number }>
   >('/api/billing-audit/topups', { params: { month, page, page_size: 20 } })
+  return unwrap(result.data)
+}
+
+export async function getBillingUserTopUps(month: string, page: number) {
+  const result = await api.get<
+    Response<{ items: BillingUserTopUp[]; total: number }>
+  >('/api/billing-audit/topups', {
+    params: { month, page, page_size: 20, view: 'users' },
+  })
   return unwrap(result.data)
 }
 

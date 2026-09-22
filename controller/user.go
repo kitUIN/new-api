@@ -22,6 +22,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type LoginRequest struct {
@@ -995,6 +996,13 @@ func ManageUser(c *gin.Context) {
 		adminInfo := map[string]interface{}{
 			"admin_id":       adminId,
 			"admin_username": adminName,
+		}
+		if req.Mode == "recharge" || req.Mode == "refund" {
+			if common.QuotaPerUnit <= 0 {
+				common.ApiError(c, fmt.Errorf("invalid quota per unit"))
+				return
+			}
+			adminInfo["amount_usd"] = decimal.NewFromInt(int64(req.Value)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).String()
 		}
 		switch req.Mode {
 		case "add", "recharge":

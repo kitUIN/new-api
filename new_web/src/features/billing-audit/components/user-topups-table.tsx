@@ -28,57 +28,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getBillingTopUps } from '../api'
-import { auditMoney, auditTime } from '../lib'
-import type { BillingTopUp } from '../types'
+import { getBillingUserTopUps } from '../api'
+import { auditMoney } from '../lib'
 import { BillingUser } from './billing-user'
-import { UserTopUpsTable } from './user-topups-table'
 
-function manualAmount(row: BillingTopUp): string {
-  if (row.manual_amount !== undefined) return auditMoney(row.manual_amount)
-  return row.original_amount ?? '—'
-}
-
-export function TopUpsTable(props: { month: string }) {
-  const { t } = useTranslation()
-  return (
-    <section className='rounded-xl border p-4'>
-      <Tabs defaultValue='orders'>
-        <div className='flex flex-wrap items-center justify-between gap-3'>
-          <h3 className='font-semibold'>{t('billingAudit.topups')}</h3>
-          <TabsList aria-label={t('billingAudit.topups')}>
-            <TabsTrigger value='orders'>
-              {t('billingAudit.orderView')}
-            </TabsTrigger>
-            <TabsTrigger value='users'>
-              {t('billingAudit.userView')}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        <TabsContent value='orders'>
-          <TopUpOrdersTable key={props.month} month={props.month} />
-        </TabsContent>
-        <TabsContent value='users'>
-          <UserTopUpsTable key={props.month} month={props.month} />
-        </TabsContent>
-      </Tabs>
-    </section>
-  )
-}
-
-function TopUpOrdersTable(props: { month: string }) {
+export function UserTopUpsTable(props: { month: string }) {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const query = useQuery({
-    queryKey: ['billing-audit', 'topups', props.month, page],
-    queryFn: () => getBillingTopUps(props.month, page),
+    queryKey: ['billing-audit', 'user-topups', props.month, page],
+    queryFn: () => getBillingUserTopUps(props.month, page),
   })
   const pages = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20))
   return (
     <div>
       <p className='text-muted-foreground my-2 text-sm'>
-        {t('billingAudit.refundHint')}
+        {t('billingAudit.userViewHint')}
       </p>
       {query.isPending && <p role='status'>{t('Loading...')}</p>}
       {query.isError && (
@@ -94,53 +59,40 @@ function TopUpOrdersTable(props: { month: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('billingAudit.order')}</TableHead>
                 <TableHead>{t('User')}</TableHead>
-                <TableHead>{t('billingAudit.paymentMethod')}</TableHead>
-                <TableHead>{t('billingAudit.paidAt')}</TableHead>
                 <TableHead className='text-right'>
-                  {t('billingAudit.received')}
+                  {t('billingAudit.totalReceived')}
                 </TableHead>
                 <TableHead className='text-right'>
-                  {t('billingAudit.refunded')}
+                  {t('billingAudit.totalRefunded')}
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {query.data.items.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className='font-mono text-xs'>
-                    {row.trade_no}
-                  </TableCell>
+                <TableRow key={row.user_id}>
                   <TableCell>
                     <BillingUser userId={row.user_id} user={row.user} />
-                  </TableCell>
-                  <TableCell>
-                    {row.payment_method === 'admin_recharge' &&
-                      t('billingAudit.adminRecharge')}
-                    {row.payment_method === 'admin_refund' &&
-                      t('billingAudit.adminRefund')}
-                    {row.payment_method !== 'admin_recharge' &&
-                      row.payment_method !== 'admin_refund' &&
-                      row.payment_method}
-                  </TableCell>
-                  <TableCell>{auditTime(row.billing_time)}</TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {row.payment_method === 'admin_recharge'
-                      ? manualAmount(row)
-                      : auditMoney(row.money)}
+                    {row.unconverted_count > 0 && (
+                      <p className='text-muted-foreground mt-1 text-xs'>
+                        {t('billingAudit.unconvertedCount', {
+                          count: row.unconverted_count,
+                        })}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {row.payment_method === 'admin_refund'
-                      ? manualAmount(row)
-                      : auditMoney(row.refunded_cents / 100)}
+                    {auditMoney(row.received, 6)}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {auditMoney(row.refunded, 6)}
                   </TableCell>
                 </TableRow>
               ))}
               {!query.data.items.length && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={3}
                     className='text-muted-foreground py-8 text-center'
                   >
                     {t('billingAudit.noTopups')}
@@ -151,7 +103,11 @@ function TopUpOrdersTable(props: { month: string }) {
           </Table>
           <div className='mt-3 flex items-center justify-end gap-3 text-sm'>
             <span>
-              {t('billingAudit.page', { page, pages, count: query.data.total })}
+              {t('billingAudit.userPage', {
+                page,
+                pages,
+                count: query.data.total,
+              })}
             </span>
             <Button
               size='sm'

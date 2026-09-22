@@ -31,10 +31,11 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	oldDB, oldUnit := model.DB, common.QuotaPerUnit
+	oldDB, oldLogDB, oldUnit := model.DB, model.LOG_DB, common.QuotaPerUnit
 	model.DB, common.QuotaPerUnit = db, 500000
-	t.Cleanup(func() { model.DB, common.QuotaPerUnit = oldDB, oldUnit; _ = sqlDB.Close() })
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}, &model.QuotaData{}, &model.BillingCost{}, &model.BillingCostVersion{}, &model.BillingCostException{}))
+	model.LOG_DB = db
+	t.Cleanup(func() { model.DB, model.LOG_DB, common.QuotaPerUnit = oldDB, oldLogDB, oldUnit; _ = sqlDB.Close() })
+	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.User{}, &model.TopUp{}, &model.QuotaData{}, &model.BillingCost{}, &model.BillingCostVersion{}, &model.BillingCostException{}))
 	_, start, end, err := BillingAuditMonth("2026-09")
 	require.NoError(t, err)
 	require.NoError(t, db.Create(&[]model.QuotaData{
@@ -49,7 +50,7 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 		{Username: "deleted", AffCode: "audit-deleted", Quota: 99999999, DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true}},
 	}).Error)
 	require.NoError(t, db.Create(&[]model.TopUp{
-		{TradeNo: "success", Money: 100, CompleteTime: start, Status: common.TopUpStatusSuccess},
+		{TradeNo: "success", Money: 100, PaymentMethod: model.PaymentMethodXznPay, CompleteTime: start, Status: common.TopUpStatusSuccess},
 		{TradeNo: "partial", Money: 50, CompleteTime: end - 1, Status: common.TopUpStatusPartialRefund, ProviderRefundedAmount: 1000},
 		{TradeNo: "refunded", Money: 20, CompleteTime: start, Status: common.TopUpStatusRefunded, ProviderRefundedAmount: 2000},
 		{TradeNo: "frozen", Money: 10, CompleteTime: start, Status: common.TopUpStatusFrozen},
@@ -64,9 +65,9 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 	require.Equal(t, "50.00", result.ActualCost)
 	require.Equal(t, result.ActualCost, result.TotalCost)
 	require.Equal(t, "19", result.CurrentBalance)
-	require.Equal(t, "180.00", result.RechargeAmount)
+	require.Equal(t, "177.00", result.RechargeAmount)
 	require.Equal(t, "30.00", result.RefundAmount)
-	require.Equal(t, "150.00", result.NetRecharge)
+	require.Equal(t, "147.00", result.NetRecharge)
 	require.Len(t, result.Groups, 2)
 	items, total, err := model.GetBillingTopUps(start, end, 1, 2)
 	require.NoError(t, err)

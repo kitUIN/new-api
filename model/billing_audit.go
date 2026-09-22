@@ -212,19 +212,29 @@ func GetBillingCosts(month string) ([]BillingCostRow, error) {
 	return rows, err
 }
 
+const billingXznSettlementDelay int64 = 24 * 60 * 60
+
 func BillingPaidTopUps(start, end int64) *gorm.DB {
-	return DB.Model(&TopUp{}).Where("complete_time >= ? AND complete_time < ? AND complete_time > 0 AND status IN ?", start, end, []string{common.TopUpStatusSuccess, common.TopUpStatusFrozen, common.TopUpStatusPartialRefund, common.TopUpStatusRefunded})
+	// Asia/Shanghai has no DST in supported billing years. Shift the query
+	// window by one calendar day for D+1 settlement, preserving payment dates.
+	return DB.Model(&TopUp{}).
+		Where("complete_time > 0 AND status IN ?", []string{common.TopUpStatusSuccess, common.TopUpStatusFrozen, common.TopUpStatusPartialRefund, common.TopUpStatusRefunded}).
+		Where("(payment_method = ? AND complete_time >= ? AND complete_time < ?) OR ((payment_method <> ? OR payment_method IS NULL) AND complete_time >= ? AND complete_time < ?)", PaymentMethodXznPay, start-billingXznSettlementDelay, end-billingXznSettlementDelay, PaymentMethodXznPay, start, end)
 }
 
 type BillingTopUpRow struct {
-	ID                     int     `json:"id"`
-	UserID                 int     `json:"user_id"`
-	TradeNo                string  `json:"trade_no"`
-	PaymentMethod          string  `json:"payment_method"`
-	CompleteTime           int64   `json:"complete_time"`
-	Money                  float64 `json:"money"`
-	ProviderRefundedAmount int64   `json:"refunded_cents"`
-	Status                 string  `json:"status"`
+	ID                     int              `json:"id"`
+	UserID                 int              `json:"user_id"`
+	TradeNo                string           `json:"trade_no"`
+	PaymentMethod          string           `json:"payment_method"`
+	CompleteTime           int64            `json:"complete_time"`
+	BillingTime            int64            `json:"billing_time"`
+	Money                  float64          `json:"money"`
+	ProviderRefundedAmount int64            `json:"refunded_cents"`
+	Status                 string           `json:"status"`
+	ManualAmount           *string          `json:"manual_amount,omitempty"`
+	OriginalAmount         string           `json:"original_amount,omitempty"`
+	User                   BillingAuditUser `json:"user" gorm:"-"`
 }
 
 func GetBillingTopUps(start, end int64, page, size int) ([]BillingTopUpRow, int64, error) {
@@ -233,8 +243,57 @@ func GetBillingTopUps(start, end int64, page, size int) ([]BillingTopUpRow, int6
 	if err := BillingPaidTopUps(start, end).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := BillingPaidTopUps(start, end).Select("id, user_id, trade_no, payment_method, complete_time, money, provider_refunded_amount, status").Order("complete_time DESC, id DESC").Offset((page - 1) * size).Limit(size).Scan(&rows).Error
-	return rows, total, err
+	manualQuery := billingManualLogs(start, end)
+	var manualTotal int64
+	if err := manualQuery.Count(&manualTotal).Error; err != nil {
+		return nil, 0, err
+	}
+	// The databases can be separate, so merge the first page*size rows from each
+	// source before applying the shared offset. Never join DB and LOG_DB tables.
+	limit := page * size
+	if err := BillingPaidTopUps(start, end).Select("id, user_id, trade_no, payment_method, complete_time, money, provider_refunded_amount, status, CASE WHEN payment_method = ? THEN complete_time + ? ELSE complete_time END AS billing_time", PaymentMethodXznPay, billingXznSettlementDelay).Order("billing_time DESC, id DESC").Limit(limit).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	for i := range rows {
+		rows[i].Money = billingReceivedAmount(decimal.NewFromFloat(rows[i].Money), rows[i].PaymentMethod).InexactFloat64()
+	}
+	var logs []Log
+	if err := billingManualLogs(start, end).Order("created_at DESC, id DESC").Limit(limit).Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
+	for _, log := range logs {
+		rows = append(rows, billingManualRow(log))
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].BillingTime != rows[j].BillingTime {
+			return rows[i].BillingTime > rows[j].BillingTime
+		}
+		// Manual IDs are negative to avoid collisions with order IDs.
+		if (rows[i].ID < 0) != (rows[j].ID < 0) {
+			return rows[i].ID > rows[j].ID
+		}
+		if rows[i].ID < 0 {
+			return rows[i].ID < rows[j].ID
+		}
+		return rows[i].ID > rows[j].ID
+	})
+	offset := (page - 1) * size
+	if offset >= len(rows) {
+		return []BillingTopUpRow{}, total + manualTotal, nil
+	}
+	rows = rows[offset:min(offset+size, len(rows))]
+	ids := make([]int, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.UserID)
+	}
+	users, err := billingAuditUsers(ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range rows {
+		rows[i].User = users[rows[i].UserID]
+	}
+	return rows, total + manualTotal, nil
 }
 
 type BillingGroupQuota struct {
@@ -263,8 +322,27 @@ type BillingRechargeTotals struct {
 
 func GetBillingRechargeTotals(start, end int64) (BillingRechargeTotals, error) {
 	var result BillingRechargeTotals
-	err := BillingPaidTopUps(start, end).Select("COALESCE(SUM(money), 0) AS received, COALESCE(SUM(provider_refunded_amount), 0) AS refunded_cents").Scan(&result).Error
-	return result, err
+	var groups []struct {
+		PaymentMethod string
+		Received      decimal.Decimal
+		RefundedCents int64
+	}
+	if err := BillingPaidTopUps(start, end).Select("payment_method, COALESCE(SUM(money), 0) AS received, COALESCE(SUM(provider_refunded_amount), 0) AS refunded_cents").Group("payment_method").Scan(&groups).Error; err != nil {
+		return result, err
+	}
+	for _, group := range groups {
+		result.Received = result.Received.Add(billingReceivedAmount(group.Received, group.PaymentMethod))
+		result.RefundedCents += group.RefundedCents
+	}
+	return result, nil
+}
+
+// Audit receipts exclude the 3% XznPay fee; order and refund amounts stay gross.
+func billingReceivedAmount(amount decimal.Decimal, paymentMethod string) decimal.Decimal {
+	if paymentMethod == PaymentMethodXznPay {
+		return amount.Mul(decimal.NewFromInt(97)).Div(decimal.NewFromInt(100))
+	}
+	return amount
 }
 
 func GetBillingBalanceQuota() (int64, error) {

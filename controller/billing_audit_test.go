@@ -20,6 +20,8 @@ func TestBillingAuditAdminAuthorizationAndInputValidation(t *testing.T) {
 		for _, test := range []struct{ method, path, body string }{
 			{http.MethodGet, "/api/billing-audit?month=invalid", ""},
 			{http.MethodGet, "/api/billing-audit/topups?month=2026-09&page=0", ""},
+			{http.MethodGet, "/api/billing-audit/topups?month=2026-09&view=users&page=0", ""},
+			{http.MethodGet, "/api/billing-audit/topups?month=2026-09&view=invalid", ""},
 			{http.MethodPost, "/api/billing-audit/costs", `{"month":"2026-09","name":"x","amount":"0"}`},
 			{http.MethodPut, "/api/billing-audit/costs/0", `{}`},
 			{http.MethodDelete, "/api/billing-audit/costs/no-id", `{}`},
