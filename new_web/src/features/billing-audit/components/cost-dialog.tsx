@@ -46,7 +46,8 @@ interface Props {
 export function CostDialog(props: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const removing = props.action.kind === 'delete'
+  const deletingAll = props.action.kind === 'delete-all'
+  const removing = props.action.kind === 'delete' || deletingAll
   const creating = props.action.kind === 'create'
   const cycleMonth = props.action.cost?.cycle_month || props.month
   const schema = costSchema(props.action, {
@@ -84,9 +85,14 @@ export function CostDialog(props: Props) {
   let title = t('billingAudit.editCost')
   if (creating) title = t('billingAudit.addCost')
   if (removing) title = t('billingAudit.removeCost')
+  if (deletingAll) title = t('billingAudit.deleteAllCycles')
   const scope = form.watch('scope')
   const future = !creating && scope === 'future'
   const subscription = form.watch('allocation') === 'subscription'
+  let description = subscription
+    ? t('billingAudit.subscriptionDescription')
+    : t('billingAudit.costDescription')
+  if (deletingAll) description = props.action.cost?.name ?? ''
   let scopeLabel = t('billingAudit.onlyMonth')
   let futureLabel = t('billingAudit.fromMonth')
   let monthLabel = future
@@ -103,6 +109,7 @@ export function CostDialog(props: Props) {
       ? t('billingAudit.confirmStopSubscription')
       : t('billingAudit.confirmDeleteCycle')
   }
+  if (deletingAll) removeHint = t('billingAudit.confirmDeleteAllCycles')
   const errors = Object.keys(form.formState.errors).length > 0
 
   return (
@@ -115,17 +122,13 @@ export function CostDialog(props: Props) {
       <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {subscription
-              ? t('billingAudit.subscriptionDescription')
-              : t('billingAudit.costDescription')}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form
           className='space-y-4'
           onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
         >
-          {!creating && props.action.cost?.recurring && (
+          {!creating && !deletingAll && props.action.cost?.recurring && (
             <div className='space-y-2'>
               <Label htmlFor='cost-scope'>{t('billingAudit.scope')}</Label>
               <select
@@ -145,7 +148,7 @@ export function CostDialog(props: Props) {
             </div>
           )}
           {creating && <CostPeriodFields form={form} month={props.month} />}
-          {!creating && (
+          {!creating && !deletingAll && (
             <div className='space-y-2'>
               <Label htmlFor='cost-month'>{monthLabel}</Label>
               <Input
@@ -158,7 +161,7 @@ export function CostDialog(props: Props) {
               />
             </div>
           )}
-          {!creating && subscription && (
+          {!creating && !deletingAll && subscription && (
             <p className='text-muted-foreground text-sm'>
               {props.action.cost?.period_start} →{' '}
               {props.action.cost?.period_end} ·{' '}
@@ -198,7 +201,7 @@ export function CostDialog(props: Props) {
               </div>
             </>
           )}
-          {future && (
+          {future && !deletingAll && (
             <p className='text-muted-foreground text-sm'>
               {subscription
                 ? t('billingAudit.futureCycleHint')

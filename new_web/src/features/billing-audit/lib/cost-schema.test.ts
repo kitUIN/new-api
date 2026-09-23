@@ -78,3 +78,18 @@ test('legacy monthly costs do not require subscription dates', () => {
     true
   )
 })
+
+test('delete all cycles allows empty cost fields only through its own action', () => {
+  const input = { ...base, recurring: true, name: '', amount: '' }
+  assert.equal(
+    costSchema({ kind: 'delete-all' }, messages).safeParse(input).success,
+    true
+  )
+  for (const kind of ['create', 'edit', 'delete'] as const) {
+    assert.equal(
+      costSchema({ kind }, messages).safeParse({ ...input, scope: 'all' })
+        .success,
+      false
+    )
+  }
+})

@@ -78,11 +78,6 @@ function GroupOptionName({ option }: { option: ApiKeyGroupOption }) {
   )
 }
 
-function getVisibleGroupDescription(option?: ApiKeyGroupOption) {
-  if (!option || option.isCombinationGroup) return undefined
-  return option.desc
-}
-
 function formatGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
   if (ratio === undefined || ratio === null || ratio === '') return null
   return typeof ratio === 'string' ? ratio : `${ratio}x`
@@ -195,7 +190,7 @@ export function ApiKeyGroupCombobox({
   const popoverActionsRef = useRef<PopoverPrimitive.Root.Actions | null>(null)
   const clearSearchTimerRef = useRef<number | null>(null)
   const selectedOption = options.find((option) => option.value === value)
-  const selectedDescription = getVisibleGroupDescription(selectedOption)
+  const selectedDescription = selectedOption?.desc
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
@@ -206,7 +201,7 @@ export function ApiKeyGroupCombobox({
       return (
         option.value.toLowerCase().includes(search) ||
         option.label.toLowerCase().includes(search) ||
-        getVisibleGroupDescription(option)?.toLowerCase().includes(search) ||
+        option.desc?.toLowerCase().includes(search) ||
         ratioText.includes(search) ||
         String(option.health?.availability24h ?? '')
           .toLowerCase()
@@ -330,9 +325,9 @@ export function ApiKeyGroupCombobox({
                     <span className='block min-w-0 font-medium'>
                       <GroupOptionName option={option} />
                     </span>
-                    {getVisibleGroupDescription(option) && (
+                    {option.desc && (
                       <span className='text-muted-foreground block truncate text-xs'>
-                        {getVisibleGroupDescription(option)}
+                        {option.desc}
                       </span>
                     )}
                     <span className='mt-1 flex min-w-0'>

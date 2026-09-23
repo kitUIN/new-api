@@ -174,3 +174,53 @@ func TestBillingSubscriptionMigrationKeepsLegacyCosts(t *testing.T) {
 	require.NoError(t, DB.Model(&BillingCostVersion{}).Where("cost_id = ?", 10).Count(&count).Error)
 	require.Equal(t, int64(1), count)
 }
+
+func TestBillingCostDeleteAllCycles(t *testing.T) {
+	setupBillingCostTest(t)
+	require.NoError(t, CreateBillingCostWithPeriod("2026-10", "Recurring", "", 140000, true, 1, BillingCostPeriod{Allocation: BillingAllocationSubscription, StartDate: "2026-10-07", EndDate: "2026-11-07"}))
+	require.NoError(t, CreateBillingCost("2026-11", "Unrelated", "", 2500, false, 1))
+	rows, err := GetBillingCosts("2026-10")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	id := rows[0].ID
+	require.NoError(t, ChangeBillingCost(id, "2026-12", "future", "New price", "", 150000, false, 2))
+	require.NoError(t, ChangeBillingCost(id, "2026-11", "month", "Exception", "", 120000, false, 2))
+	require.NoError(t, ChangeBillingCost(id, "2027-01", "future", "", "", 0, true, 2))
+	rows, err = GetBillingCosts("2026-11")
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	var unrelatedID int
+	for _, row := range rows {
+		if row.Name == "Unrelated" {
+			unrelatedID = row.ID
+		}
+	}
+	require.NotZero(t, unrelatedID)
+	require.Error(t, ChangeBillingCost(unrelatedID, "2026-11", "all", "", "", 0, true, 2))
+	require.Error(t, ChangeBillingCost(id, "2026-11", "all", "", "", 0, false, 2))
+	rows, err = GetBillingCosts("2027-01")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, id, rows[0].ID)
+	require.NoError(t, ChangeBillingCost(id, "2026-12", "all", "", "", 0, true, 2))
+	for _, month := range []string{"2026-10", "2026-12", "2027-01"} {
+		rows, err := GetBillingCosts(month)
+		require.NoError(t, err)
+		require.Empty(t, rows, month)
+	}
+	rows, err = GetBillingCosts("2026-11")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, unrelatedID, rows[0].ID)
+	for _, entity := range []interface{}{&BillingCost{}, &BillingCostVersion{}, &BillingCostException{}} {
+		var count int64
+		query := DB.Unscoped().Model(entity)
+		if _, ok := entity.(*BillingCost); ok {
+			query = query.Where("id = ?", id)
+		} else {
+			query = query.Where("cost_id = ?", id)
+		}
+		require.NoError(t, query.Count(&count).Error)
+		require.Zero(t, count)
+	}
+}

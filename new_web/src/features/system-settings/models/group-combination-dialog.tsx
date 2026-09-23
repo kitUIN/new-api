@@ -299,10 +299,7 @@ export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
       (draft) =>
         groupByName.has(draft.group) &&
         !duplicateGroups.has(draft.group) &&
-        draft.models.length > 0 &&
-        draft.models.every((model) =>
-          groupByName.get(draft.group)?.models.includes(model)
-        )
+        draft.models.length > 0
     )
 
   const updateDraftGroup = (id: number, group: string) => {

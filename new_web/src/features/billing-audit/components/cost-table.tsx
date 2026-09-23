@@ -82,8 +82,13 @@ export function CostTable(props: {
                   </span>
                 )}
               </TableCell>
-              <TableCell className='max-w-64 whitespace-normal'>
-                {cost.remark || '—'}
+              <TableCell className='max-w-64'>
+                <span
+                  className='block max-w-64 truncate'
+                  title={cost.remark || undefined}
+                >
+                  {cost.remark || '—'}
+                </span>
               </TableCell>
               <TableCell className='text-right tabular-nums'>
                 {auditMoney(cost.amount_cents / 100)}
@@ -115,6 +120,17 @@ export function CostTable(props: {
                       ? t('billingAudit.deleteOrStop')
                       : t('Delete')}
                   </Button>
+                  {cost.recurring && (
+                    <Button
+                      size='sm'
+                      variant='destructive'
+                      onClick={() =>
+                        props.onAction({ kind: 'delete-all', cost })
+                      }
+                    >
+                      {t('billingAudit.deleteAllCycles')}
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>

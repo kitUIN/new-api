@@ -97,7 +97,7 @@ func CreateBillingCostWithPeriod(month, name, remark string, cents int64, recurr
 
 // scope=month writes an exception; scope=future replaces the schedule from month.
 func ChangeBillingCost(id int, month, scope, name, remark string, cents int64, disabled bool, actor int) error {
-	if scope != "month" && scope != "future" {
+	if scope != "month" && scope != "future" && scope != "all" {
 		return errors.New("invalid cost scope")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
@@ -116,6 +116,18 @@ func ChangeBillingCost(id int, month, scope, name, remark string, cents int64, d
 		}
 		if month < cost.StartMonth || (!cost.Recurring && month != cost.StartMonth) {
 			return errors.New("month is outside the cost schedule")
+		}
+		if scope == "all" {
+			if !disabled || !cost.Recurring {
+				return errors.New("only recurring costs can be deleted across all cycles")
+			}
+			if err := tx.Unscoped().Where("cost_id = ?", id).Delete(&BillingCostVersion{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("cost_id = ?", id).Delete(&BillingCostException{}).Error; err != nil {
+				return err
+			}
+			return tx.Delete(&cost).Error
 		}
 		if !cost.Recurring && scope == "future" {
 			return errors.New("single costs only support month scope")

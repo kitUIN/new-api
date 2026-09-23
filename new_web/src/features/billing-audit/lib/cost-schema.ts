@@ -31,7 +31,7 @@ export function costSchema(
       amount: z.string(),
       remark: z.string().trim().max(1000),
       recurring: z.boolean(),
-      scope: z.enum(['month', 'future']),
+      scope: z.enum(['month', 'future', 'all']),
       allocation: z.enum(['month', 'subscription']),
       start_date: z.string(),
       end_date: z.string(),
@@ -49,6 +49,7 @@ export function costSchema(
       }
       if (
         action.kind !== 'delete' &&
+        action.kind !== 'delete-all' &&
         (!value.name ||
           !/^\d+(\.\d{1,2})?$/.test(value.amount) ||
           Number(value.amount) <= 0 ||
@@ -57,6 +58,13 @@ export function costSchema(
         ctx.addIssue({
           code: 'custom',
           path: ['amount'],
+          message: messages.invalidCost,
+        })
+      }
+      if (value.scope === 'all' && action.kind !== 'delete-all') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scope'],
           message: messages.invalidCost,
         })
       }

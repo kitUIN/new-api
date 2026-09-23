@@ -72,9 +72,9 @@ export async function saveBillingCost(action: CostAction, input: CostInput) {
     amount: input.amount,
     remark: input.remark,
     recurring: input.recurring,
-    scope: input.scope,
+    scope: action.kind === 'delete-all' ? 'all' : input.scope,
   }
-  if (action.kind === 'delete') {
+  if (action.kind === 'delete' || action.kind === 'delete-all') {
     return unwrap(
       (
         await api.delete<Response<unknown>>(`${path}/${action.cost.id}`, {

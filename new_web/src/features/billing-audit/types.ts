@@ -85,13 +85,13 @@ export interface CostInput {
   amount: string
   remark: string
   recurring: boolean
-  scope: 'month' | 'future'
+  scope: 'month' | 'future' | 'all'
   allocation: 'month' | 'subscription'
   start_date: string
   end_date: string
 }
 
 export interface CostAction {
-  kind: 'create' | 'edit' | 'delete'
+  kind: 'create' | 'edit' | 'delete' | 'delete-all'
   cost?: BillingCost
 }
