@@ -73,7 +73,7 @@
     "billingAudit.userViewHint": "Toutes les commandes encaissées et opérations manuelles du mois choisi. xzn_pay est affecté à J+1, moins 3 % de frais. Les remboursements cumulés suivent le mois de l’encaissement.",
     "billingAudit.unconvertedCount": "{{count}} montants historiques non convertibles sont exclus. Consultez les montants originaux dans la vue commandes.",
     "billingAudit.userPage": "{{page}} / {{pages}} · {{count}} utilisateurs",
-    "billingAudit.refundHint": "Remboursements cumulés des commandes encaissées ce mois. xzn_pay est encaissé à J+1, après 3 % de frais. Les opérations manuelles suivent leur date et sont exclues du récapitulatif supérieur. Les montants historiques non convertibles conservent leur unité.",
+    "billingAudit.refundHint": "Remboursements cumulés des commandes encaissées ce mois. xzn_pay est encaissé à J+1, après 3 % de frais. Les recharges et remboursements manuels sont inclus dans le récapitulatif supérieur à leur date d'exécution. Les montants historiques non convertibles en USD conservent leur unité et sont exclus du récapitulatif.",
     "billingAudit.adminRecharge": "Recharge administrateur",
     "billingAudit.adminRefund": "Remboursement administrateur",
     "billingAudit.order": "Commande",

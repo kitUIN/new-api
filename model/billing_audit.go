@@ -328,8 +328,8 @@ func billingGroupQuotaQuery(db *gorm.DB, start, end int64) *gorm.DB {
 }
 
 type BillingRechargeTotals struct {
-	Received      decimal.Decimal
-	RefundedCents int64
+	Received decimal.Decimal
+	Refunded decimal.Decimal
 }
 
 func GetBillingRechargeTotals(start, end int64) (BillingRechargeTotals, error) {
@@ -344,7 +344,24 @@ func GetBillingRechargeTotals(start, end int64) (BillingRechargeTotals, error) {
 	}
 	for _, group := range groups {
 		result.Received = result.Received.Add(billingReceivedAmount(group.Received, group.PaymentMethod))
-		result.RefundedCents += group.RefundedCents
+		result.Refunded = result.Refunded.Add(decimal.NewFromInt(group.RefundedCents).Div(decimal.NewFromInt(100)))
+	}
+	var logs []Log
+	if err := billingManualLogs(start, end).FindInBatches(&logs, 500, func(_ *gorm.DB, _ int) error {
+		for _, log := range logs {
+			amount, ok := billingManualAmount(log)
+			if !ok {
+				continue
+			}
+			if log.Type == LogTypeRefund {
+				result.Refunded = result.Refunded.Add(amount)
+			} else {
+				result.Received = result.Received.Add(amount)
+			}
+		}
+		return nil
+	}).Error; err != nil {
+		return result, err
 	}
 	return result, nil
 }

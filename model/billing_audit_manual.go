@@ -55,3 +55,12 @@ func billingManualRow(log Log) BillingTopUpRow {
 	}
 	return row
 }
+
+func billingManualAmount(log Log) (decimal.Decimal, bool) {
+	row := billingManualRow(log)
+	if row.ManualAmount == nil {
+		return decimal.Zero, false
+	}
+	amount, err := decimal.NewFromString(*row.ManualAmount)
+	return amount, err == nil
+}

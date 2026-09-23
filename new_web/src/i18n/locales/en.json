@@ -73,7 +73,7 @@
     "billingAudit.userViewHint": "Includes all orders settled in the selected month and manual admin recharges/refunds during that month. xzn_pay uses D+1 settlement and deducts the 3% fee. Cumulative order refunds belong to the settlement month.",
     "billingAudit.unconvertedCount": "{{count}} historical amounts could not be converted and are excluded. See original amounts in the order view.",
     "billingAudit.userPage": "{{page}} / {{pages}} · {{count}} users",
-    "billingAudit.refundHint": "Order refunds are cumulative for orders settled this month. xzn_pay settles on D+1 and receipts exclude the 3% fee. Manual operations use their operation date and are excluded from the top summary. Unconvertible historical amounts retain their original units.",
+    "billingAudit.refundHint": "Order refunds are cumulative for orders settled this month. xzn_pay settles on D+1 and receipts exclude the 3% fee. Manual top-ups and refunds are included in the top summary on their operation date. Unconvertible historical amounts retain their original units and are excluded from the summary.",
     "billingAudit.adminRecharge": "Admin recharge",
     "billingAudit.adminRefund": "Admin refund",
     "billingAudit.order": "Order",

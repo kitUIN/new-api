@@ -85,3 +85,26 @@ func TestBillingTopUpsMergeSeparateDatabases(t *testing.T) {
 	require.NoError(t, DB.First(&original, 1).Error)
 	require.Equal(t, float64(10), original.Money)
 }
+
+func TestBillingRechargeTotalsIncludesManualOperations(t *testing.T) {
+	setupBillingTopUpTest(t)
+	require.NoError(t, DB.Create(&[]TopUp{
+		{TradeNo: "xzn", Money: 100, PaymentMethod: PaymentMethodXznPay, CompleteTime: 13700, Status: common.TopUpStatusSuccess},
+		{TradeNo: "other", Money: 20, CompleteTime: 100110, Status: common.TopUpStatusPartialRefund, ProviderRefundedAmount: 500},
+		{TradeNo: "pending", Money: 999, CompleteTime: 100110, Status: common.TopUpStatusPending},
+	}).Error)
+	require.NoError(t, LOG_DB.Create(&[]Log{
+		{Type: LogTypeTopup, CreatedAt: 100100, Content: billingManualRechargePrefix + "＄5.000001 额度"},
+		{Type: LogTypeTopup, CreatedAt: 100120, Content: billingManualRechargePrefix + "¥70.000000 额度", Other: `{"admin_info":{"amount_usd":"10"}}`},
+		{Type: LogTypeRefund, CreatedAt: 100130, Content: billingManualRefundPrefix + "¥14.000000 额度", Other: `{"admin_info":{"amount_usd":"2.000002"}}`},
+		{Type: LogTypeRefund, CreatedAt: 100140, Content: billingManualRefundPrefix + "＄3.000000 额度"},
+		{Type: LogTypeRefund, CreatedAt: 100150, Content: billingManualRefundPrefix + "¥7.000000 额度"},
+		{Type: LogTypeManage, CreatedAt: 100160, Content: "管理员增加用户额度 ＄999.000000 额度"},
+		{Type: LogTypeTopup, CreatedAt: 100200, Content: billingManualRechargePrefix + "＄999.000000 额度"},
+		{Type: LogTypeRefund, CreatedAt: 100099, Content: billingManualRefundPrefix + "＄999.000000 额度"},
+	}).Error)
+	totals, err := GetBillingRechargeTotals(100100, 100200)
+	require.NoError(t, err)
+	require.Equal(t, "132.000001", totals.Received.String())
+	require.Equal(t, "10.000002", totals.Refunded.String())
+}

@@ -59,19 +59,23 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 		{TradeNo: "next", Money: 999, CompleteTime: end, Status: common.TopUpStatusSuccess},
 		{TradeNo: "previous", Money: 999, CompleteTime: start - 1, Status: common.TopUpStatusSuccess},
 	}).Error)
+	require.NoError(t, db.Create(&[]model.Log{
+		{Type: model.LogTypeTopup, CreatedAt: start + 10, Content: "管理员充值用户额度 ＄5.000000 额度"},
+		{Type: model.LogTypeRefund, CreatedAt: start + 20, Content: "管理员退款扣减用户额度 ＄2.000000 额度"},
+	}).Error)
 	result, err := GetBillingAuditSummary("2026-09")
 	require.NoError(t, err)
 	require.Equal(t, "100", result.EstimatedCost)
 	require.Equal(t, "50.00", result.ActualCost)
 	require.Equal(t, result.ActualCost, result.TotalCost)
 	require.Equal(t, "19", result.CurrentBalance)
-	require.Equal(t, "177.00", result.RechargeAmount)
-	require.Equal(t, "30.00", result.RefundAmount)
-	require.Equal(t, "147.00", result.NetRecharge)
+	require.Equal(t, "182.00", result.RechargeAmount)
+	require.Equal(t, "32.00", result.RefundAmount)
+	require.Equal(t, "150.00", result.NetRecharge)
 	require.Len(t, result.Groups, 2)
 	items, total, err := model.GetBillingTopUps(start, end, 1, 2)
 	require.NoError(t, err)
-	require.Equal(t, int64(4), total)
+	require.Equal(t, int64(6), total)
 	require.Len(t, items, 2)
 	require.Equal(t, "partial", items[0].TradeNo)
 	require.Equal(t, int64(1000), items[0].ProviderRefundedAmount)

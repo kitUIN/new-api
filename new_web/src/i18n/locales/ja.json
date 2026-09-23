@@ -73,7 +73,7 @@
     "billingAudit.userViewHint": "選択月に入金された全注文と同月の手動チャージ・返金を集計します。xzn_pay は翌日入金（D+1）の月に計上し、手数料3%を控除。注文の累計返金は入金月に属します。",
     "billingAudit.unconvertedCount": "換算できない過去の金額 {{count}} 件は合計に含まれません。注文別で元の金額を確認してください。",
     "billingAudit.userPage": "{{page}} / {{pages}} · {{count}} ユーザー",
-    "billingAudit.refundHint": "返金は当月入金分の累計です。xzn_pay は支払翌日（D+1）の月に計上し、手数料3%を控除します。手動操作は実施日で表示し、上部集計には含みません。換算できない過去の金額は元の単位で表示します。",
+    "billingAudit.refundHint": "返金は当月入金分の累計です。xzn_pay は支払翌日（D+1）の月に計上し、手数料3%を控除します。管理者による手動入金・返金は実施日で上部集計に含めます。米ドルに換算できない過去の金額は元の単位で表示し、集計には含めません。",
     "billingAudit.adminRecharge": "管理者によるチャージ",
     "billingAudit.adminRefund": "管理者による返金",
     "billingAudit.order": "注文",

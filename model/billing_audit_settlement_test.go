@@ -41,7 +41,7 @@ func TestBillingXznSettlementMonthBoundaries(t *testing.T) {
 			totals, err := GetBillingRechargeTotals(start, end)
 			require.NoError(t, err)
 			require.Equal(t, "34.1", totals.Received.String())
-			require.Equal(t, int64(100), totals.RefundedCents)
+			require.Equal(t, "1", totals.Refunded.String())
 			users, total, err := GetBillingUserTopUps(start, end, 1, 20)
 			require.NoError(t, err)
 			require.Equal(t, int64(1), total)

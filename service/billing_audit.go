@@ -126,7 +126,7 @@ func GetBillingAuditSummary(month string) (*BillingAuditSummary, error) {
 	}
 	unit := decimal.NewFromFloat(common.QuotaPerUnit)
 	result := &BillingAuditSummary{Month: month, Currency: "USD", Timezone: BillingAuditTimezone, QueriedAt: time.Now().Unix(), Groups: make([]BillingAuditGroup, 0, len(groups)), Costs: costs}
-	refund := decimal.NewFromInt(recharge.RefundedCents).Div(decimal.NewFromInt(100))
+	refund := recharge.Refunded
 	result.RechargeAmount, result.RefundAmount, result.NetRecharge = recharge.Received.StringFixed(2), refund.StringFixed(2), recharge.Received.Sub(refund).StringFixed(2)
 	estimate := decimal.Zero
 	for _, group := range groups {

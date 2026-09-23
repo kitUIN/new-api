@@ -65,14 +65,10 @@ func GetBillingUserTopUps(start, end int64, page, size int) ([]BillingUserTopUpR
 	if err := billingManualLogs(start, end).FindInBatches(&logs, 500, func(_ *gorm.DB, _ int) error {
 		for _, log := range logs {
 			row := get(log.UserId)
-			manual := billingManualRow(log)
-			if manual.ManualAmount == nil {
+			amount, ok := billingManualAmount(log)
+			if !ok {
 				row.UnconvertedCount++
 				continue
-			}
-			amount, err := decimal.NewFromString(*manual.ManualAmount)
-			if err != nil {
-				return err
 			}
 			if log.Type == LogTypeRefund {
 				row.Refunded = row.Refunded.Add(amount)
