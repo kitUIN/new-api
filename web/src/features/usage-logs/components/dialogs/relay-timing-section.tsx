@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { Timer } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import type { LogOtherData } from '../../types'
@@ -33,145 +35,215 @@ function timestamp(value: string): string {
   return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss.SSS') : value
 }
 
+function addDuration(start: number | null, elapsed: unknown): number | null {
+  const value = duration(elapsed)
+  return start !== null && value !== null ? start + value : null
+}
+
 export function RelayTimingSection(props: { other: LogOtherData | null }) {
   const { t } = useTranslation()
+  const reduceMotion = useReducedMotion()
+  const [hoveredSegment, setHoveredSegment] = useState<number | null>(null)
   const other = props.other
   if (!other) return null
 
-  const received = duration(other.request_body_receive_ms)
-  const prepared = duration(other.upstream_prepare_ms)
-  const prep = duration(other.pre_upstream_ms)
-  const upstreamOffset =
-    prep ??
-    (received !== null && prepared !== null ? received + prepared : null)
-  const split = received !== null && prepared !== null
-  const preparationRows = []
-  if (split) {
-    preparationRows.push(
-      {
-        label: t('Receive Full Request Body'),
-        value: received,
-        start: 0,
-        color: 'bg-sky-500',
-      },
-      {
-        label: t('Prepare Upstream Request'),
-        value: prepared,
-        start: received,
-        color: 'bg-violet-500',
-      }
-    )
-  } else {
-    preparationRows.push({
-      label: t('New API Prep'),
-      value: prep,
-      start: 0,
-      color: 'bg-violet-500',
-    })
-    if (received !== null) {
-      preparationRows.push({
-        label: t('Receive Full Request Body'),
-        value: received,
-        start: 0,
-        color: 'bg-sky-500',
-      })
-    }
+  // Prefer measured durations; timestamps also support older logs.
+  function offset(value: number | null, at?: string): number | null {
+    if (value !== null) return value
+    if (!at || !other?.request_start_at) return null
+    return duration(dayjs(at).diff(dayjs(other.request_start_at)))
   }
-  const rows = [
-    ...preparationRows,
-    {
-      label: t('Upstream Headers'),
-      value: duration(other.upstream_header_ms),
-      start: upstreamOffset,
-      color: 'bg-amber-500',
-    },
-    {
-      label: t('Upstream Total'),
-      value: duration(other.upstream_total_ms),
-      start: upstreamOffset,
-      color: 'bg-emerald-500',
-    },
-    {
-      label: t('First Response'),
-      value: duration(other.first_response_ms),
-      start: 0,
-      color: 'bg-cyan-500',
-    },
-    {
-      label: t('Upstream to First Response'),
-      value: duration(other.upstream_to_first_response_ms),
-      start: upstreamOffset,
-      color: 'bg-teal-500',
-    },
-    {
-      label: t('Total'),
-      value: duration(other.total_ms),
-      start: 0,
-      color: 'bg-primary',
-    },
-  ].filter((row) => row.value !== null)
-  const timestamps = [
-    { label: t('Request Received'), value: other.request_start_at },
-    {
-      label: t('Request Body Received'),
-      value: other.request_body_received_at,
-    },
-    { label: t('Upstream Started'), value: other.upstream_request_start_at },
-    { label: t('Upstream Headers'), value: other.upstream_response_header_at },
-    { label: t('Upstream Ended'), value: other.upstream_request_end_at },
-  ].filter((row) => !!row.value)
-  if (!rows.length && !timestamps.length) return null
-  const scale = Math.max(
-    1,
-    ...rows.map((row) => (row.start ?? 0) + (row.value ?? 0))
+
+  const upstreamOffset = offset(
+    duration(other.pre_upstream_ms) ??
+      addDuration(
+        duration(other.request_body_receive_ms),
+        other.upstream_prepare_ms
+      ),
+    other.upstream_request_start_at
   )
+  const legacyTiming = (other.relay_timing_version ?? 1) < 2
+  const events = [
+    { label: t('收到请求'), value: 0, at: other.request_start_at },
+    {
+      label: t('开始请求上游'),
+      value: upstreamOffset,
+      at: other.upstream_request_start_at,
+    },
+    {
+      label: t('上游返回首字'),
+      value: offset(
+        addDuration(upstreamOffset, other.upstream_first_byte_ms),
+        other.upstream_first_byte_at
+      ),
+      at: other.upstream_first_byte_at,
+    },
+    {
+      label: t('上游结束返回'),
+      value: legacyTiming
+        ? null
+        : offset(
+            addDuration(upstreamOffset, other.upstream_total_ms),
+            other.upstream_request_end_at
+          ),
+      at: legacyTiming ? undefined : other.upstream_request_end_at,
+    },
+    {
+      label: t('返回给用户首字'),
+      value:
+        duration(other.first_response_ms) ??
+        addDuration(upstreamOffset, other.upstream_to_first_response_ms),
+    },
+    { label: t('请求结束'), value: duration(other.total_ms) },
+  ]
+  // SSE forwards data while the upstream is still streaming. The downstream
+  // first response therefore usually precedes the upstream's final byte.
+  if (
+    events[3].value !== null &&
+    events[4].value !== null &&
+    events[4].value < events[3].value
+  ) {
+    ;[events[3], events[4]] = [events[4], events[3]]
+  }
+  if (
+    !other.request_start_at &&
+    !events.slice(1).some((event) => event.value !== null || event.at)
+  ) {
+    return null
+  }
+
+  const requestStart = dayjs(other.request_start_at ?? '')
+  const timestamps = events.map((event) => {
+    let value = event.at
+    if (!value && event.value !== null && requestStart.isValid()) {
+      value = requestStart.add(event.value, 'millisecond').toISOString()
+    }
+    return { label: event.label, value }
+  })
+  const timelineEnd = Math.max(...events.map((event) => event.value ?? 0))
+  const segments = events.slice(1).map((event, index) => {
+    const start = events[index]
+    // Missing or reversed intervals are unknown, not zero-duration stages.
+    const elapsed =
+      start.value !== null && event.value !== null
+        ? duration(event.value - start.value)
+        : null
+    return {
+      label:
+        index === 0 ? t('请求上游前准备') : `${start.label} → ${event.label}`,
+      start: start.value,
+      end: event.value,
+      elapsed,
+      display: elapsed === null ? '—' : `${elapsed}ms`,
+      color: `var(--chart-${index + 1})`,
+    }
+  })
 
   return (
-    <section className='min-w-0 space-y-1.5' aria-label={t('Relay Timing')}>
+    <section
+      className='flex min-w-0 flex-col gap-1.5'
+      aria-label={t('Relay Timing')}
+    >
       <h3 className='flex items-center gap-1.5 text-xs font-semibold'>
         <Timer className='size-3.5' aria-hidden='true' />
         {t('Relay Timing')}
       </h3>
-      <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
-        {rows.length > 0 && (
+      <div className='bg-muted/30 flex flex-col gap-3 rounded-md border p-3'>
+        {segments.length > 0 && (
           <>
             <p className='text-muted-foreground text-xs'>
-              {t('Relay Timing Chart Hint')}
+              {t('Relay Timing Timeline Hint')}
             </p>
-            <div
-              className='text-muted-foreground flex justify-between font-mono text-xs'
-              aria-hidden='true'
-            >
-              <span>0ms</span>
-              <span>{scale}ms</span>
-            </div>
-            <dl className='space-y-3'>
-              {rows.map((row) => (
-                <div key={row.label} className='space-y-1'>
-                  <div className='flex items-baseline justify-between gap-3 text-xs'>
-                    <dt>{row.label}</dt>
-                    <dd className='shrink-0 font-mono tabular-nums'>
-                      {row.value}ms
-                    </dd>
+            {legacyTiming && (
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  '旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。'
+                )}
+              </p>
+            )}
+            <div aria-hidden='true'>
+              <div
+                key={other.request_start_at}
+                className='bg-muted relative h-8 overflow-hidden rounded-md'
+              >
+                {segments.map((segment, index) => (
+                  <div
+                    key={segment.label}
+                    className='absolute top-0 h-full overflow-hidden transition-opacity duration-150 motion-reduce:transition-none'
+                    title={`${segment.label}: ${segment.display}`}
+                    onMouseEnter={() => setHoveredSegment(index)}
+                    onMouseLeave={() => setHoveredSegment(null)}
+                    style={{
+                      left: `${timelineEnd > 0 ? ((segment.start ?? 0) / timelineEnd) * 100 : 0}%`,
+                      width: `${timelineEnd > 0 ? ((segment.elapsed ?? 0) / timelineEnd) * 100 : 0}%`,
+                      opacity:
+                        hoveredSegment === null || hoveredSegment === index
+                          ? 1
+                          : 0.2,
+                    }}
+                  >
+                    <motion.div
+                      className='h-full origin-left'
+                      initial={reduceMotion ? false : { scaleX: 0 }}
+                      animate={{
+                        scaleX: 1,
+                      }}
+                      transition={{
+                        scaleX: {
+                          duration: reduceMotion ? 0 : 0.32,
+                          delay: reduceMotion ? 0 : index * 0.045,
+                          ease: [0.22, 1, 0.36, 1],
+                        },
+                      }}
+                      style={{ backgroundColor: segment.color }}
+                    />
                   </div>
-                  {row.start !== null && (
-                    <div
-                      className='bg-muted relative h-2 overflow-hidden rounded-full'
-                      aria-hidden='true'
-                    >
-                      <div
-                        className={`absolute h-full rounded-full ${row.color}`}
-                        style={{
-                          left: `${(row.start / scale) * 100}%`,
-                          width: `${((row.value ?? 0) / scale) * 100}%`,
-                          minWidth: row.value === 0 ? 0 : 2,
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+                ))}
+              </div>
+              <div className='text-muted-foreground mt-1 flex justify-between font-mono text-xs tabular-nums'>
+                <span>0ms</span>
+                <span>{timelineEnd}ms</span>
+              </div>
+            </div>
+            <ol className='grid list-none grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-2'>
+              {segments.map((segment, index) => (
+                <motion.li
+                  key={segment.label}
+                  tabIndex={0}
+                  aria-label={`${segment.label}: ${segment.display}`}
+                  className='focus-visible:ring-ring flex min-w-0 items-baseline gap-2 rounded-sm outline-none focus-visible:ring-2'
+                  onMouseEnter={() => setHoveredSegment(index)}
+                  onMouseLeave={() => setHoveredSegment(null)}
+                  initial={reduceMotion ? false : { y: 4 }}
+                  animate={{
+                    opacity:
+                      hoveredSegment === null || hoveredSegment === index
+                        ? 1
+                        : 0.4,
+                    y: 0,
+                  }}
+                  transition={{
+                    y: {
+                      duration: reduceMotion ? 0 : 0.24,
+                      delay: reduceMotion ? 0 : index * 0.045,
+                    },
+                    opacity: { duration: reduceMotion ? 0 : 0.16 },
+                  }}
+                >
+                  <span
+                    className='size-2 shrink-0 rounded-sm'
+                    style={{ backgroundColor: segment.color }}
+                    aria-hidden='true'
+                  />
+                  <span className='min-w-0 flex-1 break-words'>
+                    {index + 1}. {segment.label}
+                  </span>
+                  <span className='shrink-0 font-mono tabular-nums'>
+                    {segment.display}
+                  </span>
+                </motion.li>
               ))}
-            </dl>
+            </ol>
           </>
         )}
         {timestamps.length > 0 && (
@@ -179,7 +251,7 @@ export function RelayTimingSection(props: { other: LogOtherData | null }) {
             <summary className='text-muted-foreground cursor-pointer rounded-sm text-xs focus-visible:outline-2'>
               {t('Timing Timestamps')}
             </summary>
-            <dl className='mt-2 space-y-2 text-xs'>
+            <dl className='mt-2 flex flex-col gap-2 text-xs'>
               {timestamps.map((row) => (
                 <div
                   key={row.label}
@@ -187,7 +259,7 @@ export function RelayTimingSection(props: { other: LogOtherData | null }) {
                 >
                   <dt className='text-muted-foreground'>{row.label}</dt>
                   <dd className='font-mono break-all'>
-                    {timestamp(row.value!)}
+                    {row.value ? timestamp(row.value) : '—'}
                   </dd>
                 </div>
               ))}

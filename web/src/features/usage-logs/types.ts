@@ -181,14 +181,17 @@ export interface LogOtherData {
   audio_completion_ratio?: number
   frt?: number
   request_start_at?: string
+  relay_timing_version?: number
   upstream_request_start_at?: string
   upstream_response_header_at?: string
+  upstream_first_byte_at?: string
   upstream_request_end_at?: string
   request_body_received_at?: string
   request_body_receive_ms?: number
   upstream_prepare_ms?: number
   pre_upstream_ms?: number
   upstream_header_ms?: number
+  upstream_first_byte_ms?: number
   upstream_total_ms?: number
   first_response_ms?: number
   upstream_to_first_response_ms?: number

@@ -56,6 +56,26 @@ func buildSSEBody(n int) string {
 	return b.String()
 }
 
+func TestStreamScannerHandler_DoneRecordsEndWithoutEOF(t *testing.T) {
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	c, resp, info := setupStreamTest(t, reader)
+	resp.Body = reader
+	info.MarkUpstreamRequestStart()
+	info.MarkUpstreamResponseHeader()
+	info.MarkUpstreamFirstByte()
+	_, _, first, _ := info.UpstreamTiming()
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		_, _ = io.WriteString(writer, "data: [DONE]\n\n")
+		// Keep the HTTP body open: [DONE] alone must finish receipt timing.
+	}()
+	StreamScannerHandler(c, resp, info, func(string, *StreamResult) {})
+	_, _, _, end := info.UpstreamTiming()
+	require.GreaterOrEqual(t, end.Sub(first).Milliseconds(), int64(20))
+	require.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
 type slowReader struct {
 	r     io.Reader
 	delay time.Duration

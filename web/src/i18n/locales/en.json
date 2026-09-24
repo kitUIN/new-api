@@ -1,9 +1,18 @@
 {
   "translation": {
+    "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "Older logs did not accurately record the upstream first byte and end time. These durations cannot be recovered. Check new logs after updating.",
+    "收到请求": "Request received",
+    "开始请求上游": "Upstream request started",
+    "上游返回首字": "Upstream first byte",
+    "上游结束返回": "Upstream response ended",
+    "返回给用户首字": "First byte returned to user",
+    "请求结束": "Request ended",
+    "请求上游前准备": "Prepare upstream request",
     "Receive Full Request Body": "Receive full request body",
     "Prepare Upstream Request": "Prepare upstream request",
     "Request Body Received": "Request body received",
     "Timing Timestamps": "Exact timestamps",
+    "Relay Timing Timeline Hint": "Stages appear in order on a horizontal timeline. Segment widths show their share of elapsed time; durations are listed below.",
     "Relay Timing Chart Hint": "Bars share a timeline from request arrival. Overlapping durations must not be added.",
     "API Source Domain": "API Source Domain",
     "Group opening hours": "Group opening hours",

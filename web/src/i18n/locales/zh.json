@@ -1,9 +1,18 @@
 {
   "translation": {
+    "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。",
+    "收到请求": "收到请求",
+    "开始请求上游": "开始请求上游",
+    "上游返回首字": "上游返回首字",
+    "上游结束返回": "上游结束返回",
+    "返回给用户首字": "返回给用户首字",
+    "请求结束": "请求结束",
+    "请求上游前准备": "请求上游前准备",
     "Receive Full Request Body": "完整接收请求体",
     "Prepare Upstream Request": "请求上游前准备",
     "Request Body Received": "请求体接收完成",
     "Timing Timestamps": "查看精确时间点",
+    "Relay Timing Timeline Hint": "各阶段沿横向时间轴依次显示，分段宽度表示耗时占比；下方列出各段耗时。",
     "Relay Timing Chart Hint": "以请求到达为起点，条形位置表示计时区间，重叠耗时不可相加。",
     "API Source Domain": "API 来源域名",
     "Group opening hours": "分组开放时间",

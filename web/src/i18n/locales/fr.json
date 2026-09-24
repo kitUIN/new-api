@@ -1,9 +1,18 @@
 {
   "translation": {
+    "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "Les anciens journaux n’ont pas enregistré précisément le premier octet et la fin de la réponse en amont. Ces durées ne peuvent pas être récupérées. Consultez les nouveaux journaux après la mise à jour.",
+    "收到请求": "Requête reçue",
+    "开始请求上游": "Début de la requête en amont",
+    "上游返回首字": "Premier octet reçu en amont",
+    "上游结束返回": "Fin de la réponse en amont",
+    "返回给用户首字": "Premier octet renvoyé à l’utilisateur",
+    "请求结束": "Fin de la requête",
+    "请求上游前准备": "Préparation de la requête en amont",
     "Receive Full Request Body": "Réception complète du corps",
     "Prepare Upstream Request": "Préparation de la requête amont",
     "Request Body Received": "Corps de la requête reçu",
     "Timing Timestamps": "Horodatages précis",
+    "Relay Timing Timeline Hint": "Les étapes se suivent sur une chronologie horizontale. La largeur des segments représente leur part du temps écoulé ; les durées figurent ci-dessous.",
     "Relay Timing Chart Hint": "Les barres partagent une chronologie depuis l’arrivée de la requête. Ne pas additionner les durées qui se chevauchent.",
     "API Source Domain": "Domaine source API",
     "Group opening hours": "Horaires des groupes",

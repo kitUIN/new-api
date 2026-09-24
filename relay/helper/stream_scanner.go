@@ -215,6 +215,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	wg.Add(1)
 	common.RelayCtxGo(ctx, func() {
 		defer func() {
+			// [DONE] can end an SSE stream without an HTTP EOF. Record receipt
+			// completion before waiting for the downstream handler to drain.
+			info.MarkUpstreamRequestEnd()
 			close(dataChan)
 			wg.Done()
 			if r := recover(); r != nil {

@@ -580,9 +580,18 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	info.MarkUpstreamResponseHeader()
 
+	if resp.Body != nil {
+		resp.Body = &timedResponseBody{ReadCloser: resp.Body, info: info}
+	} else {
+		info.MarkUpstreamRequestEnd()
+	}
+
 	if !info.IsStream && common2.LogRequestDetailEnabled.Load() {
 		var buf bytes.Buffer
-		resp.Body = io.NopCloser(io.TeeReader(resp.Body, &buf))
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.TeeReader(resp.Body, &buf), resp.Body}
 		c.Set("upstream_response_body_buf", &buf)
 	}
 

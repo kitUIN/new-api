@@ -1,9 +1,18 @@
 {
   "translation": {
+    "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "Nhật ký cũ không ghi chính xác thời điểm byte đầu tiên và kết thúc phản hồi từ nhà cung cấp. Không thể khôi phục các khoảng thời gian này. Hãy xem nhật ký mới sau khi cập nhật.",
+    "收到请求": "Đã nhận yêu cầu",
+    "开始请求上游": "Bắt đầu yêu cầu đến nhà cung cấp",
+    "上游返回首字": "Byte đầu tiên từ nhà cung cấp",
+    "上游结束返回": "Kết thúc phản hồi từ nhà cung cấp",
+    "返回给用户首字": "Trả byte đầu tiên cho người dùng",
+    "请求结束": "Kết thúc yêu cầu",
+    "请求上游前准备": "Chuẩn bị yêu cầu đến nhà cung cấp",
     "Receive Full Request Body": "Nhận toàn bộ nội dung yêu cầu",
     "Prepare Upstream Request": "Chuẩn bị yêu cầu thượng nguồn",
     "Request Body Received": "Đã nhận nội dung yêu cầu",
     "Timing Timestamps": "Mốc thời gian chính xác",
+    "Relay Timing Timeline Hint": "Các giai đoạn được hiển thị theo thứ tự trên dòng thời gian ngang. Độ rộng mỗi đoạn thể hiện tỷ lệ thời gian; thời lượng được liệt kê bên dưới.",
     "Relay Timing Chart Hint": "Các thanh dùng chung trục thời gian từ lúc nhận yêu cầu. Không cộng các khoảng thời gian chồng lấn.",
     "API Source Domain": "Tên miền nguồn API",
     "Group opening hours": "Giờ mở nhóm",

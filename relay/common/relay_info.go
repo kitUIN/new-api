@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -99,7 +100,9 @@ type RelayInfo struct {
 	// processing time from upstream latency without adding database columns.
 	UpstreamRequestStartTime   time.Time
 	UpstreamResponseHeaderTime time.Time
+	UpstreamFirstByteTime      time.Time
 	UpstreamRequestEndTime     time.Time
+	upstreamTimingMu           sync.Mutex
 	isFirstResponse            bool
 	//SendLastReasoningResponse bool
 	IsStream                      bool
@@ -697,25 +700,52 @@ func (info *RelayInfo) MarkUpstreamRequestStart() {
 	if info == nil {
 		return
 	}
+	info.upstreamTimingMu.Lock()
+	defer info.upstreamTimingMu.Unlock()
 	info.UpstreamRequestStartTime = time.Now()
 	info.UpstreamResponseHeaderTime = time.Time{}
+	info.UpstreamFirstByteTime = time.Time{}
 	info.UpstreamRequestEndTime = time.Time{}
 }
 
 func (info *RelayInfo) MarkUpstreamResponseHeader() {
-	if info == nil || !info.UpstreamResponseHeaderTime.IsZero() {
+	if info == nil {
 		return
 	}
-	now := time.Now()
-	info.UpstreamResponseHeaderTime = now
-	info.UpstreamRequestEndTime = now
+	info.upstreamTimingMu.Lock()
+	defer info.upstreamTimingMu.Unlock()
+	if info.UpstreamResponseHeaderTime.IsZero() {
+		info.UpstreamResponseHeaderTime = time.Now()
+	}
+}
+
+func (info *RelayInfo) MarkUpstreamFirstByte() {
+	if info == nil {
+		return
+	}
+	info.upstreamTimingMu.Lock()
+	defer info.upstreamTimingMu.Unlock()
+	if info.UpstreamFirstByteTime.IsZero() && info.UpstreamRequestEndTime.IsZero() {
+		info.UpstreamFirstByteTime = time.Now()
+	}
 }
 
 func (info *RelayInfo) MarkUpstreamRequestEnd() {
-	if info == nil || !info.UpstreamRequestEndTime.IsZero() {
+	if info == nil {
 		return
 	}
-	info.UpstreamRequestEndTime = time.Now()
+	info.upstreamTimingMu.Lock()
+	defer info.upstreamTimingMu.Unlock()
+	if info.UpstreamRequestEndTime.IsZero() {
+		info.UpstreamRequestEndTime = time.Now()
+	}
+}
+
+// UpstreamTiming takes a consistent snapshot while a stream may still be closing.
+func (info *RelayInfo) UpstreamTiming() (start, header, firstByte, end time.Time) {
+	info.upstreamTimingMu.Lock()
+	defer info.upstreamTimingMu.Unlock()
+	return info.UpstreamRequestStartTime, info.UpstreamResponseHeaderTime, info.UpstreamFirstByteTime, info.UpstreamRequestEndTime
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

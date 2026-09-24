@@ -94,3 +94,22 @@ func TestAppendRelayTimingSplitsPreparation(t *testing.T) {
 		})
 	}
 }
+
+func TestAppendRelayTimingRecordsBodyReceiptSeparately(t *testing.T) {
+	start := time.Now().Add(-10 * time.Second)
+	info := &relaycommon.RelayInfo{
+		StartTime:                  start,
+		UpstreamRequestStartTime:   start.Add(100 * time.Millisecond),
+		UpstreamResponseHeaderTime: start.Add(200 * time.Millisecond),
+		UpstreamFirstByteTime:      start.Add(500 * time.Millisecond),
+		UpstreamRequestEndTime:     start.Add(5 * time.Second),
+	}
+	other := map[string]interface{}{}
+	AppendRelayTimingInfo(nil, info, other)
+	require.Equal(t, 2, other["relay_timing_version"])
+	require.Equal(t, int64(100), other["upstream_header_ms"])
+	require.Equal(t, int64(400), other["upstream_first_byte_ms"])
+	require.Equal(t, int64(4900), other["upstream_total_ms"])
+	require.Equal(t, formatRelayTiming(info.UpstreamFirstByteTime), other["upstream_first_byte_at"])
+	require.Equal(t, formatRelayTiming(info.UpstreamRequestEndTime), other["upstream_request_end_at"])
+}
