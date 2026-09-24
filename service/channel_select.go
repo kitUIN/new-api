@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -61,6 +62,9 @@ func (p *RetryParam) ExcludeChannel(channelID int) {
 }
 
 func (p *RetryParam) nextChannelWithRetryExclusions(group string, retry int) (*model.Channel, error) {
+	if err := ratio_setting.CheckGroupOpenAt(group, time.Now()); err != nil {
+		return nil, err
+	}
 	for {
 		channel, err := model.GetRandomSatisfiedChannelWithExclusions(group, p.ModelName, retry, p.ExcludedChannelIDs)
 		if channel != nil || err != nil || len(p.ExcludedChannelIDs) == 0 {
@@ -105,7 +109,18 @@ func (p *RetryParam) nextChannelWithRetryExclusions(group string, retry int) (*m
 //
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
-func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+func CacheGetRandomSatisfiedChannel(param *RetryParam) (selected *model.Channel, selectedGroup string, selectionErr error) {
+	if err := ratio_setting.CheckGroupOpenAt(param.TokenGroup, time.Now()); err != nil {
+		return nil, param.TokenGroup, err
+	}
+	defer func() {
+		if selected != nil {
+			if err := ratio_setting.CheckGroupOpenAt(selectedGroup, time.Now()); err != nil {
+				selected = nil
+				selectionErr = err
+			}
+		}
+	}()
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -163,7 +178,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = param.nextChannelWithRetryExclusions(autoGroup, priorityRetry)
+			channel, err = param.nextChannelWithRetryExclusions(autoGroup, priorityRetry)
+			if err != nil {
+				return nil, autoGroup, err
+			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组

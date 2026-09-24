@@ -226,6 +226,7 @@ export type ModelSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  'group_ratio_setting.group_opening_hours': string
   'group_ratio_setting.group_combinations': string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
@@ -274,6 +275,7 @@ export type BillingSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  'group_ratio_setting.group_opening_hours': string
   'group_ratio_setting.group_combinations': string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'

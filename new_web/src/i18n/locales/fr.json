@@ -1,5 +1,13 @@
 {
   "translation": {
+    "Group opening hours": "Horaires des groupes",
+    "Always open": "Toujours ouvert",
+    "Opening start time": "Heure d’ouverture",
+    "Opening end time": "Heure de fermeture",
+    "Add opening interval": "Ajouter une plage horaire",
+    "Daily in Beijing time (UTC+8). No intervals means always open. An end earlier than the start means the next day. Start is included; end is excluded.": "Chaque jour à l’heure de Pékin (UTC+8). Sans plage : toujours ouvert. Une fin antérieure au début indique le lendemain. Début inclus, fin exclue.",
+    "End time accepts 24:00 for midnight. Requests outside these intervals return a group_not_open error with the opening hours.": "La fin accepte 24:00 pour minuit. Hors horaires, les requêtes renvoient group_not_open avec les horaires.",
+    "Invalid opening hours. Use HH:mm intervals with different start and end times.": "Horaires invalides. Utilisez HH:mm avec un début et une fin différents.",
     "billingAudit.cycleException": "Exception de cycle",
     "billingAudit.allocation": "Méthode de répartition",
     "billingAudit.calendarAllocation": "Montant entier dans le mois choisi",

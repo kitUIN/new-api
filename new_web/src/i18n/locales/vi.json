@@ -1,5 +1,13 @@
 {
   "translation": {
+    "Group opening hours": "Giờ mở nhóm",
+    "Always open": "Luôn mở",
+    "Opening start time": "Giờ bắt đầu",
+    "Opening end time": "Giờ kết thúc",
+    "Add opening interval": "Thêm khoảng giờ mở",
+    "Daily in Beijing time (UTC+8). No intervals means always open. An end earlier than the start means the next day. Start is included; end is excluded.": "Hằng ngày theo giờ Bắc Kinh (UTC+8). Không có khoảng giờ nghĩa là luôn mở. Giờ kết thúc sớm hơn giờ bắt đầu là ngày hôm sau. Bao gồm giờ bắt đầu, không bao gồm giờ kết thúc.",
+    "End time accepts 24:00 for midnight. Requests outside these intervals return a group_not_open error with the opening hours.": "Giờ kết thúc chấp nhận 24:00 cho nửa đêm. Yêu cầu ngoài giờ trả về lỗi group_not_open kèm giờ mở.",
+    "Invalid opening hours. Use HH:mm intervals with different start and end times.": "Giờ mở không hợp lệ. Dùng HH:mm với giờ bắt đầu và kết thúc khác nhau.",
     "billingAudit.cycleException": "Ngoại lệ chu kỳ",
     "billingAudit.allocation": "Cách phân bổ",
     "billingAudit.calendarAllocation": "Tính toàn bộ vào tháng đã chọn",

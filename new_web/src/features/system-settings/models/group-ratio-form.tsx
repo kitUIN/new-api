@@ -76,6 +76,7 @@ import {
   SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
+import { GroupOpeningHoursEditor } from './group-opening-hours-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -85,6 +86,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  GroupOpeningHours: string
   GroupCombinations: string
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
@@ -147,6 +149,26 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           {t('Usage guide')}
         </Button>
         <Button variant='outline' size='sm' onClick={toggleEditMode}>
+          <FormField
+            control={form.control}
+            name='GroupOpeningHours'
+            render={({ field, fieldState }) => (
+              <FormItem>
+                <GroupOpeningHoursEditor
+                  value={field.value}
+                  groups={form.watch('GroupRatio')}
+                  onChange={field.onChange}
+                />
+                {fieldState.error && (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {t(
+                      'Invalid opening hours. Use HH:mm intervals with different start and end times.'
+                    )}
+                  </p>
+                )}
+              </FormItem>
+            )}
+          />
           {editMode === 'visual' ? (
             <>
               <Code2 className='mr-2 h-4 w-4' />
@@ -178,6 +200,11 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             {isSaving ? t('Saving...') : t('Save group ratios')}
           </Button>
         </SettingsPageActionsPortal>
+        <GroupOpeningHoursEditor
+          value={form.watch('GroupOpeningHours')}
+          groups={form.watch('GroupRatio')}
+          onChange={(value) => handleFieldChange('GroupOpeningHours', value)}
+        />
         {editMode === 'visual' ? (
           <div className='space-y-6'>
             <GroupRatioVisualEditor

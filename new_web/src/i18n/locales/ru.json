@@ -1,5 +1,13 @@
 {
   "translation": {
+    "Group opening hours": "Время работы группы",
+    "Always open": "Круглосуточно",
+    "Opening start time": "Начало работы",
+    "Opening end time": "Конец работы",
+    "Add opening interval": "Добавить интервал",
+    "Daily in Beijing time (UTC+8). No intervals means always open. An end earlier than the start means the next day. Start is included; end is excluded.": "Ежедневно по пекинскому времени (UTC+8). Без интервалов — круглосуточно. Если конец раньше начала, он относится к следующему дню. Начало включено, конец исключён.",
+    "End time accepts 24:00 for midnight. Requests outside these intervals return a group_not_open error with the opening hours.": "Для полуночи используйте 24:00. Вне интервалов запросы возвращают group_not_open с указанием времени работы.",
+    "Invalid opening hours. Use HH:mm intervals with different start and end times.": "Некорректные часы работы. Используйте HH:mm с разными началом и концом.",
     "billingAudit.cycleException": "Исключение цикла",
     "billingAudit.allocation": "Способ распределения",
     "billingAudit.calendarAllocation": "Вся сумма в выбранном месяце",

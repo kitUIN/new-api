@@ -36,6 +36,10 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		if err := service.CheckRequestGroupOpeningHours(c); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeGroupNotOpen)
+			return
+		}
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -201,6 +205,11 @@ func Distribute() func(c *gin.Context) {
 						Retry:      common.GetPointer(0),
 					})
 					if err != nil {
+						var closed *ratio_setting.GroupNotOpenError
+						if errors.As(err, &closed) {
+							abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeGroupNotOpen)
+							return
+						}
 						showGroup := usingGroup
 						if usingGroup == "auto" || service.IsRuleAutoGroup(usingGroup) {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
@@ -224,7 +233,14 @@ func Distribute() func(c *gin.Context) {
 		if common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime).IsZero() {
 			common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		}
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if err := service.CheckRequestGroupOpeningHours(c); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeGroupNotOpen)
+			return
+		}
+		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil && setupErr.GetErrorCode() == types.ErrorCodeGroupNotOpen {
+			abortWithOpenAiMessage(c, http.StatusForbidden, setupErr.Error(), types.ErrorCodeGroupNotOpen)
+			return
+		}
 		service.RecordRelaySessionRoute(c)
 		recordRelayGroupUserRequest(c, channel)
 		c.Next()
@@ -425,6 +441,9 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
+	if err := service.CheckRequestGroupOpeningHours(c); err != nil {
+		return types.NewError(err, types.ErrorCodeGroupNotOpen, types.ErrOptionWithSkipRetry(), types.ErrOptionWithStatusCode(http.StatusForbidden))
+	}
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
 		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())

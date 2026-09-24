@@ -246,6 +246,10 @@ func UpdateOption(key string, value string) error {
 		return updateUserUsableGroupsOption(value)
 	case "GroupTypes":
 		return updateGroupTypesOption(value)
+	case "group_ratio_setting.group_opening_hours":
+		if err := ratio_setting.CheckGroupOpeningHours(value); err != nil {
+			return err
+		}
 	case "group_ratio_setting.group_combinations":
 		return updateGroupCombinationsOption(value)
 	case "group_ratio_setting.upstream_group_ratio_bindings":

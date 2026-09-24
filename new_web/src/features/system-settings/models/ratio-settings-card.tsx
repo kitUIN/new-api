@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { groupOpeningHoursSchema } from '@/features/system-settings/models/group-opening-hours'
 import { resetModelRatios } from '../api'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -178,6 +179,7 @@ const groupSchema = z.object({
       })
     }
   }),
+  GroupOpeningHours: groupOpeningHoursSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -349,6 +351,7 @@ export function RatioSettingsCard({
     UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     GroupTypes: normalizeJsonString(groupDefaults.GroupTypes),
+    GroupOpeningHours: normalizeJsonString(groupDefaults.GroupOpeningHours),
     GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
     AutoGroupOrderType: groupDefaults.AutoGroupOrderType,
@@ -391,6 +394,7 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       GroupTypes: formatJsonForTextarea(groupDefaults.GroupTypes),
+      GroupOpeningHours: formatJsonForTextarea(groupDefaults.GroupOpeningHours),
       GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
@@ -443,6 +447,7 @@ export function RatioSettingsCard({
       UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       GroupTypes: normalizeJsonString(groupDefaults.GroupTypes),
+      GroupOpeningHours: normalizeJsonString(groupDefaults.GroupOpeningHours),
       GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
       AutoGroupOrderType: groupDefaults.AutoGroupOrderType,
@@ -462,6 +467,7 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       GroupTypes: formatJsonForTextarea(groupDefaults.GroupTypes),
+      GroupOpeningHours: formatJsonForTextarea(groupDefaults.GroupOpeningHours),
       GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
       GroupSpecialUsableGroup: formatJsonForTextarea(
@@ -532,6 +538,7 @@ export function RatioSettingsCard({
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         GroupTypes: normalizeJsonString(values.GroupTypes),
+        GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
         GroupCombinations: normalizeJsonString(values.GroupCombinations),
         AutoGroups: normalizeJsonString(values.AutoGroups),
         AutoGroupOrderType: values.AutoGroupOrderType,
@@ -548,6 +555,7 @@ export function RatioSettingsCard({
           'group_ratio_setting.group_special_usable_group',
         UpstreamGroupRatioBindings:
           'group_ratio_setting.upstream_group_ratio_bindings',
+        GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
         GroupCombinations: 'group_ratio_setting.group_combinations',
       }
 

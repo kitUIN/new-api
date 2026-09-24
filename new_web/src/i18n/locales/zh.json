@@ -1,5 +1,13 @@
 {
   "translation": {
+    "Group opening hours": "分组开放时间",
+    "Always open": "全天开放",
+    "Opening start time": "开放开始时间",
+    "Opening end time": "开放结束时间",
+    "Add opening interval": "添加开放区间",
+    "Daily in Beijing time (UTC+8). No intervals means always open. An end earlier than the start means the next day. Start is included; end is excluded.": "每天按北京时间（UTC+8）执行。不设置区间表示全天开放。结束早于开始表示跨至次日，包含开始时间，不包含结束时间。",
+    "End time accepts 24:00 for midnight. Requests outside these intervals return a group_not_open error with the opening hours.": "结束时间可填 24:00 表示午夜。非开放时间调用将返回 group_not_open 错误并说明开放时间。",
+    "Invalid opening hours. Use HH:mm intervals with different start and end times.": "开放时间无效。请使用 HH:mm 格式，且开始和结束时间不能相同。",
     "billingAudit.cycleException": "周期例外",
     "billingAudit.allocation": "分摊方式",
     "billingAudit.calendarAllocation": "整笔计入所选月份",

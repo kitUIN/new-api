@@ -30,6 +30,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { PageTransition } from '@/components/page-transition'
 import { useSystemOptions } from '@/features/system-settings/hooks/use-system-options'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
+import { groupOpeningHoursSchema } from '@/features/system-settings/models/group-opening-hours'
 import { GroupRatioForm } from '@/features/system-settings/models/group-ratio-form'
 import {
   normalizeJsonString,
@@ -82,6 +83,7 @@ const groupSchema = z.object({
       })
     }
   }),
+  GroupOpeningHours: groupOpeningHoursSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -175,6 +177,9 @@ export function GroupPricingPage() {
     UserUsableGroups: normalizeJsonString(getValue('UserUsableGroups', '')),
     GroupGroupRatio: normalizeJsonString(getValue('GroupGroupRatio', '')),
     GroupTypes: normalizeJsonString(getValue('GroupTypes', '{}')),
+    GroupOpeningHours: normalizeJsonString(
+      getValue('group_ratio_setting.group_opening_hours', '{}')
+    ),
     GroupCombinations: normalizeJsonString(
       getValue('group_ratio_setting.group_combinations', '{}')
     ),
@@ -204,6 +209,9 @@ export function GroupPricingPage() {
         UserUsableGroups: normalizeJsonString(getValue('UserUsableGroups', '')),
         GroupGroupRatio: normalizeJsonString(getValue('GroupGroupRatio', '')),
         GroupTypes: normalizeJsonString(getValue('GroupTypes', '{}')),
+        GroupOpeningHours: normalizeJsonString(
+          getValue('group_ratio_setting.group_opening_hours', '{}')
+        ),
         GroupCombinations: normalizeJsonString(
           getValue('group_ratio_setting.group_combinations', '{}')
         ),
@@ -241,6 +249,7 @@ export function GroupPricingPage() {
           UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
           GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
           GroupTypes: normalizeJsonString(values.GroupTypes),
+          GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
           GroupCombinations: normalizeJsonString(values.GroupCombinations),
           AutoGroups: normalizeJsonString(values.AutoGroups),
           AutoGroupOrderType: values.AutoGroupOrderType,
@@ -256,6 +265,7 @@ export function GroupPricingPage() {
             'group_ratio_setting.group_special_usable_group',
           UpstreamGroupRatioBindings:
             'group_ratio_setting.upstream_group_ratio_bindings',
+          GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
           GroupCombinations: 'group_ratio_setting.group_combinations',
         }
 
@@ -273,10 +283,11 @@ export function GroupPricingPage() {
 
         for (const key of updates) {
           const apiKey = apiKeyMap[key] || key
-          await updateOption.mutateAsync({
+          const response = await updateOption.mutateAsync({
             key: apiKey,
             value: normalized[key],
           })
+          if (!response.success) throw new Error(response.message)
         }
 
         groupNormalizedDefaults.current = normalized

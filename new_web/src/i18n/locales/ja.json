@@ -1,5 +1,13 @@
 {
   "translation": {
+    "Group opening hours": "グループの利用時間",
+    "Always open": "常時利用可能",
+    "Opening start time": "開始時刻",
+    "Opening end time": "終了時刻",
+    "Add opening interval": "利用時間帯を追加",
+    "Daily in Beijing time (UTC+8). No intervals means always open. An end earlier than the start means the next day. Start is included; end is excluded.": "毎日北京時間（UTC+8）で適用。未設定は常時利用可能。終了が開始より早い場合は翌日を指します。開始を含み、終了を含みません。",
+    "End time accepts 24:00 for midnight. Requests outside these intervals return a group_not_open error with the opening hours.": "終了時刻の24:00は深夜を表します。時間外のリクエストは利用時間を含むgroup_not_openエラーを返します。",
+    "Invalid opening hours. Use HH:mm intervals with different start and end times.": "利用時間が無効です。HH:mm形式で異なる開始・終了時刻を指定してください。",
     "billingAudit.cycleException": "契約期間の例外",
     "billingAudit.allocation": "配賦方法",
     "billingAudit.calendarAllocation": "全額を選択月に計上",

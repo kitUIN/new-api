@@ -71,6 +71,7 @@ const (
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
 	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
+	ErrorCodeGroupNotOpen          ErrorCode = "group_not_open"
 
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
