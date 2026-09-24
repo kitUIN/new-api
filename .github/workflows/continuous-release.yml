@@ -44,17 +44,10 @@ jobs:
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build frontend
-        working-directory: new_web
+        working-directory: web
         run: |
           bun install --frozen-lockfile
           bun run build:check
-
-      - name: Prepare embedded frontend
-        shell: bash
-        run: |
-          rm -rf web/dist
-          mkdir -p web/dist
-          cp -R new_web/dist/. web/dist/
 
       - name: Download Go modules
         run: go mod download

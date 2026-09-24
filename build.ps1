@@ -3,15 +3,9 @@ $ErrorActionPreference = "Stop"
 
 git pull
 
-Set-Location new_web
+Set-Location web
 bun install
 bun run build
 
 Set-Location ..
-if (Test-Path ./web/dist) {
-    Remove-Item -Recurse -Force ./web/dist
-}
-
-Copy-Item -Recurse -Force ./new_web/dist ./web/dist
-
 go build -o nachoai.exe
