@@ -60,6 +60,40 @@ func TestRecordLogsPreservesGroupCombination(t *testing.T) {
 	}
 }
 
+func TestRecordLogsPreservesRequestHost(t *testing.T) {
+	for _, logType := range []int{LogTypeConsume, LogTypeError} {
+		for _, tc := range []struct {
+			name, forwardedHost, want string
+		}{
+			{"direct", "", "ai.kituin.fun"},
+			{"hong kong", "hk.kituin.fun", "hk.kituin.fun"},
+			{"west coast", "fast.kituin.fun", "fast.kituin.fun"},
+			{"multiple proxies", " hk.kituin.fun, ai.kituin.fun", "hk.kituin.fun"},
+			{"empty forwarded host", "  ", "ai.kituin.fun"},
+		} {
+			t.Run(tc.name+"/"+common.GetJsonString(logType), func(t *testing.T) {
+				truncateTables(t)
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest("POST", "https://ai.kituin.fun/v1/chat/completions", nil)
+				ctx.Request.Header.Set("X-Forwarded-Host", tc.forwardedHost)
+				ctx.Request.Header.Set("Origin", "https://unrelated-client.example")
+				if logType == LogTypeConsume {
+					RecordConsumeLog(ctx, 42, RecordConsumeLogParams{})
+				} else {
+					RecordErrorLog(ctx, 42, 7, "test-model", "", "error", 0, 1, false, "", nil)
+				}
+				logs, total, err := GetUserLogs(42, logType, 0, 0, "", "", 0, 10, "", "", "")
+				require.NoError(t, err)
+				require.EqualValues(t, 1, total)
+				require.Len(t, logs, 1)
+				var other map[string]interface{}
+				require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+				require.Equal(t, tc.want, other["request_host"])
+			})
+		}
+	}
+}
+
 func TestGetUserLogsPreservesErrorDetails(t *testing.T) {
 	truncateTables(t)
 	rawContent := "status_code=401, invalid API key: sk-secret"

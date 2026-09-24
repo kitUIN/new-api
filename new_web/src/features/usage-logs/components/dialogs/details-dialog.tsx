@@ -751,6 +751,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               )}
 
+              {other?.request_host && (
+                <DetailRow
+                  label={t('API Source Domain')}
+                  value={other.request_host}
+                  mono
+                />
+              )}
+
               {showAdminIp && (
                 <DetailRow
                   label={t('IP Address')}

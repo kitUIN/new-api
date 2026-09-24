@@ -131,9 +131,23 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
-func appendGroupCombinationLogInfo(c *gin.Context, other map[string]interface{}) map[string]interface{} {
+func appendRequestLogInfo(c *gin.Context, other map[string]interface{}) map[string]interface{} {
 	if c == nil {
 		return other
+	}
+	if c.Request != nil {
+		// The public reverse proxy must overwrite X-Forwarded-Host with the
+		// original request host; intermediate proxies must preserve it.
+		host := strings.TrimSpace(strings.SplitN(c.GetHeader("X-Forwarded-Host"), ",", 2)[0])
+		if host == "" {
+			host = c.Request.Host
+		}
+		if host != "" {
+			if other == nil {
+				other = make(map[string]interface{})
+			}
+			other["request_host"] = host
+		}
 	}
 	if group := common.GetContextKeyString(c, constant.ContextKeyGroupCombination); group != "" {
 		if other == nil {
@@ -157,7 +171,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	otherStr := common.MapToJsonStr(appendGroupCombinationLogInfo(c, other))
+	otherStr := common.MapToJsonStr(appendRequestLogInfo(c, other))
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -219,7 +233,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	otherStr := common.MapToJsonStr(appendGroupCombinationLogInfo(c, params.Other))
+	otherStr := common.MapToJsonStr(appendRequestLogInfo(c, params.Other))
 	log := &Log{
 		UserId:              userId,
 		Username:            username,

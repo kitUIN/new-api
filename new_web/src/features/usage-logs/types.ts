@@ -148,6 +148,7 @@ export interface LogOtherData {
   error_code?: string
   status_code?: number
   request_path?: string
+  request_host?: string
   request_conversion?: string[]
   ws?: boolean
   audio?: boolean
