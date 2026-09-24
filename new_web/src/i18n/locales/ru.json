@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Receive Full Request Body": "Полное получение тела запроса",
+    "Prepare Upstream Request": "Подготовка запроса к провайдеру",
+    "Request Body Received": "Тело запроса получено",
+    "Timing Timestamps": "Точные временные отметки",
+    "Relay Timing Chart Hint": "Шкала начинается с поступления запроса. Перекрывающиеся интервалы нельзя суммировать.",
     "API Source Domain": "Исходный домен API",
     "Group opening hours": "Время работы группы",
     "Always open": "Круглосуточно",

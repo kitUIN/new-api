@@ -53,6 +53,10 @@ func AppendRelayTimingInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 		return
 	}
 	requestStart := relayInfo.StartTime
+	bodyReceived := relayInfo.RequestBodyReceivedTime
+	if bodyReceived.IsZero() && ctx != nil {
+		bodyReceived = common.GetContextKeyTime(ctx, constant.ContextKeyRequestBodyReceivedTime)
+	}
 	upstreamStart := relayInfo.UpstreamRequestStartTime
 	upstreamHeader := relayInfo.UpstreamResponseHeaderTime
 	upstreamEnd := relayInfo.UpstreamRequestEndTime
@@ -70,6 +74,11 @@ func AppendRelayTimingInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 		other["upstream_request_end_at"] = formatRelayTiming(upstreamEnd)
 	}
 
+	if !bodyReceived.IsZero() {
+		other["request_body_received_at"] = formatRelayTiming(bodyReceived)
+	}
+	addRelayTimingMs(other, "request_body_receive_ms", requestStart, bodyReceived)
+	addRelayTimingMs(other, "upstream_prepare_ms", bodyReceived, upstreamStart)
 	addRelayTimingMs(other, "pre_upstream_ms", requestStart, upstreamStart)
 	addRelayTimingMs(other, "upstream_header_ms", upstreamStart, upstreamHeader)
 	addRelayTimingMs(other, "upstream_total_ms", upstreamStart, upstreamEnd)

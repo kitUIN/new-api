@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Receive Full Request Body": "リクエストボディの受信",
+    "Prepare Upstream Request": "上流リクエストの準備",
+    "Request Body Received": "リクエストボディ受信完了",
+    "Timing Timestamps": "正確な時刻",
+    "Relay Timing Chart Hint": "リクエスト到着からの共通時間軸です。重複する所要時間は合算できません。",
     "API Source Domain": "API 接続先ドメイン",
     "Group opening hours": "グループの利用時間",
     "Always open": "常時利用可能",

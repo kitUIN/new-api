@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Receive Full Request Body": "Réception complète du corps",
+    "Prepare Upstream Request": "Préparation de la requête amont",
+    "Request Body Received": "Corps de la requête reçu",
+    "Timing Timestamps": "Horodatages précis",
+    "Relay Timing Chart Hint": "Les barres partagent une chronologie depuis l’arrivée de la requête. Ne pas additionner les durées qui se chevauchent.",
     "API Source Domain": "Domaine source API",
     "Group opening hours": "Horaires des groupes",
     "Always open": "Toujours ouvert",

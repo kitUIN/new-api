@@ -76,6 +76,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		body = http.NoBody
 	}
 	storage, err := CreateBodyStorageFromReader(body, contentLength, maxBytes)
+	bodyReceivedAt := time.Now()
 	_ = body.Close()
 
 	if err != nil {
@@ -84,6 +85,9 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		}
 		return nil, err
 	}
+
+	// Record only the first successful read; cached reads and retries retain this boundary.
+	SetContextKey(c, constant.ContextKeyRequestBodyReceivedTime, bodyReceivedAt)
 
 	// 缓存存储对象
 	c.Set(KeyBodyStorage, storage)

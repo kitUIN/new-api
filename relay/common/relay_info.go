@@ -85,15 +85,16 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId           int
-	TokenKey          string
-	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
+	TokenId                 int
+	TokenKey                string
+	TokenGroup              string
+	UserId                  int
+	UsingGroup              string // 使用的分组，当auto跨分组重试时，会变动
+	UserGroup               string // 用户所在分组
+	TokenUnlimited          bool
+	StartTime               time.Time
+	FirstResponseTime       time.Time
+	RequestBodyReceivedTime time.Time
 	// Upstream timing records the relay boundary so logs can separate local
 	// processing time from upstream latency without adding database columns.
 	UpstreamRequestStartTime   time.Time
@@ -504,8 +505,9 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		RequestHeaders:  cloneRequestHeaders(c),
 		IsStream:        isStream,
 
-		StartTime:         startTime,
-		FirstResponseTime: startTime.Add(-time.Second),
+		StartTime:               startTime,
+		RequestBodyReceivedTime: common.GetContextKeyTime(c, constant.ContextKeyRequestBodyReceivedTime),
+		FirstResponseTime:       startTime.Add(-time.Second),
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,

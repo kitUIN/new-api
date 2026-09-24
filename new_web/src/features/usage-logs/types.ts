@@ -184,6 +184,9 @@ export interface LogOtherData {
   upstream_request_start_at?: string
   upstream_response_header_at?: string
   upstream_request_end_at?: string
+  request_body_received_at?: string
+  request_body_receive_ms?: number
+  upstream_prepare_ms?: number
   pre_upstream_ms?: number
   upstream_header_ms?: number
   upstream_total_ms?: number

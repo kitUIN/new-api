@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Receive Full Request Body": "Receive full request body",
+    "Prepare Upstream Request": "Prepare upstream request",
+    "Request Body Received": "Request body received",
+    "Timing Timestamps": "Exact timestamps",
+    "Relay Timing Chart Hint": "Bars share a timeline from request arrival. Overlapping durations must not be added.",
     "API Source Domain": "API Source Domain",
     "Group opening hours": "Group opening hours",
     "Always open": "Always open",

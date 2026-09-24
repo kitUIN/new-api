@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Receive Full Request Body": "完整接收请求体",
+    "Prepare Upstream Request": "请求上游前准备",
+    "Request Body Received": "请求体接收完成",
+    "Timing Timestamps": "查看精确时间点",
+    "Relay Timing Chart Hint": "以请求到达为起点，条形位置表示计时区间，重叠耗时不可相加。",
     "API Source Domain": "API 来源域名",
     "Group opening hours": "分组开放时间",
     "Always open": "全天开放",

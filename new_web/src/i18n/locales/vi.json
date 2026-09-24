@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Receive Full Request Body": "Nhận toàn bộ nội dung yêu cầu",
+    "Prepare Upstream Request": "Chuẩn bị yêu cầu thượng nguồn",
+    "Request Body Received": "Đã nhận nội dung yêu cầu",
+    "Timing Timestamps": "Mốc thời gian chính xác",
+    "Relay Timing Chart Hint": "Các thanh dùng chung trục thời gian từ lúc nhận yêu cầu. Không cộng các khoảng thời gian chồng lấn.",
     "API Source Domain": "Tên miền nguồn API",
     "Group opening hours": "Giờ mở nhóm",
     "Always open": "Luôn mở",
