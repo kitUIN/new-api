@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Original size": "Original size",
+    "Preview image": "Preview image",
+    "Drop images here": "Drop images here",
+    "Only image files are supported": "Only image files are supported",
+    "Failed to read image": "Failed to read image",
+    "Describe the image, or drop or paste images here...": "Describe the image, or drop or paste images here...",
+    "Aspect ratio": "Aspect ratio",
+    "Resolution": "Resolution",
+    "Original size is available with exactly one image": "Original size is available with exactly one image",
     "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "Older logs did not accurately record the upstream first byte and end time. These durations cannot be recovered. Check new logs after updating.",
     "收到请求": "Request received",
     "开始请求上游": "Upstream request started",

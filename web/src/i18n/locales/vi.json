@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Original size": "Kích thước gốc",
+    "Preview image": "Xem trước ảnh",
+    "Drop images here": "Thả ảnh vào đây",
+    "Only image files are supported": "Chỉ hỗ trợ tệp hình ảnh",
+    "Failed to read image": "Không thể đọc ảnh",
+    "Describe the image, or drop or paste images here...": "Mô tả ảnh, hoặc kéo thả hay dán ảnh vào đây…",
+    "Aspect ratio": "Tỷ lệ khung hình",
+    "Resolution": "Độ phân giải",
+    "Original size is available with exactly one image": "Chỉ có thể dùng kích thước gốc khi có đúng một ảnh",
     "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "Nhật ký cũ không ghi chính xác thời điểm byte đầu tiên và kết thúc phản hồi từ nhà cung cấp. Không thể khôi phục các khoảng thời gian này. Hãy xem nhật ký mới sau khi cập nhật.",
     "收到请求": "Đã nhận yêu cầu",
     "开始请求上游": "Bắt đầu yêu cầu đến nhà cung cấp",

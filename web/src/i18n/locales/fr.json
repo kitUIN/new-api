@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Original size": "Taille d’origine",
+    "Preview image": "Aperçu de l’image",
+    "Drop images here": "Déposez les images ici",
+    "Only image files are supported": "Seuls les fichiers image sont acceptés",
+    "Failed to read image": "Impossible de lire l’image",
+    "Describe the image, or drop or paste images here...": "Décrivez l’image, ou déposez ou collez des images ici…",
+    "Aspect ratio": "Rapport d’aspect",
+    "Resolution": "Résolution",
+    "Original size is available with exactly one image": "La taille d’origine est disponible avec une seule image",
     "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "Les anciens journaux n’ont pas enregistré précisément le premier octet et la fin de la réponse en amont. Ces durées ne peuvent pas être récupérées. Consultez les nouveaux journaux après la mise à jour.",
     "收到请求": "Requête reçue",
     "开始请求上游": "Début de la requête en amont",

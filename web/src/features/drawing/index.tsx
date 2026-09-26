@@ -69,7 +69,11 @@ export function Drawing() {
   const [titleDraft, setTitleDraft] = useState('')
   const [titleDraftEdited, setTitleDraftEdited] = useState(false)
   const [titleEditing, setTitleEditing] = useState(false)
-  const [referenceImage, setReferenceImage] = useState('')
+  const [resolvedReferences, setResolvedReferences] = useState<{
+    message: DrawingMessage
+    sessionId: string | null
+    images: string[]
+  } | null>(null)
   const [retrying, setRetrying] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DrawingSession | null>(null)
   const urlMessageTargetRef = useRef('')
@@ -91,6 +95,12 @@ export function Drawing() {
   })
 
   const currentMessage = messagesState.currentMessage
+  const referencesReady =
+    resolvedReferences?.message === currentMessage &&
+    resolvedReferences?.sessionId === sessionsState.activeSessionId
+  const referenceImages = referencesReady ? resolvedReferences.images : []
+  const referencesLoading =
+    currentMessage?.status === 'success' && !referencesReady
   const nextDefaultTitle = useMemo(
     () => getNextDrawingSessionTitle(sessionsState.sessions, t('New Session')),
     [sessionsState.sessions, t]
@@ -206,17 +216,17 @@ export function Drawing() {
     let ignore = false
 
     async function loadReferenceImage() {
+      if (!currentMessage || currentMessage.status !== 'success') return
       const images = await resolveReferenceImages(
         currentMessage,
         sessionsState.activeSessionId
       )
-      if (!ignore) setReferenceImage(images[0] || '')
-    }
-
-    if (!currentMessage || currentMessage.status !== 'success') {
-      setReferenceImage('')
-      return () => {
-        ignore = true
+      if (!ignore) {
+        setResolvedReferences({
+          message: currentMessage,
+          sessionId: sessionsState.activeSessionId,
+          images: mergeDrawingImages(images, []),
+        })
       }
     }
 
@@ -224,12 +234,7 @@ export function Drawing() {
     return () => {
       ignore = true
     }
-  }, [
-    currentMessage?.id,
-    currentMessage?.result_data,
-    currentMessage?.status,
-    sessionsState.activeSessionId,
-  ])
+  }, [currentMessage, sessionsState.activeSessionId])
 
   useEffect(() => {
     const activeSession = sessionsState.sessions.find(
@@ -453,13 +458,13 @@ export function Drawing() {
 
       <DrawingInputBar
         balanceInfo={balanceInfo}
-        disabled={false}
+        disabled={referencesLoading}
         hasImage={messagesState.messages.some(
           (message) => message.status === 'success'
         )}
         loading={isLoading}
         onSubmit={handleSubmit}
-        referenceImage={referenceImage}
+        referenceImages={referenceImages}
       />
 
       <AlertDialog

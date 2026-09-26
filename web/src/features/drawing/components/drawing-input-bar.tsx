@@ -17,10 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { ImagePlusIcon, SendIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,9 +32,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -47,6 +49,9 @@ import {
   MAX_UPLOAD_IMAGES,
   resolveDrawingSize,
 } from '../constants'
+import { useDrawingAttachments } from '../hooks/use-drawing-attachments'
+import { readDrawingImageSize } from '../lib/image-input'
+import { mergeDrawingImages } from '../lib/images'
 import type { DrawingBalanceInfo, DrawingGenerateRequest } from '../types'
 import { BalancePopover } from './balance-popover'
 
@@ -65,14 +70,14 @@ type DrawingInputBarProps = {
   disabled: boolean
   hasImage: boolean
   loading: boolean
-  referenceImage: string
+  referenceImages: string[]
   onSubmit: (payload: DrawingGenerateRequest) => Promise<void>
 }
 
 export function DrawingInputBar(props: DrawingInputBarProps) {
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>(() =>
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio | 'original'>(() =>
     getStoredDrawingPreference(
       DRAWING_ASPECT_RATIO_STORAGE_KEY,
       DRAWING_ASPECT_RATIO_VALUES,
@@ -86,22 +91,46 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
       '1K'
     )
   )
-  const [images, setImages] = useState<string[]>([])
+  const [previewImage, setPreviewImage] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const hasPrompt = prompt.trim().length > 0
   const isSubmitting = props.loading || submitting
-  const referenceImage = hasPrompt ? props.referenceImage : ''
+  const referenceImages = props.referenceImages
   const maxUploadImages = Math.max(
     0,
-    MAX_UPLOAD_IMAGES - (referenceImage ? 1 : 0)
+    MAX_UPLOAD_IMAGES - referenceImages.length
   )
-
-  const size = useMemo(
-    () => resolveDrawingSize(aspectRatio, resolution),
-    [aspectRatio, resolution]
-  )
+  const attachments = useDrawingAttachments({
+    disabled: props.disabled || isSubmitting,
+    maxImages: maxUploadImages,
+  })
+  const { images, setImages } = attachments
+  const inputImages = mergeDrawingImages(referenceImages, images)
+  const singleImage = inputImages.length === 1 ? inputImages[0] : ''
+  const originalSizeQuery = useQuery({
+    queryKey: ['drawing-image-size', singleImage],
+    queryFn: () => readDrawingImageSize(singleImage),
+    enabled: Boolean(singleImage),
+    retry: false,
+    staleTime: Infinity,
+    gcTime: 0,
+  })
+  const originalSize = singleImage ? originalSizeQuery.data : undefined
+  const selectedAspectRatio =
+    aspectRatio === 'original' && !singleImage ? '1:1' : aspectRatio
+  const usesOriginalSize = selectedAspectRatio === 'original'
+  const size = usesOriginalSize
+    ? originalSize || ''
+    : resolveDrawingSize(selectedAspectRatio, resolution)
+  const canSubmit =
+    hasPrompt &&
+    !props.disabled &&
+    !isSubmitting &&
+    !attachments.reading &&
+    images.length <= maxUploadImages &&
+    Boolean(size)
 
   const payload = useMemo<DrawingGenerateRequest>(
     () => ({
@@ -114,31 +143,8 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
     [images, prompt, size]
   )
 
-  const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-    if (files.length === 0) return
-
-    if (images.length + files.length > maxUploadImages) {
-      toast.warning(
-        t('You can upload up to {{count}} images', { count: maxUploadImages })
-      )
-      event.target.value = ''
-      return
-    }
-
-    for (const file of files) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = typeof reader.result === 'string' ? reader.result : ''
-        if (result) setImages((prev) => [...prev, result])
-      }
-      reader.readAsDataURL(file)
-    }
-    event.target.value = ''
-  }
-
   const handleConfirmSubmit = async () => {
-    if (!payload.prompt || props.disabled || isSubmitting) return
+    if (!canSubmit) return
     setSubmitting(true)
     try {
       await props.onSubmit(payload)
@@ -158,29 +164,58 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
         </div>
       )}
 
-      <div className='bg-background ring-border overflow-hidden rounded-xl ring-1'>
-        {(referenceImage || images.length > 0) && (
+      <div
+        className={cn(
+          'bg-background ring-border relative rounded-xl ring-1',
+          attachments.dragging && 'ring-primary ring-2'
+        )}
+        {...attachments.inputHandlers}
+      >
+        {attachments.dragging && (
+          <div className='bg-background/90 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl text-sm'>
+            {t('Drop images here')}
+          </div>
+        )}
+        {(referenceImages.length > 0 || images.length > 0) && (
           <div className='flex flex-wrap gap-2 px-4 pt-3'>
-            {referenceImage && (
-              <img
-                alt={t('Reference image')}
-                className='border-primary size-14 rounded-lg border-2 object-cover'
-                src={referenceImage}
-              />
-            )}
+            {referenceImages.map((image, index) => (
+              <button
+                aria-label={t('Preview image')}
+                className='border-primary focus-visible:ring-ring size-14 cursor-zoom-in overflow-hidden rounded-lg border-2 focus-visible:ring-2'
+                key={`reference-${index}`}
+                onClick={() => setPreviewImage(image)}
+                type='button'
+              >
+                <img
+                  alt={t('Reference image')}
+                  className='size-full object-cover'
+                  draggable={false}
+                  src={image}
+                />
+              </button>
+            ))}
             {images.map((image, index) => (
               <div
                 className='relative size-14'
                 key={`${image.slice(0, 24)}-${index}`}
               >
-                <img
-                  alt={t('Uploaded image')}
-                  className='size-14 rounded-lg object-cover'
-                  src={image}
-                />
+                <button
+                  aria-label={t('Preview image')}
+                  className='focus-visible:ring-ring size-14 cursor-zoom-in overflow-hidden rounded-lg focus-visible:ring-2'
+                  onClick={() => setPreviewImage(image)}
+                  type='button'
+                >
+                  <img
+                    alt={t('Uploaded image')}
+                    className='size-full object-cover'
+                    draggable={false}
+                    src={image}
+                  />
+                </button>
                 <Button
                   aria-label={t('Remove image')}
                   className='absolute -top-1 -right-1 size-5 rounded-full'
+                  disabled={props.disabled || isSubmitting}
                   onClick={() =>
                     setImages((prev) =>
                       prev.filter((_, itemIndex) => itemIndex !== index)
@@ -202,7 +237,7 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
           className='max-h-52 min-h-12 resize-none border-0 bg-transparent px-4 py-3 shadow-none focus-visible:ring-0'
           disabled={props.disabled}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder={t('Describe the image you want to generate...')}
+          placeholder={t('Describe the image, or drop or paste images here...')}
           rows={hasPrompt ? 3 : 1}
           value={prompt}
         />
@@ -211,7 +246,10 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
           <Button
             aria-label={t('Upload image')}
             disabled={
-              images.length >= maxUploadImages || props.disabled || isSubmitting
+              images.length >= maxUploadImages ||
+              props.disabled ||
+              isSubmitting ||
+              attachments.reading
             }
             onClick={() => fileInputRef.current?.click()}
             size='icon'
@@ -224,14 +262,21 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
             accept='image/*'
             className='hidden'
             multiple
-            onChange={handleUpload}
+            onChange={(event) => {
+              void attachments.addFiles(Array.from(event.target.files || []))
+              event.target.value = ''
+            }}
             ref={fileInputRef}
             type='file'
           />
 
           <Select
-            value={aspectRatio}
+            value={selectedAspectRatio}
             onValueChange={(value) => {
+              if (value === 'original') {
+                if (originalSize) setAspectRatio('original')
+                return
+              }
               const nextValue = getValidDrawingPreference(
                 value,
                 DRAWING_ASPECT_RATIO_VALUES
@@ -241,19 +286,29 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
               saveDrawingPreference(DRAWING_ASPECT_RATIO_STORAGE_KEY, nextValue)
             }}
           >
-            <SelectTrigger size='sm'>
+            <SelectTrigger aria-label={t('Aspect ratio')} size='sm'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {DRAWING_ASPECT_RATIOS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {t(item.label)}
+              <SelectGroup>
+                {DRAWING_ASPECT_RATIOS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {t(item.label)}
+                  </SelectItem>
+                ))}
+                <SelectItem
+                  disabled={!originalSize}
+                  title={t('Original size is available with exactly one image')}
+                  value='original'
+                >
+                  {t('Original size')}
                 </SelectItem>
-              ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
 
           <Select
+            disabled={usesOriginalSize}
             value={resolution}
             onValueChange={(value) => {
               const nextValue = getValidDrawingPreference(
@@ -265,17 +320,25 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
               saveDrawingPreference(DRAWING_RESOLUTION_STORAGE_KEY, nextValue)
             }}
           >
-            <SelectTrigger size='sm'>
+            <SelectTrigger aria-label={t('Resolution')} size='sm'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {DRAWING_RESOLUTIONS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {t(item.label)}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {DRAWING_RESOLUTIONS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {t(item.label)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
+
+          {usesOriginalSize && originalSize && (
+            <span className='text-muted-foreground text-xs'>
+              {originalSize}
+            </span>
+          )}
 
           <div className='min-w-4 flex-1' />
 
@@ -283,7 +346,7 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
 
           <Button
             aria-label={t('Send')}
-            disabled={!hasPrompt || props.disabled || isSubmitting}
+            disabled={!canSubmit}
             onClick={() => setConfirmOpen(true)}
             size='icon'
             type='button'
@@ -296,6 +359,22 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
           </Button>
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(previewImage)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewImage('')
+        }}
+      >
+        <DialogContent className='max-h-[94dvh] sm:max-w-[min(96vw,1200px)]'>
+          <DialogTitle>{t('Preview image')}</DialogTitle>
+          <img
+            alt={t('Preview image')}
+            className='max-h-[80dvh] w-full rounded-md object-contain'
+            src={previewImage || undefined}
+          />
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
@@ -310,7 +389,7 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={isSubmitting}
+              disabled={!canSubmit}
               onClick={handleConfirmSubmit}
             >
               {t('Confirm')}

@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Original size": "原图大小",
+    "Preview image": "预览图片",
+    "Drop images here": "将图片拖到这里",
+    "Only image files are supported": "仅支持图片文件",
+    "Failed to read image": "读取图片失败",
+    "Describe the image, or drop or paste images here...": "描述你想生成的图片，或拖拽、粘贴图片到这里…",
+    "Aspect ratio": "比例",
+    "Resolution": "分辨率",
+    "Original size is available with exactly one image": "仅有一张图片时可使用原图大小",
     "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。",
     "收到请求": "收到请求",
     "开始请求上游": "开始请求上游",

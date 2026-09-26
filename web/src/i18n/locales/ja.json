@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Original size": "元の画像サイズ",
+    "Preview image": "画像をプレビュー",
+    "Drop images here": "ここに画像をドロップ",
+    "Only image files are supported": "画像ファイルのみ対応しています",
+    "Failed to read image": "画像の読み込みに失敗しました",
+    "Describe the image, or drop or paste images here...": "生成したい画像を説明するか、ここに画像をドロップまたは貼り付けてください…",
+    "Aspect ratio": "縦横比",
+    "Resolution": "解像度",
+    "Original size is available with exactly one image": "元の画像サイズは画像が1枚の場合のみ使用できます",
     "旧日志未准确记录上游首字和结束时间，相关耗时无法恢复。请查看更新后产生的新日志。": "以前のログには上流の最初のバイトと終了時刻が正確に記録されていないため、所要時間を復元できません。更新後の新しいログを確認してください。",
     "收到请求": "リクエスト受信",
     "开始请求上游": "上流リクエスト開始",
