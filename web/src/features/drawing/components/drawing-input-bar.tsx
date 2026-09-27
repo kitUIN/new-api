@@ -43,7 +43,6 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  DEFAULT_DRAWING_MODEL,
   DRAWING_ASPECT_RATIOS,
   DRAWING_RESOLUTIONS,
   MAX_UPLOAD_IMAGES,
@@ -54,6 +53,7 @@ import { readDrawingImageSize } from '../lib/image-input'
 import { mergeDrawingImages } from '../lib/images'
 import type { DrawingBalanceInfo, DrawingGenerateRequest } from '../types'
 import { BalancePopover } from './balance-popover'
+import { DrawingModelSelector } from './drawing-model-selector'
 
 type AspectRatio = (typeof DRAWING_ASPECT_RATIOS)[number]['value']
 type Resolution = (typeof DRAWING_RESOLUTIONS)[number]['value']
@@ -70,6 +70,12 @@ type DrawingInputBarProps = {
   disabled: boolean
   hasImage: boolean
   loading: boolean
+  models: string[]
+  model: string
+  modelsLoading: boolean
+  modelsError: boolean
+  onModelChange: (model: string) => void
+  onReloadModels: () => void
   referenceImages: string[]
   onSubmit: (payload: DrawingGenerateRequest) => Promise<void>
 }
@@ -129,18 +135,21 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
     !props.disabled &&
     !isSubmitting &&
     !attachments.reading &&
+    !props.modelsLoading &&
+    !props.modelsError &&
+    props.models.includes(props.model) &&
     images.length <= maxUploadImages &&
     Boolean(size)
 
   const payload = useMemo<DrawingGenerateRequest>(
     () => ({
       prompt: prompt.trim(),
-      model: DEFAULT_DRAWING_MODEL,
+      model: props.model,
       size,
       quality: 'auto',
       images,
     }),
-    [images, prompt, size]
+    [images, prompt, size, props.model]
   )
 
   const handleConfirmSubmit = async () => {
@@ -268,6 +277,16 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
             }}
             ref={fileInputRef}
             type='file'
+          />
+
+          <DrawingModelSelector
+            models={props.models}
+            value={props.model}
+            loading={props.modelsLoading}
+            error={props.modelsError}
+            disabled={props.disabled || isSubmitting}
+            onChange={props.onModelChange}
+            onReload={props.onReloadModels}
           />
 
           <Select

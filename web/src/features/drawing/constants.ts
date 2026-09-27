@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const DEFAULT_DRAWING_MODEL = 'gpt-image-2'
+export const DRAWING_GROUP = 'gpt-image'
 
 export const DRAWING_ASPECT_RATIOS = [
   { value: '1:1', label: 'Square' },

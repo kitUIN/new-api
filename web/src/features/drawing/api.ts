@@ -27,6 +27,7 @@ import type {
 } from './types'
 
 const DRAWING_API = {
+  models: '/pg/drawing/models',
   sessions: '/pg/drawing/sessions',
   sessionDetail: (sessionId: string) => `/pg/drawing/sessions/${sessionId}`,
   sessionMessage: (sessionId: string) =>
@@ -36,6 +37,14 @@ const DRAWING_API = {
   generate: (sessionId: string) => `/pg/drawing/sessions/${sessionId}/generate`,
   taskStatus: (taskId: string) => `/pg/drawing/tasks/${taskId}`,
 } as const
+
+export async function listDrawingModels(): Promise<string[]> {
+  const res = await api.get<ApiEnvelope<string[]>>(DRAWING_API.models)
+  if (!res.data.success) {
+    throw new Error(res.data.message || 'Failed to load drawing models')
+  }
+  return res.data.data || []
+}
 
 export async function listDrawingSessions(): Promise<DrawingSession[]> {
   const res = await api.get<ApiEnvelope<DrawingSession[]>>(DRAWING_API.sessions)

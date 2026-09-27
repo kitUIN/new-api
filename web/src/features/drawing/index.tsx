@@ -38,7 +38,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getPricing } from '@/features/pricing/api'
-import { getDrawingMessageImages } from './api'
+import { getDrawingMessageImages, listDrawingModels } from './api'
 import { DrawingCanvas, DrawingInputBar, SessionSelector } from './components'
 import { DEFAULT_DRAWING_MODEL } from './constants'
 import {
@@ -52,6 +52,7 @@ import {
   getDrawingImageSource,
   mergeDrawingImages,
 } from './lib/images'
+import { resolveDrawingModel } from './lib/models'
 import { getNextDrawingSessionTitle } from './lib/sessions'
 import type {
   DrawingGenerateRequest,
@@ -75,6 +76,7 @@ export function Drawing() {
     images: string[]
   } | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [preferredModel, setPreferredModel] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DrawingSession | null>(null)
   const urlMessageTargetRef = useRef('')
   const newDraftRef = useRef(false)
@@ -110,6 +112,12 @@ export function Drawing() {
     queryKey: ['drawing', 'pricing'],
     queryFn: getPricing,
   })
+  const modelsQuery = useQuery({
+    queryKey: ['drawing', 'models'],
+    queryFn: listDrawingModels,
+  })
+  const availableModels = modelsQuery.data || []
+  const selectedModel = resolveDrawingModel(availableModels, preferredModel)
 
   useEffect(() => {
     void getSelf().then((res) => {
@@ -256,10 +264,8 @@ export function Drawing() {
 
   const pricingModel = useMemo(() => {
     const models = pricingQuery.data?.data || []
-    return (
-      models.find((model) => model.model_name === DEFAULT_DRAWING_MODEL) || null
-    )
-  }, [pricingQuery.data?.data])
+    return models.find((model) => model.model_name === selectedModel) || null
+  }, [pricingQuery.data?.data, selectedModel])
 
   const balanceInfo = useMemo(
     () =>
@@ -267,12 +273,14 @@ export function Drawing() {
         userQuota: authUser?.quota,
         quotaPerUnit: Number(status?.quota_per_unit || 1),
         model: pricingModel,
+        modelName: selectedModel,
         groupRatio: pricingQuery.data?.group_ratio || {},
         pricingLoading: pricingQuery.isLoading,
       }),
     [
       authUser?.quota,
       pricingModel,
+      selectedModel,
       pricingQuery.data?.group_ratio,
       pricingQuery.isLoading,
       status?.quota_per_unit,
@@ -463,6 +471,12 @@ export function Drawing() {
           (message) => message.status === 'success'
         )}
         loading={isLoading}
+        models={availableModels}
+        model={selectedModel}
+        modelsLoading={modelsQuery.isPending}
+        modelsError={modelsQuery.isError}
+        onModelChange={setPreferredModel}
+        onReloadModels={() => void modelsQuery.refetch()}
         onSubmit={handleSubmit}
         referenceImages={referenceImages}
       />

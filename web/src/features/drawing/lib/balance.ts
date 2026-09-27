@@ -18,13 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import type { PricingModel } from '@/features/pricing/types'
-import { DEFAULT_DRAWING_MODEL } from '../constants'
+import { DRAWING_GROUP } from '../constants'
 import type { DrawingBalanceInfo } from '../types'
 
 type BalanceInput = {
   userQuota?: number
   quotaPerUnit?: number
   model?: PricingModel | null
+  modelName: string
   groupRatio?: Record<string, number>
   pricingLoading: boolean
 }
@@ -34,7 +35,7 @@ export function buildDrawingBalanceInfo(
 ): DrawingBalanceInfo {
   const balanceUSD = quotaToUsdAmount(input.userQuota, input.quotaPerUnit)
   const tone = getBalanceTone(balanceUSD)
-  const usedGroup = resolvePricingGroup(input.model, input.groupRatio || {})
+  const usedGroup = DRAWING_GROUP
   const unitPriceUSD = getUnitPriceUSD(
     input.model,
     usedGroup,
@@ -49,7 +50,7 @@ export function buildDrawingBalanceInfo(
     }),
     balanceUSD,
     availableGenerationsText: getAvailableGenerations(balanceUSD, unitPriceUSD),
-    modelName: DEFAULT_DRAWING_MODEL,
+    modelName: input.modelName,
     priceText:
       unitPriceUSD > 0
         ? formatCurrencyFromUSD(unitPriceUSD, {
@@ -76,22 +77,6 @@ function getBalanceTone(balanceUSD: number): DrawingBalanceInfo['tone'] {
   if (balanceUSD < 0.1) return 'danger'
   if (balanceUSD < 1) return 'warning'
   return 'success'
-}
-
-function resolvePricingGroup(
-  model: PricingModel | null | undefined,
-  groupRatio: Record<string, number>
-): string {
-  const enableGroups = Array.isArray(model?.enable_groups)
-    ? model.enable_groups
-    : []
-  if (
-    enableGroups.includes('gpt-image') &&
-    groupRatio['gpt-image'] !== undefined
-  ) {
-    return 'gpt-image'
-  }
-  return enableGroups[0] || 'all'
 }
 
 function getUnitPriceUSD(

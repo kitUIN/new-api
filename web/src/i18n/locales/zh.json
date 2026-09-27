@@ -1,5 +1,6 @@
 {
   "translation": {
+    "Failed to load drawing models. Retry": "绘图模型加载失败，点击重试",
     "Original size": "原图大小",
     "Preview image": "预览图片",
     "Drop images here": "将图片拖到这里",

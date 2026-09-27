@@ -78,6 +78,7 @@ func SetRelayRouter(router *gin.Engine) {
 	drawingRouter.Use(middleware.SystemPerformanceCheck())
 	drawingRouter.Use(middleware.UserAuth())
 	{
+		drawingRouter.GET("/models", controller.GetDrawingModels)
 		drawingRouter.POST("/sessions", controller.CreateDrawingSession)
 		drawingRouter.GET("/sessions", controller.ListDrawingSessions)
 		drawingRouter.GET("/sessions/:session_id", controller.GetDrawingSessionDetail)

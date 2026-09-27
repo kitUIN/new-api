@@ -1,5 +1,6 @@
 {
   "translation": {
+    "Failed to load drawing models. Retry": "描画モデルの読み込みに失敗しました。再試行",
     "Original size": "元の画像サイズ",
     "Preview image": "画像をプレビュー",
     "Drop images here": "ここに画像をドロップ",

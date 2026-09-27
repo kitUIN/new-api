@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,17 @@ type DrawingGenerateRequest struct {
 	Size    string   `json:"size"`
 	Quality string   `json:"quality"`
 	Images  []string `json:"images"`
+}
+
+const drawingGroup = "gpt-image"
+
+func GetDrawingModels(c *gin.Context) {
+	models := model.GetGroupEnabledModels(drawingGroup)
+	if models == nil {
+		models = []string{}
+	}
+	sort.Strings(models)
+	common.ApiSuccess(c, models)
 }
 
 func GetDrawingResultFile(c *gin.Context) {
@@ -307,7 +319,7 @@ func DeleteDrawingSessionHandler(c *gin.Context) {
 func SubmitDrawingTask(c *gin.Context) {
 	userId := c.GetInt("id")
 	sessionId := c.Param("session_id")
-	group := "gpt-image"
+	group := drawingGroup
 
 	var req DrawingGenerateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -317,6 +329,10 @@ func SubmitDrawingTask(c *gin.Context) {
 
 	if req.Model == "" {
 		req.Model = "gpt-image-2"
+	}
+	if !common.StringsContains(model.GetGroupEnabledModels(group), req.Model) {
+		common.ApiErrorMsg(c, "所选模型不在绘图分组中或已停用")
+		return
 	}
 	if req.Size == "" {
 		req.Size = "auto"

@@ -1,5 +1,6 @@
 {
   "translation": {
+    "Failed to load drawing models. Retry": "Échec du chargement des modèles de dessin. Réessayer",
     "Original size": "Taille d’origine",
     "Preview image": "Aperçu de l’image",
     "Drop images here": "Déposez les images ici",
