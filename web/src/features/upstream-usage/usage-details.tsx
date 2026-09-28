@@ -16,63 +16,132 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ChartNoAxesCombined, TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
+import { cn } from '@/lib/utils'
+import { estimateUsageCapacity, usageColor } from './lib'
 import type { UsageAccount, UsageWindow } from './types'
 
 function WindowDetails(props: {
   label: string
   window: UsageWindow | null | undefined
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const window = props.window
-  if (!window)
-    return (
-      <div>
-        {props.label}: {t('upstreamUsage.unavailable')}
-      </div>
-    )
+  if (!window || !Number.isFinite(window.utilization)) return null
+
+  const remaining = Math.min(100, Math.max(0, 100 - window.utilization))
   const stats = window.window_stats
+  const estimate = estimateUsageCapacity(window)
+  const money = (value: number | undefined) =>
+    value !== undefined && Number.isFinite(value)
+      ? new Intl.NumberFormat(i18n.language, {
+          style: 'currency',
+          currency: 'USD',
+          currencyDisplay: 'narrowSymbol',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(value)
+      : '—'
+  const tokens = (value: number | undefined) => {
+    if (value === undefined || !Number.isFinite(value)) return '—'
+    // Keep the compact token units consistent with upstream dashboards.
+    for (const [unit, divisor] of [
+      ['B', 1e9],
+      ['M', 1e6],
+      ['K', 1e3],
+    ] as const) {
+      if (value >= divisor) return `${(value / divisor).toFixed(1)}${unit}`
+    }
+    return Math.round(value).toLocaleString(i18n.language)
+  }
+  const reset = dayjs(window.resets_at)
+  let resetLabel = '—'
+  if (window.resets_at && reset.isValid()) {
+    const seconds = Math.max(0, reset.diff(dayjs(), 'second'))
+    const relative = new Intl.RelativeTimeFormat(i18n.language, {
+      numeric: 'always',
+    })
+    if (seconds <= 0) resetLabel = t('upstreamUsage.resetDue')
+    else if (seconds >= 86400)
+      resetLabel = relative.format(Math.ceil(seconds / 86400), 'day')
+    else if (seconds >= 3600)
+      resetLabel = relative.format(Math.ceil(seconds / 3600), 'hour')
+    else resetLabel = relative.format(Math.ceil(seconds / 60), 'minute')
+  }
+  const usedLabel = `${t('upstreamUsage.usedAmount')}: ${money(stats?.cost)} / ${tokens(stats?.tokens)} Tokens`
+  const estimatedLabel = `${t('upstreamUsage.estimatedAmount')}: ${money(estimate?.cost)} / ${tokens(estimate?.tokens)} Tokens. ${t('upstreamUsage.estimateHint')}`
+
   return (
-    <div className='bg-muted/30 space-y-1 rounded-md border p-2 text-xs'>
-      <div className='flex justify-between font-medium'>
-        <span>{props.label}</span>
-        <span>
-          {t('upstreamUsage.usedRemaining', {
-            used: window.utilization,
-            remaining: Number((100 - window.utilization).toFixed(1)),
-          })}
+    <section className='space-y-2.5 border-t py-3 text-xs tabular-nums'>
+      <div className='flex items-center justify-between gap-2'>
+        <span className='bg-muted/40 text-muted-foreground rounded-md border px-2 py-0.5 font-medium'>
+          {props.label}
+        </span>
+        <span className='text-muted-foreground'>
+          {t('upstreamUsage.remainingLabel')}{' '}
+          <strong className='text-foreground text-sm'>
+            {Number(remaining.toFixed(1))}%
+          </strong>
         </span>
       </div>
-      <div>
-        {t('upstreamUsage.resetsAt')}:{' '}
-        {window.resets_at
-          ? dayjs(window.resets_at).format('YYYY-MM-DD HH:mm:ss')
-          : '—'}
+      <div
+        role='progressbar'
+        aria-label={`${props.label} · ${t('upstreamUsage.remainingLabel')}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={remaining}
+        className='bg-muted h-2 overflow-hidden rounded-full'
+      >
+        <div
+          className={cn(
+            'h-full rounded-full bg-current',
+            usageColor(remaining)
+          )}
+          style={{ width: `${remaining}%` }}
+        />
       </div>
-      <div>
-        {t('upstreamUsage.remainingSeconds')}:{' '}
-        {window.remaining_seconds.toLocaleString()}
+      <div className='text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-2'>
+        <span
+          className='inline-flex items-center gap-1 whitespace-nowrap'
+          title={usedLabel}
+          aria-label={usedLabel}
+        >
+          <ChartNoAxesCombined
+            aria-hidden='true'
+            className='size-5 rounded bg-blue-50 p-0.5 text-blue-400 dark:bg-blue-400/10 dark:text-blue-300'
+            strokeWidth={1.5}
+          />
+          <span className='sr-only'>{t('upstreamUsage.usedAmount')}</span>
+          <span className='text-foreground font-medium'>
+            {money(stats?.cost)}
+          </span>
+          <span className='opacity-60'>/</span> {tokens(stats?.tokens)}
+        </span>
+        <span
+          className='inline-flex items-center gap-1 whitespace-nowrap'
+          title={estimatedLabel}
+          aria-label={estimatedLabel}
+        >
+          <TrendingUp
+            aria-hidden='true'
+            className='size-5 rounded bg-violet-50 p-0.5 text-violet-400 dark:bg-violet-400/10 dark:text-violet-300'
+            strokeWidth={1.5}
+          />
+          <span className='sr-only'>{t('upstreamUsage.estimatedAmount')}</span>
+          <span className='font-medium'>{money(estimate?.cost)}</span>
+          <span className='opacity-60'>/</span> {tokens(estimate?.tokens)}
+        </span>
+        <span
+          className='ml-auto whitespace-nowrap'
+          title={`${t('upstreamUsage.resetsAt')}: ${reset.isValid() ? reset.format('YYYY-MM-DD HH:mm:ss') : '—'}`}
+        >
+          <span className='sr-only'>{t('upstreamUsage.resetsAt')}: </span>
+          {resetLabel}
+        </span>
       </div>
-      {stats && (
-        <dl className='grid grid-cols-2 gap-1'>
-          <dt>{t('upstreamUsage.requests')}</dt>
-          <dd className='text-right'>{stats.requests.toLocaleString()}</dd>
-          <dt>Tokens</dt>
-          <dd className='text-right'>{stats.tokens.toLocaleString()}</dd>
-          <dt>{t('upstreamUsage.cost')}</dt>
-          <dd className='text-right'>
-            {stats.cost.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-          </dd>
-          <dt>{t('upstreamUsage.standardCost')}</dt>
-          <dd className='text-right'>
-            {stats.standard_cost.toLocaleString(undefined, {
-              maximumFractionDigits: 6,
-            })}
-          </dd>
-        </dl>
-      )}
-    </div>
+    </section>
   )
 }
 
@@ -105,8 +174,14 @@ export function UsageDetails(props: {
               {t('upstreamUsage.lastKnown')}
             </p>
           )}
-          <WindowDetails label='5h' window={account.usage.five_hour} />
-          <WindowDetails label='7d' window={account.usage.seven_day} />
+          <WindowDetails
+            label={t('upstreamUsage.fiveHourLimit')}
+            window={account.usage.five_hour}
+          />
+          <WindowDetails
+            label={t('upstreamUsage.weeklyLimit')}
+            window={account.usage.seven_day}
+          />
           <p className='text-muted-foreground text-xs'>
             {t('upstreamUsage.updatedAt')}:{' '}
             {account.usage.updated_at

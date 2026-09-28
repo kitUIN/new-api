@@ -951,7 +951,7 @@ function GroupHealthCard(props: {
             <Badge variant='outline' className='font-mono'>
               {formatGroupRatio(group)}
             </Badge>
-            <UsageBattery accounts={props.usageAccounts} />
+            <UsageBattery accounts={props.usageAccounts} showResetCountdown />
             <Badge variant='outline' className='gap-1.5 font-mono'>
               <span
                 className={cn(

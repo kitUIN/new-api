@@ -41,7 +41,7 @@ func TestBillingUserTopUpsAggregateBeforePagination(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, BillingAuditUser{Username: "alice", DisplayName: "Alice", QQID: "12345"}, rows[0].User)
-	require.Equal(t, "122", rows[0].Received.String())
+	require.Equal(t, "123", rows[0].Received.String())
 	require.Equal(t, "12.000002", rows[0].Refunded.String())
 	require.Equal(t, 1, rows[0].UnconvertedCount)
 	rows, _, err = GetBillingUserTopUps(100100, 100200, 3, 1)

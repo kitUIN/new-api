@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { remainingUsage, usageColor } from './lib'
+import {
+  estimateUsageCapacity,
+  formatResetCountdown,
+  nextUsageReset,
+  remainingUsage,
+  usageColor,
+} from './lib'
 import { usageProviderSchema } from './schema'
 import type { UsageAccount } from './types'
 
@@ -45,6 +51,62 @@ function account(id: number, five: number, seven: number): UsageAccount {
 }
 
 describe('upstream usage battery', () => {
+  test('reset countdown uses days/hours or hours/minutes and clamps elapsed resets', () => {
+    const now = Date.parse('2026-09-28T00:00:00Z')
+    assert.equal(formatResetCountdown(now + 49 * 3600000, now), '2 d 1 h')
+    assert.equal(formatResetCountdown(now + 24 * 3600000, now), '1 d 0 h')
+    assert.equal(
+      formatResetCountdown(now + 23 * 3600000 + 45 * 60000, now),
+      '23 h 45 m'
+    )
+    assert.equal(formatResetCountdown(now + 1000, now), '0 h 1 m')
+    assert.equal(formatResetCountdown(now - 1000, now), '0 h 0 m')
+  })
+  test('groups count down to the earliest account reset without inventing missing dates', () => {
+    const first = account(1, 100, 100)
+    const second = account(2, 100, 100)
+    first.usage!.seven_day!.resets_at = '2026-09-30T00:00:00+08:00'
+    second.usage!.seven_day!.resets_at = '2026-09-29T00:00:00+08:00'
+    assert.equal(
+      nextUsageReset([first, second]),
+      Date.parse(second.usage!.seven_day!.resets_at)
+    )
+    assert.equal(nextUsageReset([]), null)
+    second.usage!.seven_day!.resets_at = ''
+    assert.equal(nextUsageReset([first, second]), null)
+  })
+  test('estimates total capacity from utilization, not time elapsed', () => {
+    const window = {
+      utilization: 20,
+      resets_at: '',
+      remaining_seconds: 0,
+      window_stats: {
+        cost: 78,
+        tokens: 46000000,
+        requests: 10,
+        standard_cost: 90,
+      },
+    }
+    assert.deepEqual(estimateUsageCapacity(window), {
+      cost: 390,
+      tokens: 230000000,
+    })
+    assert.deepEqual(estimateUsageCapacity({ ...window, utilization: 100 }), {
+      cost: 78,
+      tokens: 46000000,
+    })
+    for (const utilization of [0, -1, 101, NaN, Infinity]) {
+      assert.equal(estimateUsageCapacity({ ...window, utilization }), null)
+    }
+    assert.equal(estimateUsageCapacity({ ...window, window_stats: null }), null)
+    assert.equal(
+      estimateUsageCapacity({
+        ...window,
+        window_stats: { ...window.window_stats, cost: Infinity },
+      }),
+      null
+    )
+  })
   test('invalid URLs produce validation errors without throwing', () => {
     for (const base_url of [
       'invalid',

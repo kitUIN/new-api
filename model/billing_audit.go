@@ -366,10 +366,10 @@ func GetBillingRechargeTotals(start, end int64) (BillingRechargeTotals, error) {
 	return result, nil
 }
 
-// Audit receipts exclude the 3% XznPay fee; order and refund amounts stay gross.
+// Audit receipts exclude the 2% XznPay fee; order and refund amounts stay gross.
 func billingReceivedAmount(amount decimal.Decimal, paymentMethod string) decimal.Decimal {
 	if paymentMethod == PaymentMethodXznPay {
-		return amount.Mul(decimal.NewFromInt(97)).Div(decimal.NewFromInt(100))
+		return amount.Mul(decimal.NewFromInt(98)).Div(decimal.NewFromInt(100))
 	}
 	return amount
 }

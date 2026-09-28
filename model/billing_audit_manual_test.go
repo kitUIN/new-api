@@ -72,7 +72,7 @@ func TestBillingTopUpsMergeSeparateDatabases(t *testing.T) {
 		for _, row := range rows {
 			ids = append(ids, row.ID)
 			if row.ID == 1 {
-				require.Equal(t, 9.7, row.Money)
+				require.Equal(t, 9.8, row.Money)
 			}
 			if row.ID == 2 {
 				require.Equal(t, float64(20), row.Money)
@@ -105,6 +105,6 @@ func TestBillingRechargeTotalsIncludesManualOperations(t *testing.T) {
 	}).Error)
 	totals, err := GetBillingRechargeTotals(100100, 100200)
 	require.NoError(t, err)
-	require.Equal(t, "132.000001", totals.Received.String())
+	require.Equal(t, "133.000001", totals.Received.String())
 	require.Equal(t, "10.000002", totals.Refunded.String())
 }
