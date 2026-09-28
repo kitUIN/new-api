@@ -22,18 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { SectionPageLayout } from '@/components/layout'
 import { getBillingSummary } from './api'
 import { CostDialog } from './components/cost-dialog'
 import { CostTable } from './components/cost-table'
+import { GroupCostsTable } from './components/group-costs-table'
 import { TopUpsTable } from './components/topups-table'
 import { auditMoney, auditTime, currentAuditMonth } from './lib'
 import type { CostAction } from './types'
@@ -43,31 +36,36 @@ export function BillingAudit() {
   const queryClient = useQueryClient()
   const [month, setMonth] = useState(currentAuditMonth)
   const [action, setAction] = useState<CostAction | null>(null)
+  const [excludedGroups, setExcludedGroups] = useState<Set<string>>(new Set())
   const query = useQuery({
     queryKey: ['billing-audit', 'summary', month],
     queryFn: () => getBillingSummary(month),
   })
   const data = query.data
-  const sortedGroups = useMemo(
+  const runningAmount = useMemo(
     () =>
-      [...(data?.groups ?? [])].sort(
-        (a, b) => Number(b.estimated_cost) - Number(a.estimated_cost)
+      (data?.groups ?? []).reduce(
+        (total, group) =>
+          excludedGroups.has(group.group)
+            ? total
+            : total + Number(group.estimated_cost),
+        0
       ),
-    [data?.groups]
+    [data?.groups, excludedGroups]
   )
   const cards = data
     ? [
         {
-          label: t('billingAudit.received'),
-          value: data.recharge_amount,
-          hint: t('billingAudit.netAndRefund', {
-            net: auditMoney(data.net_recharge),
+          label: t('billingAudit.netReceived'),
+          value: data.net_recharge,
+          hint: t('billingAudit.receivedAndRefund', {
+            received: auditMoney(data.recharge_amount),
             refund: auditMoney(data.refund_amount),
           }),
         },
         {
           label: t('billingAudit.estimated'),
-          value: data.estimated_cost,
+          value: runningAmount,
           hint: t('billingAudit.estimatedHint'),
         },
         {
@@ -153,43 +151,19 @@ export function BillingAudit() {
                   {t('billingAudit.asOf', { time: auditTime(data.queried_at) })}
                 </p>
                 <CostTable costs={data.costs} onAction={setAction} />
-                <section className='rounded-xl border p-4'>
-                  <h3 className='mb-3 font-semibold'>
-                    {t('billingAudit.groupCosts')}
-                  </h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('Group')}</TableHead>
-                        <TableHead className='text-right'>
-                          {t('billingAudit.estimated')}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sortedGroups.map((group) => (
-                        <TableRow key={group.group}>
-                          <TableCell>
-                            {group.group || t('billingAudit.unknownGroup')}
-                          </TableCell>
-                          <TableCell className='text-right tabular-nums'>
-                            {auditMoney(group.estimated_cost, 6)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {!data.groups.length && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={2}
-                            className='text-muted-foreground py-8 text-center'
-                          >
-                            {t('billingAudit.noGroups')}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </section>
+                <GroupCostsTable
+                  groups={data.groups}
+                  excludedGroups={excludedGroups}
+                  onExclude={(group, excluded) => {
+                    setExcludedGroups((previous) => {
+                      const next = new Set(previous)
+                      if (excluded) next.add(group)
+                      else next.delete(group)
+                      return next
+                    })
+                  }}
+                  onReset={() => setExcludedGroups(new Set())}
+                />
               </>
             )}
             <TopUpsTable key={month} month={month} />
