@@ -246,6 +246,7 @@ func SetApiRouter(router *gin.Engine) {
 		performanceRoute.Use(middleware.RootAuth())
 		{
 			performanceRoute.GET("/stats", controller.GetPerformanceStats)
+			performanceRoute.GET("/relay_assets", controller.GetRelayAssetStats)
 			performanceRoute.DELETE("/disk_cache", controller.ClearDiskCache)
 			performanceRoute.POST("/reset_stats", controller.ResetPerformanceStats)
 			performanceRoute.POST("/gc", controller.ForceGC)

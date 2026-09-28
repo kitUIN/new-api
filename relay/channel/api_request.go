@@ -543,6 +543,17 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		client = service.GetHttpClient()
 	}
 
+	cleanupEncoding, err := prepareUpstreamJSONBody(c, req, info)
+	if err != nil {
+		return nil, err
+	}
+	encodingTransferred := false
+	defer func() {
+		if !encodingTransferred {
+			cleanupEncoding()
+		}
+	}()
+
 	var stopPinger context.CancelFunc
 	if info.IsStream {
 		helper.SetEventStreamHeaders(c)
@@ -581,6 +592,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	info.MarkUpstreamResponseHeader()
 
 	if resp.Body != nil {
+		resp.Body = &assetResponseBody{ReadCloser: resp.Body, release: cleanupEncoding}
+		encodingTransferred = true
 		resp.Body = &timedResponseBody{ReadCloser: resp.Body, info: info}
 	} else {
 		info.MarkUpstreamRequestEnd()

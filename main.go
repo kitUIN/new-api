@@ -59,6 +59,9 @@ func main() {
 	}
 
 	defer func() {
+		if service.RelayAssets != nil {
+			_ = service.RelayAssets.Close()
+		}
 		err := model.CloseDB()
 		if err != nil {
 			common.FatalLog("failed to close database: " + err.Error())
@@ -287,6 +290,9 @@ func InitResources() error {
 
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
+	if err := service.InitRelayImageCache(); err != nil {
+		return fmt.Errorf("initialize relay asset cache: %w", err)
+	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

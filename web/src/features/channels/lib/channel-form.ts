@@ -327,6 +327,8 @@ export const channelFormSchema = z
     batch_add_set_key_prefix_2_name: z.boolean().optional(),
     key_mode: z.enum(['append', 'replace']).optional(), // For editing multi-key channels
     // Channel extra settings (stored in setting JSON, not sent directly)
+    request_body_gzip: z.boolean().optional(),
+    responses_image_urls: z.boolean().optional(),
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
     proxy: z.string().optional(),
@@ -510,6 +512,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   batch_add_set_key_prefix_2_name: false,
   key_mode: 'append',
   // Channel extra settings
+  request_body_gzip: true,
+  responses_image_urls: true,
   force_format: false,
   thinking_to_content: false,
   proxy: '',
@@ -756,6 +760,8 @@ export function transformChannelToFormDefaults(
 ): ChannelFormValues {
   // Parse channel extra settings from setting field
   let extraSettings = {
+    request_body_gzip: true,
+    responses_image_urls: false,
     force_format: false,
     thinking_to_content: false,
     proxy: '',
@@ -768,6 +774,8 @@ export function transformChannelToFormDefaults(
     try {
       const parsed = JSON.parse(channel.setting)
       extraSettings = {
+        request_body_gzip: parsed.request_body_gzip ?? true,
+        responses_image_urls: parsed.responses_image_urls ?? false,
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
@@ -920,6 +928,8 @@ export function transformProviderToCreateDefaults(
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
   const settingObj = {
+    request_body_gzip: formData.request_body_gzip ?? true,
+    responses_image_urls: formData.responses_image_urls ?? false,
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy || '',

@@ -1,6 +1,8 @@
 package dto
 
 type ChannelSettings struct {
+	RequestBodyGzip        *bool  `json:"request_body_gzip,omitempty"`
+	ResponsesImageURLs     bool   `json:"responses_image_urls,omitempty"`
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
 	Proxy                  string `json:"proxy"`

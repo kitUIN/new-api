@@ -132,6 +132,8 @@ export type ChannelProvider = z.infer<typeof channelProviderSummarySchema> & {
 // ============================================================================
 
 export interface ChannelSettings {
+  request_body_gzip?: boolean
+  responses_image_urls?: boolean
   force_format?: boolean
   thinking_to_content?: boolean
   proxy?: string

@@ -4377,6 +4377,18 @@ export function ChannelMutateDrawer({
                       )}
 
                       <div className='divide-border space-y-0 divide-y border-y'>
+                        <FormField control={form.control} name='request_body_gzip' render={({ field }) => (
+                          <FormItem className='flex items-center justify-between px-4 py-3'>
+                            <div className='space-y-0.5'><FormLabel>{t('Use gzip for upstream JSON')}</FormLabel><FormDescription>{t('Disable if the upstream does not accept compressed requests.')}</FormDescription></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name='responses_image_urls' render={({ field }) => (
+                          <FormItem className='flex items-center justify-between px-4 py-3'>
+                            <div className='space-y-0.5'><FormLabel>{t('Use temporary URLs for supported images and files')}</FormLabel><FormDescription>{t('Requires an upstream-reachable server address. Disable for random load balancing or Vertex VPC Service Controls.')}</FormDescription></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                          </FormItem>
+                        )} />
                         {currentType === 1 && (
                           <FormField
                             control={form.control}

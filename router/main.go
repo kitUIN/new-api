@@ -8,12 +8,17 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	router.GET("/relay-images/:id", controller.ServeRelayAsset)
+	router.HEAD("/relay-images/:id", controller.ServeRelayAsset)
+	router.GET("/relay-files/:id", controller.ServeRelayAsset)
+	router.HEAD("/relay-files/:id", controller.ServeRelayAsset)
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)

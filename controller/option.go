@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -135,6 +136,21 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
+	case "relay_asset_setting.cache_mb", "relay_asset_setting.ttl_seconds":
+		n, parseErr := strconv.Atoi(option.Value.(string))
+		min, max := 1, 16384
+		if option.Key == "relay_asset_setting.ttl_seconds" {
+			min, max = 60, 86400
+		}
+		if parseErr != nil || n < min || n > max {
+			common.ApiError(c, fmt.Errorf("value must be between %d and %d", min, max))
+			return
+		}
+	case "relay_asset_setting.cache_dir":
+		if strings.TrimSpace(option.Value.(string)) == "" {
+			common.ApiError(c, fmt.Errorf("cache directory cannot be empty"))
+			return
+		}
 	case "GitHubUpdateRepository":
 		normalizedRepository, normalizeErr := service.NormalizeGitHubRepository(option.Value.(string))
 		if normalizeErr != nil {

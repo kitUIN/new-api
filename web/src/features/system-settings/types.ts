@@ -339,6 +339,9 @@ export type BillingSettings = {
 }
 
 export type OperationsSettings = {
+  'relay_asset_setting.cache_mb': number
+  'relay_asset_setting.cache_dir': string
+  'relay_asset_setting.ttl_seconds': number
   RetryTimes: number
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
