@@ -276,6 +276,9 @@ export function GroupPricingPage() {
         )
 
         updates.sort((left, right) => {
+          // Release upstream locks before saving deleted groups.
+          if (left === 'UpstreamGroupRatioBindings') return -1
+          if (right === 'UpstreamGroupRatioBindings') return 1
           if (left === 'UserUsableGroups') return -1
           if (right === 'UserUsableGroups') return 1
           return 0

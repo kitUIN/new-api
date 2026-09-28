@@ -565,6 +565,9 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
       updates.sort((left, right) => {
+        // Release upstream locks before saving deleted groups.
+        if (left === 'UpstreamGroupRatioBindings') return -1
+        if (right === 'UpstreamGroupRatioBindings') return 1
         if (left === 'UserUsableGroups') return -1
         if (right === 'UserUsableGroups') return 1
         return 0
@@ -572,7 +575,11 @@ export function RatioSettingsCard({
 
       for (const key of updates) {
         const apiKey = apiKeyMap[key] || key
-        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
+        const response = await updateOption.mutateAsync({
+          key: apiKey,
+          value: normalized[key],
+        })
+        if (!response.success) throw new Error(response.message)
       }
     },
     [updateOption]

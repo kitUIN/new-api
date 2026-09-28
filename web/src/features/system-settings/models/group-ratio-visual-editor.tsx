@@ -1287,9 +1287,17 @@ function GroupPricingTable({
 
   const removeRow = useCallback(
     (id: string) => {
-      emitRows(rows.filter((row) => row._id !== id))
+      const removedRow = rows.find((row) => row._id === id)
+      const nextRows = rows.filter((row) => row._id !== id)
+      if (
+        removedRow &&
+        !nextRows.some((row) => row.name.trim() === removedRow.name.trim())
+      ) {
+        removeBinding(removedRow.name)
+      }
+      emitRows(nextRows)
     },
-    [emitRows, rows]
+    [emitRows, removeBinding, rows]
   )
 
   const duplicateNames = useMemo(() => {

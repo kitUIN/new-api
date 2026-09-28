@@ -505,8 +505,17 @@ func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
 	require.True(t, combination.BalanceAvailable)
 	require.True(t, combination.HasLuna)
 	require.Equal(t, "0.5", combination.Juice)
-	require.EqualValues(t, 2, combination.RequestCount)
-	require.Equal(t, 50.0, combination.SuccessRate)
+	require.EqualValues(t, 3, combination.RequestCount)
+	require.Equal(t, 66.67, combination.SuccessRate)
+	require.EqualValues(t, 3, combination.RecentRequestCount)
+	require.Equal(t, 66.67, combination.RecentSuccessRate)
+	var requests, successes int64
+	for _, bucket := range combination.Buckets {
+		requests += bucket.RequestCount
+		successes += bucket.SuccessCount
+	}
+	require.EqualValues(t, 3, requests)
+	require.EqualValues(t, 2, successes)
 
 	primary := requirePerfGroupHealth(t, summary.Groups, primaryGroup)
 	require.EqualValues(t, 2, primary.RequestCount)
@@ -527,6 +536,28 @@ func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
 	require.NoError(t, LOG_DB.Where(commonGroupCol+" = ?", combinationGroup).First(&entryBucket).Error)
 	require.EqualValues(t, 2, entryBucket.RequestCount)
 	require.EqualValues(t, 1, entryBucket.SuccessCount)
+
+	// Hidden member cards still contribute, including samples not flushed yet.
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"codex-pro正价":"Combination"}`))
+	RecordPerfMetricSample(PerfMetricSample{
+		Timestamp: time.Now().Unix(), ModelName: "unrestricted-member-model",
+		Group: lunaGroup, Success: true, IsTestRequest: true,
+	})
+	summary, err = GetPerfGroupHealthSummary(24, 10)
+	require.NoError(t, err)
+	require.Len(t, summary.Groups, 1)
+	combination = requirePerfGroupHealth(t, summary.Groups, combinationGroup)
+	require.EqualValues(t, 4, combination.RequestCount)
+	require.Equal(t, 75.0, combination.SuccessRate)
+	require.EqualValues(t, 3, combination.RecentRequestCount)
+	require.Equal(t, 66.67, combination.RecentSuccessRate)
+	var tests, nonTests int64
+	for _, bucket := range combination.Buckets {
+		tests += bucket.TestRequestCount
+		nonTests += bucket.NonTestRequestCount
+	}
+	require.EqualValues(t, 1, tests)
+	require.EqualValues(t, 3, nonTests)
 }
 
 func TestGetPerfGroupHealthSummaryCombinationRatioRanges(t *testing.T) {

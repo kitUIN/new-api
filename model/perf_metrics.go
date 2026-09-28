@@ -805,6 +805,13 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}
 
 	groups := make(map[string]*groupedAccumulator)
+	combinations := ratio_setting.GetGroupCombinationsCopy()
+	memberGroups := make(map[string]bool)
+	for _, members := range combinations {
+		for _, member := range members {
+			memberGroups[member.Group] = true
+		}
+	}
 	enabledGroups := setting.GetUserUsableGroupsCopy()
 	skippedGroups := operation_setting.ParseAutoTestChannelSkipGroups(operation_setting.GetMonitorSetting().AutoTestChannelSkipGroups)
 	isEnabledGroup := func(groupName string) bool {
@@ -936,7 +943,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if bucketTs < startBucket || bucketTs >= endExclusive {
 			continue
 		}
-		if !shouldShowGroup(row.Group) {
+		if !shouldShowGroup(row.Group) && !memberGroups[normalizePerfMetricGroupName(row.Group)] {
 			continue
 		}
 		groupName := normalizePerfMetricGroupName(row.Group)
@@ -952,7 +959,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}
 
 	for groupName, acc := range currentGroupHealthBucketFallbacks(recentSamples, endBucketStart, endExclusive) {
-		if acc.requestCount <= 0 || !shouldShowGroup(groupName) {
+		if acc.requestCount <= 0 || (!shouldShowGroup(groupName) && !memberGroups[groupName]) {
 			continue
 		}
 		group := ensureGroup(groupName)
@@ -960,6 +967,41 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			continue
 		}
 		group.series[endBucketStart] = &acc
+	}
+
+	// Member-based combinations are virtual views of all member traffic.
+	// Replace entry metrics rather than adding them: those requests already
+	// appear in the selected member's metrics. Legacy channel routes keep
+	// their entry metrics because they do not define member groups.
+	if recentStats == nil {
+		recentStats = make(map[string]perfRecentGroupWindowStats)
+	}
+	for combinationName, members := range combinations {
+		combined := &groupedAccumulator{series: make(map[int64]*perfAccumulator)}
+		var recent perfRecentGroupWindowStats
+		seen := make(map[string]bool)
+		for _, member := range members {
+			if seen[member.Group] {
+				continue
+			}
+			seen[member.Group] = true
+			if source := groups[member.Group]; source != nil {
+				combined.total.add(source.total)
+				for ts, acc := range source.series {
+					if combined.series[ts] == nil {
+						combined.series[ts] = &perfAccumulator{}
+					}
+					combined.series[ts].add(*acc)
+				}
+			}
+			stat := recentStats[member.Group]
+			recent.TenMinutes.requestCount += stat.TenMinutes.requestCount
+			recent.TenMinutes.successCount += stat.TenMinutes.successCount
+			recent.TwentyMinutes.requestCount += stat.TwentyMinutes.requestCount
+			recent.TwentyMinutes.successCount += stat.TwentyMinutes.successCount
+		}
+		groups[combinationName] = combined
+		recentStats[combinationName] = recent
 	}
 
 	providerStats, err := GetGroupProviderStats()
@@ -980,6 +1022,9 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	ratios := ratio_setting.GetGroupRatioCopy()
 	groupNames := make([]string, 0, len(groups))
 	for groupName := range groups {
+		if !shouldShowGroup(groupName) {
+			continue
+		}
 		groupNames = append(groupNames, groupName)
 	}
 	sort.Strings(groupNames)

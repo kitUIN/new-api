@@ -2,10 +2,12 @@ package model
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +28,8 @@ type QuotaData struct {
 	CacheWriteTokens int    `json:"cache_write_tokens" gorm:"default:0"`
 	Count            int    `json:"count" gorm:"default:0"`
 	Quota            int    `json:"quota" gorm:"default:0"`
+
+	IsCombinationGroup bool `json:"is_combination_group,omitempty" gorm:"-"`
 
 	PerfRequestCount     int64   `json:"perf_request_count,omitempty" gorm:"-"`
 	LatencyCount         int64   `json:"latency_count,omitempty" gorm:"-"`
@@ -255,7 +259,7 @@ func GetQuotaDataGroupByGroupModel(startTime int64, endTime int64) (quotaData []
 		return quotaDatas, err
 	}
 	err = attachGroupModelPerfStats(quotaDatas, startTime, endTime)
-	return quotaDatas, err
+	return withCombinationQuotaData(quotaDatas), err
 }
 
 func GetQuotaDataGroupByGroupUser(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
@@ -273,7 +277,7 @@ func GetQuotaDataGroupByGroupUser(userId int, startTime int64, endTime int64) (q
 		return quotaDatas, err
 	}
 	err = attachQuotaDataProfiles(quotaDatas)
-	return quotaDatas, err
+	return withCombinationQuotaData(quotaDatas), err
 }
 
 func GetQuotaDataUsers(startTime int64, endTime int64) (users []*QuotaDataUser, err error) {
@@ -301,7 +305,78 @@ func GetQuotaDataGroupByUserGroupModel(userId int, startTime int64, endTime int6
 		return quotaDatas, err
 	}
 	err = attachGroupModelPerfStats(quotaDatas, startTime, endTime)
-	return quotaDatas, err
+	return withCombinationQuotaData(quotaDatas), err
+}
+
+// withCombinationQuotaData builds virtual totals without changing stored usage.
+// Callers retain the physical rows so global totals can exclude virtual rows.
+func withCombinationQuotaData(rows []*QuotaData) []*QuotaData {
+	combinations := ratio_setting.GetGroupCombinationsCopy()
+	if len(combinations) == 0 {
+		return rows
+	}
+	byGroup := make(map[string][]*QuotaData)
+	result := make([]*QuotaData, 0, len(rows))
+	for _, row := range rows {
+		byGroup[row.Group] = append(byGroup[row.Group], row)
+		if _, virtual := combinations[row.Group]; !virtual {
+			result = append(result, row)
+		}
+	}
+	names := make([]string, 0, len(combinations))
+	for name := range combinations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		type detailKey struct {
+			model  string
+			userID int
+		}
+		totals := make(map[detailKey]*QuotaData)
+		seen := make(map[string]bool)
+		for _, member := range combinations[name] {
+			if seen[member.Group] {
+				continue
+			}
+			seen[member.Group] = true
+			for _, row := range byGroup[member.Group] {
+				key := detailKey{row.ModelName, row.UserID}
+				total := totals[key]
+				if total == nil {
+					total = &QuotaData{Group: name, IsCombinationGroup: true, ModelName: row.ModelName, UserID: row.UserID, Username: row.Username, DisplayName: row.DisplayName, QQId: row.QQId}
+					totals[key] = total
+					result = append(result, total)
+				}
+				total.Count += row.Count
+				total.Quota += row.Quota
+				total.TokenUsed += row.TokenUsed
+				total.PromptTokens += row.PromptTokens
+				total.CompletionTokens += row.CompletionTokens
+				total.CacheReadTokens += row.CacheReadTokens
+				total.CacheWriteTokens += row.CacheWriteTokens
+				total.PerfRequestCount += row.PerfRequestCount
+				total.LatencyCount += row.LatencyCount
+				total.TotalLatencyMs += row.TotalLatencyMs
+				total.TotalTTFTMs += row.TotalTTFTMs
+				total.TTFTCount += row.TTFTCount
+				total.PerfCompletionTokens += row.PerfCompletionTokens
+				total.TotalTPSLatencyMs += row.TotalTPSLatencyMs
+			}
+		}
+		for _, total := range totals {
+			if total.LatencyCount > 0 {
+				total.AvgLatencyMs = float64(total.TotalLatencyMs) / float64(total.LatencyCount)
+			}
+			if total.TTFTCount > 0 {
+				total.AvgTTFTMs = float64(total.TotalTTFTMs) / float64(total.TTFTCount)
+			}
+			if total.TotalTPSLatencyMs > 0 {
+				total.AvgTps = float64(total.PerfCompletionTokens) * 1000 / float64(total.TotalTPSLatencyMs)
+			}
+		}
+	}
+	return result
 }
 
 func attachGroupModelPerfStats(quotaDatas []*QuotaData, startTime int64, endTime int64) error {

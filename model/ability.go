@@ -44,6 +44,17 @@ func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Virtual groups expose only member routes, even if old channel records
+	// still carry the combination's name.
+	combinations := ratio_setting.GetGroupCombinationsCopy()
+	filtered := abilities[:0]
+	for _, ability := range abilities {
+		if members, configured := combinations[ability.Group]; configured && !ratio_setting.GroupCombinationHasOwnGroup(ability.Group, members) {
+			continue
+		}
+		filtered = append(filtered, ability)
+	}
+	abilities = filtered
 	combinationAbilities, err := getEnabledGroupCombinationAbilities(abilities)
 	if err != nil {
 		return nil, err

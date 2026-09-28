@@ -432,6 +432,17 @@ func GetGroupCombinationChannelID(group, modelName string) (int, bool, bool) {
 	return 0, true, false
 }
 
+// GroupCombinationHasOwnGroup identifies legacy overlays that explicitly keep
+// the original group as a member. Pure virtual combinations cannot route there.
+func GroupCombinationHasOwnGroup(group string, members []GroupCombinationMember) bool {
+	for _, member := range members {
+		if member.Group == group {
+			return true
+		}
+	}
+	return false
+}
+
 func GroupCombinationMemberSupportsModel(member GroupCombinationMember, modelName string) bool {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {

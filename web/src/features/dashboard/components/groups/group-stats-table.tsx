@@ -94,6 +94,7 @@ interface GroupDetailStats {
 }
 
 interface GroupStats {
+  isCombinationGroup?: boolean
   group: string
   quota: number
   count: number
@@ -274,6 +275,7 @@ function processGroupStats(
     const totalTPSLatencyMs = Number(item.total_tps_latency_ms) || 0
 
     const groupStats = groups.get(group) ?? emptyGroupStats(group)
+    groupStats.isCombinationGroup = item.is_combination_group
     groupStats.quota += quota
     groupStats.count += count
     groupStats.tokens += tokens
@@ -326,20 +328,22 @@ function processGroupStats(
     }))
     .sort((a, b) => b.quota - a.quota || b.tokens - a.tokens)
 
-  const summary: GroupStatsSummary = rows.reduce(
-    (acc, group) => ({
-      totalQuota: acc.totalQuota + group.quota,
-      totalCount: acc.totalCount + group.count,
-      totalTokens: acc.totalTokens + group.tokens,
-      groupCount: acc.groupCount,
-    }),
-    {
-      totalQuota: 0,
-      totalCount: 0,
-      totalTokens: 0,
-      groupCount: rows.length,
-    }
-  )
+  const summary: GroupStatsSummary = rows
+    .filter((group) => !group.isCombinationGroup)
+    .reduce(
+      (acc, group) => ({
+        totalQuota: acc.totalQuota + group.quota,
+        totalCount: acc.totalCount + group.count,
+        totalTokens: acc.totalTokens + group.tokens,
+        groupCount: acc.groupCount,
+      }),
+      {
+        totalQuota: 0,
+        totalCount: 0,
+        totalTokens: 0,
+        groupCount: rows.length,
+      }
+    )
 
   return { rows, summary }
 }

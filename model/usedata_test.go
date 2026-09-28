@@ -3,6 +3,7 @@ package model
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -492,4 +493,56 @@ func TestGetAllQuotaDatesReturnsZeroBreakdownForLegacyRows(t *testing.T) {
 	require.Zero(t, rows[0].CompletionTokens)
 	require.Zero(t, rows[0].CacheReadTokens)
 	require.Zero(t, rows[0].CacheWriteTokens)
+}
+
+func TestGroupQuotaDataIncludesCombinationMemberTotals(t *testing.T) {
+	truncateTables(t)
+	original := ratio_setting.GroupCombinations2JSONString()
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(original)) })
+	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"combo":[{"group":"first","models":["route-model"]},{"group":"second","models":["route-model"]}]}`))
+	require.NoError(t, DB.Create(&[]QuotaData{
+		{Group: "first", ModelName: "other-model", UserID: 1, CreatedAt: 100, Count: 2, Quota: 20, TokenUsed: 200, PromptTokens: 100, CompletionTokens: 50, CacheReadTokens: 30, CacheWriteTokens: 50},
+		{Group: "second", ModelName: "other-model", UserID: 1, CreatedAt: 100, Count: 3, Quota: 30, TokenUsed: 300, PromptTokens: 150, CompletionTokens: 75, CacheReadTokens: 45, CacheWriteTokens: 75},
+		{Group: "second", ModelName: "other-model", UserID: 2, CreatedAt: 100, Count: 4, Quota: 40},
+		{Group: "unrelated", ModelName: "other-model", UserID: 1, CreatedAt: 100, Count: 100, Quota: 1000},
+		{Group: "first", ModelName: "other-model", UserID: 1, CreatedAt: 300, Count: 100, Quota: 1000},
+	}).Error)
+	tests := []struct {
+		name      string
+		query     func() ([]*QuotaData, error)
+		wantCount int
+	}{
+		{"all models", func() ([]*QuotaData, error) { return GetQuotaDataGroupByGroupModel(100, 200) }, 9},
+		{"user models", func() ([]*QuotaData, error) { return GetQuotaDataGroupByUserGroupModel(1, 100, 200) }, 5},
+		{"all users", func() ([]*QuotaData, error) { return GetQuotaDataGroupByGroupUser(0, 100, 200) }, 9},
+		{"filtered users", func() ([]*QuotaData, error) { return GetQuotaDataGroupByGroupUser(1, 100, 200) }, 5},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows, err := test.query()
+			require.NoError(t, err)
+			var count, quota, tokens, prompt, completion, read, write int
+			for _, row := range rows {
+				if row.Group != "combo" {
+					require.False(t, row.IsCombinationGroup)
+					continue
+				}
+				require.True(t, row.IsCombinationGroup)
+				count += row.Count
+				quota += row.Quota
+				tokens += row.TokenUsed
+				prompt += row.PromptTokens
+				completion += row.CompletionTokens
+				read += row.CacheReadTokens
+				write += row.CacheWriteTokens
+			}
+			require.Equal(t, test.wantCount, count)
+			require.Equal(t, test.wantCount*10, quota)
+			require.Equal(t, 500, tokens)
+			require.Equal(t, 250, prompt)
+			require.Equal(t, 125, completion)
+			require.Equal(t, 75, read)
+			require.Equal(t, 125, write)
+		})
+	}
 }

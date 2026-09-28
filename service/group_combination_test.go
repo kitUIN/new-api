@@ -9,6 +9,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -23,6 +25,8 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	originalUsingMySQL := common.UsingMySQL
 	originalUsingPostgreSQL := common.UsingPostgreSQL
 	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	originalRatios := ratio_setting.GroupRatio2JSONString()
+	originalSpecialRatios := ratio_setting.GroupGroupRatio2JSONString()
 	groupCombinationBreakerMemoryMu.Lock()
 	groupCombinationBreakerMemory = make(map[string]GroupCombinationBreakerState)
 	groupCombinationBreakerMemoryMu.Unlock()
@@ -33,6 +37,8 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 		common.UsingMySQL = originalUsingMySQL
 		common.UsingPostgreSQL = originalUsingPostgreSQL
 		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatios))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(originalSpecialRatios))
 		groupCombinationBreakerMemoryMu.Lock()
 		groupCombinationBreakerMemory = make(map[string]GroupCombinationBreakerState)
 		groupCombinationBreakerMemoryMu.Unlock()
@@ -48,7 +54,10 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
 	highPriority := int64(10)
 	lowPriority := int64(5)
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"codex":9,"cheap":0.14,"premium":0.4}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{}`))
 	channels := []model.Channel{
+		{Id: 12, Name: "virtual-root", Key: "test-root", Status: common.ChannelStatusEnabled, Models: "missing,gpt-5.6-luna", Group: "codex", Priority: &highPriority},
 		{Id: 2, Name: "luna-primary", Key: "sk-luna-primary", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-luna", Group: "cheap", Priority: &highPriority},
 		{Id: 3, Name: "luna-fallback", Key: "sk-luna-fallback", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-luna", Group: "cheap", Priority: &lowPriority},
 		{Id: 4, Name: "sol-cheap", Key: "sk-sol-cheap", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-sol", Group: "cheap", Priority: &highPriority},
@@ -72,6 +81,19 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	_, _, enabled, err = ResolveGroupCombinationChannel("codex", "missing")
 	require.True(t, enabled)
 	require.ErrorContains(t, err, "成员分组均没有")
+	require.False(t, model.IsGroupCombinationModelAvailable("codex", "missing"))
+	require.False(t, model.IsGroupCombinationChannelAvailable("codex", "missing", 12))
+	require.NotContains(t, model.GetGroupCombinationEnabledModels("codex"), "missing")
+	_, foundRoot := ResolveGroupCombinationChannelGroup("codex", "missing", 12)
+	require.False(t, foundRoot)
+	abilities, err := model.GetAllEnableAbilityWithChannels()
+	require.NoError(t, err)
+	for _, ability := range abilities {
+		if ability.Group == "codex" {
+			require.NotEqual(t, 12, ability.ChannelId)
+			require.NotEqual(t, "missing", ability.Model)
+		}
+	}
 
 	channel, selectedGroup, enabled, err = ResolveGroupCombinationChannel("codex", "gpt-5.6-luna")
 	require.NoError(t, err)
@@ -111,6 +133,10 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.Equal(t, "cheap", common.GetContextKeyString(ctx, constant.ContextKeyUsingGroup))
 	require.Equal(t, "codex", common.GetContextKeyString(ctx, constant.ContextKeyGroupCombination))
 	require.Equal(t, 2, channel.Id)
+	info := &relaycommon.RelayInfo{TokenGroup: "codex", UsingGroup: common.GetContextKeyString(ctx, constant.ContextKeyUsingGroup)}
+	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(ctx, info)
+	require.Equal(t, "cheap", info.UsingGroup)
+	require.Equal(t, 0.14, info.PriceData.GroupRatioInfo.GroupRatio)
 
 	retryParam.ExcludeChannel(2)
 	retryParam.ExcludeChannel(3)
@@ -120,6 +146,10 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.Equal(t, "premium", common.GetContextKeyString(ctx, constant.ContextKeyUsingGroup))
 	require.Equal(t, "codex", common.GetContextKeyString(ctx, constant.ContextKeyGroupCombination))
 	require.Equal(t, 9, channel.Id)
+	require.NoError(t, helper.RefreshPricingForSelectedGroup(ctx, info, selectedGroup))
+	require.Equal(t, "premium", info.UsingGroup)
+	require.Equal(t, "codex", info.TokenGroup)
+	require.Equal(t, 0.4, info.PriceData.GroupRatioInfo.GroupRatio)
 
 	channel, selectedGroup, enabled, err = ResolveGroupCombinationChannel("default", "gpt-5.6-sol")
 	require.NoError(t, err)

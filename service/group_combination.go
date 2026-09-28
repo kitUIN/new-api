@@ -79,7 +79,7 @@ func groupCombinationMembersForModel(group, modelName string, members []ratio_se
 			candidates = append(candidates, member)
 		}
 	}
-	if len(candidates) == 0 && fallbackToRoot {
+	if len(candidates) == 0 && fallbackToRoot && ratio_setting.GroupCombinationHasOwnGroup(group, members) {
 		// Models without an explicit override retain the original group's behavior.
 		candidates = append(candidates, ratio_setting.GroupCombinationMember{
 			Group:  group,
@@ -318,7 +318,7 @@ func ResolveGroupCombinationChannelGroup(group, modelName string, channelID int)
 			return member.Group, true
 		}
 	}
-	if !configuredForModel && model.IsChannelEnabledForConcreteGroupModel(group, modelName, channelID) {
+	if !configuredForModel && ratio_setting.GroupCombinationHasOwnGroup(group, members) && model.IsChannelEnabledForConcreteGroupModel(group, modelName, channelID) {
 		return group, true
 	}
 	return "", false

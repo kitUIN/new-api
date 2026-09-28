@@ -128,7 +128,9 @@ func GetGroupCombinationEnabledModels(group string) []string {
 	models := make([]string, 0)
 	seen := make(map[string]struct{})
 	var concreteModels []string
-	DB.Table("abilities").Where(channelSatisfyGroupCol()+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &concreteModels)
+	if ratio_setting.GroupCombinationHasOwnGroup(group, members) {
+		DB.Table("abilities").Where(channelSatisfyGroupCol()+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &concreteModels)
+	}
 	for _, modelName := range concreteModels {
 		configuredForModel := false
 		for _, member := range members {
@@ -182,7 +184,7 @@ func IsGroupCombinationModelAvailable(group, modelName string) bool {
 			return true
 		}
 	}
-	return !configuredForModel && hasAvailableChannelForConcreteGroupModel(group, modelName)
+	return !configuredForModel && ratio_setting.GroupCombinationHasOwnGroup(group, members) && hasAvailableChannelForConcreteGroupModel(group, modelName)
 }
 
 func IsGroupCombinationChannelAvailable(group, modelName string, channelID int) bool {
@@ -208,5 +210,5 @@ func IsGroupCombinationChannelAvailable(group, modelName string, channelID int) 
 			return true
 		}
 	}
-	return !configuredForModel && isChannelEnabledForConcreteGroupModel(group, modelName, channelID)
+	return !configuredForModel && ratio_setting.GroupCombinationHasOwnGroup(group, members) && isChannelEnabledForConcreteGroupModel(group, modelName, channelID)
 }
