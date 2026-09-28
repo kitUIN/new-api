@@ -56,11 +56,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -68,7 +63,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -78,24 +72,20 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { StatusBadge } from '@/components/status-badge'
-import {
-  CHANNEL_STATUS,
-  CHANNEL_STATUS_CONFIG,
-} from '@/features/channels/constants'
 import { getChannelGroupBindings, getGroupQuerySources } from '../api'
 import type {
-  GroupBoundChannel,
   GroupQuerySource,
   UpstreamGroupRatioBinding,
   UpstreamGroupRatioBindingSourceType,
 } from '../types'
 import { safeJsonParse } from '../utils/json-parser'
+import { GroupChannelsEditor } from './group-channels-editor'
 import {
   GroupCombinationDialog,
   normalizeGroupCombinationMembers,
   type GroupCombinationMembers,
 } from './group-combination-dialog'
+import { GroupOpeningHoursEditor } from './group-opening-hours-editor'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
@@ -106,6 +96,8 @@ type GroupRatioVisualEditorProps = {
   groupCombinations: string
   autoGroups: string
   upstreamGroupRatioBindings: string
+  groupOpeningHours: string
+  openingHoursError?: string
   onChange: (field: string, value: string) => void
 }
 
@@ -303,8 +295,7 @@ function buildGroupPricingRows(
       usableMap[name] ?? usableMap[`${disabledDescriptionPrefix}${name}`] ?? ''
     ),
     type: (typesMap[name] === 'user' ? 'user' : 'billing') as
-      | 'billing'
-      | 'user',
+      'billing' | 'user',
     mode: Object.prototype.hasOwnProperty.call(combinationsMap, name)
       ? 'combination'
       : 'standard',
@@ -397,6 +388,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   groupCombinations,
   autoGroups,
   upstreamGroupRatioBindings,
+  groupOpeningHours,
+  openingHoursError,
   onChange,
 }: GroupRatioVisualEditorProps) {
   const { t } = useTranslation()
@@ -643,6 +636,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         groupTypes={groupTypes}
         groupCombinations={groupCombinations}
         upstreamGroupRatioBindings={upstreamGroupRatioBindings}
+        groupOpeningHours={groupOpeningHours}
+        openingHoursError={openingHoursError}
         onChange={onChange}
       />
 
@@ -986,139 +981,9 @@ type GroupPricingTableProps = {
   groupTypes: string
   groupCombinations: string
   upstreamGroupRatioBindings: string
+  groupOpeningHours: string
+  openingHoursError?: string
   onChange: (field: string, value: string) => void
-}
-
-function GroupChannelsCell({
-  channels,
-  isLoading,
-  isError,
-}: {
-  channels: GroupBoundChannel[]
-  isLoading: boolean
-  isError: boolean
-}) {
-  const { t } = useTranslation()
-  const sortedChannels = useMemo(
-    () =>
-      [...channels].sort((left, right) => {
-        if (
-          left.status === CHANNEL_STATUS.ENABLED &&
-          right.status !== CHANNEL_STATUS.ENABLED
-        )
-          return -1
-        if (
-          left.status !== CHANNEL_STATUS.ENABLED &&
-          right.status === CHANNEL_STATUS.ENABLED
-        )
-          return 1
-        return left.id - right.id
-      }),
-    [channels]
-  )
-
-  if (isLoading) {
-    return (
-      <div className='text-muted-foreground flex items-center gap-2 text-xs'>
-        <Spinner className='size-3.5' />
-        <span>{t('Loading...')}</span>
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <span className='text-destructive text-xs'>{t('Failed to load')}</span>
-    )
-  }
-
-  if (sortedChannels.length === 0) {
-    return (
-      <span className='text-muted-foreground text-xs'>
-        {t('No channels found')}
-      </span>
-    )
-  }
-
-  const renderChannelBadge = (channel: GroupBoundChannel) => {
-    const config =
-      CHANNEL_STATUS_CONFIG[
-        channel.status as keyof typeof CHANNEL_STATUS_CONFIG
-      ] ?? CHANNEL_STATUS_CONFIG[0]
-    const statusLabel = t(config.label)
-
-    return (
-      <StatusBadge
-        key={channel.id}
-        variant={config.variant}
-        size='sm'
-        copyable={false}
-        className='max-w-40'
-        title={`${channel.name} (#${channel.id}) · ${statusLabel}`}
-      >
-        <span className='truncate'>{channel.name}</span>
-        <span className='opacity-65'>#{channel.id}</span>
-        <span className='sr-only'> · {statusLabel}</span>
-      </StatusBadge>
-    )
-  }
-
-  const visibleChannels = sortedChannels.slice(0, 2)
-  const remainingCount = sortedChannels.length - visibleChannels.length
-
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <button
-            type='button'
-            className='hover:bg-muted/60 focus-visible:ring-ring flex max-w-full cursor-pointer flex-wrap items-center gap-1 rounded-md p-0.5 text-left transition-colors outline-none focus-visible:ring-2'
-            aria-label={`${t('Channels')} (${sortedChannels.length})`}
-          />
-        }
-      >
-        {visibleChannels.map(renderChannelBadge)}
-        {remainingCount > 0 && (
-          <Badge variant='outline' className='h-5 rounded-full px-2 text-xs'>
-            +{remainingCount}
-          </Badge>
-        )}
-      </PopoverTrigger>
-      <PopoverContent align='start' className='w-80'>
-        <div className='flex items-center justify-between gap-2'>
-          <span className='font-medium'>{t('Channels')}</span>
-          <Badge variant='secondary'>{sortedChannels.length}</Badge>
-        </div>
-        <div className='max-h-64 space-y-1 overflow-y-auto pr-1'>
-          {sortedChannels.map((channel) => {
-            const config =
-              CHANNEL_STATUS_CONFIG[
-                channel.status as keyof typeof CHANNEL_STATUS_CONFIG
-              ] ?? CHANNEL_STATUS_CONFIG[0]
-            return (
-              <div
-                key={channel.id}
-                className='hover:bg-muted/60 flex items-center justify-between gap-3 rounded-md px-2 py-1.5'
-              >
-                <span className='min-w-0 truncate text-sm'>
-                  {channel.name}
-                  <span className='text-muted-foreground ml-1 text-xs'>
-                    #{channel.id}
-                  </span>
-                </span>
-                <StatusBadge
-                  label={t(config.label)}
-                  variant={config.variant}
-                  size='sm'
-                  copyable={false}
-                />
-              </div>
-            )
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 function GroupPricingTable({
@@ -1127,10 +992,17 @@ function GroupPricingTable({
   groupTypes,
   groupCombinations,
   upstreamGroupRatioBindings,
+  groupOpeningHours,
+  openingHoursError,
   onChange,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'billing' | 'user'>('billing')
+  const [selectedRowID, setSelectedRowID] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [channelDrafts, setChannelDrafts] = useState<
+    Record<string, string[] | undefined>
+  >({})
   const [bindingDialogRow, setBindingDialogRow] =
     useState<GroupPricingRow | null>(null)
   const [combinationDialogRowID, setCombinationDialogRowID] = useState<
@@ -1270,10 +1142,13 @@ function GroupPricingTable({
       index += 1
       name = `group_${index}`
     }
+    const id = createGroupPricingId()
+    setSearch('')
+    setSelectedRowID(id)
     emitRows([
       ...rows,
       {
-        _id: createGroupPricingId(),
+        _id: id,
         name,
         ratio: 1,
         selectable: true,
@@ -1312,7 +1187,13 @@ function GroupPricingTable({
       .map(([name]) => name)
   }, [rows])
 
-  const visibleRows = rows.filter((row) => row.type === activeTab)
+  const visibleRows = rows.filter(
+    (row) =>
+      row.type === activeTab &&
+      row.name.toLowerCase().includes(search.toLowerCase())
+  )
+  const selectedRow =
+    visibleRows.find((row) => row._id === selectedRowID) ?? visibleRows[0]
   const combinationDialogRow =
     rows.find((row) => row._id === combinationDialogRowID) ?? null
 
@@ -1366,7 +1247,7 @@ function GroupPricingTable({
             <CardTitle>{t('Pricing groups')}</CardTitle>
             <CardDescription>
               {t(
-                'Edit billing ratios and user-selectable groups in one table.'
+                'Select a group to configure pricing, opening hours, and channels.'
               )}
             </CardDescription>
           </div>
@@ -1387,277 +1268,324 @@ function GroupPricingTable({
       </CardHeader>
       <CardContent>
         <div className='space-y-3'>
-          <div className='rounded-md border'>
-            <Table className='min-w-[1380px] table-fixed'>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='w-44'>{t('Group name')}</TableHead>
-                  <TableHead className='w-32'>{t('Ratio')}</TableHead>
-                  <TableHead className='w-32 text-center'>
-                    {t('User selectable')}
-                  </TableHead>
-                  <TableHead className='w-60'>{t('Description')}</TableHead>
-                  <TableHead className='w-40'>{t('Group mode')}</TableHead>
-                  <TableHead className='w-64'>{t('Channels')}</TableHead>
-                  <TableHead className='w-80'>
-                    {t('Upstream binding')}
-                  </TableHead>
-                  <TableHead className='w-16 text-right'>
-                    {t('Actions')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleRows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className='text-muted-foreground h-20 text-center text-sm'
-                    >
-                      {t('No groups yet. Add a group to get started.')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  visibleRows.map((row) => {
-                    const groupName = row.name.trim()
-                    const binding = bindings[groupName]
-                    const source = binding
-                      ? sourceMap.get(
-                          getSourceKey(binding.source_type, binding.source_id)
-                        )
-                      : undefined
-                    const finalRatio = calculateFinalRatio(source, binding)
-
-                    return (
-                      <TableRow key={row._id}>
-                        <TableCell className='w-44'>
-                          <Input
-                            value={row.name}
-                            onChange={(event) =>
-                              updateRow(row._id, 'name', event.target.value)
-                            }
-                            aria-invalid={duplicateNames.includes(
-                              row.name.trim()
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell className='w-32'>
-                          {row.mode === 'combination' ? (
-                            <Badge variant='secondary'>
-                              {t('Member group ratios')}
-                            </Badge>
-                          ) : (
-                            <Input
-                              className='min-w-28'
-                              type='number'
-                              min={0}
-                              step={0.1}
-                              value={String(row.ratio)}
-                              disabled={!!binding}
-                              onChange={(event) =>
-                                updateRow(
-                                  row._id,
-                                  'ratio',
-                                  normalizeRatio(event.target.value)
-                                )
-                              }
-                            />
+          <div className='grid min-h-0 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(360px,1fr)] xl:grid-cols-[minmax(0,1.1fr)_minmax(440px,0.9fr)]'>
+            <div className='min-w-0 space-y-3'>
+              <Input
+                aria-label={t('Search groups')}
+                placeholder={t('Search groups')}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <div className='overflow-hidden rounded-lg border'>
+                {visibleRows.length === 0 && (
+                  <p className='text-muted-foreground p-6 text-center text-sm'>
+                    {t('No groups yet. Add a group to get started.')}
+                  </p>
+                )}
+                {visibleRows.map((row) => (
+                  <button
+                    key={row._id}
+                    type='button'
+                    aria-pressed={selectedRow?._id === row._id}
+                    className='hover:bg-muted/50 aria-pressed:bg-muted flex w-full items-center justify-between gap-3 border-b p-4 text-left last:border-b-0'
+                    onClick={() => setSelectedRowID(row._id)}
+                  >
+                    <span className='min-w-0'>
+                      <span className='block truncate font-medium'>
+                        {row.name}
+                      </span>
+                      <span className='text-muted-foreground block truncate text-xs'>
+                        {row.description ||
+                          t(
+                            row.mode === 'combination'
+                              ? 'Combination mode'
+                              : 'Standard mode'
                           )}
-                        </TableCell>
-                        <TableCell className='w-32'>
-                          <div className='flex justify-center'>
-                            <Checkbox
-                              checked={row.selectable}
-                              onCheckedChange={(checked) =>
-                                updateRow(
-                                  row._id,
-                                  'selectable',
-                                  checked === true
-                                )
-                              }
-                              aria-label={t('User selectable')}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className='w-60'>
+                      </span>
+                    </span>
+                    <Badge variant='secondary'>
+                      {row.mode === 'combination'
+                        ? t('Member group ratios')
+                        : `${row.ratio}×`}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className='min-w-0 rounded-lg border p-4 md:sticky md:top-4 md:max-h-[calc(100vh-12rem)] md:self-start md:overflow-y-auto'>
+              {!selectedRow && (
+                <p className='text-muted-foreground py-12 text-center text-sm'>
+                  {t('Select a group to edit pricing')}
+                </p>
+              )}
+              {[selectedRow]
+                .filter((row) => row !== undefined)
+                .map((row) => {
+                  const groupName = row.name.trim()
+                  const binding = bindings[groupName]
+                  const source = binding
+                    ? sourceMap.get(
+                        getSourceKey(binding.source_type, binding.source_id)
+                      )
+                    : undefined
+                  const finalRatio = calculateFinalRatio(source, binding)
+
+                  return (
+                    <div key={row._id} className='space-y-5'>
+                      <div className='space-y-2'>
+                        <Label>{t('Group name')}</Label>
+                        <Input
+                          aria-label={t('Group name')}
+                          value={row.name}
+                          onChange={(event) =>
+                            updateRow(row._id, 'name', event.target.value)
+                          }
+                          aria-invalid={duplicateNames.includes(
+                            row.name.trim()
+                          )}
+                        />
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('Ratio')}</Label>
+                        {row.mode === 'combination' ? (
+                          <Badge variant='secondary'>
+                            {t('Member group ratios')}
+                          </Badge>
+                        ) : (
                           <Input
-                            value={row.description}
-                            placeholder={t('Group description')}
+                            aria-label={t('Ratio')}
+                            type='number'
+                            min={0}
+                            step={0.1}
+                            value={String(row.ratio)}
+                            disabled={!!binding}
                             onChange={(event) =>
                               updateRow(
                                 row._id,
-                                'description',
-                                event.target.value
+                                'ratio',
+                                normalizeRatio(event.target.value)
                               )
                             }
                           />
-                        </TableCell>
-                        <TableCell className='w-40'>
-                          <Select
-                            items={[
-                              { value: 'standard', label: t('Standard mode') },
-                              {
-                                value: 'combination',
-                                label: t('Combination mode'),
-                              },
-                            ]}
-                            value={row.mode}
-                            onValueChange={(value) => {
-                              if (
-                                value !== 'standard' &&
-                                value !== 'combination'
-                              ) {
-                                return
-                              }
-                              handleModeChange(row._id, value)
-                            }}
+                        )}
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('User selectable')}</Label>
+                        <div className='flex'>
+                          <Checkbox
+                            checked={row.selectable}
+                            onCheckedChange={(checked) =>
+                              updateRow(row._id, 'selectable', checked === true)
+                            }
+                            aria-label={t('User selectable')}
+                          />
+                        </div>
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('Description')}</Label>
+                        <Input
+                          aria-label={t('Description')}
+                          value={row.description}
+                          placeholder={t('Group description')}
+                          onChange={(event) =>
+                            updateRow(
+                              row._id,
+                              'description',
+                              event.target.value
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('Group mode')}</Label>
+                        <Select
+                          items={[
+                            { value: 'standard', label: t('Standard mode') },
+                            {
+                              value: 'combination',
+                              label: t('Combination mode'),
+                            },
+                          ]}
+                          value={row.mode}
+                          onValueChange={(value) => {
+                            if (
+                              value !== 'standard' &&
+                              value !== 'combination'
+                            ) {
+                              return
+                            }
+                            handleModeChange(row._id, value)
+                          }}
+                        >
+                          <SelectTrigger
+                            aria-label={t('Group mode')}
+                            className='w-full'
                           >
-                            <SelectTrigger className='w-full'>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent alignItemWithTrigger={false}>
-                              <SelectGroup>
-                                <SelectItem value='standard'>
-                                  {t('Standard mode')}
-                                </SelectItem>
-                                <SelectItem value='combination'>
-                                  {t('Combination mode')}
-                                </SelectItem>
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className='w-64'>
-                          {row.mode === 'combination' ? (
-                            <div className='flex items-center justify-between gap-2'>
-                              <div className='min-w-0'>
-                                <Badge
-                                  variant={
-                                    row.memberGroups.length >= 2
-                                      ? 'secondary'
-                                      : 'destructive'
-                                  }
-                                >
-                                  {t('{{count}} member groups', {
-                                    count: row.memberGroups.length,
-                                  })}
-                                </Badge>
-                              </div>
-                              <Button
-                                type='button'
-                                variant='outline'
-                                size='sm'
-                                disabled={!groupName}
-                                onClick={() =>
-                                  setCombinationDialogRowID(row._id)
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='standard'>
+                                {t('Standard mode')}
+                              </SelectItem>
+                              <SelectItem value='combination'>
+                                {t('Combination mode')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('Channels')}</Label>
+                        {row.mode === 'combination' ? (
+                          <div className='flex items-center justify-between gap-2'>
+                            <div className='min-w-0'>
+                              <Badge
+                                variant={
+                                  row.memberGroups.length >= 2
+                                    ? 'secondary'
+                                    : 'destructive'
                                 }
                               >
-                                <Settings2 className='mr-2 h-4 w-4' />
-                                {t('Configure')}
-                              </Button>
+                                {t('{{count}} member groups', {
+                                  count: row.memberGroups.length,
+                                })}
+                              </Badge>
                             </div>
-                          ) : (
-                            <GroupChannelsCell
-                              channels={channelBindings[groupName] ?? []}
-                              isLoading={channelBindingsLoading}
-                              isError={channelBindingsError}
-                            />
-                          )}
-                        </TableCell>
-                        <TableCell className='w-80'>
-                          {row.mode === 'combination' ? (
-                            <span className='text-muted-foreground text-xs'>
-                              {t('Uses member group ratio')}
-                            </span>
-                          ) : binding ? (
-                            <div className='flex items-start justify-between gap-2'>
-                              <div className='min-w-0 space-y-1'>
-                                <div className='flex flex-wrap items-center gap-1.5'>
-                                  <Badge variant='secondary'>
-                                    {t('Bound')}
-                                  </Badge>
-                                  <span className='text-muted-foreground text-xs'>
-                                    {getSourceLabel(source) ||
-                                      `${binding.source_type} #${binding.source_id}`}
-                                  </span>
-                                </div>
-                                <p className='truncate text-xs'>
-                                  {binding.upstream_group}
-                                  <span className='text-muted-foreground'>
-                                    {' '}
-                                    {t('offset')}{' '}
-                                    {getBindingOffsetExpression(binding)}
-                                  </span>
-                                  {finalRatio !== null && (
-                                    <span className='text-muted-foreground'>
-                                      {' '}
-                                      {t('final')} {finalRatio}
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                              <div className='flex shrink-0 gap-1'>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  onClick={() => setBindingDialogRow(row)}
-                                  aria-label={t('Edit binding')}
-                                >
-                                  <Link2 className='h-4 w-4' />
-                                </Button>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  onClick={() => removeBinding(groupName)}
-                                  aria-label={t('Unbind')}
-                                >
-                                  <Unlink className='h-4 w-4' />
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
                             <Button
+                              type='button'
                               variant='outline'
                               size='sm'
-                              onClick={() => setBindingDialogRow(row)}
                               disabled={!groupName}
+                              onClick={() => setCombinationDialogRowID(row._id)}
                             >
-                              <Link2 className='mr-2 h-4 w-4' />
-                              {t('Bind')}
-                            </Button>
-                          )}
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <div className='flex items-center justify-end gap-1'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() => handleMigrateGroup(row._id)}
-                              aria-label={t('Migrate to {{target}}', {
-                                target:
-                                  activeTab === 'billing'
-                                    ? t('User groups')
-                                    : t('Billing groups'),
-                              })}
-                            >
-                              <ArrowRightLeft className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() => removeRow(row._id)}
-                              aria-label={t('Delete')}
-                            >
-                              <Trash2 className='h-4 w-4' />
+                              <Settings2 className='mr-2 h-4 w-4' />
+                              {t('Configure')}
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
+                        ) : (
+                          <GroupChannelsEditor
+                            key={groupName}
+                            group={groupName}
+                            draft={channelDrafts[groupName]}
+                            onDraftChange={(value) =>
+                              setChannelDrafts((current) => ({
+                                ...current,
+                                [groupName]: value,
+                              }))
+                            }
+                            disabled={row.type !== 'billing'}
+                            channels={channelBindings[groupName] ?? []}
+                            isLoading={channelBindingsLoading}
+                            isError={channelBindingsError}
+                          />
+                        )}
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('Upstream binding')}</Label>
+                        {row.mode === 'combination' ? (
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Uses member group ratio')}
+                          </span>
+                        ) : binding ? (
+                          <div className='flex items-start justify-between gap-2'>
+                            <div className='min-w-0 space-y-1'>
+                              <div className='flex flex-wrap items-center gap-1.5'>
+                                <Badge variant='secondary'>{t('Bound')}</Badge>
+                                <span className='text-muted-foreground text-xs'>
+                                  {getSourceLabel(source) ||
+                                    `${binding.source_type} #${binding.source_id}`}
+                                </span>
+                              </div>
+                              <p className='truncate text-xs'>
+                                {binding.upstream_group}
+                                <span className='text-muted-foreground'>
+                                  {' '}
+                                  {t('offset')}{' '}
+                                  {getBindingOffsetExpression(binding)}
+                                </span>
+                                {finalRatio !== null && (
+                                  <span className='text-muted-foreground'>
+                                    {' '}
+                                    {t('final')} {finalRatio}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                            <div className='flex shrink-0 gap-1'>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                onClick={() => setBindingDialogRow(row)}
+                                aria-label={t('Edit binding')}
+                              >
+                                <Link2 className='h-4 w-4' />
+                              </Button>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                onClick={() => removeBinding(groupName)}
+                                aria-label={t('Unbind')}
+                              >
+                                <Unlink className='h-4 w-4' />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={() => setBindingDialogRow(row)}
+                            disabled={!groupName}
+                          >
+                            <Link2 className='mr-2 h-4 w-4' />
+                            {t('Bind')}
+                          </Button>
+                        )}
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('Actions')}</Label>
+                        <div className='flex items-center justify-end gap-1'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => handleMigrateGroup(row._id)}
+                            aria-label={t('Migrate to {{target}}', {
+                              target:
+                                activeTab === 'billing'
+                                  ? t('User groups')
+                                  : t('Billing groups'),
+                            })}
+                          >
+                            <ArrowRightLeft className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => removeRow(row._id)}
+                            aria-label={t('Delete')}
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </div>
+                      <GroupOpeningHoursEditor
+                        value={groupOpeningHours}
+                        groups={groupRatio}
+                        group={groupName}
+                        onChange={(value) =>
+                          onChange('GroupOpeningHours', value)
+                        }
+                      />
+                      {openingHoursError && (
+                        <p role='alert' className='text-destructive text-sm'>
+                          {t(openingHoursError)}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+            </div>
           </div>
 
           {duplicateNames.length > 0 && (

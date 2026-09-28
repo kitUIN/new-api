@@ -1,12 +1,82 @@
 package model
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func TestSetGroupChannelsPreservesOtherMemberships(t *testing.T) {
+	truncateTables(t)
+	channels := []Channel{
+		{Id: 1, Name: "primary", Key: "secret-one", Status: common.ChannelStatusEnabled, Group: "default,vip", Models: "model-a"},
+		{Id: 2, Name: "disabled", Key: "secret-two", Status: common.ChannelStatusManuallyDisabled, Group: "other", Models: "model-b"},
+	}
+	for i := range channels {
+		require.NoError(t, channels[i].Insert())
+	}
+	require.NoError(t, SetGroupChannels("vip", []int{2, 2}))
+	var stored []Channel
+	require.NoError(t, DB.Order("id").Find(&stored).Error)
+	require.Equal(t, "default", stored[0].Group)
+	require.Equal(t, "other,vip", stored[1].Group)
+	require.Equal(t, "secret-one", stored[0].Key)
+	require.Equal(t, "secret-two", stored[1].Key)
+	var abilities []Ability
+	require.NoError(t, DB.Where(commonGroupCol+" = ?", "vip").Find(&abilities).Error)
+	require.Len(t, abilities, 1)
+	require.Equal(t, 2, abilities[0].ChannelId)
+	require.Equal(t, "model-b", abilities[0].Model)
+	require.False(t, abilities[0].Enabled)
+
+	require.NoError(t, SetGroupChannels("default", []int{}))
+	require.NoError(t, DB.First(&stored[0], 1).Error)
+	require.Empty(t, stored[0].Group)
+	var count int64
+	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", 1).Count(&count).Error)
+	require.Zero(t, count, "removing the last group must not create an empty-group ability")
+	require.NoError(t, stored[0].UpdateAbilities(nil))
+	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", 1).Count(&count).Error)
+	require.Zero(t, count, "subsequent channel edits must keep unassigned channels unroutable")
+	options, err := GetGroupChannelOptions()
+	require.NoError(t, err)
+	require.Len(t, options, 2, "unassigned and disabled channels must remain selectable")
+}
+
+func TestSetGroupChannelsRejectsMissingChannel(t *testing.T) {
+	truncateTables(t)
+	channel := Channel{Id: 1, Key: "secret", Group: "vip", Models: "model-a", Status: common.ChannelStatusEnabled}
+	require.NoError(t, channel.Insert())
+	require.Error(t, SetGroupChannels("vip", []int{999}))
+	require.Error(t, SetGroupChannels("", []int{1}))
+	require.Error(t, SetGroupChannels("vip,default", []int{1}))
+	require.NoError(t, DB.First(&channel, 1).Error)
+	require.Equal(t, "vip", channel.Group)
+}
+
+func TestSetGroupChannelsRollsBackAbilitiesFailure(t *testing.T) {
+	truncateTables(t)
+	channel := Channel{Id: 1, Key: "secret", Group: "default", Models: "model-a", Status: common.ChannelStatusEnabled}
+	require.NoError(t, channel.Insert())
+	const callback = "test:fail_group_abilities"
+	require.NoError(t, DB.Callback().Create().Before("gorm:create").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == "abilities" {
+			tx.AddError(errors.New("ability write failed"))
+		}
+	}))
+	t.Cleanup(func() { DB.Callback().Create().Remove(callback) })
+	require.Error(t, SetGroupChannels("vip", []int{1}))
+	require.NoError(t, DB.First(&channel, 1).Error)
+	require.Equal(t, "default", channel.Group)
+	var abilities []Ability
+	require.NoError(t, DB.Where("channel_id = ?", 1).Find(&abilities).Error)
+	require.Len(t, abilities, 1)
+	require.Equal(t, "default", abilities[0].Group)
+}
 
 func TestHasEnabledChannelInGroup(t *testing.T) {
 	truncateTables(t)

@@ -1,5 +1,17 @@
 {
   "translation": {
+    "Select a group to configure pricing, opening hours, and channels.": "グループを選択して料金、利用時間、チャンネルを設定します。",
+    "Select a group to edit pricing": "料金を編集するグループを選択",
+    "Search groups": "グループを検索",
+    "Select channels": "チャンネルを選択",
+    "Search and select channels": "チャンネルを検索して選択",
+    "Save channel selection": "チャンネルの選択を保存",
+    "Channel selection saved": "チャンネルの選択を保存しました",
+    "Failed to save channel selection": "チャンネルの選択を保存できませんでした",
+    "Channels can only be assigned to billing groups.": "チャンネルは課金グループにのみ割り当てられます。",
+    "Save the group before assigning channels.": "チャンネルを割り当てる前にグループを保存してください。",
+    "Save channel selection separately. Other group memberships are preserved.": "チャンネルの選択は個別に保存します。他のグループへの所属は維持されます。",
+    "Published models and model remapping rules.": "公開モデルとモデルのマッピングルール。",
     "upstreamUsage.trafficRingHint": "The ring beside the group name shows 1h traffic share; the battery corner ring shows 5h remaining quota.",
     "upstreamUsage.title": "Upstream usage",
     "upstreamUsage.details": "5h / 7d usage details",

@@ -1,5 +1,17 @@
 {
   "translation": {
+    "Select a group to configure pricing, opening hours, and channels.": "Chọn nhóm để cấu hình giá, giờ mở và kênh.",
+    "Select a group to edit pricing": "Chọn nhóm để chỉnh sửa giá",
+    "Search groups": "Tìm nhóm",
+    "Select channels": "Chọn kênh",
+    "Search and select channels": "Tìm và chọn kênh",
+    "Save channel selection": "Lưu lựa chọn kênh",
+    "Channel selection saved": "Đã lưu lựa chọn kênh",
+    "Failed to save channel selection": "Không thể lưu lựa chọn kênh",
+    "Channels can only be assigned to billing groups.": "Chỉ có thể gán kênh cho nhóm thanh toán.",
+    "Save the group before assigning channels.": "Lưu nhóm trước khi gán kênh.",
+    "Save channel selection separately. Other group memberships are preserved.": "Lưu lựa chọn kênh riêng. Các nhóm khác của kênh được giữ nguyên.",
+    "Published models and model remapping rules.": "Mô hình đã công bố và quy tắc ánh xạ mô hình.",
     "upstreamUsage.trafficRingHint": "The ring beside the group name shows 1h traffic share; the battery corner ring shows 5h remaining quota.",
     "upstreamUsage.title": "Upstream usage",
     "upstreamUsage.details": "5h / 7d usage details",

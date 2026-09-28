@@ -22,6 +22,7 @@ import type {
   ChannelGroupBindingsResponse,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
+  GroupBoundChannel,
   GroupCombinationCircuitBreakersResponse,
   GroupQuerySourcesResponse,
   ResetGroupCombinationCircuitBreakerResponse,
@@ -120,4 +121,22 @@ export async function getChannelGroupBindings() {
     '/api/channel/group_bindings'
   )
   return res.data
+}
+
+export async function getGroupChannelOptions() {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data: GroupBoundChannel[]
+  }>('/api/channel/group_options')
+  if (!res.data.success) throw new Error(res.data.message)
+  return res.data.data
+}
+
+export async function setGroupChannels(group: string, channelIds: number[]) {
+  const res = await api.put<{ success: boolean; message?: string }>(
+    '/api/channel/group_bindings',
+    { group, channel_ids: channelIds }
+  )
+  if (!res.data.success) throw new Error(res.data.message)
 }

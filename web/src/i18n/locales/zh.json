@@ -1,5 +1,17 @@
 {
   "translation": {
+    "Select a group to configure pricing, opening hours, and channels.": "选择分组，配置定价、开放时间和渠道。",
+    "Select a group to edit pricing": "选择分组以编辑定价",
+    "Search groups": "搜索分组",
+    "Select channels": "选择渠道",
+    "Search and select channels": "搜索并选择渠道",
+    "Save channel selection": "保存渠道选择",
+    "Channel selection saved": "渠道选择已保存",
+    "Failed to save channel selection": "保存渠道选择失败",
+    "Channels can only be assigned to billing groups.": "仅计费分组可直接配置渠道。",
+    "Save the group before assigning channels.": "请先保存分组，再配置渠道。",
+    "Save channel selection separately. Other group memberships are preserved.": "渠道选择需单独保存，不影响渠道所属的其他分组。",
+    "Published models and model remapping rules.": "已发布模型及模型映射规则。",
     "upstreamUsage.trafficRingHint": "分组名旁圆环表示近 1h 请求占比；电池右下角圆环表示 5h 剩余量。",
     "upstreamUsage.title": "上游用量",
     "upstreamUsage.details": "5h / 7d 用量详情",

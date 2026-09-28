@@ -272,6 +272,8 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)
 			channelRoute.GET("/group_bindings", controller.GetChannelGroupBindings)
+			channelRoute.GET("/group_options", controller.GetGroupChannelOptions)
+			channelRoute.PUT("/group_bindings", controller.SetGroupChannels)
 			channelRoute.GET("/providers", controller.GetChannelProviders)
 			channelRoute.GET("/providers/:id", controller.GetChannelProvider)
 			channelRoute.POST("/providers", controller.CreateChannelProvider)

@@ -33,6 +33,7 @@ type Interval = { start: string; end: string }
 type Props = {
   value: string
   groups: string
+  group?: string
   onChange: (value: string) => void
 }
 
@@ -52,7 +53,8 @@ export function GroupOpeningHoursEditor(props: Props) {
   } catch {
     return <p role='alert'>{t('Invalid JSON')}</p>
   }
-  const group = groups.includes(selected) ? selected : groups[0] || ''
+  const group =
+    props.group ?? (groups.includes(selected) ? selected : groups[0] || '')
   const intervals = schedules[group] || []
   const update = (next: Interval[]) => {
     const result = { ...schedules }
@@ -63,24 +65,33 @@ export function GroupOpeningHoursEditor(props: Props) {
 
   return (
     <section className='space-y-3 rounded-lg border p-4'>
-      <Label htmlFor='opening-hours-group'>{t('Group opening hours')}</Label>
+      <Label
+        htmlFor={props.group === undefined ? 'opening-hours-group' : undefined}
+      >
+        {t('Group opening hours')}
+      </Label>
       <p className='text-muted-foreground text-sm'>
         {t(
           'Daily in Beijing time (UTC+8). No intervals means always open. An end earlier than the start means the next day. Start is included; end is excluded.'
         )}
       </p>
-      <Select value={group} onValueChange={(value) => setSelected(value || '')}>
-        <SelectTrigger id='opening-hours-group' className='w-full sm:w-64'>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {groups.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {props.group === undefined && (
+        <Select
+          value={group}
+          onValueChange={(value) => setSelected(value || '')}
+        >
+          <SelectTrigger id='opening-hours-group' className='w-full sm:w-64'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {groups.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       {intervals.length === 0 && (
         <p className='text-muted-foreground text-sm'>{t('Always open')}</p>
       )}

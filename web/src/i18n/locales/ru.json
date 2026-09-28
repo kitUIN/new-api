@@ -1,5 +1,17 @@
 {
   "translation": {
+    "Select a group to configure pricing, opening hours, and channels.": "Выберите группу для настройки цен, времени работы и каналов.",
+    "Select a group to edit pricing": "Выберите группу для изменения цен",
+    "Search groups": "Поиск групп",
+    "Select channels": "Выбрать каналы",
+    "Search and select channels": "Найти и выбрать каналы",
+    "Save channel selection": "Сохранить выбор каналов",
+    "Channel selection saved": "Выбор каналов сохранён",
+    "Failed to save channel selection": "Не удалось сохранить выбор каналов",
+    "Channels can only be assigned to billing groups.": "Каналы можно назначать только расчётным группам.",
+    "Save the group before assigning channels.": "Сохраните группу перед назначением каналов.",
+    "Save channel selection separately. Other group memberships are preserved.": "Выбор каналов сохраняется отдельно. Принадлежность к другим группам сохраняется.",
+    "Published models and model remapping rules.": "Опубликованные модели и правила сопоставления моделей.",
     "upstreamUsage.trafficRingHint": "The ring beside the group name shows 1h traffic share; the battery corner ring shows 5h remaining quota.",
     "upstreamUsage.title": "Upstream usage",
     "upstreamUsage.details": "5h / 7d usage details",

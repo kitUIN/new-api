@@ -278,7 +278,7 @@ export const channelFormSchema = z
     key: z.string(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
-    group: z.array(z.string()).min(1, ERROR_MESSAGES.REQUIRED_GROUP),
+    group: z.array(z.string()),
     model_mapping: z
       .string()
       .optional()
@@ -862,7 +862,7 @@ export function transformChannelToFormDefaults(
     key: '', // Never populate key from backend for security
     openai_organization: channel.openai_organization || '',
     models: channel.models || '',
-    group: parseGroups(channel.group || 'default'),
+    group: parseGroups(channel.group ?? 'default'),
     model_mapping: channel.model_mapping || '',
     priority: channel.priority || 0,
     weight: channel.weight || 0,
@@ -1151,7 +1151,6 @@ export function transformFormDataToUpdatePayload(
     base_url: normalizeBaseUrl(formData.base_url) || null,
     openai_organization: formData.openai_organization || null,
     models: formData.models,
-    group: formatGroups(formData.group),
     model_mapping: formData.model_mapping || null,
     priority: formData.priority ?? 0,
     weight: formData.weight ?? 0,

@@ -1,5 +1,17 @@
 {
   "translation": {
+    "Select a group to configure pricing, opening hours, and channels.": "Sélectionnez un groupe pour configurer les tarifs, les horaires et les canaux.",
+    "Select a group to edit pricing": "Sélectionnez un groupe pour modifier ses tarifs",
+    "Search groups": "Rechercher des groupes",
+    "Select channels": "Sélectionner les canaux",
+    "Search and select channels": "Rechercher et sélectionner des canaux",
+    "Save channel selection": "Enregistrer les canaux sélectionnés",
+    "Channel selection saved": "Sélection des canaux enregistrée",
+    "Failed to save channel selection": "Échec de l’enregistrement des canaux",
+    "Channels can only be assigned to billing groups.": "Les canaux peuvent uniquement être associés aux groupes de facturation.",
+    "Save the group before assigning channels.": "Enregistrez le groupe avant d’associer des canaux.",
+    "Save channel selection separately. Other group memberships are preserved.": "Enregistrez les canaux séparément. Les autres associations de groupes sont conservées.",
+    "Published models and model remapping rules.": "Modèles publiés et règles de correspondance des modèles.",
     "upstreamUsage.trafficRingHint": "The ring beside the group name shows 1h traffic share; the battery corner ring shows 5h remaining quota.",
     "upstreamUsage.title": "Upstream usage",
     "upstreamUsage.details": "5h / 7d usage details",
