@@ -281,6 +281,8 @@ func migrateDB() error {
 		&PerfGroupHealthMetricBucket{},
 		&GroupRatioHistory{},
 		&GroupJuiceHistory{},
+		&UpstreamUsageProvider{},
+		&UpstreamUsageAccount{},
 		&Midjourney{},
 		&TopUp{},
 		&BillingCost{},
@@ -328,6 +330,10 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	// These related tables must migrate together before parallel migrations.
+	if err := DB.AutoMigrate(&UpstreamUsageProvider{}, &UpstreamUsageAccount{}); err != nil {
+		return err
+	}
 	if err := migratePerfMetricBucketTestRequestCount(); err != nil {
 		return err
 	}

@@ -32,6 +32,7 @@ export const STATIC_I18N_KEYS = [
   'Model Square',
   'Rankings',
   'Group Health',
+  'upstreamUsage.title',
   'Juice',
   'Test Juice',
   'Disable Juice detection',

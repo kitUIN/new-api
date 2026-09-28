@@ -89,6 +89,10 @@ const LazyGroupHealthGrid = lazy(() =>
   }))
 )
 
+const LazyUpstreamUsage = lazy(() =>
+  import('../upstream-usage').then((m) => ({ default: m.UpstreamUsage }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -143,6 +147,7 @@ function PerformanceOverviewFallback() {
 }
 
 const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
+  'upstream-usage': { titleKey: 'upstreamUsage.title' },
   overview: {
     titleKey: 'Overview',
   },
@@ -207,7 +212,10 @@ export function Dashboard() {
     () =>
       DASHBOARD_SECTION_IDS.filter(
         (section) =>
-          (section !== 'users' && section !== 'group-health') || isAdmin
+          (section !== 'users' &&
+            section !== 'group-health' &&
+            section !== 'upstream-usage') ||
+          isAdmin
       ),
     [isAdmin]
   )
@@ -321,7 +329,12 @@ export function Dashboard() {
               </Suspense>
             </FadeIn>
           )}
-          {activeSection === 'group-health' && (
+          {activeSection === 'upstream-usage' && isAdmin && (
+            <Suspense fallback={<ModelChartsFallback />}>
+              <LazyUpstreamUsage />
+            </Suspense>
+          )}
+          {activeSection === 'group-health' && isAdmin && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyGroupHealthGrid />

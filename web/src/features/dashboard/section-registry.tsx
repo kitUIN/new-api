@@ -40,6 +40,12 @@ const DASHBOARD_SECTIONS = [
     build: () => null,
   },
   {
+    id: 'upstream-usage',
+    titleKey: 'upstreamUsage.title',
+    adminOnly: true,
+    build: () => null,
+  },
+  {
     id: 'users',
     titleKey: 'User Analytics',
     adminOnly: true,
@@ -54,7 +60,11 @@ const DASHBOARD_SECTIONS = [
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
 
-const ADMIN_ONLY_SECTIONS = new Set<string>(['users', 'group-health'])
+const ADMIN_ONLY_SECTIONS = new Set<string>([
+  'users',
+  'group-health',
+  'upstream-usage',
+])
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,

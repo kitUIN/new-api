@@ -21,6 +21,12 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.GET("/ticket/:id/attachments/:attachment_id", middleware.UserAuth(), middleware.TicketAttachmentRateLimit(), controller.GetTicketImage)
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
+		upstreamUsage := apiRouter.Group("/upstream-usage", middleware.AdminAuth())
+		upstreamUsage.GET("", controller.GetUpstreamUsage)
+		upstreamUsage.POST("", controller.SaveUpstreamUsage)
+		upstreamUsage.PUT("/:id", controller.SaveUpstreamUsage)
+		upstreamUsage.DELETE("/:id", controller.DeleteUpstreamUsage)
+		upstreamUsage.POST("/:id/refresh", controller.RefreshUpstreamUsage)
 		billingAudit := apiRouter.Group("/billing-audit", middleware.AdminAuth())
 		billingAudit.GET("", controller.GetBillingAudit)
 		billingAudit.GET("/topups", controller.GetBillingAuditTopUps)
@@ -46,6 +52,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 			perfMetricsRoute.GET("/groups", controller.GetPerfGroupHealthSummary)
+			perfMetricsRoute.GET("/upstream-usage", controller.GetGroupUpstreamUsage)
 			perfMetricsRoute.GET("/group-ratio-history", controller.GetGroupRatioHistory)
 			perfMetricsRoute.GET("/group-juice-history", controller.GetGroupJuiceHistory)
 			perfMetricsRoute.GET("/summary", controller.GetPerfMetricsSummary)
