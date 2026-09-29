@@ -20,7 +20,7 @@ import { ChartNoAxesCombined, TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
-import { estimateUsageCapacity, usageColor } from './lib'
+import { estimateUsageCapacity, formatResetCountdown, usageColor } from './lib'
 import type { UsageAccount, UsageWindow } from './types'
 
 function WindowDetails(props: {
@@ -59,16 +59,7 @@ function WindowDetails(props: {
   const reset = dayjs(window.resets_at)
   let resetLabel = '—'
   if (window.resets_at && reset.isValid()) {
-    const seconds = Math.max(0, reset.diff(dayjs(), 'second'))
-    const relative = new Intl.RelativeTimeFormat(i18n.language, {
-      numeric: 'always',
-    })
-    if (seconds <= 0) resetLabel = t('upstreamUsage.resetDue')
-    else if (seconds >= 86400)
-      resetLabel = relative.format(Math.ceil(seconds / 86400), 'day')
-    else if (seconds >= 3600)
-      resetLabel = relative.format(Math.ceil(seconds / 3600), 'hour')
-    else resetLabel = relative.format(Math.ceil(seconds / 60), 'minute')
+    resetLabel = formatResetCountdown(reset.valueOf(), Date.now())
   }
   const usedLabel = `${t('upstreamUsage.usedAmount')}: ${money(stats?.cost)} / ${tokens(stats?.tokens)} Tokens`
   const estimatedLabel = `${t('upstreamUsage.estimatedAmount')}: ${money(estimate?.cost)} / ${tokens(estimate?.tokens)} Tokens. ${t('upstreamUsage.estimateHint')}`

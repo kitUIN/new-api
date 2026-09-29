@@ -53,14 +53,14 @@ function account(id: number, five: number, seven: number): UsageAccount {
 describe('upstream usage battery', () => {
   test('reset countdown uses days/hours or hours/minutes and clamps elapsed resets', () => {
     const now = Date.parse('2026-09-28T00:00:00Z')
-    assert.equal(formatResetCountdown(now + 49 * 3600000, now), '2 d 1 h')
-    assert.equal(formatResetCountdown(now + 24 * 3600000, now), '1 d 0 h')
+    assert.equal(formatResetCountdown(now + 49 * 3600000, now), '2d 1h')
+    assert.equal(formatResetCountdown(now + 24 * 3600000, now), '1d 0h')
     assert.equal(
       formatResetCountdown(now + 23 * 3600000 + 45 * 60000, now),
-      '23 h 45 m'
+      '23h 45m'
     )
-    assert.equal(formatResetCountdown(now + 1000, now), '0 h 1 m')
-    assert.equal(formatResetCountdown(now - 1000, now), '0 h 0 m')
+    assert.equal(formatResetCountdown(now + 1000, now), '0h 1m')
+    assert.equal(formatResetCountdown(now - 1000, now), '0h 0m')
   })
   test('groups count down to the earliest account reset without inventing missing dates', () => {
     const first = account(1, 100, 100)

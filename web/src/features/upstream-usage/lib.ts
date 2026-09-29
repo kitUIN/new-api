@@ -79,6 +79,6 @@ export function nextUsageReset(accounts: UsageAccount[]): number | null {
 export function formatResetCountdown(resetAt: number, now: number): string {
   const minutes = Math.max(0, Math.ceil((resetAt - now) / 60000))
   const hours = Math.floor(minutes / 60)
-  if (hours >= 24) return `${Math.floor(hours / 24)} d ${hours % 24} h`
-  return `${hours} h ${minutes % 60} m`
+  if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`
+  return `${hours}h ${minutes % 60}m`
 }
