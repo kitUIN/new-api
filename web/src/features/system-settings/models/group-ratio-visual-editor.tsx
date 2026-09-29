@@ -1269,46 +1269,76 @@ function GroupPricingTable({
       <CardContent>
         <div className='space-y-3'>
           <div className='grid min-h-0 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(360px,1fr)] xl:grid-cols-[minmax(0,1.1fr)_minmax(440px,0.9fr)]'>
-            <div className='min-w-0 space-y-3'>
+            <div className='flex max-h-[60dvh] min-h-0 min-w-0 flex-col gap-3 md:sticky md:top-4 md:max-h-[calc(100dvh-12rem)] md:self-start'>
               <Input
+                className='shrink-0'
                 aria-label={t('Search groups')}
                 placeholder={t('Search groups')}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
-              <div className='overflow-hidden rounded-lg border'>
+              <div className='min-h-0 overflow-y-auto overscroll-contain rounded-lg border'>
                 {visibleRows.length === 0 && (
                   <p className='text-muted-foreground p-6 text-center text-sm'>
                     {t('No groups yet. Add a group to get started.')}
                   </p>
                 )}
                 {visibleRows.map((row) => (
-                  <button
+                  <div
                     key={row._id}
-                    type='button'
-                    aria-pressed={selectedRow?._id === row._id}
-                    className='hover:bg-muted/50 aria-pressed:bg-muted flex w-full items-center justify-between gap-3 border-b p-4 text-left last:border-b-0'
-                    onClick={() => setSelectedRowID(row._id)}
+                    className='flex items-center gap-1 border-b pr-2 last:border-b-0'
                   >
-                    <span className='min-w-0'>
-                      <span className='block truncate font-medium'>
-                        {row.name}
+                    <button
+                      type='button'
+                      aria-pressed={selectedRow?._id === row._id}
+                      className='hover:bg-muted/50 aria-pressed:bg-muted flex min-w-0 flex-1 items-center justify-between gap-3 p-4 text-left'
+                      onClick={() => setSelectedRowID(row._id)}
+                    >
+                      <span className='min-w-0'>
+                        <span className='block truncate font-medium'>
+                          {row.name}
+                        </span>
+                        <span className='text-muted-foreground block truncate text-xs'>
+                          {row.description ||
+                            t(
+                              row.mode === 'combination'
+                                ? 'Combination mode'
+                                : 'Standard mode'
+                            )}
+                        </span>
                       </span>
-                      <span className='text-muted-foreground block truncate text-xs'>
-                        {row.description ||
-                          t(
-                            row.mode === 'combination'
-                              ? 'Combination mode'
-                              : 'Standard mode'
-                          )}
-                      </span>
-                    </span>
-                    <Badge variant='secondary'>
-                      {row.mode === 'combination'
-                        ? t('Member group ratios')
-                        : `${row.ratio}×`}
-                    </Badge>
-                  </button>
+                      <Badge variant='secondary'>
+                        {row.mode === 'combination'
+                          ? t('Member group ratios')
+                          : `${row.ratio}×`}
+                      </Badge>
+                    </button>
+                    <div className='flex shrink-0 items-center gap-1'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        onClick={() => handleMigrateGroup(row._id)}
+                        aria-label={t('Migrate to {{target}}', {
+                          target:
+                            activeTab === 'billing'
+                              ? t('User groups')
+                              : t('Billing groups'),
+                        })}
+                      >
+                        <ArrowRightLeft className='h-4 w-4' />
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        onClick={() => removeRow(row._id)}
+                        aria-label={t('Delete')}
+                      >
+                        <Trash2 className='h-4 w-4' />
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1542,32 +1572,6 @@ function GroupPricingTable({
                             {t('Bind')}
                           </Button>
                         )}
-                      </div>
-                      <div className='space-y-2'>
-                        <Label>{t('Actions')}</Label>
-                        <div className='flex items-center justify-end gap-1'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => handleMigrateGroup(row._id)}
-                            aria-label={t('Migrate to {{target}}', {
-                              target:
-                                activeTab === 'billing'
-                                  ? t('User groups')
-                                  : t('Billing groups'),
-                            })}
-                          >
-                            <ArrowRightLeft className='h-4 w-4' />
-                          </Button>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => removeRow(row._id)}
-                            aria-label={t('Delete')}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        </div>
                       </div>
                       <GroupOpeningHoursEditor
                         value={groupOpeningHours}
