@@ -24,6 +24,27 @@ func GetBillingAudit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
 }
 
+func SaveBillingAuditExcludedGroups(c *gin.Context) {
+	var input struct {
+		Month  string   `json:"month" binding:"required"`
+		Groups []string `json:"excluded_groups" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "month and excluded_groups are required"})
+		return
+	}
+	month, _, _, err := service.BillingAuditMonth(input.Month)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	if err := model.SaveBillingAuditExcludedGroups(month, input.Groups, c.GetInt("id")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
 func GetBillingAuditTopUps(c *gin.Context) {
 	_, start, end, err := service.BillingAuditMonth(c.Query("month"))
 	page, pageErr := strconv.Atoi(c.DefaultQuery("page", "1"))

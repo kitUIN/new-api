@@ -34,6 +34,7 @@ import type { BillingSummary } from '../types'
 interface GroupCostsTableProps {
   groups: BillingSummary['groups']
   excludedGroups: ReadonlySet<string>
+  saving: boolean
   onExclude: (group: string, excluded: boolean) => void
   onReset: () => void
 }
@@ -54,7 +55,7 @@ export function GroupCostsTable(props: GroupCostsTableProps) {
         <Button
           variant='outline'
           size='sm'
-          disabled={props.excludedGroups.size === 0}
+          disabled={props.saving || props.excludedGroups.size === 0}
           onClick={props.onReset}
         >
           {t('billingAudit.includeAllGroups')}
@@ -81,6 +82,7 @@ export function GroupCostsTable(props: GroupCostsTableProps) {
               </TableCell>
               <TableCell>
                 <Checkbox
+                  disabled={props.saving}
                   checked={props.excludedGroups.has(group.group)}
                   onCheckedChange={(checked) =>
                     props.onExclude(group.group, checked)

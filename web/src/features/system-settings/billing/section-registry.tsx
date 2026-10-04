@@ -51,6 +51,7 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   AutoGroups: settings.AutoGroups,
   AutoGroupOrderType: settings.AutoGroupOrderType ?? 'priority',
   DefaultUseAutoGroup: settings.DefaultUseAutoGroup,
+  RuleAutoGroupsEnabled: settings.RuleAutoGroupsEnabled,
   GroupSpecialUsableGroup:
     settings['group_ratio_setting.group_special_usable_group'],
   UpstreamGroupRatioBindings:

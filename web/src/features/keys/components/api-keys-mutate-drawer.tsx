@@ -254,7 +254,9 @@ export function ApiKeysMutateDrawer({
   const { data: groupsData } = useQuery({
     queryKey: ['user-groups', 'with-models'],
     queryFn: getUserGroupsWithModels,
-    staleTime: 5 * 60 * 1000,
+    enabled: open,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const { data: groupHealthData } = useQuery({

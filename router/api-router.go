@@ -29,6 +29,7 @@ func SetApiRouter(router *gin.Engine) {
 		upstreamUsage.POST("/:id/refresh", controller.RefreshUpstreamUsage)
 		billingAudit := apiRouter.Group("/billing-audit", middleware.AdminAuth())
 		billingAudit.GET("", controller.GetBillingAudit)
+		billingAudit.PUT("/excluded-groups", controller.SaveBillingAuditExcludedGroups)
 		billingAudit.GET("/topups", controller.GetBillingAuditTopUps)
 		billingAudit.POST("/costs", controller.SaveBillingAuditCost)
 		billingAudit.PUT("/costs/:id", controller.SaveBillingAuditCost)

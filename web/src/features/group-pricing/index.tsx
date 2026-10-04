@@ -104,6 +104,7 @@ const groupSchema = z.object({
   }),
   AutoGroupOrderType: z.enum(['priority', 'ratio_asc']),
   DefaultUseAutoGroup: z.boolean(),
+  RuleAutoGroupsEnabled: z.boolean(),
   GroupSpecialUsableGroup: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -163,6 +164,7 @@ export function GroupPricingPage() {
     <T extends string | boolean>(key: string, defaultValue: T): T => {
       if (!settings?.data) return defaultValue
       const option = settings.data.find((opt) => opt.key === key)
+      if (!option) return defaultValue
       if (typeof defaultValue === 'boolean') {
         return (option?.value === 'true' || option?.value === '1') as T
       }
@@ -188,6 +190,7 @@ export function GroupPricingPage() {
       | 'priority'
       | 'ratio_asc',
     DefaultUseAutoGroup: getValue('DefaultUseAutoGroup', false) as boolean,
+    RuleAutoGroupsEnabled: getValue('RuleAutoGroupsEnabled', true) as boolean,
     GroupSpecialUsableGroup: normalizeJsonString(
       getValue('group_ratio_setting.group_special_usable_group', '{}')
     ),
@@ -220,6 +223,10 @@ export function GroupPricingPage() {
           | 'priority'
           | 'ratio_asc',
         DefaultUseAutoGroup: getValue('DefaultUseAutoGroup', false) as boolean,
+        RuleAutoGroupsEnabled: getValue(
+          'RuleAutoGroupsEnabled',
+          true
+        ) as boolean,
         GroupSpecialUsableGroup: normalizeJsonString(
           getValue('group_ratio_setting.group_special_usable_group', '{}')
         ),
@@ -254,6 +261,7 @@ export function GroupPricingPage() {
           AutoGroups: normalizeJsonString(values.AutoGroups),
           AutoGroupOrderType: values.AutoGroupOrderType,
           DefaultUseAutoGroup: values.DefaultUseAutoGroup,
+          RuleAutoGroupsEnabled: values.RuleAutoGroupsEnabled,
           GroupSpecialUsableGroup: normalizeJsonString(
             values.GroupSpecialUsableGroup
           ),
@@ -295,6 +303,7 @@ export function GroupPricingPage() {
 
         groupNormalizedDefaults.current = normalized
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        queryClient.invalidateQueries({ queryKey: ['user-groups'] })
         toast.success(t('Settings saved successfully'))
       } catch (error) {
         toast.error(t('Failed to save settings'))

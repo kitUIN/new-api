@@ -52,6 +52,10 @@ export function useUpdateOption() {
         // Always refresh system-options
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
+        if (variables.key === 'RuleAutoGroupsEnabled') {
+          queryClient.invalidateQueries({ queryKey: ['user-groups'] })
+        }
+
         // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.includes(variables.key)) {
           queryClient.invalidateQueries({ queryKey: ['status'] })

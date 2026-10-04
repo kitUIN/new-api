@@ -61,6 +61,7 @@ const defaultBillingSettings: BillingSettings = {
   AutoGroups: '',
   AutoGroupOrderType: 'priority',
   DefaultUseAutoGroup: false,
+  RuleAutoGroupsEnabled: true,
   'group_ratio_setting.group_special_usable_group': '{}',
   'group_ratio_setting.upstream_group_ratio_bindings': '{}',
   PayAddress: '',

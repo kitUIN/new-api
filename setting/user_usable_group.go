@@ -87,5 +87,8 @@ func GetUsableGroupDescription(groupName string) string {
 	if desc, ok := userUsableGroups[groupName]; ok {
 		return desc
 	}
+	if desc, ok := userUsableGroups[disabledGroupDescriptionPrefix+groupName]; ok {
+		return desc
+	}
 	return groupName
 }

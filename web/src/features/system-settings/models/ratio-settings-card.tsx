@@ -205,6 +205,7 @@ const groupSchema = z.object({
   }),
   AutoGroupOrderType: z.enum(['priority', 'ratio_asc']),
   DefaultUseAutoGroup: z.boolean(),
+  RuleAutoGroupsEnabled: z.boolean(),
   GroupSpecialUsableGroup: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -356,6 +357,7 @@ export function RatioSettingsCard({
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
     AutoGroupOrderType: groupDefaults.AutoGroupOrderType,
     DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+    RuleAutoGroupsEnabled: groupDefaults.RuleAutoGroupsEnabled,
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
     ),
@@ -452,6 +454,7 @@ export function RatioSettingsCard({
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
       AutoGroupOrderType: groupDefaults.AutoGroupOrderType,
       DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+      RuleAutoGroupsEnabled: groupDefaults.RuleAutoGroupsEnabled,
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
       ),
@@ -543,6 +546,7 @@ export function RatioSettingsCard({
         AutoGroups: normalizeJsonString(values.AutoGroups),
         AutoGroupOrderType: values.AutoGroupOrderType,
         DefaultUseAutoGroup: values.DefaultUseAutoGroup,
+        RuleAutoGroupsEnabled: values.RuleAutoGroupsEnabled,
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),

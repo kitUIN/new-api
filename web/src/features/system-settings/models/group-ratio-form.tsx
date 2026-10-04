@@ -91,6 +91,7 @@ type GroupFormValues = {
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
+  RuleAutoGroupsEnabled: boolean
   GroupSpecialUsableGroup: string
   UpstreamGroupRatioBindings: string
 }
@@ -109,12 +110,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
-  const [showRuleAutoGroups, setShowRuleAutoGroups] = useState(false)
+  const ruleAutoGroupsEnabled = form.watch('RuleAutoGroupsEnabled')
   const { data: groupsResponse } = useQuery({
     queryKey: ['groups', 'rule-auto-groups'],
     queryFn: () => getGroups(),
     staleTime: 5 * 60 * 1000,
-    enabled: showRuleAutoGroups,
+    enabled: ruleAutoGroupsEnabled,
   })
 
   const handleFieldChange = useCallback(
@@ -137,8 +138,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
         <div className='mr-auto flex items-center gap-2'>
           <Switch
             id='rule-auto-groups-toggle'
-            checked={showRuleAutoGroups}
-            onCheckedChange={setShowRuleAutoGroups}
+            checked={ruleAutoGroupsEnabled}
+            disabled={isSaving}
+            onCheckedChange={(enabled) =>
+              form.setValue('RuleAutoGroupsEnabled', enabled, {
+                shouldDirty: true,
+              })
+            }
           />
           <Label htmlFor='rule-auto-groups-toggle'>
             {t('Rule-based auto groups')}
@@ -165,7 +171,11 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
       <GroupPricingGuide open={guideOpen} onOpenChange={setGuideOpen} />
 
-      {showRuleAutoGroups && (
+      <p className='text-muted-foreground text-sm'>
+        {t('groupPricing.ruleAutoGroupsHint')}
+      </p>
+
+      {ruleAutoGroupsEnabled && (
         <RuleAutoGroupsCard groups={groupsResponse?.auto_groups ?? []} />
       )}
 

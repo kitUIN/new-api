@@ -231,6 +231,7 @@ export type ModelSettings = {
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
+  RuleAutoGroupsEnabled: boolean
   'group_ratio_setting.group_special_usable_group': string
   'group_ratio_setting.upstream_group_ratio_bindings': string
   'channel_affinity_setting.enabled': boolean
@@ -280,6 +281,7 @@ export type BillingSettings = {
   AutoGroups: string
   AutoGroupOrderType: 'priority' | 'ratio_asc'
   DefaultUseAutoGroup: boolean
+  RuleAutoGroupsEnabled: boolean
   'group_ratio_setting.group_special_usable_group': string
   'group_ratio_setting.upstream_group_ratio_bindings': string
   PayAddress: string

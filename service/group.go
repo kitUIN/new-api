@@ -60,11 +60,18 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 
 	groups := make([]UserUsableGroupInfo, 0, len(groupRatios)+1)
 	for groupName := range groupRatios {
+		// Virtual rule groups are appended below only when enabled and usable.
+		if IsRuleAutoGroup(groupName) {
+			continue
+		}
 		desc, ok := userUsableGroups[groupName]
 		if !ok || !enabledChannelGroups[groupName] {
 			continue
 		}
 		ratio, ratioRange := getGroupCombinationRatio(userGroup, groupName)
+		if ratio_setting.IsGroupCombination(groupName) {
+			desc = setting.GetUsableGroupDescription(groupName)
+		}
 		groups = append(groups, UserUsableGroupInfo{
 			Name:          groupName,
 			Label:         groupName,

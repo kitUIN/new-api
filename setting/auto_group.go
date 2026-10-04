@@ -2,6 +2,7 @@ package setting
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -17,6 +18,21 @@ var autoGroups = []string{
 
 var DefaultUseAutoGroup = false
 var AutoGroupOrderType = AutoGroupOrderTypePriority
+
+var ruleAutoGroupsEnabled atomic.Bool
+
+func init() {
+	// Preserve existing behavior until an administrator explicitly disables it.
+	ruleAutoGroupsEnabled.Store(true)
+}
+
+func RuleAutoGroupsEnabled() bool {
+	return ruleAutoGroupsEnabled.Load()
+}
+
+func SetRuleAutoGroupsEnabled(enabled bool) {
+	ruleAutoGroupsEnabled.Store(enabled)
+}
 
 func ContainsAutoGroup(group string) bool {
 	for _, autoGroup := range autoGroups {

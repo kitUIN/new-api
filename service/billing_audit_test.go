@@ -35,7 +35,7 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 	model.DB, common.QuotaPerUnit = db, 500000
 	model.LOG_DB = db
 	t.Cleanup(func() { model.DB, model.LOG_DB, common.QuotaPerUnit = oldDB, oldLogDB, oldUnit; _ = sqlDB.Close() })
-	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.User{}, &model.TopUp{}, &model.QuotaData{}, &model.BillingCost{}, &model.BillingCostVersion{}, &model.BillingCostException{}))
+	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.User{}, &model.TopUp{}, &model.QuotaData{}, &model.BillingCost{}, &model.BillingCostVersion{}, &model.BillingCostException{}, &model.BillingAuditPreference{}))
 	_, start, end, err := BillingAuditMonth("2026-09")
 	require.NoError(t, err)
 	require.NoError(t, db.Create(&[]model.QuotaData{
@@ -73,6 +73,11 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 	require.Equal(t, "32.00", result.RefundAmount)
 	require.Equal(t, "151.00", result.NetRecharge)
 	require.Len(t, result.Groups, 2)
+	require.Empty(t, result.ExcludedGroups)
+	require.NoError(t, model.SaveBillingAuditExcludedGroups("2026-09", []string{"a"}, 1))
+	result, err = GetBillingAuditSummary("2026-09")
+	require.NoError(t, err)
+	require.Equal(t, []string{"a"}, result.ExcludedGroups)
 	items, total, err := model.GetBillingTopUps(start, end, 1, 2)
 	require.NoError(t, err)
 	require.Equal(t, int64(6), total)
@@ -81,6 +86,7 @@ func TestBillingAuditSummarySeparatesEstimatedAndActual(t *testing.T) {
 	require.Equal(t, int64(1000), items[0].ProviderRefundedAmount)
 	result, err = GetBillingAuditSummary("2026-10")
 	require.NoError(t, err)
+	require.Empty(t, result.ExcludedGroups)
 	require.Equal(t, "199.999998", result.EstimatedCost)
 	require.Equal(t, "30.00", result.ActualCost)
 	require.Equal(t, "19", result.CurrentBalance)

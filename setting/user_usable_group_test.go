@@ -21,6 +21,8 @@ func TestDisabledGroupDescriptionsAreStoredButNotSelectable(t *testing.T) {
 	}
 
 	groups := GetUserUsableGroupsCopy()
+	require.Equal(t, "VIP note", GetUsableGroupDescription("vip"))
+	require.Equal(t, "missing", GetUsableGroupDescription("missing"))
 	if groups["default"] != "Default" {
 		t.Fatalf("expected default group description, got %#v", groups["default"])
 	}

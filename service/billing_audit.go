@@ -85,6 +85,7 @@ type BillingAuditGroup struct {
 }
 
 type BillingAuditSummary struct {
+	ExcludedGroups []string               `json:"excluded_groups"`
 	Month          string                 `json:"month"`
 	Currency       string                 `json:"currency"`
 	Timezone       string                 `json:"timezone"`
@@ -124,8 +125,13 @@ func GetBillingAuditSummary(month string) (*BillingAuditSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	excludedGroups, err := model.GetBillingAuditExcludedGroups(month)
+	if err != nil {
+		return nil, err
+	}
 	unit := decimal.NewFromFloat(common.QuotaPerUnit)
 	result := &BillingAuditSummary{Month: month, Currency: "USD", Timezone: BillingAuditTimezone, QueriedAt: time.Now().Unix(), Groups: make([]BillingAuditGroup, 0, len(groups)), Costs: costs}
+	result.ExcludedGroups = excludedGroups
 	refund := recharge.Refunded
 	result.RechargeAmount, result.RefundAmount, result.NetRecharge = recharge.Received.StringFixed(2), refund.StringFixed(2), recharge.Received.Sub(refund).StringFixed(2)
 	estimate := decimal.Zero

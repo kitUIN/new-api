@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -167,6 +168,9 @@ func getRuleAutoGroupDefinition(group string) (ruleAutoGroupDefinition, bool) {
 }
 
 func GetRuleAutoGroupCandidates(userGroup string, selector string) []string {
+	if !setting.RuleAutoGroupsEnabled() {
+		return nil
+	}
 	definition, ok := getRuleAutoGroupDefinition(selector)
 	if !ok {
 		return nil

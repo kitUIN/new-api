@@ -43,6 +43,20 @@ export async function getBillingSummary(month: string) {
   return unwrap(result.data)
 }
 
+export async function saveBillingExcludedGroups(input: {
+  month: string
+  excluded_groups: string[]
+}) {
+  return unwrap(
+    (
+      await api.put<Response<unknown>>(
+        '/api/billing-audit/excluded-groups',
+        input
+      )
+    ).data
+  )
+}
+
 export async function getBillingTopUps(month: string, page: number) {
   const result = await api.get<
     Response<{ items: BillingTopUp[]; total: number }>

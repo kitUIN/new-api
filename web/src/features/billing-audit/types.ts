@@ -36,6 +36,7 @@ export interface BillingCost {
 
 export interface BillingSummary {
   month: string
+  excluded_groups: string[]
   currency: string
   timezone: string
   queried_at: number

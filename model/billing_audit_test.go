@@ -130,7 +130,7 @@ func TestBillingAuditDialectQueriesAndSchemas(t *testing.T) {
 			}
 			require.Contains(t, query.Statement.SQL.String(), "GROUP BY "+quoted)
 			require.Contains(t, query.Statement.SQL.String(), "COALESCE(SUM(")
-			for _, entity := range []interface{}{&BillingCost{}, &BillingCostVersion{}, &BillingCostException{}} {
+			for _, entity := range []interface{}{&BillingCost{}, &BillingCostVersion{}, &BillingCostException{}, &BillingAuditPreference{}} {
 				statement := &gorm.Statement{DB: db}
 				require.NoError(t, statement.Parse(entity))
 				for _, field := range statement.Schema.Fields {

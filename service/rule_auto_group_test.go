@@ -3,11 +3,57 @@ package service
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func TestRuleAutoGroupsEnableDisable(t *testing.T) {
+	originalEnabled := setting.RuleAutoGroupsEnabled()
+	originalDB := model.DB
+	originalUsable := setting.UserUsableGroups2JSONString()
+	originalRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		setting.SetRuleAutoGroupsEnabled(originalEnabled)
+		model.DB = originalDB
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsable))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatio))
+	})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	model.DB = db
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	require.NoError(t, db.Create(&model.Channel{Key: "test", Group: "gemini-a", Status: common.ChannelStatusEnabled}).Error)
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"gemini-a":"Gemini","auto":"Auto"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"gemini-a":0.2}`))
+	for _, enabled := range []bool{true, false, true} {
+		setting.SetRuleAutoGroupsEnabled(enabled)
+		groups, err := GetSortedUserUsableGroupInfos("")
+		require.NoError(t, err)
+		available := UserUsableGroupInfosToMap(groups)
+		require.Contains(t, available, "gemini-a")
+		require.Contains(t, available, "auto")
+		_, found := available[RuleAutoGroupGemini]
+		require.Equal(t, enabled, found)
+		for _, selector := range []string{RuleAutoGroupGemini, "auto:gemini"} {
+			require.Equal(t, enabled, GroupInUserUsableGroups("", selector))
+			err = NormalizeTokenRuleAutoGroup(&model.Token{Group: selector}, "")
+			if enabled {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Empty(t, GetRuleAutoGroupCandidatesForModel("", selector, "test-model"))
+			}
+		}
+	}
+}
 
 func TestRuleAutoGroupCandidatesUseEffectiveRatioAndBoundaries(t *testing.T) {
 	originalUsable := setting.UserUsableGroups2JSONString()

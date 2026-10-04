@@ -17,31 +17,51 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SectionPageLayout } from '@/components/layout'
-import { getBillingSummary } from './api'
+import { getBillingSummary, saveBillingExcludedGroups } from './api'
 import { CostDialog } from './components/cost-dialog'
 import { CostTable } from './components/cost-table'
 import { GroupCostsTable } from './components/group-costs-table'
 import { TopUpsTable } from './components/topups-table'
 import { auditMoney, auditTime, currentAuditMonth } from './lib'
-import type { CostAction } from './types'
+import type { BillingSummary, CostAction } from './types'
 
 export function BillingAudit() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [month, setMonth] = useState(currentAuditMonth)
   const [action, setAction] = useState<CostAction | null>(null)
-  const [excludedGroups, setExcludedGroups] = useState<Set<string>>(new Set())
   const query = useQuery({
     queryKey: ['billing-audit', 'summary', month],
     queryFn: () => getBillingSummary(month),
   })
   const data = query.data
+  const excludedGroups = useMemo(
+    () => new Set(data?.excluded_groups ?? []),
+    [data?.excluded_groups]
+  )
+  const exclusionsMutation = useMutation({
+    mutationFn: saveBillingExcludedGroups,
+    onMutate: (input) =>
+      queryClient.cancelQueries({
+        queryKey: ['billing-audit', 'summary', input.month],
+      }),
+    onSuccess: async (_, input) => {
+      const queryKey = ['billing-audit', 'summary', input.month]
+      await queryClient.cancelQueries({ queryKey })
+      queryClient.setQueryData<BillingSummary>(queryKey, (previous) =>
+        previous
+          ? { ...previous, excluded_groups: input.excluded_groups }
+          : previous
+      )
+      await queryClient.invalidateQueries({ queryKey })
+    },
+  })
   const runningAmount = useMemo(
     () =>
       (data?.groups ?? []).reduce(
@@ -67,6 +87,7 @@ export function BillingAudit() {
           label: t('billingAudit.estimated'),
           value: runningAmount,
           hint: t('billingAudit.estimatedHint'),
+          profit: runningAmount - Number(data.actual_cost),
         },
         {
           label: t('billingAudit.actual'),
@@ -141,6 +162,11 @@ export function BillingAudit() {
                       <p className='my-2 text-2xl font-semibold tabular-nums'>
                         {auditMoney(card.value)}
                       </p>
+                      {card.profit !== undefined && (
+                        <p className='mb-2 text-sm tabular-nums'>
+                          {t('billingAudit.profit')}: {auditMoney(card.profit)}
+                        </p>
+                      )}
                       <p className='text-muted-foreground text-xs'>
                         {card.hint}
                       </p>
@@ -154,15 +180,19 @@ export function BillingAudit() {
                 <GroupCostsTable
                   groups={data.groups}
                   excludedGroups={excludedGroups}
+                  saving={exclusionsMutation.isPending}
                   onExclude={(group, excluded) => {
-                    setExcludedGroups((previous) => {
-                      const next = new Set(previous)
-                      if (excluded) next.add(group)
-                      else next.delete(group)
-                      return next
+                    const next = new Set(excludedGroups)
+                    if (excluded) next.add(group)
+                    else next.delete(group)
+                    exclusionsMutation.mutate({
+                      month,
+                      excluded_groups: [...next],
                     })
                   }}
-                  onReset={() => setExcludedGroups(new Set())}
+                  onReset={() =>
+                    exclusionsMutation.mutate({ month, excluded_groups: [] })
+                  }
                 />
               </>
             )}
