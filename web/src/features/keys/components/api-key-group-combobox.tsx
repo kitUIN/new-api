@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { GroupCombinationMemberInfo } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -55,6 +56,7 @@ export type ApiKeyGroupOption = {
   autoGroupType?: string
   models?: string[]
   isCombinationGroup?: boolean
+  combinationMembers?: GroupCombinationMemberInfo[]
   health?: ApiKeyGroupHealth
 }
 
@@ -72,6 +74,7 @@ function GroupOptionName({ option }: { option: ApiKeyGroupOption }) {
       <GroupTypeIcon
         isCombinationGroup={option.isCombinationGroup}
         isAutoGroup={option.isAutoGroup}
+        combinationMembers={option.combinationMembers}
       />
       <span className='min-w-0 truncate'>{option.label}</span>
     </span>

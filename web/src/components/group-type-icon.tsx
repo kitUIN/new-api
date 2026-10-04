@@ -29,6 +29,7 @@ import {
 type GroupTypeIconProps = {
   isCombinationGroup?: boolean
   isAutoGroup?: boolean
+  combinationMembers?: { group: string; ratio: number }[]
 }
 
 export function GroupTypeIcon(props: GroupTypeIconProps) {
@@ -57,7 +58,26 @@ export function GroupTypeIcon(props: GroupTypeIconProps) {
             </span>
           }
         />
-        <TooltipContent>{label}</TooltipContent>
+        <TooltipContent>
+          <div className='flex min-w-0 flex-col gap-1.5'>
+            <span>{label}</span>
+            {props.isCombinationGroup && !!props.combinationMembers?.length && (
+              <dl className='flex flex-col gap-1'>
+                {props.combinationMembers.map((member) => (
+                  <div
+                    key={member.group}
+                    className='flex items-start justify-between gap-4'
+                  >
+                    <dt className='min-w-0 break-all'>{member.group}</dt>
+                    <dd className='shrink-0 font-mono tabular-nums'>
+                      {member.ratio}x
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )

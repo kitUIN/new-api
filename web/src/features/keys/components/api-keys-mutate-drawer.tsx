@@ -146,6 +146,7 @@ type GroupSourceEntry = [
     ratio: ApiKeyGroupOption['ratio']
     is_auto_group?: boolean
     is_combination_group?: boolean
+    combination_members?: ApiKeyGroupOption['combinationMembers']
     auto_group_type?: string
     models?: string[]
   },
@@ -288,6 +289,7 @@ export function ApiKeysMutateDrawer({
           ratio: group.ratio,
           is_auto_group: group.is_auto_group,
           is_combination_group: group.is_combination_group,
+          combination_members: group.combination_members,
           auto_group_type: group.auto_group_type,
           models: group.models,
         },
@@ -330,6 +332,7 @@ export function ApiKeysMutateDrawer({
           ratio: info.ratio,
           isAutoGroup: info.is_auto_group,
           isCombinationGroup: info.is_combination_group,
+          combinationMembers: info.combination_members,
           autoGroupType: info.auto_group_type,
           models: [...(info.models ?? [])].sort(),
           health: {

@@ -52,16 +52,16 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-export function useGroupRatios(): Record<string, number> {
+export function useGroupRatios(): Record<string, number | string> {
   const { data } = useQuery({
     queryKey: ['user-self-groups'],
     queryFn: getUserGroups,
     staleTime: 5 * 60 * 1000,
     select: (res) => {
       if (!res.success || !res.data) return {}
-      const ratios: Record<string, number> = {}
+      const ratios: Record<string, number | string> = {}
       for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number') {
+        if (typeof info.ratio === 'number' || typeof info.ratio === 'string') {
           ratios[group] = info.ratio
         }
       }
@@ -111,7 +111,7 @@ export function FailoverGroupsCell({
 }: {
   failoverGroups: string[]
   currentLevel: number
-  groupRatios: Record<string, number>
+  groupRatios: Record<string, number | string>
   compact?: boolean
 }) {
   const displayedGroups = failoverGroups.slice(0, 3)
@@ -159,7 +159,7 @@ export function ModelCombinationGroupsCell({
   compact = false,
 }: {
   members: ModelGroupCombinationMember[]
-  groupRatios: Record<string, number>
+  groupRatios: Record<string, number | string>
   compact?: boolean
 }) {
   const displayedMembers = members.slice(0, 3)

@@ -10,15 +10,21 @@ import (
 )
 
 type UserUsableGroupInfo struct {
-	Name          string                   `json:"name"`
-	Label         string                   `json:"label"`
-	Ratio         interface{}              `json:"ratio"`
-	Desc          string                   `json:"desc"`
-	Models        []string                 `json:"models,omitempty"`
-	IsAutoGroup   bool                     `json:"is_auto_group"`
-	IsCombination bool                     `json:"is_combination_group,omitempty"`
-	AutoGroupType string                   `json:"auto_group_type,omitempty"`
-	RatioRange    *RuleAutoGroupRatioRange `json:"ratio_range,omitempty"`
+	Name               string                       `json:"name"`
+	Label              string                       `json:"label"`
+	Ratio              interface{}                  `json:"ratio"`
+	Desc               string                       `json:"desc"`
+	Models             []string                     `json:"models,omitempty"`
+	IsAutoGroup        bool                         `json:"is_auto_group"`
+	IsCombination      bool                         `json:"is_combination_group,omitempty"`
+	AutoGroupType      string                       `json:"auto_group_type,omitempty"`
+	RatioRange         *RuleAutoGroupRatioRange     `json:"ratio_range,omitempty"`
+	CombinationMembers []GroupCombinationMemberInfo `json:"combination_members,omitempty"`
+}
+
+type GroupCombinationMemberInfo struct {
+	Group string  `json:"group"`
+	Ratio float64 `json:"ratio"`
 }
 
 func GetUserUsableGroups(userGroup string) map[string]string {
@@ -69,16 +75,25 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 			continue
 		}
 		ratio, ratioRange := getGroupCombinationRatio(userGroup, groupName)
+		var combinationMembers []GroupCombinationMemberInfo
 		if ratio_setting.IsGroupCombination(groupName) {
 			desc = setting.GetUsableGroupDescription(groupName)
+			members, _ := ratio_setting.GetGroupCombinationMembers(groupName)
+			for _, member := range members {
+				combinationMembers = append(combinationMembers, GroupCombinationMemberInfo{
+					Group: member.Group,
+					Ratio: GetUserGroupRatio(userGroup, member.Group),
+				})
+			}
 		}
 		groups = append(groups, UserUsableGroupInfo{
-			Name:          groupName,
-			Label:         groupName,
-			Ratio:         ratio,
-			Desc:          desc,
-			IsCombination: ratio_setting.IsGroupCombination(groupName),
-			RatioRange:    ratioRange,
+			Name:               groupName,
+			Label:              groupName,
+			Ratio:              ratio,
+			Desc:               desc,
+			IsCombination:      ratio_setting.IsGroupCombination(groupName),
+			RatioRange:         ratioRange,
+			CombinationMembers: combinationMembers,
 		})
 	}
 
@@ -134,6 +149,9 @@ func UserUsableGroupInfosToMap(groups []UserUsableGroupInfo) map[string]map[stri
 		}
 		if group.Models != nil {
 			groupInfo["models"] = group.Models
+		}
+		if len(group.CombinationMembers) > 0 {
+			groupInfo["combination_members"] = group.CombinationMembers
 		}
 		usableGroups[group.Name] = groupInfo
 	}

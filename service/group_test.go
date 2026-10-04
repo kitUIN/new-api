@@ -12,9 +12,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestCombinationGroupUsesPricingDescription(t *testing.T) {
+func TestCombinationGroupDisplayInfo(t *testing.T) {
 	oldDB := model.DB
 	oldRatios := ratio_setting.GroupRatio2JSONString()
+	oldGroupGroupRatios := ratio_setting.GroupGroupRatio2JSONString()
 	oldCombinations := ratio_setting.GroupCombinations2JSONString()
 	oldUsable := setting.UserUsableGroups2JSONString()
 	special := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup
@@ -22,6 +23,7 @@ func TestCombinationGroupUsesPricingDescription(t *testing.T) {
 	t.Cleanup(func() {
 		model.DB = oldDB
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldRatios))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(oldGroupGroupRatios))
 		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(oldCombinations))
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsable))
 		special.Clear()
@@ -36,6 +38,7 @@ func TestCombinationGroupUsesPricingDescription(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
 	require.NoError(t, db.Create(&model.Channel{Key: "test", Group: "source", Status: common.ChannelStatusEnabled}).Error)
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"combo":1,"source":1,"second":2}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"user":{"source":0}}`))
 	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(`{"combo":[{"group":"source","models":["test-model"]},{"group":"second","models":["test-model"]}]}`))
 	special.Clear()
 	special.AddAll(map[string]map[string]string{"user": {"+:combo": "combo"}})
@@ -53,6 +56,16 @@ func TestCombinationGroupUsesPricingDescription(t *testing.T) {
 				require.True(t, group.IsCombination)
 				require.Equal(t, "Pricing description", group.Desc)
 				require.Equal(t, "Pricing description", UserUsableGroupInfosToMap(groups)["combo"]["desc"])
+				expectedMembers := []GroupCombinationMemberInfo{
+					{Group: "source", Ratio: 0},
+					{Group: "second", Ratio: 2},
+				}
+				require.Equal(t, expectedMembers, group.CombinationMembers)
+				require.Equal(t, "0x~2x", group.Ratio)
+				require.Equal(t, expectedMembers, UserUsableGroupInfosToMap(groups)["combo"]["combination_members"])
+				encoded, err := common.Marshal(group)
+				require.NoError(t, err)
+				require.Contains(t, string(encoded), `"combination_members":[{"group":"source","ratio":0},{"group":"second","ratio":2}]`)
 			}
 		}
 		require.True(t, found)

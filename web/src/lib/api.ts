@@ -190,6 +190,11 @@ export async function getUserModels(): Promise<{
 }
 
 // Get user groups with descriptions and ratios
+export type GroupCombinationMemberInfo = {
+  group: string
+  ratio: number
+}
+
 export async function getUserGroups(): Promise<{
   success: boolean
   message?: string
@@ -203,6 +208,7 @@ export async function getUserGroups(): Promise<{
       auto_group_type?: string
       models?: string[]
       is_combination_group?: boolean
+      combination_members?: GroupCombinationMemberInfo[]
       ratio_range?: GroupRatioRange
     }
   >
@@ -215,6 +221,7 @@ export async function getUserGroups(): Promise<{
     auto_group_type?: string
     models?: string[]
     is_combination_group?: boolean
+    combination_members?: GroupCombinationMemberInfo[]
     ratio_range?: GroupRatioRange
   }>
 }> {
