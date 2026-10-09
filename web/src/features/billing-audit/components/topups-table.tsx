@@ -33,6 +33,7 @@ import { getBillingTopUps } from '../api'
 import { auditMoney, auditTime } from '../lib'
 import type { BillingTopUp } from '../types'
 import { BillingUser } from './billing-user'
+import { DailyTopUpsTable } from './daily-topups-table'
 import { UserTopUpsTable } from './user-topups-table'
 
 function manualAmount(row: BillingTopUp): string {
@@ -54,6 +55,9 @@ export function TopUpsTable(props: { month: string }) {
             <TabsTrigger value='users'>
               {t('billingAudit.userView')}
             </TabsTrigger>
+            <TabsTrigger value='days'>
+              {t('billingAudit.dailyView')}
+            </TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value='orders'>
@@ -61,6 +65,9 @@ export function TopUpsTable(props: { month: string }) {
         </TabsContent>
         <TabsContent value='users'>
           <UserTopUpsTable key={props.month} month={props.month} />
+        </TabsContent>
+        <TabsContent value='days'>
+          <DailyTopUpsTable key={props.month} month={props.month} />
         </TabsContent>
       </Tabs>
     </section>

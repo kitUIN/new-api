@@ -227,9 +227,13 @@ func GetBillingCosts(month string) ([]BillingCostRow, error) {
 const billingXznSettlementDelay int64 = 24 * 60 * 60
 
 func BillingPaidTopUps(start, end int64) *gorm.DB {
+	return billingPaidTopUpsQuery(DB, start, end)
+}
+
+func billingPaidTopUpsQuery(db *gorm.DB, start, end int64) *gorm.DB {
 	// Asia/Shanghai has no DST in supported billing years. Shift the query
 	// window by one calendar day for D+1 settlement, preserving payment dates.
-	return DB.Model(&TopUp{}).
+	return db.Model(&TopUp{}).
 		Where("complete_time > 0 AND status IN ?", []string{common.TopUpStatusSuccess, common.TopUpStatusFrozen, common.TopUpStatusPartialRefund, common.TopUpStatusRefunded}).
 		Where("(payment_method = ? AND complete_time >= ? AND complete_time < ?) OR ((payment_method <> ? OR payment_method IS NULL) AND complete_time >= ? AND complete_time < ?)", PaymentMethodXznPay, start-billingXznSettlementDelay, end-billingXznSettlementDelay, PaymentMethodXznPay, start, end)
 }

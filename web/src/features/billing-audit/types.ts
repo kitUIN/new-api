@@ -80,6 +80,15 @@ export interface BillingUserTopUp {
   unconverted_count: number
 }
 
+export interface BillingDailyTopUp {
+  date: string
+  record_count: number
+  received: string
+  refunded: string
+  net_recharge: string
+  unconverted_count: number
+}
+
 export interface CostInput {
   month: string
   name: string

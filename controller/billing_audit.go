@@ -54,8 +54,17 @@ func GetBillingAuditTopUps(c *gin.Context) {
 		return
 	}
 	view := c.DefaultQuery("view", "orders")
-	if view != "orders" && view != "users" {
+	if view != "orders" && view != "users" && view != "days" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid view"})
+		return
+	}
+	if view == "days" {
+		rows, total, err := model.GetBillingDailyTopUps(start, end, page, size)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": rows, "total": total}})
 		return
 	}
 	if view == "users" {

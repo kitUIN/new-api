@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  BillingDailyTopUp,
   BillingSummary,
   BillingTopUp,
   BillingUserTopUp,
@@ -69,6 +70,15 @@ export async function getBillingUserTopUps(month: string, page: number) {
     Response<{ items: BillingUserTopUp[]; total: number }>
   >('/api/billing-audit/topups', {
     params: { month, page, page_size: 20, view: 'users' },
+  })
+  return unwrap(result.data)
+}
+
+export async function getBillingDailyTopUps(month: string, page: number) {
+  const result = await api.get<
+    Response<{ items: BillingDailyTopUp[]; total: number }>
+  >('/api/billing-audit/topups', {
+    params: { month, page, page_size: 20, view: 'days' },
   })
   return unwrap(result.data)
 }
