@@ -251,6 +251,10 @@ func UpdateOption(key string, value string) error {
 		if err := ratio_setting.CheckGroupOpeningHours(value); err != nil {
 			return err
 		}
+	case "group_ratio_setting.group_timed_ratios":
+		if err := ratio_setting.CheckGroupTimedRatios(value); err != nil {
+			return err
+		}
 	case "group_ratio_setting.group_combinations":
 		return updateGroupCombinationsOption(value)
 	case "group_ratio_setting.upstream_group_ratio_bindings":

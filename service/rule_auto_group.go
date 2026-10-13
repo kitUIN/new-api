@@ -245,8 +245,8 @@ func GetRuleAutoGroupAdminInfos(enabledGroups map[string]bool) []RuleAutoGroupIn
 			continue
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
-			leftRatio := ratio_setting.GetGroupRatio(candidates[i])
-			rightRatio := ratio_setting.GetGroupRatio(candidates[j])
+			leftRatio := GetUserGroupRatio("", candidates[i])
+			rightRatio := GetUserGroupRatio("", candidates[j])
 			if leftRatio != rightRatio {
 				return leftRatio < rightRatio
 			}

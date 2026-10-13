@@ -86,6 +86,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  GroupTimedRatios: string
   GroupOpeningHours: string
   GroupCombinations: string
   AutoGroups: string
@@ -193,6 +194,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
         {editMode === 'visual' ? (
           <div className='space-y-6'>
             <GroupRatioVisualEditor
+              groupTimedRatios={form.watch('GroupTimedRatios')}
+              timedRatiosError={form.formState.errors.GroupTimedRatios?.message}
               groupOpeningHours={form.watch('GroupOpeningHours')}
               openingHoursError={
                 form.formState.errors.GroupOpeningHours?.message
@@ -246,6 +249,33 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           </div>
         ) : (
           <SettingsForm onSubmit={form.handleSubmit(onSave)}>
+            <FormField
+              control={form.control}
+              name='GroupTimedRatios'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('timedRatio.title')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      rows={10}
+                      onChange={(event) =>
+                        handleFieldChange(
+                          'GroupTimedRatios',
+                          event.target.value
+                        )
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>{t('timedRatio.help')}</FormDescription>
+                  {form.formState.errors.GroupTimedRatios && (
+                    <p role='alert' className='text-destructive text-sm'>
+                      {t('timedRatio.invalid')}
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name='GroupOpeningHours'

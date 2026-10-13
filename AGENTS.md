@@ -53,6 +53,8 @@ web/           — React frontend
 
 ## Rules
 
+For group timed pricing, use `ratio_setting.ResolveGroupRatioAt` for effective billing and routing ratios and preserve the matched window in billing/log snapshots. Keep base ratio getters for configuration and upstream synchronization. See `docs/group-timed-ratios.md` for scheduling and precedence rules.
+
 ### Rule 1: JSON Package — Use `common/json.go`
 
 All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:

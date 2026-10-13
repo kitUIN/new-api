@@ -86,6 +86,7 @@ import {
   type GroupCombinationMembers,
 } from './group-combination-dialog'
 import { GroupOpeningHoursEditor } from './group-opening-hours-editor'
+import { GroupTimedRatiosEditor } from './group-timed-ratios-editor'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
@@ -96,6 +97,8 @@ type GroupRatioVisualEditorProps = {
   groupCombinations: string
   autoGroups: string
   upstreamGroupRatioBindings: string
+  groupTimedRatios: string
+  timedRatiosError?: string
   groupOpeningHours: string
   openingHoursError?: string
   onChange: (field: string, value: string) => void
@@ -388,6 +391,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   groupCombinations,
   autoGroups,
   upstreamGroupRatioBindings,
+  groupTimedRatios,
+  timedRatiosError,
   groupOpeningHours,
   openingHoursError,
   onChange,
@@ -636,6 +641,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         groupTypes={groupTypes}
         groupCombinations={groupCombinations}
         upstreamGroupRatioBindings={upstreamGroupRatioBindings}
+        groupTimedRatios={groupTimedRatios}
+        timedRatiosError={timedRatiosError}
         groupOpeningHours={groupOpeningHours}
         openingHoursError={openingHoursError}
         onChange={onChange}
@@ -981,6 +988,8 @@ type GroupPricingTableProps = {
   groupTypes: string
   groupCombinations: string
   upstreamGroupRatioBindings: string
+  groupTimedRatios: string
+  timedRatiosError?: string
   groupOpeningHours: string
   openingHoursError?: string
   onChange: (field: string, value: string) => void
@@ -992,6 +1001,8 @@ function GroupPricingTable({
   groupTypes,
   groupCombinations,
   upstreamGroupRatioBindings,
+  groupTimedRatios,
+  timedRatiosError,
   groupOpeningHours,
   openingHoursError,
   onChange,
@@ -1573,6 +1584,18 @@ function GroupPricingTable({
                           </Button>
                         )}
                       </div>
+                      <GroupTimedRatiosEditor
+                        value={groupTimedRatios}
+                        group={groupName}
+                        onChange={(value) =>
+                          onChange('GroupTimedRatios', value)
+                        }
+                      />
+                      {timedRatiosError && (
+                        <p role='alert' className='text-destructive text-sm'>
+                          {t(timedRatiosError)}
+                        </p>
+                      )}
                       <GroupOpeningHoursEditor
                         value={groupOpeningHours}
                         groups={groupRatio}

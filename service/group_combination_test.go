@@ -138,6 +138,23 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.Equal(t, "cheap", info.UsingGroup)
 	require.Equal(t, 0.14, info.PriceData.GroupRatioInfo.GroupRatio)
 
+	// The combination must bill the selected member's promotion, including zero.
+	timedConfig := ratio_setting.GetGroupRatioSetting().GroupTimedRatios
+	originalTimed, err := common.Marshal(timedConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, common.Unmarshal(originalTimed, timedConfig)) })
+	require.NoError(t, common.Unmarshal([]byte(`{"cheap":[{"enabled":true,"ratio":0,"kind":"daily","start":"00:00","end":"24:00","remark":"member promotion"}]}`), timedConfig))
+	require.NoError(t, helper.RefreshPricingForSelectedGroup(ctx, info, "cheap"))
+	require.Zero(t, info.PriceData.GroupRatioInfo.GroupRatio)
+	require.Equal(t, 0.14, info.PriceData.GroupRatioInfo.TimedRatio.OriginalRatio)
+	require.Zero(t, GetUserGroupRatio("", "cheap"))
+	snapshot := info.PriceData.GroupRatioInfo.TimedRatio
+	info.ChannelMeta = &relaycommon.ChannelMeta{}
+	other := GenerateTextOtherInfo(ctx, info, 1, 0, 1, 0, 1, -1, -1)
+	require.Equal(t, snapshot, other["timed_group_ratio"])
+	require.NoError(t, common.Unmarshal([]byte(`{}`), timedConfig))
+	require.Equal(t, "member promotion", snapshot.Remark)
+
 	retryParam.ExcludeChannel(2)
 	retryParam.ExcludeChannel(3)
 	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(retryParam)
@@ -150,6 +167,7 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.Equal(t, "premium", info.UsingGroup)
 	require.Equal(t, "codex", info.TokenGroup)
 	require.Equal(t, 0.4, info.PriceData.GroupRatioInfo.GroupRatio)
+	require.Nil(t, info.PriceData.GroupRatioInfo.TimedRatio)
 
 	channel, selectedGroup, enabled, err = ResolveGroupCombinationChannel("default", "gpt-5.6-sol")
 	require.NoError(t, err)

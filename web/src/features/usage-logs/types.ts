@@ -165,6 +165,13 @@ export interface LogOtherData {
   model_ratio?: number
   completion_ratio?: number
   model_price?: number
+  timed_group_ratio?: {
+    original_ratio: number
+    ratio: number
+    start: number
+    end: number
+    remark: string
+  }
   group_ratio?: number
   group_combination?: string
   user_group_ratio?: number

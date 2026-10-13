@@ -69,6 +69,7 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData, UsageLog } from '../../types'
+import { TimedRatioBadge } from '../timed-ratio-badge'
 import { RelayTimingSection } from './relay-timing-section'
 
 function timingTextColorClass(
@@ -154,7 +155,7 @@ function BillingBreakdown(props: {
   const billingMultiplier = getServiceTierBillingMultiplier(other)
   const serviceTier = getServiceTierLabel(other)
 
-  const rows: Array<{ label: string; value: string }> = []
+  const rows: Array<{ label: string; value: React.ReactNode }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD =
@@ -225,7 +226,11 @@ function BillingBreakdown(props: {
   if (effectiveGR != null && Number.isFinite(effectiveGR)) {
     rows.push({
       label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
-      value: `${formatRatio(effectiveGR)}x`,
+      value: other.timed_group_ratio ? (
+        <TimedRatioBadge snapshot={other.timed_group_ratio} />
+      ) : (
+        `${formatRatio(effectiveGR)}x`
+      ),
     })
   }
 

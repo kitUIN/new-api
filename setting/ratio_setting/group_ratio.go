@@ -239,6 +239,7 @@ var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 }
 
 type GroupRatioSetting struct {
+	GroupTimedRatios           *GroupTimedRatioConfig                          `json:"group_timed_ratios"`
 	GroupOpeningHours          *GroupOpeningHoursConfig                        `json:"group_opening_hours"`
 	GroupRatio                 *types.RWMap[string, float64]                   `json:"group_ratio"`
 	GroupGroupRatio            *types.RWMap[string, map[string]float64]        `json:"group_group_ratio"`
@@ -258,6 +259,7 @@ func init() {
 	groupGroupRatioMap.AddAll(defaultGroupGroupRatio)
 
 	groupRatioSetting = GroupRatioSetting{
+		GroupTimedRatios:           &GroupTimedRatioConfig{},
 		GroupOpeningHours:          &GroupOpeningHoursConfig{},
 		GroupSpecialUsableGroup:    groupSpecialUsableGroup,
 		GroupRatio:                 groupRatioMap,

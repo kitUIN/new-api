@@ -3,6 +3,7 @@ package service
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
@@ -195,11 +196,7 @@ func GetUserAutoGroup(userGroup string) []string {
 // userGroup 用户分组
 // group 需要获取倍率的分组
 func GetUserGroupRatio(userGroup, group string) float64 {
-	ratio, ok := ratio_setting.GetGroupGroupRatio(userGroup, group)
-	if ok {
-		return ratio
-	}
-	return ratio_setting.GetGroupRatio(group)
+	return ratio_setting.ResolveGroupRatioAt(userGroup, group, time.Now()).GroupRatio
 }
 
 func getGroupCombinationRatio(userGroup, group string) (interface{}, *RuleAutoGroupRatioRange) {

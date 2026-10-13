@@ -3,9 +3,18 @@ package types
 import "fmt"
 
 type GroupRatioInfo struct {
+	TimedRatio        *GroupTimedRatioSnapshot `json:",omitempty"`
 	GroupRatio        float64
 	GroupSpecialRatio float64
 	HasSpecialRatio   bool
+}
+
+type GroupTimedRatioSnapshot struct {
+	OriginalRatio float64 `json:"original_ratio"`
+	Ratio         float64 `json:"ratio"`
+	Start         int64   `json:"start"`
+	End           int64   `json:"end"`
+	Remark        string  `json:"remark"`
 }
 
 type PriceData struct {

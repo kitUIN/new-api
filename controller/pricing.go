@@ -38,8 +38,8 @@ func GetPricing(c *gin.Context) {
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
-	for s, f := range ratio_setting.GetGroupRatioCopy() {
-		groupRatio[s] = f
+	for s := range ratio_setting.GetGroupRatioCopy() {
+		groupRatio[s] = service.GetUserGroupRatio("", s)
 	}
 	var group string
 	if exists {
@@ -47,10 +47,7 @@ func GetPricing(c *gin.Context) {
 		if err == nil {
 			group = user.Group
 			for g := range groupRatio {
-				ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)
-				if ok {
-					groupRatio[g] = ratio
-				}
+				groupRatio[g] = service.GetUserGroupRatio(group, g)
 			}
 		}
 	}

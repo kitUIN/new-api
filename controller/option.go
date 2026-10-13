@@ -290,6 +290,11 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 			return
 		}
+	case "group_ratio_setting.group_timed_ratios":
+		if err := ratio_setting.CheckGroupTimedRatios(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
 	case "group_ratio_setting.group_combinations":
 		err = ratio_setting.CheckGroupCombinations(option.Value.(string))
 		if err != nil {

@@ -108,6 +108,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other := make(map[string]interface{})
 	other["model_ratio"] = modelRatio
 	other["group_ratio"] = groupRatio
+	appendTimedGroupRatio(other, relayInfo.PriceData.GroupRatioInfo.TimedRatio)
 	other["completion_ratio"] = completionRatio
 	other["cache_tokens"] = cacheTokens
 	other["cache_ratio"] = cacheRatio
@@ -364,10 +365,18 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	other := make(map[string]interface{})
 	other["model_price"] = priceData.ModelPrice
 	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
+	appendTimedGroupRatio(other, priceData.GroupRatioInfo.TimedRatio)
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
 	appendRequestPath(nil, relayInfo, other)
 	AppendRelayTimingInfo(nil, relayInfo, other)
 	return other
+}
+
+// Persist the matched window rather than looking up mutable settings at log time.
+func appendTimedGroupRatio(other map[string]interface{}, snapshot *types.GroupTimedRatioSnapshot) {
+	if snapshot != nil {
+		other["timed_group_ratio"] = snapshot
+	}
 }

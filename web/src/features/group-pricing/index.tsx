@@ -32,6 +32,7 @@ import { useSystemOptions } from '@/features/system-settings/hooks/use-system-op
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 import { groupOpeningHoursSchema } from '@/features/system-settings/models/group-opening-hours'
 import { GroupRatioForm } from '@/features/system-settings/models/group-ratio-form'
+import { groupTimedRatiosSchema } from '@/features/system-settings/models/group-timed-ratios'
 import {
   normalizeJsonString,
   validateJsonString,
@@ -84,6 +85,7 @@ const groupSchema = z.object({
     }
   }),
   GroupOpeningHours: groupOpeningHoursSchema,
+  GroupTimedRatios: groupTimedRatiosSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -182,13 +184,15 @@ export function GroupPricingPage() {
     GroupOpeningHours: normalizeJsonString(
       getValue('group_ratio_setting.group_opening_hours', '{}')
     ),
+    GroupTimedRatios: normalizeJsonString(
+      getValue('group_ratio_setting.group_timed_ratios', '{}')
+    ),
     GroupCombinations: normalizeJsonString(
       getValue('group_ratio_setting.group_combinations', '{}')
     ),
     AutoGroups: normalizeJsonString(getValue('AutoGroups', '')),
     AutoGroupOrderType: getValue('AutoGroupOrderType', 'priority') as
-      | 'priority'
-      | 'ratio_asc',
+      'priority' | 'ratio_asc',
     DefaultUseAutoGroup: getValue('DefaultUseAutoGroup', false) as boolean,
     RuleAutoGroupsEnabled: getValue('RuleAutoGroupsEnabled', true) as boolean,
     GroupSpecialUsableGroup: normalizeJsonString(
@@ -215,13 +219,15 @@ export function GroupPricingPage() {
         GroupOpeningHours: normalizeJsonString(
           getValue('group_ratio_setting.group_opening_hours', '{}')
         ),
+        GroupTimedRatios: normalizeJsonString(
+          getValue('group_ratio_setting.group_timed_ratios', '{}')
+        ),
         GroupCombinations: normalizeJsonString(
           getValue('group_ratio_setting.group_combinations', '{}')
         ),
         AutoGroups: normalizeJsonString(getValue('AutoGroups', '')),
         AutoGroupOrderType: getValue('AutoGroupOrderType', 'priority') as
-          | 'priority'
-          | 'ratio_asc',
+          'priority' | 'ratio_asc',
         DefaultUseAutoGroup: getValue('DefaultUseAutoGroup', false) as boolean,
         RuleAutoGroupsEnabled: getValue(
           'RuleAutoGroupsEnabled',
@@ -257,6 +263,7 @@ export function GroupPricingPage() {
           GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
           GroupTypes: normalizeJsonString(values.GroupTypes),
           GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
+          GroupTimedRatios: normalizeJsonString(values.GroupTimedRatios),
           GroupCombinations: normalizeJsonString(values.GroupCombinations),
           AutoGroups: normalizeJsonString(values.AutoGroups),
           AutoGroupOrderType: values.AutoGroupOrderType,
@@ -274,6 +281,7 @@ export function GroupPricingPage() {
           UpstreamGroupRatioBindings:
             'group_ratio_setting.upstream_group_ratio_bindings',
           GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
+          GroupTimedRatios: 'group_ratio_setting.group_timed_ratios',
           GroupCombinations: 'group_ratio_setting.group_combinations',
         }
 

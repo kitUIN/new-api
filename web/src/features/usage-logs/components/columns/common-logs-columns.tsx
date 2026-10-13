@@ -81,6 +81,7 @@ import {
 import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
+import { TimedRatioBadge } from '../timed-ratio-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
 export interface DetailSegment {
@@ -141,6 +142,8 @@ function formatCompactId(value: string): string {
 }
 
 export function getGroupRatioText(other: LogOtherData | null): string | null {
+  if (other?.timed_group_ratio)
+    return `${formatRatioCompact(other.timed_group_ratio.ratio)}x`
   const userGroupRatio = other?.user_group_ratio
   if (
     userGroupRatio != null &&
@@ -1161,7 +1164,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {groupRatioText && (
+              {other?.timed_group_ratio && (
+                <TimedRatioBadge snapshot={other.timed_group_ratio} />
+              )}
+              {groupRatioText && !other?.timed_group_ratio && (
                 <span className='shrink-0'>
                   {group && '· '}
                   {groupRatioText}
