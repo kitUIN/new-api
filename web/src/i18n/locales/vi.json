@@ -1,5 +1,7 @@
 {
   "translation": {
+    "channels.disableClaudeCode.label": "Chặn ứng dụng khách Claude Code",
+    "channels.disableClaudeCode.description": "Khi bật, yêu cầu Claude Code sẽ bỏ qua kênh này; yêu cầu chỉ định kênh này sẽ bị từ chối.",
     "upstreamUsage.remainingLabel": "Còn lại",
     "upstreamUsage.usedAmount": "Chi phí / token đã dùng",
     "upstreamUsage.estimatedAmount": "Chi phí / token ước tính",

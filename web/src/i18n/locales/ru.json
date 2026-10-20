@@ -1,5 +1,7 @@
 {
   "translation": {
+    "channels.disableClaudeCode.label": "Блокировать клиенты Claude Code",
+    "channels.disableClaudeCode.description": "Запросы Claude Code пропускают этот канал; запросы, явно привязанные к нему, отклоняются.",
     "upstreamUsage.remainingLabel": "Осталось",
     "upstreamUsage.usedAmount": "Потрачено / токены",
     "upstreamUsage.estimatedAmount": "Прогноз суммы / токенов",

@@ -193,14 +193,14 @@ func persistGroupCombinationRuntime(runtime *groupCombinationRuntime) {
 	}
 }
 
-func resolveGroupCombinationRuntimeChannel(runtime *groupCombinationRuntime, combinationName, modelName string, excludedChannelIDs []int) (*model.Channel, string, error) {
+func resolveGroupCombinationRuntimeChannel(c *gin.Context, runtime *groupCombinationRuntime, combinationName, modelName string, excludedChannelIDs []int) (*model.Channel, string, error) {
 	if runtime == nil {
 		return nil, "", fmt.Errorf("%s 运行状态未初始化", combinationName)
 	}
 	for i := runtime.CurrentIndex; i < len(runtime.Members); i++ {
 		member := runtime.Members[i]
 		runtime.SelectedIndex = i
-		channel, err := model.GetRandomSatisfiedChannelWithExclusions(member.Group, modelName, 0, excludedChannelIDs)
+		channel, err := getRandomChannelForRequest(c, member.Group, modelName, 0, excludedChannelIDs)
 		if err != nil {
 			return nil, member.Group, fmt.Errorf("%s 从成员分组 %s 选择渠道失败: %w", combinationName, member.Group, err)
 		}
@@ -254,7 +254,7 @@ func resolveGroupCombinationChannelWithContext(c *gin.Context, group, modelName 
 	}
 
 	runtime := getGroupCombinationRuntime(c, group, modelName, members)
-	channel, selectedGroup, err := resolveGroupCombinationRuntimeChannel(runtime, "组合分组 "+group, modelName, excludedChannelIDs)
+	channel, selectedGroup, err := resolveGroupCombinationRuntimeChannel(c, runtime, "组合分组 "+group, modelName, excludedChannelIDs)
 	return channel, selectedGroup, true, err
 }
 

@@ -1,5 +1,7 @@
 {
   "translation": {
+    "channels.disableClaudeCode.label": "禁止 Claude Code 客户端",
+    "channels.disableClaudeCode.description": "开启后，Claude Code 请求会跳过此渠道；指定此渠道的请求将被拒绝。",
     "upstreamUsage.remainingLabel": "剩余",
     "upstreamUsage.usedAmount": "已用金额 / 已用量",
     "upstreamUsage.estimatedAmount": "预测金额 / 预测量",

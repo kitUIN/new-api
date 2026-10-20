@@ -343,7 +343,7 @@ func ResolveModelGroupCombinationChannel(c *gin.Context, modelName string, exclu
 	if !ok || runtime == nil || runtime.Source != groupCombinationSourceToken || runtime.ModelName != modelName {
 		return nil, "", false, nil
 	}
-	channel, selectedGroup, err := resolveGroupCombinationRuntimeChannel(runtime, "模型组合", modelName, excludedChannelIDs)
+	channel, selectedGroup, err := resolveGroupCombinationRuntimeChannel(c, runtime, "模型组合", modelName, excludedChannelIDs)
 	if channel != nil {
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, selectedGroup)

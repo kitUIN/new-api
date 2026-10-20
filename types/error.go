@@ -72,6 +72,7 @@ const (
 	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
 	ErrorCodeGroupNotOpen          ErrorCode = "group_not_open"
+	ErrorCodeClaudeCodeNotAllowed  ErrorCode = "claude_code_not_allowed"
 
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"

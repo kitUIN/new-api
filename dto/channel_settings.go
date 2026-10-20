@@ -26,6 +26,7 @@ const (
 )
 
 type ChannelOtherSettings struct {
+	DisableClaudeCode                     bool          `json:"disable_claude_code,omitempty"`
 	AzureResponsesVersion                 string        `json:"azure_responses_version,omitempty"`
 	SupportsResponsesWebSocket            *bool         `json:"supports_responses_websocket,omitempty"`
 	VertexKeyType                         VertexKeyType `json:"vertex_key_type,omitempty"` // "json" or "api_key"

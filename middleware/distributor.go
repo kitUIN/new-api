@@ -167,7 +167,7 @@ func Distribute() func(c *gin.Context) {
 				if channel == nil && !modelCombinationEnabled && !ratio_setting.IsGroupCombination(usingGroup) {
 					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 						preferred, err := model.CacheGetChannel(preferredChannelID)
-						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled && !service.IsChannelBlockedForClient(c, preferred) {
 							if service.IsRuleAutoGroup(usingGroup) {
 								runtime, runtimeOk := service.GetRuleAutoGroupRuntime(c)
 								if runtimeOk && runtime.SelectedGroup != "" && model.IsChannelEnabledForGroupModel(runtime.SelectedGroup, modelRequest.Model, preferred.Id) {
@@ -237,9 +237,12 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeGroupNotOpen)
 			return
 		}
-		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil && setupErr.GetErrorCode() == types.ErrorCodeGroupNotOpen {
-			abortWithOpenAiMessage(c, http.StatusForbidden, setupErr.Error(), types.ErrorCodeGroupNotOpen)
-			return
+		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil {
+			switch setupErr.GetErrorCode() {
+			case types.ErrorCodeGroupNotOpen, types.ErrorCodeClaudeCodeNotAllowed:
+				abortWithOpenAiMessage(c, http.StatusForbidden, setupErr.Error(), setupErr.GetErrorCode())
+				return
+			}
 		}
 		service.RecordRelaySessionRoute(c)
 		recordRelayGroupUserRequest(c, channel)
@@ -447,6 +450,9 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
 		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if service.IsChannelBlockedForClient(c, channel) {
+		return types.NewError(errors.New("Claude Code clients are not allowed on this channel"), types.ErrorCodeClaudeCodeNotAllowed, types.ErrOptionWithSkipRetry(), types.ErrOptionWithStatusCode(http.StatusForbidden))
 	}
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)

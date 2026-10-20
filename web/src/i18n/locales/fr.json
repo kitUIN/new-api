@@ -1,5 +1,7 @@
 {
   "translation": {
+    "channels.disableClaudeCode.label": "Bloquer les clients Claude Code",
+    "channels.disableClaudeCode.description": "Si activé, les requêtes Claude Code évitent ce canal ; celles qui imposent ce canal sont rejetées.",
     "upstreamUsage.remainingLabel": "Restant",
     "upstreamUsage.usedAmount": "Coût / tokens utilisés",
     "upstreamUsage.estimatedAmount": "Coût / tokens estimés",

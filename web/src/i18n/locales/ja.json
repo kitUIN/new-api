@@ -1,5 +1,7 @@
 {
   "translation": {
+    "channels.disableClaudeCode.label": "Claude Code クライアントを禁止",
+    "channels.disableClaudeCode.description": "有効にすると Claude Code のリクエストはこのチャネルを回避し、このチャネルを指定したリクエストは拒否されます。",
     "upstreamUsage.remainingLabel": "残り",
     "upstreamUsage.usedAmount": "使用金額 / トークン数",
     "upstreamUsage.estimatedAmount": "推定金額 / トークン数",

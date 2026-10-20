@@ -229,6 +229,7 @@ export type ChannelProviderSettings = {
 }
 
 export interface ChannelOtherSettings {
+  disable_claude_code?: boolean
   azure_responses_version?: string
   supports_responses_websocket?: boolean
   vertex_key_type?: 'json' | 'api_key'
@@ -390,12 +391,7 @@ export interface MultiKeyStatusResponse {
 // ============================================================================
 
 export type ChannelSortBy =
-  | 'id'
-  | 'name'
-  | 'priority'
-  | 'balance'
-  | 'response_time'
-  | 'test_time'
+  'id' | 'name' | 'priority' | 'balance' | 'response_time' | 'test_time'
 
 export type ChannelSortOrder = 'asc' | 'desc'
 

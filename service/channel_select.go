@@ -66,7 +66,7 @@ func (p *RetryParam) nextChannelWithRetryExclusions(group string, retry int) (*m
 		return nil, err
 	}
 	for {
-		channel, err := model.GetRandomSatisfiedChannelWithExclusions(group, p.ModelName, retry, p.ExcludedChannelIDs)
+		channel, err := getRandomChannelForRequest(p.Ctx, group, p.ModelName, retry, p.ExcludedChannelIDs)
 		if channel != nil || err != nil || len(p.ExcludedChannelIDs) == 0 {
 			return channel, err
 		}

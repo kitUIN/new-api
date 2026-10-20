@@ -219,8 +219,7 @@ func getPriorityWithExclusions(group string, model string, retry int, excludedCh
 	}
 
 	if len(priorities) == 0 {
-		// 如果没有查询到优先级，则返回错误
-		return 0, errors.New("数据库一致性被破坏")
+		return 0, gorm.ErrRecordNotFound
 	}
 
 	// 确定要使用的优先级
@@ -255,6 +254,10 @@ func getChannelQueryWithExclusions(group string, model string, retry int, exclud
 	}
 	if retry != 0 {
 		priority, err := getPriorityWithExclusions(group, model, retry, excludedChannelIDs)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Exhausting candidates after exclusions is normal during retries.
+			return channelQuery.Where("1 = 0"), nil
+		}
 		if err != nil {
 			return nil, err
 		} else {

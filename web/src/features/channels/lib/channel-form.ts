@@ -291,6 +291,7 @@ export const channelFormSchema = z
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
     auto_test_enabled: z.boolean().optional(),
+    disable_claude_code: z.boolean().optional(),
     status: z.number(),
     status_code_mapping: z
       .string()
@@ -498,6 +499,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   test_model: '',
   auto_ban: 1,
   auto_test_enabled: true,
+  disable_claude_code: false,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
   tag: '',
@@ -802,6 +804,7 @@ export function transformChannelToFormDefaults(
   let responsesWebSearchToolEnabled = true
   let supportsResponsesWebSocket = true
   let autoTestEnabled = true
+  let disableClaudeCode = false
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
@@ -830,6 +833,7 @@ export function transformChannelToFormDefaults(
       parsed.disable_responses_web_search_tool !== true
     supportsResponsesWebSocket = parsed.supports_responses_websocket !== false
     autoTestEnabled = parsed.auto_test_enabled !== false
+    disableClaudeCode = parsed.disable_claude_code === true
     allowInferenceGeo = parsed.allow_inference_geo === true
     allowSpeed = parsed.allow_speed === true
     claudeBetaQuery = parsed.claude_beta_query === true
@@ -869,6 +873,7 @@ export function transformChannelToFormDefaults(
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
     auto_test_enabled: autoTestEnabled,
+    disable_claude_code: disableClaudeCode,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
     tag: channel.tag || '',
@@ -1033,6 +1038,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.auto_test_enabled = false
   } else if ('auto_test_enabled' in settingsObj) {
     delete settingsObj.auto_test_enabled
+  }
+
+  if (formData.disable_claude_code === true) {
+    settingsObj.disable_claude_code = true
+  } else {
+    delete settingsObj.disable_claude_code
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed

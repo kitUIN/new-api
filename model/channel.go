@@ -1029,6 +1029,14 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if channel.OtherSettings != "" {
+		var clientSettings struct {
+			DisableClaudeCode bool `json:"disable_claude_code"`
+		}
+		if err := common.UnmarshalJsonStr(channel.OtherSettings, &clientSettings); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
