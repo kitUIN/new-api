@@ -1575,7 +1575,7 @@ export function ApiKeysMutateDrawer({
                         </div>
                         <FormDescription>
                           {t(
-                            'This API key starts at P0 and keeps the promoted priority globally until the Redis state is reset.'
+                            'This API key starts at P0 and automatically resets to P0 after 2 hours without requests. You can also reset it manually.'
                           )}
                         </FormDescription>
                         <FormMessage />

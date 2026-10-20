@@ -1,9 +1,11 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -11,16 +13,20 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 )
 
 const apiKeyGroupFailoverNamespace = "new-api:api_key_group_failover:v1"
 const apiKeyGroupFailoverUnavailableGroup = "__api_key_group_failover_unavailable__"
+const apiKeyGroupFailoverIdleTimeout = 2 * time.Hour
 
 type SessionGroupFailoverState struct {
-	LevelIndex   int      `json:"level_index"`
-	FailureCount int      `json:"failure_count"`
-	Groups       []string `json:"groups"`
-	UpdatedAt    int64    `json:"updated_at"`
+	LevelIndex    int      `json:"level_index"`
+	FailureCount  int      `json:"failure_count"`
+	Groups        []string `json:"groups"`
+	UpdatedAt     int64    `json:"updated_at"`
+	LastRequestAt int64    `json:"last_request_at,omitempty"`
+	Generation    string   `json:"generation,omitempty"`
 }
 
 type SessionGroupFailoverContext struct {
@@ -33,6 +39,7 @@ type SessionGroupFailoverContext struct {
 	Switched      bool     `json:"switched"`
 	Scope         string   `json:"scope"`
 	RedisKey      string   `json:"-"`
+	Generation    string   `json:"-"`
 }
 
 type ApiKeyGroupFailoverRuntime struct {
@@ -222,12 +229,100 @@ func readSessionGroupFailoverState(redisKey string) (SessionGroupFailoverState, 
 	if err != nil || strings.TrimSpace(raw) == "" {
 		return SessionGroupFailoverState{}, false
 	}
+	return decodeSessionGroupFailoverState(raw)
+}
+
+func decodeSessionGroupFailoverState(raw string) (SessionGroupFailoverState, bool) {
 	var state SessionGroupFailoverState
 	if err := common.UnmarshalJsonStr(raw, &state); err != nil {
 		common.SysLog("failed to unmarshal session group failover state: " + err.Error())
 		return SessionGroupFailoverState{}, false
 	}
+	// Older states had no TTL or request timestamp. Use their last update once
+	// so an idle key does not remain on a fallback group after upgrading.
+	if state.LastRequestAt == 0 {
+		state.LastRequestAt = state.UpdatedAt
+	}
+	if time.Until(time.Unix(state.LastRequestAt, 0).Add(apiKeyGroupFailoverIdleTimeout)) <= 0 {
+		return SessionGroupFailoverState{}, false
+	}
 	return state, true
+}
+
+// updateSessionGroupFailoverState serializes request touches and result updates.
+// Only request touches move LastRequestAt; results retain the remaining TTL.
+func updateSessionGroupFailoverState(redisKey string, update func(SessionGroupFailoverState, bool) (SessionGroupFailoverState, bool)) (SessionGroupFailoverState, bool, error) {
+	if redisKey == "" || !common.RedisEnabled || common.RDB == nil {
+		return SessionGroupFailoverState{}, false, nil
+	}
+	ctx := context.Background()
+	var result SessionGroupFailoverState
+	var written bool
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		err = common.RDB.Watch(ctx, func(tx *redis.Tx) error {
+			written = false
+			raw, err := tx.Get(ctx, redisKey).Result()
+			if err != nil && !errors.Is(err, redis.Nil) {
+				return err
+			}
+			var state SessionGroupFailoverState
+			var found bool
+			if err == nil {
+				state, found = decodeSessionGroupFailoverState(raw)
+			}
+			next, shouldWrite := update(state, found)
+			if !shouldWrite {
+				return nil
+			}
+			ttl := time.Until(time.Unix(next.LastRequestAt, 0).Add(apiKeyGroupFailoverIdleTimeout))
+			if ttl <= 0 {
+				return nil
+			}
+			data, err := common.Marshal(next)
+			if err != nil {
+				return err
+			}
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				pipe.Set(ctx, redisKey, string(data), ttl)
+				return nil
+			})
+			if err == nil {
+				result, written = next, true
+			}
+			return err
+		}, redisKey)
+		if !errors.Is(err, redis.TxFailedErr) {
+			break
+		}
+	}
+	return result, written, err
+}
+
+// TouchApiKeyGroupFailoverState counts authenticated API key requests, including
+// requests rejected later by routing. Dashboard reads never call this function.
+func TouchApiKeyGroupFailoverState(token *model.Token) error {
+	if token == nil || token.Id <= 0 || !token.SessionGroupFailoverEnabled || !common.RedisEnabled || common.RDB == nil {
+		return nil
+	}
+	groups, err := parseSessionFailoverGroups(token.SessionFailoverGroups)
+	if err != nil {
+		return err
+	}
+	if len(groups) < 2 {
+		return nil
+	}
+	_, _, err = updateSessionGroupFailoverState(apiKeyGroupFailoverRedisKey(token.Id), func(state SessionGroupFailoverState, found bool) (SessionGroupFailoverState, bool) {
+		if !found || !sameFailoverGroups(state.Groups, groups) {
+			state = SessionGroupFailoverState{Groups: groups, UpdatedAt: common.GetTimestamp()}
+		}
+		if state.Generation == "" {
+			state.Generation = common.GetUUID()
+		}
+		state.LastRequestAt = common.GetTimestamp()
+		return state, true
+	})
+	return err
 }
 
 func GetApiKeyGroupFailoverRuntime(token *model.Token) *ApiKeyGroupFailoverRuntime {
@@ -264,18 +359,6 @@ func GetApiKeyGroupFailoverRuntime(token *model.Token) *ApiKeyGroupFailoverRunti
 		Scope:         "api_key",
 		UpdatedAt:     updatedAt,
 	}
-}
-
-func writeSessionGroupFailoverState(redisKey string, state SessionGroupFailoverState) error {
-	if redisKey == "" || !common.RedisEnabled || common.RDB == nil {
-		return nil
-	}
-	state.UpdatedAt = common.GetTimestamp()
-	data, err := common.Marshal(state)
-	if err != nil {
-		return err
-	}
-	return common.RedisSet(redisKey, string(data), 0)
 }
 
 func getSessionGroupFailoverContext(c *gin.Context) (*SessionGroupFailoverContext, bool) {
@@ -348,18 +431,23 @@ func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 			Threshold:     threshold,
 			Scope:         "api_key",
 			RedisKey:      redisKey,
+			Generation:    state.Generation,
 		})
 		return
 	}
 	if switched {
 		level = selectedLevel
 		failureCount = 0
-		state = SessionGroupFailoverState{
-			LevelIndex:   level,
-			FailureCount: failureCount,
-			Groups:       groups,
-		}
-		if err := writeSessionGroupFailoverState(redisKey, state); err != nil {
+		_, _, err := updateSessionGroupFailoverState(redisKey, func(current SessionGroupFailoverState, found bool) (SessionGroupFailoverState, bool) {
+			if !found || current.Generation != state.Generation || current.LevelIndex > level {
+				return current, false
+			}
+			current.LevelIndex = level
+			current.FailureCount = 0
+			current.UpdatedAt = common.GetTimestamp()
+			return current, true
+		})
+		if err != nil {
 			common.SysLog("failed to advance api key group failover state after unavailable group: " + err.Error())
 		}
 		common.SysLog(fmt.Sprintf("api key group failover skipped unavailable group and selected P%d(%s) for model %s", level, groups[level], modelName))
@@ -377,6 +465,7 @@ func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 		Switched:      switched,
 		Scope:         "api_key",
 		RedisKey:      redisKey,
+		Generation:    state.Generation,
 	})
 }
 
@@ -385,24 +474,28 @@ func RecordSessionGroupFailoverResult(c *gin.Context, success bool) {
 	if !ok || info.RedisKey == "" {
 		return
 	}
-	state, found := readSessionGroupFailoverState(info.RedisKey)
-	if !found {
-		state = SessionGroupFailoverState{
-			LevelIndex:   info.CurrentLevel,
-			FailureCount: info.FailureCount,
-			Groups:       info.Groups,
+	var switched bool
+	state, written, err := updateSessionGroupFailoverState(info.RedisKey, func(state SessionGroupFailoverState, found bool) (SessionGroupFailoverState, bool) {
+		// A response from before an idle/manual reset must not restore old state.
+		if !found || state.Generation != info.Generation || !sameFailoverGroups(state.Groups, info.Groups) {
+			return state, false
 		}
-	}
-	if state.LevelIndex < 0 || state.LevelIndex >= len(info.Groups) {
-		state.LevelIndex = info.CurrentLevel
-		state.FailureCount = info.FailureCount
-	}
-
-	state, info.Switched = nextSessionGroupFailoverState(state, *info, success)
-	if err := writeSessionGroupFailoverState(info.RedisKey, state); err != nil {
+		if state.LevelIndex < 0 || state.LevelIndex >= len(info.Groups) {
+			state.LevelIndex = info.CurrentLevel
+			state.FailureCount = info.FailureCount
+		}
+		state, switched = nextSessionGroupFailoverState(state, *info, success)
+		state.UpdatedAt = common.GetTimestamp()
+		return state, true
+	})
+	if err != nil {
 		common.SysLog("failed to write api key group failover state: " + err.Error())
 		return
 	}
+	if !written {
+		return
+	}
+	info.Switched = switched
 	info.CurrentLevel = state.LevelIndex
 	info.SelectedGroup = info.Groups[state.LevelIndex]
 	info.FailureCount = state.FailureCount

@@ -46,8 +46,10 @@ export function useStreamRequest() {
       isStreamCompleteRef.current = false
 
       const closeSource = () => {
+        if (sseSourceRef.current === source) {
+          sseSourceRef.current = null
+        }
         source.close()
-        sseSourceRef.current = null
       }
 
       const handleError = (errorMessage: string, errorCode?: string) => {
@@ -58,6 +60,7 @@ export function useStreamRequest() {
       }
 
       source.addEventListener('message', (e: MessageEvent) => {
+        if (sseSourceRef.current !== source) return
         if (e.data === '[DONE]') {
           isStreamCompleteRef.current = true
           closeSource()
@@ -85,6 +88,7 @@ export function useStreamRequest() {
       })
 
       source.addEventListener('error', (e: Event & { data?: string }) => {
+        if (sseSourceRef.current !== source) return
         // Only handle errors if stream didn't complete normally
         if (source.readyState !== 2) {
           // eslint-disable-next-line no-console
@@ -111,6 +115,7 @@ export function useStreamRequest() {
       source.addEventListener(
         'readystatechange',
         (e: Event & { readyState?: number }) => {
+          if (sseSourceRef.current !== source) return
           const status = (source as unknown as { status?: number }).status
           if (
             e.readyState !== undefined &&
@@ -136,19 +141,13 @@ export function useStreamRequest() {
   )
 
   const stopStream = useCallback(() => {
-    if (sseSourceRef.current) {
-      sseSourceRef.current.close()
-      sseSourceRef.current = null
-    }
+    const source = sseSourceRef.current
+    sseSourceRef.current = null
+    source?.close()
   }, [])
-
-  // eslint-disable-next-line react-hooks/refs
-  const isStreaming = sseSourceRef.current !== null
 
   return {
     sendStreamRequest,
     stopStream,
-    // eslint-disable-next-line react-hooks/refs
-    isStreaming,
   }
 }

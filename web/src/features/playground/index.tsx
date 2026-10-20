@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Eraser } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
@@ -36,6 +38,7 @@ export function Playground() {
     models,
     groups,
     updateMessages,
+    clearMessages,
     setModels,
     setGroups,
     updateConfig,
@@ -188,8 +191,26 @@ export function Playground() {
     updateMessages(newMessages)
   }
 
+  const handleClearContext = () => {
+    stopGeneration()
+    setEditingMessageKey(null)
+    clearMessages()
+  }
+
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
+      <div className='mx-auto flex w-full max-w-4xl justify-end px-4 py-2'>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          disabled={messages.length === 0}
+          onClick={handleClearContext}
+        >
+          <Eraser aria-hidden='true' />
+          {t('Clear context')}
+        </Button>
+      </div>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex flex-1 flex-col overflow-hidden'>
         <PlaygroundChat

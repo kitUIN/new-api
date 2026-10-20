@@ -269,6 +269,9 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		c.Set("id", token.UserId)
 		c.Set("token_id", token.Id)
 		c.Set("token_key", token.Key)
+		if err := service.TouchApiKeyGroupFailoverState(token); err != nil {
+			common.SysLog("failed to touch api key group failover state: " + err.Error())
+		}
 		c.Next()
 	}
 }
@@ -379,6 +382,9 @@ func TokenAuth() func(c *gin.Context) {
 		}
 
 		userCache.WriteContext(c)
+		if err := service.TouchApiKeyGroupFailoverState(token); err != nil {
+			common.SysLog("failed to touch api key group failover state: " + err.Error())
+		}
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group

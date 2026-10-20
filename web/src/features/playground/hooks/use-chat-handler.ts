@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
@@ -44,7 +44,9 @@ export function useChatHandler({
   parameterEnabled,
   onMessageUpdate,
 }: UseChatHandlerOptions) {
-  const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
+  const { sendStreamRequest, stopStream } = useStreamRequest()
+  const requestVersionRef = useRef(0)
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
@@ -102,7 +104,7 @@ export function useChatHandler({
 
   // Send streaming chat request
   const sendStreamingChat = useCallback(
-    (messages: Message[]) => {
+    (messages: Message[], requestVersion: number) => {
       const payload = buildChatCompletionPayload(
         messages,
         config,
@@ -110,9 +112,20 @@ export function useChatHandler({
       )
       sendStreamRequest(
         payload,
-        handleStreamUpdate,
-        handleStreamComplete,
-        handleStreamError
+        (type, chunk) => {
+          if (requestVersion !== requestVersionRef.current) return
+          handleStreamUpdate(type, chunk)
+        },
+        () => {
+          if (requestVersion !== requestVersionRef.current) return
+          setIsGenerating(false)
+          handleStreamComplete()
+        },
+        (error, errorCode) => {
+          if (requestVersion !== requestVersionRef.current) return
+          setIsGenerating(false)
+          handleStreamError(error, errorCode)
+        }
       )
     },
     [
@@ -127,7 +140,7 @@ export function useChatHandler({
 
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
-    async (messages: Message[]) => {
+    async (messages: Message[], requestVersion: number) => {
       const payload = buildChatCompletionPayload(
         messages,
         config,
@@ -136,6 +149,7 @@ export function useChatHandler({
 
       try {
         const response = await sendChatCompletion(payload)
+        if (requestVersion !== requestVersionRef.current) return
         const choice = response.choices?.[0]
         if (!choice) return
 
@@ -157,6 +171,7 @@ export function useChatHandler({
           }))
         )
       } catch (error: unknown) {
+        if (requestVersion !== requestVersionRef.current) return
         const err = error as {
           response?: {
             data?: { message?: string; error?: { code?: string } }
@@ -169,6 +184,10 @@ export function useChatHandler({
             ERROR_MESSAGES.API_REQUEST_ERROR,
           err?.response?.data?.error?.code || undefined
         )
+      } finally {
+        if (requestVersion === requestVersionRef.current) {
+          setIsGenerating(false)
+        }
       }
     },
     [config, parameterEnabled, onMessageUpdate, handleStreamError]
@@ -177,18 +196,23 @@ export function useChatHandler({
   // Send chat request (stream or non-stream based on config)
   const sendChat = useCallback(
     (messages: Message[]) => {
+      const requestVersion = ++requestVersionRef.current
+      stopStream()
+      setIsGenerating(true)
       if (config.stream) {
-        sendStreamingChat(messages)
+        sendStreamingChat(messages, requestVersion)
       } else {
-        sendNonStreamingChat(messages)
+        void sendNonStreamingChat(messages, requestVersion)
       }
     },
-    [config.stream, sendStreamingChat, sendNonStreamingChat]
+    [config.stream, sendStreamingChat, sendNonStreamingChat, stopStream]
   )
 
   // Stop generation
   const stopGeneration = useCallback(() => {
+    requestVersionRef.current++
     stopStream()
+    setIsGenerating(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
         message.status === MESSAGE_STATUS.LOADING ||
@@ -202,6 +226,6 @@ export function useChatHandler({
   return {
     sendChat,
     stopGeneration,
-    isGenerating: isStreaming,
+    isGenerating,
   }
 }
