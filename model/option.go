@@ -55,7 +55,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
-	common.OptionMap["LogRequestDetailEnabled"] = strconv.FormatBool(common.LogRequestDetailEnabled.Load())
+	common.OptionMap["LogRequestDetailMode"] = strconv.Itoa(int(common.LogRequestDetailMode.Load()))
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -219,10 +219,29 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	var requestDetailMode, legacyRequestDetailEnabled *Option
 	for _, option := range options {
+		switch option.Key {
+		case "LogRequestDetailMode":
+			requestDetailMode = option
+			continue
+		case "LogRequestDetailEnabled":
+			legacyRequestDetailEnabled = option
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	// A saved mode always wins, regardless of database row order. Existing
+	// installations with only the boolean retain their previous behavior.
+	if requestDetailMode == nil {
+		requestDetailMode = legacyRequestDetailEnabled
+	}
+	if requestDetailMode != nil {
+		if err := updateOptionMap(requestDetailMode.Key, requestDetailMode.Value); err != nil {
+			common.SysLog("failed to update request detail log mode: " + err.Error())
 		}
 	}
 }
@@ -236,6 +255,13 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "LogRequestDetailMode" || key == "LogRequestDetailEnabled" {
+		mode, err := parseRequestDetailLogOption(key, value)
+		if err != nil {
+			return err
+		}
+		key, value = "LogRequestDetailMode", strconv.Itoa(int(mode))
+	}
 	// MySQL option keys may use a case-insensitive, space-padding collation.
 	if strings.EqualFold(strings.TrimSpace(key), sessionSecretOptionKey) {
 		return errors.New("session secret cannot be changed through options; configure SESSION_SECRET and restart instead")
@@ -402,6 +428,15 @@ func updateGroupSpecialUsableGroupOption(value string) error {
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	if key == "LogRequestDetailMode" || key == "LogRequestDetailEnabled" {
+		mode, err := parseRequestDetailLogOption(key, value)
+		if err != nil {
+			return err
+		}
+		common.LogRequestDetailMode.Store(mode)
+		common.OptionMap["LogRequestDetailMode"] = strconv.Itoa(int(mode))
+		return nil
+	}
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handled, configErr := handleConfigUpdate(key, value); handled {
@@ -460,8 +495,6 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
-		case "LogRequestDetailEnabled":
-			common.LogRequestDetailEnabled.Store(boolValue)
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS

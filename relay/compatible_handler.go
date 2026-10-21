@@ -182,10 +182,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	reqBodyForLog := requestBodySnapshot(c, requestBody)
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+	defer recordDetail(false)
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
@@ -198,7 +199,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
-			recordDetail()
+			recordDetail(true)
 			return newApiErr
 		}
 	}
@@ -207,7 +208,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if newApiErr != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
-		recordDetail()
+		recordDetail(true)
 		return newApiErr
 	}
 

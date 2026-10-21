@@ -1,5 +1,9 @@
 {
   "translation": {
+    "logs.requestDetail.mode": "リクエストとレスポンスのログ",
+    "logs.requestDetail.off": "無効",
+    "logs.requestDetail.failed": "失敗したリクエストのみ",
+    "logs.requestDetail.all": "すべてのリクエスト",
     "channels.disableClaudeCode.label": "Claude Code クライアントを禁止",
     "channels.disableClaudeCode.description": "有効にすると Claude Code のリクエストはこのチャネルを回避し、このチャネルを指定したリクエストは拒否されます。",
     "upstreamUsage.remainingLabel": "残り",

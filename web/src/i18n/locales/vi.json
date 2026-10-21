@@ -1,5 +1,9 @@
 {
   "translation": {
+    "logs.requestDetail.mode": "Ghi nhật ký yêu cầu và phản hồi",
+    "logs.requestDetail.off": "Tắt",
+    "logs.requestDetail.failed": "Chỉ yêu cầu thất bại",
+    "logs.requestDetail.all": "Tất cả yêu cầu",
     "channels.disableClaudeCode.label": "Chặn ứng dụng khách Claude Code",
     "channels.disableClaudeCode.description": "Khi bật, yêu cầu Claude Code sẽ bỏ qua kênh này; yêu cầu chỉ định kênh này sẽ bị từ chối.",
     "upstreamUsage.remainingLabel": "Còn lại",

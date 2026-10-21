@@ -1,5 +1,9 @@
 {
   "translation": {
+    "logs.requestDetail.mode": "Journalisation des requêtes et des réponses",
+    "logs.requestDetail.off": "Désactivée",
+    "logs.requestDetail.failed": "Requêtes échouées uniquement",
+    "logs.requestDetail.all": "Toutes les requêtes",
     "channels.disableClaudeCode.label": "Bloquer les clients Claude Code",
     "channels.disableClaudeCode.description": "Si activé, les requêtes Claude Code évitent ce canal ; celles qui imposent ce canal sont rejetées.",
     "upstreamUsage.remainingLabel": "Restant",

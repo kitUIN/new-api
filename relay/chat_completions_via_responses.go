@@ -128,14 +128,15 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	reqBodyForLog := requestBodySnapshot(c, requestBody)
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+	defer recordDetail(false)
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	if resp == nil {
-		recordDetail()
+		recordDetail(true)
 		return nil, types.NewOpenAIError(nil, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
@@ -146,7 +147,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
-		recordDetail()
+		recordDetail(true)
 		return nil, newApiErr
 	}
 
@@ -154,7 +155,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
 		if newApiErr != nil {
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
-			recordDetail()
+			recordDetail(true)
 			return nil, newApiErr
 		}
 		return usage, nil
@@ -163,7 +164,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	usage, newApiErr := openaichannel.OaiResponsesToChatHandler(c, info, httpResp)
 	if newApiErr != nil {
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
-		recordDetail()
+		recordDetail(true)
 		return nil, newApiErr
 	}
 	return usage, nil

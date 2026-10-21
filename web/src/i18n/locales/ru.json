@@ -1,5 +1,9 @@
 {
   "translation": {
+    "logs.requestDetail.mode": "Журналирование запросов и ответов",
+    "logs.requestDetail.off": "Выключено",
+    "logs.requestDetail.failed": "Только неудачные запросы",
+    "logs.requestDetail.all": "Все запросы",
     "channels.disableClaudeCode.label": "Блокировать клиенты Claude Code",
     "channels.disableClaudeCode.description": "Запросы Claude Code пропускают этот канал; запросы, явно привязанные к нему, отклоняются.",
     "upstreamUsage.remainingLabel": "Осталось",

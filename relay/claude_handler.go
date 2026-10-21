@@ -193,10 +193,11 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+	defer recordDetail(false)
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
@@ -206,7 +207,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-			recordDetail()
+			recordDetail(true)
 			return newAPIError
 		}
 	}
@@ -214,7 +215,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		recordDetail()
+		recordDetail(true)
 		return newAPIError
 	}
 
@@ -243,9 +244,10 @@ func claudeCountTokensPassthrough(c *gin.Context, info *relaycommon.RelayInfo, a
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+	defer recordDetail(false)
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
@@ -254,14 +256,14 @@ func claudeCountTokensPassthrough(c *gin.Context, info *relaycommon.RelayInfo, a
 
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
-	if common.LogRequestDetailEnabled.Load() {
+	if common.IsRequestDetailLoggingEnabled() {
 		c.Set("upstream_response_body", string(body))
 	}
 	if httpResp.StatusCode != http.StatusOK {
-		recordDetail()
+		recordDetail(true)
 	}
 
 	c.Data(httpResp.StatusCode, httpResp.Header.Get("Content-Type"), body)

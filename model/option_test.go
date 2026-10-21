@@ -13,17 +13,18 @@ import (
 )
 
 func TestLogRequestDetailOptionControlsRecording(t *testing.T) {
-	const optionKey = "LogRequestDetailEnabled"
+	const optionKey = "LogRequestDetailMode"
+	const legacyKey = "LogRequestDetailEnabled"
 	const requestId = "request-detail-option-test"
-	require.False(t, common.LogRequestDetailEnabled.Load())
+	previousMode := common.LogRequestDetailMode.Swap(common.RequestDetailLogOff)
 	require.NoError(t, LOG_DB.AutoMigrate(&RequestDetail{}))
 
 	common.OptionMapRWMutex.Lock()
 	previousOptions := common.OptionMap
 	common.OptionMapRWMutex.Unlock()
 	t.Cleanup(func() {
-		common.LogRequestDetailEnabled.Store(false)
-		require.NoError(t, DB.Where("key = ?", optionKey).Delete(&Option{}).Error)
+		common.LogRequestDetailMode.Store(previousMode)
+		require.NoError(t, DB.Where("key IN ?", []string{optionKey, legacyKey}).Delete(&Option{}).Error)
 		require.NoError(t, LOG_DB.Where("request_id = ?", requestId).Delete(&RequestDetail{}).Error)
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = previousOptions
@@ -31,32 +32,67 @@ func TestLogRequestDetailOptionControlsRecording(t *testing.T) {
 	})
 
 	InitOptionMap()
-	common.OptionMapRWMutex.RLock()
-	defaultValue := common.OptionMap[optionKey]
-	common.OptionMapRWMutex.RUnlock()
-	require.Equal(t, "false", defaultValue)
+	require.Equal(t, "0", common.OptionMap[optionKey])
 
-	recordAndCount := func() int64 {
-		RecordRequestDetail(requestId, 1, "{}", "request body", "{}", "response body")
-		var count int64
-		require.NoError(t, LOG_DB.Model(&RequestDetail{}).Where("request_id = ?", requestId).Count(&count).Error)
-		return count
-	}
-	require.Zero(t, recordAndCount())
-
-	for _, enabled := range []bool{true, false} {
-		value := strconv.FormatBool(enabled)
+	var expectedCount int64
+	for _, mode := range []int32{common.RequestDetailLogOff, common.RequestDetailLogFailed, common.RequestDetailLogAll, common.RequestDetailLogOff} {
+		value := strconv.Itoa(int(mode))
 		require.NoError(t, UpdateOption(optionKey, value))
-		require.Equal(t, enabled, common.LogRequestDetailEnabled.Load())
 		var saved Option
 		require.NoError(t, DB.First(&saved, "key = ?", optionKey).Error)
 		require.Equal(t, value, saved.Value)
-
-		common.LogRequestDetailEnabled.Store(!enabled)
+		common.LogRequestDetailMode.Store(-1)
 		loadOptionsFromDatabase()
-		require.Equal(t, enabled, common.LogRequestDetailEnabled.Load())
-		require.EqualValues(t, 1, recordAndCount())
+		require.Equal(t, mode, common.LogRequestDetailMode.Load())
+		require.Equal(t, value, common.OptionMap[optionKey])
+
+		for _, failed := range []bool{false, true} {
+			RecordRequestDetail(requestId, 1, "{}", "request body", "{}", "response body", failed)
+			if mode == common.RequestDetailLogAll || (mode == common.RequestDetailLogFailed && failed) {
+				expectedCount++
+			}
+			var count int64
+			require.NoError(t, LOG_DB.Model(&RequestDetail{}).Where("request_id = ?", requestId).Count(&count).Error)
+			require.Equal(t, expectedCount, count)
+		}
 	}
+
+	for _, invalid := range []string{"-1", "3", "true", "", "1.5"} {
+		require.Error(t, UpdateOption(optionKey, invalid))
+		require.Equal(t, common.RequestDetailLogOff, common.LogRequestDetailMode.Load())
+		var saved Option
+		require.NoError(t, DB.First(&saved, "key = ?", optionKey).Error)
+		require.Equal(t, "0", saved.Value)
+		require.Equal(t, "0", common.OptionMap[optionKey])
+	}
+
+	// Upgrade from the boolean option, then ensure a saved mode takes precedence
+	// on every database sync, including when the chosen mode is off.
+	require.NoError(t, DB.Where("key = ?", optionKey).Delete(&Option{}).Error)
+	for _, enabled := range []bool{true, false} {
+		require.NoError(t, DB.Save(&Option{Key: legacyKey, Value: strconv.FormatBool(enabled)}).Error)
+		InitOptionMap()
+		expectedMode := common.RequestDetailLogOff
+		if enabled {
+			expectedMode = common.RequestDetailLogFailed
+		}
+		require.Equal(t, expectedMode, common.LogRequestDetailMode.Load())
+		require.Equal(t, strconv.Itoa(int(expectedMode)), common.OptionMap[optionKey])
+	}
+	require.NoError(t, DB.Save(&Option{Key: legacyKey, Value: "true"}).Error)
+	for _, value := range []string{"2", "0"} {
+		require.NoError(t, UpdateOption(optionKey, value))
+		loadOptionsFromDatabase()
+		require.Equal(t, value, common.OptionMap[optionKey])
+		require.Equal(t, value, strconv.Itoa(int(common.LogRequestDetailMode.Load())))
+	}
+	// Old clients can still submit the boolean, which now saves the canonical mode.
+	require.NoError(t, UpdateOption(legacyKey, "true"))
+	loadOptionsFromDatabase()
+	require.Equal(t, common.RequestDetailLogFailed, common.LogRequestDetailMode.Load())
+	require.NoError(t, UpdateOption(legacyKey, "false"))
+	loadOptionsFromDatabase()
+	require.Equal(t, common.RequestDetailLogOff, common.LogRequestDetailMode.Load())
 
 	var detail RequestDetail
 	require.NoError(t, LOG_DB.First(&detail, "request_id = ?", requestId).Error)

@@ -1,5 +1,9 @@
 {
   "translation": {
+    "logs.requestDetail.mode": "请求和响应日志",
+    "logs.requestDetail.off": "关闭",
+    "logs.requestDetail.failed": "仅失败记录",
+    "logs.requestDetail.all": "所有请求都记录",
     "channels.disableClaudeCode.label": "禁止 Claude Code 客户端",
     "channels.disableClaudeCode.description": "开启后，Claude Code 请求会跳过此渠道；指定此渠道的请求将被拒绝。",
     "upstreamUsage.remainingLabel": "剩余",

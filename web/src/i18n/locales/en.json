@@ -1,5 +1,9 @@
 {
   "translation": {
+    "logs.requestDetail.mode": "Request and response logging",
+    "logs.requestDetail.off": "Off",
+    "logs.requestDetail.failed": "Failed requests only",
+    "logs.requestDetail.all": "All requests",
     "channels.disableClaudeCode.label": "Block Claude Code clients",
     "channels.disableClaudeCode.description": "When enabled, Claude Code requests skip this channel; requests pinned to this channel are rejected.",
     "upstreamUsage.remainingLabel": "Remaining",

@@ -5,7 +5,6 @@ import (
 	//"os"
 	//"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -73,7 +72,6 @@ var DebugEnabled bool
 var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
-var LogRequestDetailEnabled atomic.Bool
 
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}

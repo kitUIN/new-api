@@ -1,7 +1,6 @@
 package channel
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -574,7 +573,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
-	if common2.LogRequestDetailEnabled.Load() {
+	if common2.IsRequestDetailLoggingEnabled() {
 		c.Set("upstream_request_headers", req.Header.Clone())
 	}
 
@@ -599,8 +598,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		info.MarkUpstreamRequestEnd()
 	}
 
-	if !info.IsStream && common2.LogRequestDetailEnabled.Load() {
-		var buf bytes.Buffer
+	if resp.Body != nil && common2.IsRequestDetailLoggingEnabled() {
+		var buf common2.RequestDetailBodyCapture
 		resp.Body = struct {
 			io.Reader
 			io.Closer

@@ -219,21 +219,22 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	reqBodyForLog := requestBodySnapshot(c, requestBody)
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+	defer recordDetail(false)
 
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
 	httpResp = resp
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
-		if common.LogRequestDetailEnabled.Load() {
+		if common.IsRequestDetailLoggingEnabled() {
 			c.Set("upstream_response_body", string(responseBody))
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(responseBody))
-		recordDetail()
+		recordDetail(true)
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 
@@ -248,7 +249,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// 11. 解析响应
 	upstreamTaskID, taskData, taskErr := adaptor.DoResponse(c, resp, info)
 	if taskErr != nil {
-		recordDetail()
+		recordDetail(true)
 		return nil, taskErr
 	}
 

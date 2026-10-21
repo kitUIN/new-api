@@ -203,7 +203,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if common.DebugEnabled {
 		println("upstream response body:", string(responseBody))
 	}
-	if common.LogRequestDetailEnabled.Load() {
+	if common.IsRequestDetailLoggingEnabled() {
 		c.Set("upstream_response_body", string(responseBody))
 	}
 	// Unmarshal to simpleResponse

@@ -31,7 +31,9 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'relay-assets',
     titleKey: 'Temporary URL cache',
-    build: (settings: OperationsSettings) => <RelayAssetSection settings={settings} />,
+    build: (settings: OperationsSettings) => (
+      <RelayAssetSection settings={settings} />
+    ),
   },
   {
     id: 'behavior',
@@ -108,7 +110,7 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
-        defaultRequestDetailEnabled={Boolean(settings.LogRequestDetailEnabled)}
+        defaultRequestDetailMode={settings.LogRequestDetailMode}
       />
     ),
   },

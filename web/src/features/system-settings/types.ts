@@ -371,7 +371,7 @@ export type OperationsSettings = {
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
-  LogRequestDetailEnabled: boolean
+  LogRequestDetailMode: '0' | '1' | '2'
   GitHubUpdateRepository: string
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number

@@ -39,9 +39,18 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { deleteLogsBefore } from '../api'
@@ -57,14 +66,14 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
-  LogRequestDetailEnabled: z.boolean(),
+  LogRequestDetailMode: z.enum(['0', '1', '2']),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
-  defaultRequestDetailEnabled: boolean
+  defaultRequestDetailMode: LogSettingsFormValues['LogRequestDetailMode']
 }
 
 const HOURS_IN_DAY = 24
@@ -99,7 +108,7 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: props.defaultEnabled,
-      LogRequestDetailEnabled: props.defaultRequestDetailEnabled,
+      LogRequestDetailMode: props.defaultRequestDetailMode,
     },
   })
 
@@ -112,9 +121,9 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   useEffect(() => {
     form.reset({
       LogConsumeEnabled: props.defaultEnabled,
-      LogRequestDetailEnabled: props.defaultRequestDetailEnabled,
+      LogRequestDetailMode: props.defaultRequestDetailMode,
     })
-  }, [props.defaultEnabled, props.defaultRequestDetailEnabled, form])
+  }, [props.defaultEnabled, props.defaultRequestDetailMode, form])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -133,10 +142,10 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
         value: values.LogConsumeEnabled,
       })
     }
-    if (values.LogRequestDetailEnabled !== props.defaultRequestDetailEnabled) {
+    if (values.LogRequestDetailMode !== props.defaultRequestDetailMode) {
       await updateOption.mutateAsync({
-        key: 'LogRequestDetailEnabled',
-        value: values.LogRequestDetailEnabled,
+        key: 'LogRequestDetailMode',
+        value: values.LogRequestDetailMode,
       })
     }
   }
@@ -212,22 +221,42 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
 
           <FormField
             control={form.control}
-            name='LogRequestDetailEnabled'
+            name='LogRequestDetailMode'
             render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>
-                    {t('Record failed request and response bodies')}
-                  </FormLabel>
-                </SettingsSwitchContent>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
+              <FormItem>
+                <FormLabel>{t('logs.requestDetail.mode')}</FormLabel>
+                <Select
+                  items={[
+                    { value: '0', label: t('logs.requestDetail.off') },
+                    { value: '1', label: t('logs.requestDetail.failed') },
+                    { value: '2', label: t('logs.requestDetail.all') },
+                  ]}
+                  value={field.value}
+                  onValueChange={(value) =>
+                    value !== null && field.onChange(value)
+                  }
+                >
+                  <FormControl>
+                    <SelectTrigger className='w-full sm:max-w-sm'>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value='0'>
+                        {t('logs.requestDetail.off')}
+                      </SelectItem>
+                      <SelectItem value='1'>
+                        {t('logs.requestDetail.failed')}
+                      </SelectItem>
+                      <SelectItem value='2'>
+                        {t('logs.requestDetail.all')}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
-              </SettingsSwitchItem>
+              </FormItem>
             )}
           />
 

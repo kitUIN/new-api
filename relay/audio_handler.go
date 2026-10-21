@@ -48,10 +48,11 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+	defer recordDetail(false)
 
 	resp, err := adaptor.DoRequest(c, info, ioReader)
 	if err != nil {
-		recordDetail()
+		recordDetail(true)
 		return types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
 	statusCodeMappingStr := c.GetString("status_code_mapping")
@@ -61,7 +62,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-			recordDetail()
+			recordDetail(true)
 			return newAPIError
 		}
 	}
@@ -69,7 +70,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		recordDetail()
+		recordDetail(true)
 		return newAPIError
 	}
 

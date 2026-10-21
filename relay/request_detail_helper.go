@@ -14,16 +14,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func buildRecordDetailFunc(c *gin.Context, info *relaycommon.RelayInfo, reqBody string, httpResp **http.Response) func() {
-	if !common.LogRequestDetailEnabled.Load() {
-		return func() {}
+func buildRecordDetailFunc(c *gin.Context, info *relaycommon.RelayInfo, reqBody string, httpResp **http.Response) func(failed bool) {
+	if !common.IsRequestDetailLoggingEnabled() {
+		return func(bool) {}
+	}
+	// Retries share the Gin context; never reuse a previous attempt's payload.
+	for _, key := range []string{"upstream_request_headers", "upstream_request_body", "upstream_response_headers", "upstream_response_body", "upstream_response_body_buf"} {
+		c.Set(key, nil)
 	}
 
 	requestId := c.GetString(common.RequestIdKey)
 	userId := c.GetInt("id")
 	var recordOnce sync.Once
-	return func() {
-		if !common.LogRequestDetailEnabled.Load() {
+	return func(failed bool) {
+		if !common.ShouldRecordRequestDetail(failed) {
 			return
 		}
 		recordOnce.Do(func() {
@@ -47,28 +51,30 @@ func buildRecordDetailFunc(c *gin.Context, info *relaycommon.RelayInfo, reqBody 
 				}
 			}
 			respBody := ""
-			if info == nil || !info.IsStream {
-				if v, exists := c.Get("upstream_response_body"); exists {
-					respBody, _ = v.(string)
-				} else if v, exists := c.Get("upstream_response_body_buf"); exists {
-					if buf, ok := v.(*bytes.Buffer); ok {
+			if v, exists := c.Get("upstream_response_body"); exists {
+				respBody, _ = v.(string)
+			}
+			if respBody == "" {
+				if v, exists := c.Get("upstream_response_body_buf"); exists {
+					if buf, ok := v.(*common.RequestDetailBodyCapture); ok {
 						respBody = buf.String()
 					}
 				}
 			}
-			if respBody == "" && *httpResp != nil && (*httpResp).Body != nil {
+			// Never drain a live stream just to log it; snapshot bytes already read.
+			if respBody == "" && (info == nil || !info.IsStream) && *httpResp != nil && (*httpResp).Body != nil {
 				if bodyBytes, readErr := io.ReadAll((*httpResp).Body); readErr == nil && len(bodyBytes) > 0 {
 					respBody = string(bodyBytes)
 					(*httpResp).Body = io.NopCloser(bytes.NewReader(bodyBytes))
 				}
 			}
-			go model.RecordRequestDetail(requestId, userId, reqHeaders, reqBody, respHeaders, respBody)
+			go model.RecordRequestDetail(requestId, userId, reqHeaders, reqBody, respHeaders, respBody, failed)
 		})
 	}
 }
 
 func requestBodySnapshot(c *gin.Context, requestBody io.Reader) string {
-	if !common.LogRequestDetailEnabled.Load() {
+	if !common.IsRequestDetailLoggingEnabled() {
 		return ""
 	}
 

@@ -55,7 +55,7 @@ const defaultOperationsSettings: OperationsSettings = {
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
   LogConsumeEnabled: false,
-  LogRequestDetailEnabled: false,
+  LogRequestDetailMode: '0',
   GitHubUpdateRepository: 'Calcium-Ion/new-api',
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,

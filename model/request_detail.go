@@ -26,8 +26,8 @@ type RequestDetailSummary struct {
 	CreatedAt int64  `json:"created_at"`
 }
 
-func RecordRequestDetail(requestId string, userId int, reqHeaders, reqBody, respHeaders, respBody string) {
-	if !common.LogRequestDetailEnabled.Load() {
+func RecordRequestDetail(requestId string, userId int, reqHeaders, reqBody, respHeaders, respBody string, failed bool) {
+	if !common.ShouldRecordRequestDetail(failed) {
 		return
 	}
 
