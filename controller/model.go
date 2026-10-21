@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -150,11 +151,8 @@ func ListModels(c *gin.Context, modelType int) {
 	} else if modelLimitEnable {
 		tokenModelLimit := getTokenModelLimit(c)
 		for allowModel, _ := range tokenModelLimit {
-			if !acceptUnsetRatioModel {
-				_, _, exist := ratio_setting.GetModelRatioOrPrice(allowModel)
-				if !exist {
-					continue
-				}
+			if !acceptUnsetRatioModel && !helper.ContainPriceOrRatio(allowModel) {
+				continue
 			}
 			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
 				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
@@ -286,11 +284,8 @@ func collectModelGroupCombinationModels(members []ratio_setting.GroupCombination
 func buildUserOpenAIModels(models []string, acceptUnsetRatioModel bool) []dto.OpenAIModels {
 	result := make([]dto.OpenAIModels, 0, len(models))
 	for _, modelName := range models {
-		if !acceptUnsetRatioModel {
-			_, _, exist := ratio_setting.GetModelRatioOrPrice(modelName)
-			if !exist {
-				continue
-			}
+		if !acceptUnsetRatioModel && !helper.ContainPriceOrRatio(modelName) {
+			continue
 		}
 		if oaiModel, ok := openAIModelsMap[modelName]; ok {
 			oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
