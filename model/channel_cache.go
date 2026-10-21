@@ -43,13 +43,20 @@ func InitChannelCache() {
 			continue // skip disabled channels
 		}
 		groups := strings.Split(channel.Group, ",")
+		models := strings.Split(channel.Models, ",")
 		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
+			// 与 AddAbilities 保持一致：跳过空分组（多余逗号、纯空白分组等）
+			if strings.TrimSpace(group) == "" {
+				continue
+			}
+			model2channels, ok := newGroup2model2channels[group]
+			if !ok {
+				// abilities 表中缺失该分组时按渠道配置补建，避免写入 nil map 导致 panic
+				model2channels = make(map[string][]int)
+				newGroup2model2channels[group] = model2channels
+			}
 			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]int, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
+				model2channels[model] = append(model2channels[model], channel.Id)
 			}
 		}
 	}
