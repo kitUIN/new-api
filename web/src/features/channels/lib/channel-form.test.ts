@@ -25,6 +25,7 @@ import {
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
+  transformProviderToCreateDefaults,
 } from './channel-form'
 
 test('Claude Code restriction survives create, edit, channel type change and disable', () => {
@@ -64,6 +65,70 @@ test('Claude Code restriction survives create, edit, channel type change and dis
     assert.equal(
       transformChannelToFormDefaults({ ...stored, settings: '{}' })
         .disable_claude_code,
+      false
+    )
+  }
+})
+
+test('new channels omit group membership in every creation mode', () => {
+  const sourceChannel = channelSchema.parse({
+    id: 1,
+    name: 'Existing channel',
+    key: 'test-key',
+    type: 14,
+    status: 1,
+    models: 'claude-sonnet-5-5',
+    group:
+      'codex-pro-正价菲区,codex-pro-正价luna,grok-正价,codex-pro正价,codex-pro-正价,codex-plus-正价luna',
+    created_time: 0,
+    test_time: 0,
+    response_time: 0,
+    balance_updated_time: 0,
+  })
+  const providerDefaults = transformProviderToCreateDefaults({
+    id: 'provider-58',
+    key: 'provider-58',
+    is_provider: true,
+    provider_id: 58,
+    name: 'Provider',
+    base_url: 'http://provider.example',
+    status: 1,
+    group: sourceChannel.group,
+    used_quota: 0,
+    response_time: 0,
+    priority: null,
+    weight: null,
+    channel_count: 1,
+    enabled_count: 1,
+    children: [sourceChannel],
+  })
+
+  assert.equal(Object.hasOwn(CHANNEL_FORM_DEFAULT_VALUES, 'group'), false)
+  assert.equal(Object.hasOwn(providerDefaults, 'group'), false)
+  assert.equal(
+    Object.hasOwn(transformChannelToFormDefaults(sourceChannel), 'group'),
+    false
+  )
+
+  for (const mode of ['single', 'batch', 'multi_to_single'] as const) {
+    const form = {
+      ...providerDefaults,
+      name: 'New channel',
+      key: 'test-key',
+      multi_key_mode: mode,
+      // Simulate stale form state left by an older client.
+      group: sourceChannel.group.split(','),
+    }
+    const payload = transformFormDataToCreatePayload(form)
+    const request = JSON.parse(JSON.stringify(payload))
+    assert.equal(request.mode, mode)
+    assert.equal(Object.hasOwn(request.channel, 'group'), false)
+    assert.equal(request.channel.provider_id, 58)
+    assert.equal(request.channel.models, sourceChannel.models)
+    assert.equal(request.channel.base_url, 'http://provider.example')
+    assert.equal(Object.hasOwn(channelFormSchema.parse(form), 'group'), false)
+    assert.equal(
+      Object.hasOwn(transformFormDataToUpdatePayload(form, 1), 'group'),
       false
     )
   }

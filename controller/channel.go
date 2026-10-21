@@ -654,6 +654,9 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
+	// New channels stay unassigned; group membership is managed from the group page.
+	// Ignore stale group values sent by older clients or inherited from providers.
+	addChannelRequest.Channel.Group = ""
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)
 	switch addChannelRequest.Mode {

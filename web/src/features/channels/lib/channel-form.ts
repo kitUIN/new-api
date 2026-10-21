@@ -23,6 +23,7 @@ import {
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
 import type {
+  AddChannelRequest,
   BalanceQueryConfig,
   Channel,
   GroupQueryConfig,
@@ -278,7 +279,6 @@ export const channelFormSchema = z
     key: z.string(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
-    group: z.array(z.string()),
     model_mapping: z
       .string()
       .optional()
@@ -492,7 +492,6 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   key: '',
   openai_organization: '',
   models: '',
-  group: ['default'],
   model_mapping: '',
   priority: 0,
   weight: 0,
@@ -866,7 +865,6 @@ export function transformChannelToFormDefaults(
     key: '', // Never populate key from backend for security
     openai_organization: channel.openai_organization || '',
     models: channel.models || '',
-    group: parseGroups(channel.group ?? 'default'),
     model_mapping: channel.model_mapping || '',
     priority: channel.priority || 0,
     weight: channel.weight || 0,
@@ -923,7 +921,6 @@ export function transformProviderToCreateDefaults(
     provider_id: provider.provider_id,
     type: sourceChannel?.type || CHANNEL_FORM_DEFAULT_VALUES.type,
     base_url: provider.base_url || sourceChannel?.base_url || '',
-    group: parseGroups(provider.group || sourceChannel?.group || 'default'),
     models: sourceChannel?.models || CHANNEL_FORM_DEFAULT_VALUES.models,
   }
 }
@@ -1097,15 +1094,12 @@ function normalizeBaseUrl(value: string | undefined): string {
 /**
  * Transform form data to API payload for creating channel
  */
-export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
-  mode: 'single' | 'batch' | 'multi_to_single'
-  multi_key_mode?: 'random' | 'polling'
-  batch_add_set_key_prefix_2_name?: boolean
-  channel: Partial<Channel>
-} {
+export function transformFormDataToCreatePayload(
+  formData: ChannelFormValues
+): AddChannelRequest {
   const mode = formData.multi_key_mode || 'single'
 
-  const channel: Partial<Channel> = {
+  const channel: AddChannelRequest['channel'] = {
     provider_id: formData.provider_id || 0,
     name: formData.name,
     type: formData.type,
@@ -1113,7 +1107,6 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     key: formData.key,
     openai_organization: formData.openai_organization || null,
     models: formData.models,
-    group: formatGroups(formData.group),
     model_mapping: formData.model_mapping || null,
     priority: formData.priority || null,
     weight: formData.weight || null,
