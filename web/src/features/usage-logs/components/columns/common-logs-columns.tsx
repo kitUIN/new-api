@@ -30,6 +30,7 @@ import {
   SquarePen,
   FileText,
   Zap,
+  WandSparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -98,6 +99,18 @@ function FastModeIcon({ label }: { label: string }) {
       title={label}
     >
       <Zap className='size-3 fill-current' aria-hidden='true' />
+    </span>
+  )
+}
+
+function ReasoningEffortAutoIcon({ label }: { label: string }) {
+  return (
+    <span
+      className='text-muted-foreground inline-flex shrink-0 items-center'
+      aria-label={label}
+      title={label}
+    >
+      <WandSparkles className='size-3' aria-hidden='true' />
     </span>
   )
 }
@@ -1223,12 +1236,19 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!effort) return <span className='text-muted-foreground/40'>-</span>
 
         return (
-          <StatusBadge
-            label={t(effort)}
-            variant={getReasoningEffortVariant(effort)}
-            size='sm'
-            copyable={false}
-          />
+          <div className='flex items-center gap-1'>
+            <StatusBadge
+              label={t(effort)}
+              variant={getReasoningEffortVariant(effort)}
+              size='sm'
+              copyable={false}
+            />
+            {other?.reasoning_effort_auto && (
+              <ReasoningEffortAutoIcon
+                label={t('Reasoning effort not specified, auto-selected')}
+              />
+            )}
+          </div>
         )
       },
       meta: { label: t('Reasoning Effort'), mobileHidden: true },

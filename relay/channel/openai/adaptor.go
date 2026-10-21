@@ -587,8 +587,18 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		}
 		request.Model = originModel
 	}
-	if info != nil && request.Reasoning != nil && request.Reasoning.Effort != "" {
+	// 请求未指定思考等级时默认使用 high，避免上游回落到不被支持的 none
+	autoEffort := false
+	if request.Reasoning == nil {
+		request.Reasoning = &dto.Reasoning{Effort: "high"}
+		autoEffort = true
+	} else if request.Reasoning.Effort == "" {
+		request.Reasoning.Effort = "high"
+		autoEffort = true
+	}
+	if info != nil {
 		info.ReasoningEffort = request.Reasoning.Effort
+		info.ReasoningEffortAuto = autoEffort
 	}
 	return request, nil
 }

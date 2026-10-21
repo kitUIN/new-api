@@ -217,6 +217,7 @@ export interface LogOtherData {
   tiered_actual_quota_after_group?: number
   tiered_crossed_tier?: boolean
   reasoning_effort?: string
+  reasoning_effort_auto?: boolean
   image?: boolean
   image_ratio?: number
   image_output?: number

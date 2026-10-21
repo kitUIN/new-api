@@ -5199,6 +5199,7 @@
     "请求将按优先级使用第一个支持所请求模型的分组。": "リクエストは、要求されたモデルをサポートする最初のグループを優先順位に従って使用します。",
     "Fast": "高速",
     "Fast Mode": "Fast モード",
+    "Reasoning effort not specified, auto-selected": "推論強度が未指定のため、自動選択されました",
     "Service Tier Multiplier": "サービスティア倍率",
     "Service Tier": "サービスティア",
     "Last Week": "先週",

@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   UserCog,
   Info,
+  WandSparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -932,18 +933,33 @@ export function DetailsDialog(props: DetailsDialogProps) {
               <DetailRow
                 label={t('Reasoning Effort')}
                 value={
-                  <StatusBadge
-                    label={other.reasoning_effort}
-                    variant={
-                      other.reasoning_effort === 'high'
-                        ? 'orange'
-                        : other.reasoning_effort === 'medium'
-                          ? 'yellow'
-                          : 'green'
-                    }
-                    size='sm'
-                    copyable={false}
-                  />
+                  <span className='inline-flex items-center gap-1'>
+                    <StatusBadge
+                      label={other.reasoning_effort}
+                      variant={
+                        other.reasoning_effort === 'high'
+                          ? 'orange'
+                          : other.reasoning_effort === 'medium'
+                            ? 'yellow'
+                            : 'green'
+                      }
+                      size='sm'
+                      copyable={false}
+                    />
+                    {other.reasoning_effort_auto && (
+                      <span
+                        className='text-muted-foreground inline-flex items-center'
+                        aria-label={t(
+                          'Reasoning effort not specified, auto-selected'
+                        )}
+                        title={t(
+                          'Reasoning effort not specified, auto-selected'
+                        )}
+                      >
+                        <WandSparkles className='size-3' aria-hidden='true' />
+                      </span>
+                    )}
+                  </span>
                 }
               />
             )}

@@ -124,6 +124,8 @@ type RelayInfo struct {
 	IsFirstRequest                bool
 	AudioUsage                    bool
 	ReasoningEffort               string
+	// ReasoningEffortAuto 表示请求未指定思考等级，由系统自动填充默认值
+	ReasoningEffortAuto           bool
 	ServiceTier                   string
 	ServiceTierPassthroughEnabled bool
 	ServiceTierBillingMultiplier  float64
