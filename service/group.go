@@ -8,24 +8,27 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type UserUsableGroupInfo struct {
-	Name               string                       `json:"name"`
-	Label              string                       `json:"label"`
-	Ratio              interface{}                  `json:"ratio"`
-	Desc               string                       `json:"desc"`
-	Models             []string                     `json:"models,omitempty"`
-	IsAutoGroup        bool                         `json:"is_auto_group"`
-	IsCombination      bool                         `json:"is_combination_group,omitempty"`
-	AutoGroupType      string                       `json:"auto_group_type,omitempty"`
-	RatioRange         *RuleAutoGroupRatioRange     `json:"ratio_range,omitempty"`
-	CombinationMembers []GroupCombinationMemberInfo `json:"combination_members,omitempty"`
+	Name               string                         `json:"name"`
+	Label              string                         `json:"label"`
+	Ratio              interface{}                    `json:"ratio"`
+	TimedRatio         *types.GroupTimedRatioSnapshot `json:"timed_ratio,omitempty"`
+	Desc               string                         `json:"desc"`
+	Models             []string                       `json:"models,omitempty"`
+	IsAutoGroup        bool                           `json:"is_auto_group"`
+	IsCombination      bool                           `json:"is_combination_group,omitempty"`
+	AutoGroupType      string                         `json:"auto_group_type,omitempty"`
+	RatioRange         *RuleAutoGroupRatioRange       `json:"ratio_range,omitempty"`
+	CombinationMembers []GroupCombinationMemberInfo   `json:"combination_members,omitempty"`
 }
 
 type GroupCombinationMemberInfo struct {
-	Group string  `json:"group"`
-	Ratio float64 `json:"ratio"`
+	Group      string                         `json:"group"`
+	Ratio      float64                        `json:"ratio"`
+	TimedRatio *types.GroupTimedRatioSnapshot `json:"timed_ratio,omitempty"`
 }
 
 func GetUserUsableGroups(userGroup string) map[string]string {
@@ -76,21 +79,27 @@ func GetSortedUserUsableGroupInfos(userGroup string) ([]UserUsableGroupInfo, err
 			continue
 		}
 		ratio, ratioRange := getGroupCombinationRatio(userGroup, groupName)
+		var timedRatio *types.GroupTimedRatioSnapshot
 		var combinationMembers []GroupCombinationMemberInfo
 		if ratio_setting.IsGroupCombination(groupName) {
 			desc = setting.GetUsableGroupDescription(groupName)
 			members, _ := ratio_setting.GetGroupCombinationMembers(groupName)
 			for _, member := range members {
+				info := GetUserGroupRatioInfo(userGroup, member.Group)
 				combinationMembers = append(combinationMembers, GroupCombinationMemberInfo{
-					Group: member.Group,
-					Ratio: GetUserGroupRatio(userGroup, member.Group),
+					Group:      member.Group,
+					Ratio:      info.GroupRatio,
+					TimedRatio: info.TimedRatio,
 				})
 			}
+		} else {
+			timedRatio = GetUserGroupRatioInfo(userGroup, groupName).TimedRatio
 		}
 		groups = append(groups, UserUsableGroupInfo{
 			Name:               groupName,
 			Label:              groupName,
 			Ratio:              ratio,
+			TimedRatio:         timedRatio,
 			Desc:               desc,
 			IsCombination:      ratio_setting.IsGroupCombination(groupName),
 			RatioRange:         ratioRange,
@@ -151,6 +160,9 @@ func UserUsableGroupInfosToMap(groups []UserUsableGroupInfo) map[string]map[stri
 		if group.Models != nil {
 			groupInfo["models"] = group.Models
 		}
+		if group.TimedRatio != nil {
+			groupInfo["timed_ratio"] = group.TimedRatio
+		}
 		if len(group.CombinationMembers) > 0 {
 			groupInfo["combination_members"] = group.CombinationMembers
 		}
@@ -196,7 +208,12 @@ func GetUserAutoGroup(userGroup string) []string {
 // userGroup 用户分组
 // group 需要获取倍率的分组
 func GetUserGroupRatio(userGroup, group string) float64 {
-	return ratio_setting.ResolveGroupRatioAt(userGroup, group, time.Now()).GroupRatio
+	return GetUserGroupRatioInfo(userGroup, group).GroupRatio
+}
+
+// GetUserGroupRatioInfo 返回当前生效的分组倍率及命中的限时倍率窗口
+func GetUserGroupRatioInfo(userGroup, group string) types.GroupRatioInfo {
+	return ratio_setting.ResolveGroupRatioAt(userGroup, group, time.Now())
 }
 
 func getGroupCombinationRatio(userGroup, group string) (interface{}, *RuleAutoGroupRatioRange) {

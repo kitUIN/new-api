@@ -57,6 +57,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { RatioBadge } from '@/components/ratio-badge'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { LOG_TYPE_ALL_VALUE } from '../../constants'
 import {
@@ -82,7 +83,6 @@ import {
 import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
-import { TimedRatioBadge } from '../timed-ratio-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
 export interface DetailSegment {
@@ -154,24 +154,28 @@ function formatCompactId(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-6)}`
 }
 
-export function getGroupRatioText(other: LogOtherData | null): string | null {
-  if (other?.timed_group_ratio)
-    return `${formatRatioCompact(other.timed_group_ratio.ratio)}x`
+export function getGroupRatioValue(other: LogOtherData | null): number | null {
+  if (other?.timed_group_ratio) return other.timed_group_ratio.ratio
   const userGroupRatio = other?.user_group_ratio
   if (
     userGroupRatio != null &&
     userGroupRatio !== -1 &&
     Number.isFinite(userGroupRatio)
   ) {
-    return `${formatRatioCompact(userGroupRatio)}x`
+    return userGroupRatio
   }
 
   const groupRatio = other?.group_ratio
   if (groupRatio != null && groupRatio !== 1 && Number.isFinite(groupRatio)) {
-    return `${formatRatioCompact(groupRatio)}x`
+    return groupRatio
   }
 
   return null
+}
+
+export function getGroupRatioText(other: LogOtherData | null): string | null {
+  const ratio = getGroupRatioValue(other)
+  return ratio == null ? null : `${formatRatioCompact(ratio)}x`
 }
 
 function toPositiveNumber(value: unknown): number {
@@ -1125,7 +1129,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       let group = log.group
       if (!group) group = other?.group || ''
 
-      const groupRatioText = getGroupRatioText(other)
+      const groupRatio = getGroupRatioValue(other)
       const combinationGroup = other?.group_combination
       const combinationLabel = t('usageLogs.routedFromGroup', {
         group: sensitiveVisible ? combinationGroup : '••••',
@@ -1151,7 +1155,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               )}
             </Tooltip>
           </TooltipProvider>
-          {(group || groupRatioText) && (
+          {(group || groupRatio != null) && (
             <div className='text-muted-foreground/60 flex min-w-0 items-center gap-1 text-[11px]'>
               {group && (
                 <span className='truncate'>
@@ -1177,14 +1181,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {other?.timed_group_ratio && (
-                <TimedRatioBadge snapshot={other.timed_group_ratio} />
-              )}
-              {groupRatioText && !other?.timed_group_ratio && (
-                <span className='shrink-0'>
-                  {group && '· '}
-                  {groupRatioText}
-                </span>
+              {groupRatio != null && (
+                <RatioBadge
+                  ratio={groupRatio}
+                  timed={other?.timed_group_ratio}
+                  className='h-4 px-1.5 text-[11px]'
+                />
               )}
             </div>
           )}
@@ -1681,8 +1683,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 }
               >
                 <span>{t('Group Ratio')}</span>
-                <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                  {formatRatioCompact(costDetail.groupRatio)}x
+                <span className='flex justify-end'>
+                  <RatioBadge
+                    ratio={costDetail.groupRatio}
+                    timed={other?.timed_group_ratio}
+                    disableTooltip
+                  />
                 </span>
               </div>
               {costDetail.originalAmount != null && (

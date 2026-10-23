@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { GroupCombinationMemberInfo, TimedRatioSnapshot } from '@/lib/api'
+
 export type PerformanceSeriesPoint = {
   ts: number
   avg_ttft_ms: number
@@ -78,11 +80,13 @@ export type PerfGroupHealthBucket = {
 export type PerfGroupHealth = {
   group: string
   ratio: number
+  timed_ratio?: TimedRatioSnapshot
   is_combination_group?: boolean
   ratio_range?: {
     min: number
     max: number
   }
+  combination_members?: GroupCombinationMemberInfo[]
   provider_count: number
   balance_level: 0 | 1 | 2
   balance_available: boolean

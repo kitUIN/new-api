@@ -52,6 +52,7 @@ import {
   DataTablePage,
 } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
+import { RatioBadge } from '@/components/ratio-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getApiKeys, searchApiKeys } from '../api'
 import {
@@ -250,11 +251,7 @@ function ApiKeysMobileList({
                         copyable={false}
                       />
                       {groupInfo.ratio !== undefined && (
-                        <StatusBadge
-                          label={String(groupInfo.ratio)}
-                          variant='info'
-                          copyable={false}
-                        />
+                        <RatioBadge ratio={groupInfo.ratio} />
                       )}
                       {apiKey.auto_group_mode && (
                         <StatusBadge
@@ -269,7 +266,11 @@ function ApiKeysMobileList({
                       )}
                     </span>
                   ) : (
-                    <GroupBadge group={group} ratio={ratio} />
+                    <GroupBadge
+                      group={group}
+                      ratio={ratio}
+                      timedRatio={groupInfo?.timedRatio}
+                    />
                   )}
                 </div>
               </div>

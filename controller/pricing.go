@@ -5,6 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,18 +38,20 @@ func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
-	groupRatio := map[string]float64{}
-	for s := range ratio_setting.GetGroupRatioCopy() {
-		groupRatio[s] = service.GetUserGroupRatio("", s)
-	}
 	var group string
 	if exists {
 		user, err := model.GetUserCache(userId.(int))
 		if err == nil {
 			group = user.Group
-			for g := range groupRatio {
-				groupRatio[g] = service.GetUserGroupRatio(group, g)
-			}
+		}
+	}
+	groupRatio := map[string]float64{}
+	groupTimedRatio := map[string]*types.GroupTimedRatioSnapshot{}
+	for g := range ratio_setting.GetGroupRatioCopy() {
+		info := service.GetUserGroupRatioInfo(group, g)
+		groupRatio[g] = info.GroupRatio
+		if info.TimedRatio != nil {
+			groupTimedRatio[g] = info.TimedRatio
 		}
 	}
 
@@ -58,6 +61,7 @@ func GetPricing(c *gin.Context) {
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {
 			delete(groupRatio, group)
+			delete(groupTimedRatio, group)
 		}
 	}
 
@@ -66,6 +70,7 @@ func GetPricing(c *gin.Context) {
 		"data":               pricing,
 		"vendors":            model.GetVendors(),
 		"group_ratio":        groupRatio,
+		"group_timed_ratio":  groupTimedRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),

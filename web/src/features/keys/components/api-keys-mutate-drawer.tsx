@@ -144,6 +144,7 @@ type GroupSourceEntry = [
     label?: string
     desc: string
     ratio: ApiKeyGroupOption['ratio']
+    timed_ratio?: ApiKeyGroupOption['timedRatio']
     is_auto_group?: boolean
     is_combination_group?: boolean
     combination_members?: ApiKeyGroupOption['combinationMembers']
@@ -287,6 +288,7 @@ export function ApiKeysMutateDrawer({
           label: group.label,
           desc: group.desc,
           ratio: group.ratio,
+          timed_ratio: group.timed_ratio,
           is_auto_group: group.is_auto_group,
           is_combination_group: group.is_combination_group,
           combination_members: group.combination_members,
@@ -330,6 +332,7 @@ export function ApiKeysMutateDrawer({
             : info.label || key,
           desc: info.desc || key,
           ratio: info.ratio,
+          timedRatio: info.timed_ratio,
           isAutoGroup: info.is_auto_group,
           isCombinationGroup: info.is_combination_group,
           combinationMembers: info.combination_members,

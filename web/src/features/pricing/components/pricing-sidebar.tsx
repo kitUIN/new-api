@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ReactNode } from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { TimedRatioSnapshot } from '@/lib/api'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +29,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { RatioBadge } from '@/components/ratio-badge'
 import {
   ENDPOINT_TYPES,
   FILTER_ALL,
@@ -35,6 +37,7 @@ import {
   getEndpointTypeLabels,
   getQuotaTypeLabels,
 } from '../constants'
+import { usePricingGroupTimedRatios } from '../hooks/use-pricing-data'
 import { parseTags } from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
 
@@ -42,7 +45,8 @@ type FilterOption = {
   value: string
   label: string
   count?: number
-  suffix?: string
+  ratio?: number
+  timedRatio?: TimedRatioSnapshot
   icon?: ReactNode
 }
 
@@ -81,14 +85,6 @@ function countBy(
   return models.reduce((count, model) => count + (predicate(model) ? 1 : 0), 0)
 }
 
-function formatGroupRatio(ratio: number | undefined): string | undefined {
-  if (ratio == null) return undefined
-  const formatted = Number.isInteger(ratio)
-    ? ratio.toString()
-    : ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-  return `x${formatted}`
-}
-
 function FilterChip(props: {
   option: FilterOption
   active: boolean
@@ -110,7 +106,14 @@ function FilterChip(props: {
         <span className='shrink-0'>{props.option.icon}</span>
       )}
       <span className='truncate'>{props.option.label}</span>
-      {(props.option.suffix || props.option.count != null) && (
+      {props.option.ratio != null && (
+        <RatioBadge
+          ratio={props.option.ratio}
+          timed={props.option.timedRatio}
+          className='h-4 px-1.5 text-[10px]'
+        />
+      )}
+      {props.option.count != null && (
         <span
           className={cn(
             'rounded-md px-1.5 py-0.5 text-[10px]',
@@ -119,7 +122,7 @@ function FilterChip(props: {
               : 'bg-muted text-muted-foreground'
           )}
         >
-          {props.option.suffix ?? props.option.count}
+          {props.option.count}
         </span>
       )}
     </button>
@@ -156,6 +159,7 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
+  const timedRatios = usePricingGroupTimedRatios()
   const quotaTypeLabels = getQuotaTypeLabels(t)
   const endpointTypeLabels = getEndpointTypeLabels(t)
 
@@ -186,7 +190,8 @@ export function PricingSidebar(props: PricingSidebarProps) {
     ...props.groups.map((group) => ({
       value: group,
       label: group,
-      suffix: formatGroupRatio(props.groupRatios?.[group]),
+      ratio: props.groupRatios?.[group],
+      timedRatio: timedRatios[group],
     })),
   ]
 

@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+import type { TimedRatioSnapshot } from '@/lib/api'
+import { RatioBadge } from './ratio-badge'
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
 type GroupBadgeProps = Omit<
@@ -27,20 +28,9 @@ type GroupBadgeProps = Omit<
   group?: string | null
   label?: string
   ratio?: number | string | null
-  ratioColor?: 'ratio' | 'group'
-}
-
-function getGroupRatioClassName(ratio: number | string): string {
-  if (typeof ratio === 'string') {
-    return 'bg-info/10 text-info'
-  }
-  if (ratio > 1) {
-    return 'bg-warning/10 text-warning'
-  }
-  if (ratio < 1) {
-    return 'bg-info/10 text-info'
-  }
-  return 'bg-muted text-muted-foreground'
+  timedRatio?: TimedRatioSnapshot | null
+  /** Render the timed badge without its own hover card (e.g. inside a tooltip). */
+  disableRatioTooltip?: boolean
 }
 
 function getGroupLabel(params: {
@@ -62,7 +52,8 @@ export function GroupBadge(props: GroupBadgeProps) {
     group,
     label: labelOverride,
     ratio,
-    ratioColor = 'ratio',
+    timedRatio,
+    disableRatioTooltip,
     copyable = false,
     showDot,
     ...badgeProps
@@ -90,32 +81,18 @@ export function GroupBadge(props: GroupBadgeProps) {
     />
   )
 
-  if (ratio == null || ratio === '') {
+  if ((ratio == null || ratio === '') && !timedRatio) {
     return badge
   }
-
-  const ratioLabel = typeof ratio === 'number' ? `${ratio}x` : ratio
 
   return (
     <span className='inline-flex items-center gap-2 text-xs'>
       {badge}
-      {ratioColor === 'group' && !isSpecialGroup ? (
-        <StatusBadge
-          label={ratioLabel}
-          copyable={false}
-          autoColor={groupName}
-          className='font-mono tabular-nums'
-        />
-      ) : (
-        <span
-          className={cn(
-            'inline-flex h-5 items-center rounded-full px-2 font-mono text-xs leading-none font-medium tabular-nums',
-            getGroupRatioClassName(ratio)
-          )}
-        >
-          <span>{ratioLabel}</span>
-        </span>
-      )}
+      <RatioBadge
+        ratio={ratio}
+        timed={timedRatio}
+        disableTooltip={disableRatioTooltip}
+      />
     </span>
   )
 }

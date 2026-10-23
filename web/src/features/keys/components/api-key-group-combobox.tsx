@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { GroupCombinationMemberInfo } from '@/lib/api'
+import type { GroupCombinationMemberInfo, TimedRatioSnapshot } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { GroupTypeIcon } from '@/components/group-type-icon'
+import { RatioBadge } from '@/components/ratio-badge'
 import { formatUptimePct } from '@/features/performance-metrics/lib/format'
 
 export type ApiKeyGroupHealth = {
@@ -52,6 +53,7 @@ export type ApiKeyGroupOption = {
   label: string
   desc?: string
   ratio?: number | string
+  timedRatio?: TimedRatioSnapshot
   isAutoGroup?: boolean
   autoGroupType?: string
   models?: string[]
@@ -78,46 +80,6 @@ function GroupOptionName({ option }: { option: ApiKeyGroupOption }) {
       />
       <span className='min-w-0 truncate'>{option.label}</span>
     </span>
-  )
-}
-
-function formatGroupRatio(ratio: ApiKeyGroupOption['ratio']) {
-  if (ratio === undefined || ratio === null || ratio === '') return null
-  return typeof ratio === 'string' ? ratio : `${ratio}x`
-}
-
-function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
-  if (typeof ratio !== 'number') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
-  }
-
-  if (ratio > 5) {
-    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300'
-  }
-  if (ratio > 3) {
-    return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-300'
-  }
-  if (ratio > 1) {
-    return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300'
-  }
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
-}
-
-function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
-  const label = formatGroupRatio(ratio)
-
-  if (!label) return null
-
-  return (
-    <Badge
-      variant='outline'
-      className={cn(
-        'max-w-24 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
-        getRatioBadgeClassName(ratio)
-      )}
-    >
-      {label}
-    </Badge>
   )
 }
 
@@ -287,7 +249,10 @@ export function ApiKeyGroupCombobox({
               </span>
             )}
             <span className='mt-1 flex min-w-0'>
-              <GroupRatioBadge ratio={selectedOption?.ratio} />
+              <RatioBadge
+                ratio={selectedOption?.ratio}
+                timed={selectedOption?.timedRatio}
+              />
             </span>
           </span>
           <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center'>
@@ -334,7 +299,10 @@ export function ApiKeyGroupCombobox({
                       </span>
                     )}
                     <span className='mt-1 flex min-w-0'>
-                      <GroupRatioBadge ratio={option.ratio} />
+                      <RatioBadge
+                        ratio={option.ratio}
+                        timed={option.timedRatio}
+                      />
                     </span>
                   </span>
                   <span className='flex min-w-24 shrink-0 flex-col items-stretch justify-center'>

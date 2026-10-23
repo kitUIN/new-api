@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Box, Boxes } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { GroupCombinationMemberInfo } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
   Tooltip,
@@ -25,11 +26,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { RatioBadge } from './ratio-badge'
 
 type GroupTypeIconProps = {
   isCombinationGroup?: boolean
   isAutoGroup?: boolean
-  combinationMembers?: { group: string; ratio: number }[]
+  combinationMembers?: GroupCombinationMemberInfo[]
 }
 
 export function GroupTypeIcon(props: GroupTypeIconProps) {
@@ -69,8 +71,12 @@ export function GroupTypeIcon(props: GroupTypeIconProps) {
                     className='flex items-start justify-between gap-4'
                   >
                     <dt className='min-w-0 break-all'>{member.group}</dt>
-                    <dd className='shrink-0 font-mono tabular-nums'>
-                      {member.ratio}x
+                    <dd className='shrink-0'>
+                      <RatioBadge
+                        ratio={member.ratio}
+                        timed={member.timed_ratio}
+                        disableTooltip
+                      />
                     </dd>
                   </div>
                 ))}

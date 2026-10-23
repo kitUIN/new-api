@@ -190,9 +190,18 @@ export async function getUserModels(): Promise<{
 }
 
 // Get user groups with descriptions and ratios
+export type TimedRatioSnapshot = {
+  original_ratio: number
+  ratio: number
+  start: number
+  end: number
+  remark: string
+}
+
 export type GroupCombinationMemberInfo = {
   group: string
   ratio: number
+  timed_ratio?: TimedRatioSnapshot
 }
 
 export async function getUserGroups(): Promise<{
@@ -204,6 +213,7 @@ export async function getUserGroups(): Promise<{
       label?: string
       desc: string
       ratio: number | string
+      timed_ratio?: TimedRatioSnapshot
       is_auto_group?: boolean
       auto_group_type?: string
       models?: string[]
@@ -217,6 +227,7 @@ export async function getUserGroups(): Promise<{
     label?: string
     desc: string
     ratio: number | string
+    timed_ratio?: TimedRatioSnapshot
     is_auto_group?: boolean
     auto_group_type?: string
     models?: string[]

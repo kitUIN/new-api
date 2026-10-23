@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { TimedRatioSnapshot } from '@/lib/api'
+
 // ----------------------------------------------------------------------------
 // Rankings types
 // ----------------------------------------------------------------------------
@@ -97,6 +99,7 @@ export type GroupRanking = {
   rank: number
   group: string
   ratio: number
+  timed_ratio?: TimedRatioSnapshot
   total_tokens: number
   success_rate: number
   avg_ttft_ms: number

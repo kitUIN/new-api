@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"gorm.io/gorm"
 )
 
@@ -102,30 +103,39 @@ type PerfGroupHealthBucket struct {
 }
 
 type PerfGroupHealth struct {
-	Group               string                  `json:"group"`
-	Ratio               float64                 `json:"ratio"`
-	IsCombinationGroup  bool                    `json:"is_combination_group"`
-	RatioRange          *PerfGroupRatioRange    `json:"ratio_range,omitempty"`
-	ProviderCount       int                     `json:"provider_count"`
-	BalanceLevel        int                     `json:"balance_level"`
-	BalanceAvailable    bool                    `json:"balance_available"`
-	HasLuna             bool                    `json:"has_luna"`
-	Juice               string                  `json:"juice"`
-	JuiceUpdatedTime    int64                   `json:"juice_updated_time"`
-	RequestCount        int64                   `json:"request_count"`
-	SuccessRate         float64                 `json:"success_rate"`
-	AvgTTFTMs           float64                 `json:"avg_ttft_ms"`
-	AvgLatencyMs        float64                 `json:"avg_latency_ms"`
-	AvgTps              float64                 `json:"avg_tps"`
-	RecentRequestCount  int64                   `json:"recent_request_count"`
-	RecentSuccessRate   float64                 `json:"recent_success_rate"`
-	RecentWindowMinutes int                     `json:"recent_window_minutes"`
-	Buckets             []PerfGroupHealthBucket `json:"buckets"`
+	Group               string                         `json:"group"`
+	Ratio               float64                        `json:"ratio"`
+	TimedRatio          *types.GroupTimedRatioSnapshot `json:"timed_ratio,omitempty"`
+	IsCombinationGroup  bool                           `json:"is_combination_group"`
+	RatioRange          *PerfGroupRatioRange           `json:"ratio_range,omitempty"`
+	CombinationMembers  []PerfGroupCombinationMember   `json:"combination_members,omitempty"`
+	ProviderCount       int                            `json:"provider_count"`
+	BalanceLevel        int                            `json:"balance_level"`
+	BalanceAvailable    bool                           `json:"balance_available"`
+	HasLuna             bool                           `json:"has_luna"`
+	Juice               string                         `json:"juice"`
+	JuiceUpdatedTime    int64                          `json:"juice_updated_time"`
+	RequestCount        int64                          `json:"request_count"`
+	SuccessRate         float64                        `json:"success_rate"`
+	AvgTTFTMs           float64                        `json:"avg_ttft_ms"`
+	AvgLatencyMs        float64                        `json:"avg_latency_ms"`
+	AvgTps              float64                        `json:"avg_tps"`
+	RecentRequestCount  int64                          `json:"recent_request_count"`
+	RecentSuccessRate   float64                        `json:"recent_success_rate"`
+	RecentWindowMinutes int                            `json:"recent_window_minutes"`
+	Buckets             []PerfGroupHealthBucket        `json:"buckets"`
 }
 
 type PerfGroupRatioRange struct {
 	Min float64 `json:"min"`
 	Max float64 `json:"max"`
+}
+
+// PerfGroupCombinationMember carries a member's effective ratio and active timed window.
+type PerfGroupCombinationMember struct {
+	Group      string                         `json:"group"`
+	Ratio      float64                        `json:"ratio"`
+	TimedRatio *types.GroupTimedRatioSnapshot `json:"timed_ratio,omitempty"`
 }
 
 type PerfGroupHealthSummary struct {
@@ -1020,6 +1030,14 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	}
 
 	ratios := ratio_setting.GetGroupRatioCopy()
+	ratioNow := time.Now()
+	// Only resolve configured groups so unknown names don't trigger "group ratio not found" logs.
+	resolveTimed := func(name string) *types.GroupTimedRatioSnapshot {
+		if _, ok := ratios[name]; !ok {
+			return nil
+		}
+		return ratio_setting.ResolveGroupRatioAt("", name, ratioNow).TimedRatio
+	}
 	groupNames := make([]string, 0, len(groups))
 	for groupName := range groups {
 		if !shouldShowGroup(groupName) {
@@ -1043,6 +1061,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		}
 		isCombination := ratio_setting.IsGroupCombination(groupName)
 		var ratioRange *PerfGroupRatioRange
+		var combinationMembers []PerfGroupCombinationMember
 		if isCombination {
 			ratioRange = &PerfGroupRatioRange{Min: ratio, Max: ratio}
 			members, _ := ratio_setting.GetGroupCombinationMembers(groupName)
@@ -1051,6 +1070,15 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 				if !exists {
 					memberRatio = 1
 				}
+				memberTimed := resolveTimed(member.Group)
+				if memberTimed != nil {
+					memberRatio = memberTimed.Ratio
+				}
+				combinationMembers = append(combinationMembers, PerfGroupCombinationMember{
+					Group:      member.Group,
+					Ratio:      memberRatio,
+					TimedRatio: memberTimed,
+				})
 				if index == 0 || memberRatio < ratioRange.Min {
 					ratioRange.Min = memberRatio
 				}
@@ -1095,9 +1123,15 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			})
 		}
 
+		var timedRatio *types.GroupTimedRatioSnapshot
+		if !isCombination {
+			timedRatio = resolveTimed(groupName)
+		}
 		resultGroups = append(resultGroups, PerfGroupHealth{
 			Group:               groupName,
 			Ratio:               ratio,
+			TimedRatio:          timedRatio,
+			CombinationMembers:  combinationMembers,
 			IsCombinationGroup:  isCombination,
 			RatioRange:          ratioRange,
 			ProviderCount:       stats.ProviderCount,

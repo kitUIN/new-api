@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { RatioBadge } from '@/components/ratio-badge'
 import { formatTokens } from '../lib/format'
 import type { GroupRanking } from '../types'
 
@@ -72,8 +73,16 @@ function GroupRankingRow(props: { row: GroupRanking }) {
         <div className='text-foreground truncate font-mono text-sm font-semibold'>
           {props.row.group}
         </div>
-        <div className='text-muted-foreground/80 mt-0.5 text-xs'>
-          {t('Group multiplier')} {formatRatio(props.row.ratio)}
+        <div className='text-muted-foreground/80 mt-0.5 flex items-center gap-1.5 text-xs'>
+          {t('Group multiplier')}
+          <RatioBadge
+            ratio={
+              Number.isFinite(props.row.ratio) && props.row.ratio > 0
+                ? props.row.ratio
+                : 1
+            }
+            timed={props.row.timed_ratio}
+          />
         </div>
       </div>
       <Metric
@@ -120,11 +129,6 @@ function formatLatency(value: number): string {
 function formatTps(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '--'
   return `${value.toFixed(value >= 100 ? 0 : 1)} token/s`
-}
-
-function formatRatio(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '1x'
-  return `${Number(value.toFixed(3)).toString()}x`
 }
 
 function getGroupRankNumberClass(rank: number): string {

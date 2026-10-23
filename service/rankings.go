@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 )
 
 const (
@@ -80,14 +81,15 @@ type RankedUser struct {
 }
 
 type RankedGroup struct {
-	Rank         int     `json:"rank"`
-	Group        string  `json:"group"`
-	Ratio        float64 `json:"ratio"`
-	TotalTokens  int64   `json:"total_tokens"`
-	SuccessRate  float64 `json:"success_rate"`
-	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
-	AvgLatencyMs float64 `json:"avg_latency_ms"`
-	AvgTps       float64 `json:"avg_tps"`
+	Rank         int                            `json:"rank"`
+	Group        string                         `json:"group"`
+	Ratio        float64                        `json:"ratio"`
+	TimedRatio   *types.GroupTimedRatioSnapshot `json:"timed_ratio,omitempty"`
+	TotalTokens  int64                          `json:"total_tokens"`
+	SuccessRate  float64                        `json:"success_rate"`
+	AvgTTFTMs    float64                        `json:"avg_ttft_ms"`
+	AvgLatencyMs float64                        `json:"avg_latency_ms"`
+	AvgTps       float64                        `json:"avg_tps"`
 }
 
 type RankingMover struct {
@@ -506,6 +508,7 @@ func buildRankedGroups(totals []model.RankingGroupTotal, perfStats []model.Ranki
 			Rank:         idx + 1,
 			Group:        groupName,
 			Ratio:        ratio,
+			TimedRatio:   ratio_setting.ResolveGroupRatioAt("", groupName, time.Now()).TimedRatio,
 			TotalTokens:  item.TotalTokens,
 			SuccessRate:  perf.SuccessRate,
 			AvgTTFTMs:    perf.AvgTTFTMs,

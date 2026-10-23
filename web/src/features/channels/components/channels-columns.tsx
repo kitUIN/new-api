@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserGroups } from '@/lib/api'
+import { getUserGroups, type TimedRatioSnapshot } from '@/lib/api'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,
@@ -52,10 +52,15 @@ import {
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { GroupBadge } from '@/components/group-badge'
+import { RatioBadge, TimedRatioDetails } from '@/components/ratio-badge'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
-import { getCodexUsage, updateProviderBalance, updateProviderGroups } from '../api'
+import {
+  getCodexUsage,
+  updateProviderBalance,
+  updateProviderGroups,
+} from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
@@ -101,6 +106,7 @@ type GroupMetadata = Record<
   {
     desc?: string
     ratio?: number
+    timedRatio?: TimedRatioSnapshot
   }
 >
 
@@ -160,12 +166,6 @@ function getProviderBalanceSource(provider: ProviderRow): Channel | undefined {
   return provider.children?.[0]
 }
 
-function formatGroupQueryRatio(ratio: unknown): string {
-  const value = Number(ratio)
-  if (!Number.isFinite(value)) return '-'
-  return `${value % 1 === 0 ? value : Number(value.toFixed(2))}x`
-}
-
 function normalizeGroupRatio(ratio: unknown): number | undefined {
   const value = Number(ratio)
   if (!Number.isFinite(value)) return undefined
@@ -186,6 +186,7 @@ function useGroupMetadata(): GroupMetadata {
         metadata[group] = {
           desc: typeof info.desc === 'string' ? info.desc : undefined,
           ratio,
+          timedRatio: info.timed_ratio,
         }
       }
       return metadata
@@ -666,7 +667,9 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
       const res = await updateProviderGroups(channel.provider_id)
       if (res.success) {
         toast.success(t('Updated successfully'))
-        await queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        await queryClient.invalidateQueries({
+          queryKey: channelsQueryKeys.lists(),
+        })
       } else {
         toast.error(res.message || t('Update failed'))
       }
@@ -693,7 +696,9 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              isUpdating ? updatingBadge : (
+              isUpdating ? (
+                updatingBadge
+              ) : (
                 <StatusBadge
                   label={t('Not enabled')}
                   variant='neutral'
@@ -717,7 +722,9 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              isUpdating ? updatingBadge : (
+              isUpdating ? (
+                updatingBadge
+              ) : (
                 <StatusBadge
                   label={t('Query failed')}
                   variant='danger'
@@ -745,7 +752,9 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              isUpdating ? updatingBadge : (
+              isUpdating ? (
+                updatingBadge
+              ) : (
                 <StatusBadge
                   label={t('Not cached')}
                   variant='neutral'
@@ -763,22 +772,29 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
     )
   }
 
-  const groupBadges = items.map((item) => (
-    <StatusBadge
-      key={item.name}
-      label={`${item.name} · ${formatGroupQueryRatio(item.ratio)}`}
-      variant='cyan'
-      size='sm'
-      copyable={false}
-    />
-  ))
+  const groupBadges = items.map((item) => {
+    const ratio = Number(item.ratio)
+    return (
+      <span key={item.name} className='inline-flex items-center gap-1'>
+        <StatusBadge
+          label={item.name}
+          variant='cyan'
+          size='sm'
+          copyable={false}
+        />
+        <RatioBadge ratio={Number.isFinite(ratio) ? ratio : '-'} />
+      </span>
+    )
+  })
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger
           render={
-            isUpdating ? updatingBadge : (
+            isUpdating ? (
+              updatingBadge
+            ) : (
               <StatusBadge
                 label={String(items.length)}
                 variant='cyan'
@@ -797,7 +813,9 @@ function UpstreamGroupsCell({ channel }: { channel: ChannelRow | TagRow }) {
               {formatTimestampToDate(groupQuery.last_check_time || 0)}
             </div>
             <div className='flex flex-wrap gap-1'>{groupBadges}</div>
-            <div className='text-muted-foreground text-xs'>{t('Click to update groups')}</div>
+            <div className='text-muted-foreground text-xs'>
+              {t('Click to update groups')}
+            </div>
           </div>
         </TooltipContent>
       </Tooltip>
@@ -1447,12 +1465,16 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
             key={g}
             group={g}
             ratio={groupMetadata[g]?.ratio}
+            timedRatio={groupMetadata[g]?.timedRatio}
+            disableRatioTooltip
             size='sm'
           />
         ))
         const hasGroupDetails = groupArray.some((g) => {
           const meta = groupMetadata[g]
-          return Boolean(meta?.desc || meta?.ratio !== undefined)
+          return Boolean(
+            meta?.desc || meta?.ratio !== undefined || meta?.timedRatio
+          )
         })
 
         return (
@@ -1475,8 +1497,15 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
                             <GroupBadge
                               group={g}
                               ratio={meta?.ratio}
+                              timedRatio={meta?.timedRatio}
+                              disableRatioTooltip
                               size='sm'
                             />
+                            {meta?.timedRatio && (
+                              <div className='text-xs'>
+                                <TimedRatioDetails snapshot={meta.timedRatio} />
+                              </div>
+                            )}
                             {meta?.desc && (
                               <div className='text-muted-foreground text-xs'>
                                 {meta.desc}

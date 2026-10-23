@@ -64,6 +64,11 @@ import {
 } from '@/components/ui/tooltip'
 import { GroupTypeIcon } from '@/components/group-type-icon'
 import {
+  formatRatioLabel,
+  RatioBadge,
+  type TimedRatioMember,
+} from '@/components/ratio-badge'
+import {
   getGroupRatioHistory,
   getPerfGroupHealth,
 } from '@/features/performance-metrics/api'
@@ -182,11 +187,28 @@ function formatRatio(ratio: number): string {
   return `x${ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}`
 }
 
-function formatGroupRatio(group: PerfGroupHealth): string {
+function getGroupRatioDisplay(group: PerfGroupHealth): number | string {
   if (group.is_combination_group && group.ratio_range) {
-    return `${formatRatio(group.ratio_range.min)} ~ ${formatRatio(group.ratio_range.max)}`
+    if (group.ratio_range.min === group.ratio_range.max) {
+      return group.ratio_range.min
+    }
+    return `${formatRatioLabel(group.ratio_range.min)} ~ ${formatRatioLabel(group.ratio_range.max)}`
   }
-  return formatRatio(group.ratio)
+  return Number.isFinite(group.ratio) ? group.ratio : 1
+}
+
+function getTimedMembers(group: PerfGroupHealth): TimedRatioMember[] {
+  return (group.combination_members ?? []).flatMap((member) =>
+    member.timed_ratio
+      ? [{ group: member.group, timed: member.timed_ratio }]
+      : []
+  )
+}
+
+/** Sort key: active timed ratio first, then the lowest combination member, then base. */
+function getEffectiveSortRatio(group: PerfGroupHealth): number {
+  if (group.timed_ratio) return group.timed_ratio.ratio
+  return group.ratio_range?.min ?? group.ratio
 }
 
 function formatWindow(bucket: PerfGroupHealthBucket): string {
@@ -299,9 +321,7 @@ function compareGroupHealth(
 ): number {
   const leftRecent = getTwoHourGroupHealth(left)
   const rightRecent = getTwoHourGroupHealth(right)
-  const ratioDiff =
-    (left.ratio_range?.min ?? left.ratio) -
-    (right.ratio_range?.min ?? right.ratio)
+  const ratioDiff = getEffectiveSortRatio(left) - getEffectiveSortRatio(right)
 
   if (leftRecent.requestCount !== rightRecent.requestCount) {
     if (leftRecent.requestCount === 0) return 1
@@ -922,7 +942,10 @@ function GroupHealthCard(props: {
         <div className='min-w-0'>
           <div className='flex min-w-0 items-center gap-2.5'>
             <div className='flex min-w-0 items-center gap-2'>
-              <GroupTypeIcon isCombinationGroup={group.is_combination_group} />
+              <GroupTypeIcon
+                isCombinationGroup={group.is_combination_group}
+                combinationMembers={group.combination_members}
+              />
               <span className='flex size-5 shrink-0 items-center justify-center'>
                 {getGroupProviderIcon(group.group)}
               </span>
@@ -948,9 +971,11 @@ function GroupHealthCard(props: {
             <TrafficShareRing percent={props.trafficShare} />
           </div>
           <div className='mt-1 flex flex-wrap items-center gap-1.5'>
-            <Badge variant='outline' className='font-mono'>
-              {formatGroupRatio(group)}
-            </Badge>
+            <RatioBadge
+              ratio={getGroupRatioDisplay(group)}
+              timed={group.timed_ratio}
+              timedMembers={getTimedMembers(group)}
+            />
             <UsageBattery accounts={props.usageAccounts} showResetCountdown />
             <Badge variant='outline' className='gap-1.5 font-mono'>
               <span

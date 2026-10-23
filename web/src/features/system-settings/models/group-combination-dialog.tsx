@@ -31,7 +31,6 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -58,6 +57,7 @@ import {
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { MultiSelect } from '@/components/multi-select'
+import { RatioBadge } from '@/components/ratio-badge'
 import {
   getGroupCombinationCircuitBreakers,
   resetGroupCombinationCircuitBreaker,
@@ -415,12 +415,13 @@ export function GroupCombinationDialog(props: GroupCombinationDialogProps) {
                     </Select>
                   </div>
 
-                  <Badge
-                    variant='secondary'
-                    className='hidden justify-center sm:flex'
-                  >
-                    {selectedGroup ? `${selectedGroup.ratio}x` : '-'}
-                  </Badge>
+                  <span className='hidden justify-center sm:flex'>
+                    {selectedGroup ? (
+                      <RatioBadge ratio={selectedGroup.ratio} />
+                    ) : (
+                      '-'
+                    )}
+                  </span>
 
                   <MultiSelect
                     className='col-start-2 col-end-4 min-w-0 sm:col-auto'

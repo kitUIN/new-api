@@ -45,6 +45,7 @@ import { CopyButton } from '@/components/copy-button'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
 import { PublicLayout } from '@/components/layout'
+import { RatioBadge } from '@/components/ratio-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
   formatLatency,
@@ -52,7 +53,10 @@ import {
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
-import { usePricingData } from '../hooks/use-pricing-data'
+import {
+  usePricingData,
+  usePricingGroupTimedRatios,
+} from '../hooks/use-pricing-data'
 import {
   getDynamicPriceEntries,
   getDynamicPricingSummary,
@@ -601,6 +605,7 @@ function GroupPricingSection(props: {
 }) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
+  const timedRatios = usePricingGroupTimedRatios()
 
   const availableGroups = useMemo(
     () => getAvailableGroups(props.model, props.usableGroup || {}),
@@ -702,9 +707,7 @@ function GroupPricingSection(props: {
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
                   <GroupBadge group={group} size='sm' />
-                  <span className='text-muted-foreground font-mono text-xs'>
-                    {ratio}x
-                  </span>
+                  <RatioBadge ratio={ratio} timed={timedRatios[group]} />
                 </div>
                 <div className='overflow-x-auto'>
                   <Table className='text-sm'>
@@ -809,8 +812,8 @@ function GroupPricingSection(props: {
                   <TableCell className='py-2.5'>
                     <GroupBadge group={group} size='sm' />
                   </TableCell>
-                  <TableCell className='text-muted-foreground py-2.5 font-mono'>
-                    {ratio}x
+                  <TableCell className='py-2.5'>
+                    <RatioBadge ratio={ratio} timed={timedRatios[group]} />
                   </TableCell>
                   {isTokenBased ? (
                     <>

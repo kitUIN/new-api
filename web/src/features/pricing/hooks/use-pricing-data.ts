@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import type { TimedRatioSnapshot } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { getPricing } from '../api'
 
@@ -73,4 +74,18 @@ export function usePricingData() {
     priceRate,
     usdExchangeRate,
   }
+}
+
+/** Active timed group ratios from the cached pricing response. */
+export function usePricingGroupTimedRatios(): Record<
+  string,
+  TimedRatioSnapshot
+> {
+  const { data } = useQuery({
+    queryKey: ['pricing'],
+    queryFn: getPricing,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => res.group_timed_ratio ?? {},
+  })
+  return data ?? {}
 }

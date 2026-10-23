@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getUserGroups } from '@/lib/api'
+import { getUserGroups, type TimedRatioSnapshot } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { getRuleAutoGroupLabel } from '@/lib/rule-auto-groups'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
+import { RatioBadge } from '@/components/ratio-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
 import {
@@ -72,9 +73,28 @@ export function useGroupRatios(): Record<string, number | string> {
   return data ?? {}
 }
 
+export function useGroupTimedRatios(): Record<string, TimedRatioSnapshot> {
+  const { data } = useQuery({
+    queryKey: ['user-self-groups'],
+    queryFn: getUserGroups,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => {
+      if (!res.success || !res.data) return {}
+      const timed: Record<string, TimedRatioSnapshot> = {}
+      for (const [group, info] of Object.entries(res.data)) {
+        if (info.timed_ratio) timed[group] = info.timed_ratio
+      }
+      return timed
+    },
+  })
+
+  return data ?? {}
+}
+
 export type ApiKeyGroupDisplayInfo = {
   label: string
   ratio?: number | string
+  timedRatio?: TimedRatioSnapshot
   isAutoGroup?: boolean
 }
 
@@ -93,6 +113,7 @@ export function useGroupMetadata(): Record<string, ApiKeyGroupDisplayInfo> {
             ? getRuleAutoGroupLabel(group, info.label || group, t)
             : info.label || group,
           ratio: info.ratio,
+          timedRatio: info.timed_ratio,
           isAutoGroup: info.is_auto_group,
         }
       }
@@ -115,6 +136,7 @@ export function FailoverGroupsCell({
   compact?: boolean
 }) {
   const displayedGroups = failoverGroups.slice(0, 3)
+  const timedRatios = useGroupTimedRatios()
 
   return (
     <span
@@ -137,7 +159,7 @@ export function FailoverGroupsCell({
           <GroupBadge
             group={failoverGroup}
             ratio={groupRatios[failoverGroup]}
-            ratioColor='group'
+            timedRatio={timedRatios[failoverGroup]}
           />
         </span>
       ))}
@@ -163,6 +185,7 @@ export function ModelCombinationGroupsCell({
   compact?: boolean
 }) {
   const displayedMembers = members.slice(0, 3)
+  const timedRatios = useGroupTimedRatios()
 
   return (
     <span
@@ -185,7 +208,7 @@ export function ModelCombinationGroupsCell({
           <GroupBadge
             group={member.group}
             ratio={groupRatios[member.group]}
-            ratioColor='group'
+            timedRatio={timedRatios[member.group]}
           />
         </span>
       ))}
@@ -469,11 +492,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                 copyable={false}
               />
               {groupInfo.ratio !== undefined && (
-                <StatusBadge
-                  label={String(groupInfo.ratio)}
-                  variant='info'
-                  copyable={false}
-                />
+                <RatioBadge ratio={groupInfo.ratio} />
               )}
               {apiKey.auto_group_mode && (
                 <StatusBadge
@@ -489,7 +508,13 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             </span>
           )
         }
-        return <GroupBadge group={group} ratio={ratio} />
+        return (
+          <GroupBadge
+            group={group}
+            ratio={ratio}
+            timedRatio={groupInfo?.timedRatio}
+          />
+        )
       },
       meta: { label: t('Group'), mobileHidden: true },
       size: 260,

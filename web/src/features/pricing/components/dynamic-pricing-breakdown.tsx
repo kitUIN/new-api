@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { RatioBadge } from '@/components/ratio-badge'
 import {
   BILLING_PRICING_VARS,
   MATCH_CONTAINS,
@@ -415,12 +416,7 @@ export function DynamicPricingBreakdown({
                 <span className='text-foreground text-sm break-all'>
                   {describeGroup(group, t)}
                 </span>
-                <Badge
-                  variant='secondary'
-                  className='shrink-0 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
-                >
-                  {group.multiplier}x
-                </Badge>
+                <RatioBadge ratio={group.multiplier} />
               </li>
             ))}
           </ul>

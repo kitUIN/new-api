@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { RatioBadge } from '@/components/ratio-badge'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import {
@@ -70,7 +71,6 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData, UsageLog } from '../../types'
-import { TimedRatioBadge } from '../timed-ratio-badge'
 import { RelayTimingSection } from './relay-timing-section'
 
 function timingTextColorClass(
@@ -135,11 +135,6 @@ function DetailSection(props: {
       </div>
     </div>
   )
-}
-
-function formatRatio(ratio: number | undefined): string {
-  if (ratio == null) return '-'
-  return ratio.toFixed(4)
 }
 
 function BillingBreakdown(props: {
@@ -227,11 +222,7 @@ function BillingBreakdown(props: {
   if (effectiveGR != null && Number.isFinite(effectiveGR)) {
     rows.push({
       label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
-      value: other.timed_group_ratio ? (
-        <TimedRatioBadge snapshot={other.timed_group_ratio} />
-      ) : (
-        `${formatRatio(effectiveGR)}x`
-      ),
+      value: <RatioBadge ratio={effectiveGR} timed={other.timed_group_ratio} />,
     })
   }
 
