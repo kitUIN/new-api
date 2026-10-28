@@ -38,12 +38,20 @@ const DRAWING_API = {
   taskStatus: (taskId: string) => `/pg/drawing/tasks/${taskId}`,
 } as const
 
-export async function listDrawingModels(): Promise<string[]> {
-  const res = await api.get<ApiEnvelope<string[]>>(DRAWING_API.models)
+export async function listDrawingModels(
+  size: string
+): Promise<{ models: string[]; combination: boolean }> {
+  const res = await api.get<ApiEnvelope<string[]> & { combination?: boolean }>(
+    DRAWING_API.models,
+    { params: { size } }
+  )
   if (!res.data.success) {
     throw new Error(res.data.message || 'Failed to load drawing models')
   }
-  return res.data.data || []
+  return {
+    models: res.data.data || [],
+    combination: Boolean(res.data.combination),
+  }
 }
 
 export async function listDrawingSessions(): Promise<DrawingSession[]> {

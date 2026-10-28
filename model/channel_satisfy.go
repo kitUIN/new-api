@@ -76,6 +76,10 @@ func HasAvailableChannelForGroupModel(group string, modelName string) bool {
 	return hasAvailableChannelForConcreteGroupModel(group, modelName)
 }
 
+func HasAvailableChannelForConcreteGroupModel(group, modelName string) bool {
+	return hasAvailableChannelForConcreteGroupModel(group, modelName)
+}
+
 func hasAvailableChannelForConcreteGroupModel(group string, modelName string) bool {
 	if !common.MemoryCacheEnabled {
 		return hasAvailableChannelForGroupModelDB(group, modelName)

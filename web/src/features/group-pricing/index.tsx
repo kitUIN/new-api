@@ -30,6 +30,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { PageTransition } from '@/components/page-transition'
 import { useSystemOptions } from '@/features/system-settings/hooks/use-system-options'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
+import { groupDrawingResolutionsSchema } from '@/features/system-settings/models/group-drawing-resolutions'
 import { groupOpeningHoursSchema } from '@/features/system-settings/models/group-opening-hours'
 import { GroupRatioForm } from '@/features/system-settings/models/group-ratio-form'
 import { groupTimedRatiosSchema } from '@/features/system-settings/models/group-timed-ratios'
@@ -84,6 +85,7 @@ const groupSchema = z.object({
       })
     }
   }),
+  GroupDrawingResolutions: groupDrawingResolutionsSchema,
   GroupOpeningHours: groupOpeningHoursSchema,
   GroupTimedRatios: groupTimedRatiosSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
@@ -181,6 +183,9 @@ export function GroupPricingPage() {
     UserUsableGroups: normalizeJsonString(getValue('UserUsableGroups', '')),
     GroupGroupRatio: normalizeJsonString(getValue('GroupGroupRatio', '')),
     GroupTypes: normalizeJsonString(getValue('GroupTypes', '{}')),
+    GroupDrawingResolutions: normalizeJsonString(
+      getValue('group_ratio_setting.group_drawing_resolutions', '{}')
+    ),
     GroupOpeningHours: normalizeJsonString(
       getValue('group_ratio_setting.group_opening_hours', '{}')
     ),
@@ -216,6 +221,9 @@ export function GroupPricingPage() {
         UserUsableGroups: normalizeJsonString(getValue('UserUsableGroups', '')),
         GroupGroupRatio: normalizeJsonString(getValue('GroupGroupRatio', '')),
         GroupTypes: normalizeJsonString(getValue('GroupTypes', '{}')),
+        GroupDrawingResolutions: normalizeJsonString(
+          getValue('group_ratio_setting.group_drawing_resolutions', '{}')
+        ),
         GroupOpeningHours: normalizeJsonString(
           getValue('group_ratio_setting.group_opening_hours', '{}')
         ),
@@ -262,6 +270,9 @@ export function GroupPricingPage() {
           UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
           GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
           GroupTypes: normalizeJsonString(values.GroupTypes),
+          GroupDrawingResolutions: normalizeJsonString(
+            values.GroupDrawingResolutions
+          ),
           GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
           GroupTimedRatios: normalizeJsonString(values.GroupTimedRatios),
           GroupCombinations: normalizeJsonString(values.GroupCombinations),
@@ -280,6 +291,8 @@ export function GroupPricingPage() {
             'group_ratio_setting.group_special_usable_group',
           UpstreamGroupRatioBindings:
             'group_ratio_setting.upstream_group_ratio_bindings',
+          GroupDrawingResolutions:
+            'group_ratio_setting.group_drawing_resolutions',
           GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
           GroupTimedRatios: 'group_ratio_setting.group_timed_ratios',
           GroupCombinations: 'group_ratio_setting.group_combinations',

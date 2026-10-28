@@ -26,6 +26,7 @@ type BalanceInput = {
   quotaPerUnit?: number
   model?: PricingModel | null
   modelName: string
+  combination?: boolean
   groupRatio?: Record<string, number>
   pricingLoading: boolean
 }
@@ -36,11 +37,9 @@ export function buildDrawingBalanceInfo(
   const balanceUSD = quotaToUsdAmount(input.userQuota, input.quotaPerUnit)
   const tone = getBalanceTone(balanceUSD)
   const usedGroup = DRAWING_GROUP
-  const unitPriceUSD = getUnitPriceUSD(
-    input.model,
-    usedGroup,
-    input.groupRatio || {}
-  )
+  const unitPriceUSD = input.combination
+    ? 0
+    : getUnitPriceUSD(input.model, usedGroup, input.groupRatio || {})
 
   return {
     balanceText: formatCurrencyFromUSD(balanceUSD, {
@@ -59,8 +58,7 @@ export function buildDrawingBalanceInfo(
             abbreviate: false,
           })
         : '',
-    priceUnavailable:
-      !input.model && !input.pricingLoading ? 'Model pricing not found' : '',
+    priceUnavailable: getPriceUnavailable(input),
     pricingLoading: input.pricingLoading,
     tone,
     usedGroup,
@@ -93,4 +91,9 @@ function getUnitPriceUSD(
 function getAvailableGenerations(balanceUSD: number, unitPriceUSD: number) {
   if (!Number.isFinite(unitPriceUSD) || unitPriceUSD <= 0) return ''
   return String(Math.max(0, Math.floor(balanceUSD / unitPriceUSD)))
+}
+
+function getPriceUnavailable(input: BalanceInput): string {
+  if (input.combination) return 'Uses member group ratio'
+  return !input.model && !input.pricingLoading ? 'Model pricing not found' : ''
 }

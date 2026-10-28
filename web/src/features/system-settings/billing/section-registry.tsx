@@ -45,6 +45,8 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   UserUsableGroups: settings.UserUsableGroups,
   GroupGroupRatio: settings.GroupGroupRatio,
   GroupTypes: settings.GroupTypes ?? '{}',
+  GroupDrawingResolutions:
+    settings['group_ratio_setting.group_drawing_resolutions'] ?? '{}',
   GroupTimedRatios: settings['group_ratio_setting.group_timed_ratios'] ?? '{}',
   GroupOpeningHours:
     settings['group_ratio_setting.group_opening_hours'] ?? '{}',

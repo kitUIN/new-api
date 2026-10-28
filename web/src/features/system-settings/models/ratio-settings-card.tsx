@@ -30,6 +30,7 @@ import { groupTimedRatiosSchema } from '@/features/system-settings/models/group-
 import { resetModelRatios } from '../api'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { groupDrawingResolutionsSchema } from './group-drawing-resolutions'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
 import { ToolPriceSettings } from './tool-price-settings'
@@ -180,6 +181,7 @@ const groupSchema = z.object({
       })
     }
   }),
+  GroupDrawingResolutions: groupDrawingResolutionsSchema,
   GroupOpeningHours: groupOpeningHoursSchema,
   GroupTimedRatios: groupTimedRatiosSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
@@ -354,6 +356,9 @@ export function RatioSettingsCard({
     UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     GroupTypes: normalizeJsonString(groupDefaults.GroupTypes),
+    GroupDrawingResolutions: normalizeJsonString(
+      groupDefaults.GroupDrawingResolutions
+    ),
     GroupOpeningHours: normalizeJsonString(groupDefaults.GroupOpeningHours),
     GroupTimedRatios: normalizeJsonString(groupDefaults.GroupTimedRatios),
     GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
@@ -399,6 +404,9 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       GroupTypes: formatJsonForTextarea(groupDefaults.GroupTypes),
+      GroupDrawingResolutions: formatJsonForTextarea(
+        groupDefaults.GroupDrawingResolutions
+      ),
       GroupOpeningHours: formatJsonForTextarea(groupDefaults.GroupOpeningHours),
       GroupTimedRatios: formatJsonForTextarea(groupDefaults.GroupTimedRatios),
       GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
@@ -453,6 +461,9 @@ export function RatioSettingsCard({
       UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       GroupTypes: normalizeJsonString(groupDefaults.GroupTypes),
+      GroupDrawingResolutions: normalizeJsonString(
+        groupDefaults.GroupDrawingResolutions
+      ),
       GroupOpeningHours: normalizeJsonString(groupDefaults.GroupOpeningHours),
       GroupTimedRatios: normalizeJsonString(groupDefaults.GroupTimedRatios),
       GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
@@ -475,6 +486,9 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       GroupTypes: formatJsonForTextarea(groupDefaults.GroupTypes),
+      GroupDrawingResolutions: formatJsonForTextarea(
+        groupDefaults.GroupDrawingResolutions
+      ),
       GroupOpeningHours: formatJsonForTextarea(groupDefaults.GroupOpeningHours),
       GroupTimedRatios: formatJsonForTextarea(groupDefaults.GroupTimedRatios),
       GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
@@ -547,6 +561,9 @@ export function RatioSettingsCard({
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         GroupTypes: normalizeJsonString(values.GroupTypes),
+        GroupDrawingResolutions: normalizeJsonString(
+          values.GroupDrawingResolutions
+        ),
         GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
         GroupTimedRatios: normalizeJsonString(values.GroupTimedRatios),
         GroupCombinations: normalizeJsonString(values.GroupCombinations),
@@ -566,6 +583,8 @@ export function RatioSettingsCard({
           'group_ratio_setting.group_special_usable_group',
         UpstreamGroupRatioBindings:
           'group_ratio_setting.upstream_group_ratio_bindings',
+        GroupDrawingResolutions:
+          'group_ratio_setting.group_drawing_resolutions',
         GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
         GroupTimedRatios: 'group_ratio_setting.group_timed_ratios',
         GroupCombinations: 'group_ratio_setting.group_combinations',

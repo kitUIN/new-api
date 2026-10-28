@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -29,12 +29,17 @@ type DrawingGenerateRequest struct {
 const drawingGroup = "gpt-image"
 
 func GetDrawingModels(c *gin.Context) {
-	models := model.GetGroupEnabledModels(drawingGroup)
-	if models == nil {
-		models = []string{}
+	size := ""
+	if c.Request != nil {
+		size = c.Query("size")
 	}
-	sort.Strings(models)
-	common.ApiSuccess(c, models)
+	resolution, err := ratio_setting.DrawingResolutionForSize(size)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	models := service.GetDrawingModels(drawingGroup, resolution)
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": models, "combination": ratio_setting.IsGroupCombination(drawingGroup)})
 }
 
 func GetDrawingResultFile(c *gin.Context) {
@@ -330,7 +335,12 @@ func SubmitDrawingTask(c *gin.Context) {
 	if req.Model == "" {
 		req.Model = "gpt-image-2"
 	}
-	if !common.StringsContains(model.GetGroupEnabledModels(group), req.Model) {
+	resolution, err := ratio_setting.DrawingResolutionForSize(req.Size)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !service.IsDrawingModelAvailable(group, req.Model, resolution) {
 		common.ApiErrorMsg(c, "所选模型不在绘图分组中或已停用")
 		return
 	}
@@ -345,7 +355,7 @@ func SubmitDrawingTask(c *gin.Context) {
 		return
 	}
 
-	_, err := model.GetDrawingSession(sessionId, userId)
+	_, err = model.GetDrawingSession(sessionId, userId)
 	if err != nil {
 		common.ApiErrorMsg(c, "会话不存在")
 		return

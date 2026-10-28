@@ -85,6 +85,7 @@ import {
   normalizeGroupCombinationMembers,
   type GroupCombinationMembers,
 } from './group-combination-dialog'
+import { GroupDrawingResolutionsEditor } from './group-drawing-resolutions-editor'
 import { GroupOpeningHoursEditor } from './group-opening-hours-editor'
 import { GroupTimedRatiosEditor } from './group-timed-ratios-editor'
 
@@ -99,6 +100,7 @@ type GroupRatioVisualEditorProps = {
   upstreamGroupRatioBindings: string
   groupTimedRatios: string
   timedRatiosError?: string
+  groupDrawingResolutions: string
   groupOpeningHours: string
   openingHoursError?: string
   onChange: (field: string, value: string) => void
@@ -393,6 +395,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   upstreamGroupRatioBindings,
   groupTimedRatios,
   timedRatiosError,
+  groupDrawingResolutions,
   groupOpeningHours,
   openingHoursError,
   onChange,
@@ -643,6 +646,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         upstreamGroupRatioBindings={upstreamGroupRatioBindings}
         groupTimedRatios={groupTimedRatios}
         timedRatiosError={timedRatiosError}
+        groupDrawingResolutions={groupDrawingResolutions}
         groupOpeningHours={groupOpeningHours}
         openingHoursError={openingHoursError}
         onChange={onChange}
@@ -990,6 +994,7 @@ type GroupPricingTableProps = {
   upstreamGroupRatioBindings: string
   groupTimedRatios: string
   timedRatiosError?: string
+  groupDrawingResolutions: string
   groupOpeningHours: string
   openingHoursError?: string
   onChange: (field: string, value: string) => void
@@ -1003,6 +1008,7 @@ function GroupPricingTable({
   upstreamGroupRatioBindings,
   groupTimedRatios,
   timedRatiosError,
+  groupDrawingResolutions,
   groupOpeningHours,
   openingHoursError,
   onChange,
@@ -1138,11 +1144,29 @@ function GroupPricingTable({
       field: Exclude<keyof GroupPricingRow, '_id'>,
       value: string | number | boolean | GroupCombinationMembers
     ) => {
+      if (field === 'name' && typeof value === 'string') {
+        const previous = rows.find((row) => row._id === id)?.name.trim()
+        const next = value.trim()
+        const config = safeJsonParse<Record<string, string[]>>(
+          groupDrawingResolutions,
+          { fallback: {} }
+        )
+        if (
+          previous &&
+          next &&
+          previous !== next &&
+          config[previous] !== undefined
+        ) {
+          config[next] = config[previous]
+          delete config[previous]
+          onChange('GroupDrawingResolutions', JSON.stringify(config))
+        }
+      }
       emitRows(
         rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
       )
     },
-    [emitRows, rows]
+    [emitRows, rows, groupDrawingResolutions, onChange]
   )
 
   const addRow = useCallback(() => {
@@ -1180,10 +1204,16 @@ function GroupPricingTable({
         !nextRows.some((row) => row.name.trim() === removedRow.name.trim())
       ) {
         removeBinding(removedRow.name)
+        const config = safeJsonParse<Record<string, string[]>>(
+          groupDrawingResolutions,
+          { fallback: {} }
+        )
+        delete config[removedRow.name.trim()]
+        onChange('GroupDrawingResolutions', JSON.stringify(config))
       }
       emitRows(nextRows)
     },
-    [emitRows, removeBinding, rows]
+    [emitRows, removeBinding, rows, groupDrawingResolutions, onChange]
   )
 
   const duplicateNames = useMemo(() => {
@@ -1596,6 +1626,13 @@ function GroupPricingTable({
                           {t(timedRatiosError)}
                         </p>
                       )}
+                      <GroupDrawingResolutionsEditor
+                        value={groupDrawingResolutions}
+                        group={groupName}
+                        onChange={(value) =>
+                          onChange('GroupDrawingResolutions', value)
+                        }
+                      />
                       <GroupOpeningHoursEditor
                         value={groupOpeningHours}
                         groups={groupRatio}

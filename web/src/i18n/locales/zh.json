@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Image width and height must be multiples of 16": "图片宽度和高度必须为 16 的倍数",
+    "Image {{number}} size": "图{{number}}尺寸",
+    "Image {{number}}": "图{{number}}",
+    "Drawing resolutions": "绘图分辨率",
+    "Invalid drawing resolutions": "绘图分辨率配置无效",
+    "Configure gpt-image as a combination group to route drawing requests to members supporting the selected resolution. Unconfigured groups support all resolutions; clearing all disables drawing for the group.": "将 gpt-image 配置为组合分组后，绘图请求会路由至支持所选分辨率的成员分组。未配置的分组默认支持全部分辨率；全部取消勾选将停用该分组的绘图。",
     "logs.requestDetail.mode": "请求和响应日志",
     "logs.requestDetail.off": "关闭",
     "logs.requestDetail.failed": "仅失败记录",

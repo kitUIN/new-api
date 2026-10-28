@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Image width and height must be multiples of 16": "La largeur et la hauteur de l’image doivent être des multiples de 16",
+    "Image {{number}} size": "Image {{number}} size",
+    "Image {{number}}": "Image {{number}}",
+    "Drawing resolutions": "Drawing resolutions",
+    "Invalid drawing resolutions": "Invalid drawing resolutions",
+    "Configure gpt-image as a combination group to route drawing requests to members supporting the selected resolution. Unconfigured groups support all resolutions; clearing all disables drawing for the group.": "Configure gpt-image as a combination group to route drawing requests to members supporting the selected resolution. Unconfigured groups support all resolutions; clearing all disables drawing for the group.",
     "logs.requestDetail.mode": "Journalisation des requêtes et des réponses",
     "logs.requestDetail.off": "Désactivée",
     "logs.requestDetail.failed": "Requêtes échouées uniquement",

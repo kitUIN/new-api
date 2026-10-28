@@ -76,6 +76,7 @@ import {
   SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
+import { GroupDrawingResolutionsEditor } from './group-drawing-resolutions-editor'
 import { GroupOpeningHoursEditor } from './group-opening-hours-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
@@ -87,6 +88,7 @@ type GroupFormValues = {
   GroupGroupRatio: string
   GroupTypes: string
   GroupTimedRatios: string
+  GroupDrawingResolutions: string
   GroupOpeningHours: string
   GroupCombinations: string
   AutoGroups: string
@@ -196,6 +198,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             <GroupRatioVisualEditor
               groupTimedRatios={form.watch('GroupTimedRatios')}
               timedRatiosError={form.formState.errors.GroupTimedRatios?.message}
+              groupDrawingResolutions={form.watch('GroupDrawingResolutions')}
               groupOpeningHours={form.watch('GroupOpeningHours')}
               openingHoursError={
                 form.formState.errors.GroupOpeningHours?.message
@@ -274,6 +277,16 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                     </p>
                   )}
                 </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='GroupDrawingResolutions'
+              render={({ field }) => (
+                <GroupDrawingResolutionsEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               )}
             />
             <FormField

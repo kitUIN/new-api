@@ -148,6 +148,9 @@ func getGroupCombinationRuntimeForCandidates(c *gin.Context, rootGroup, modelNam
 
 	availableCandidates := make([]ratio_setting.GroupCombinationMember, 0, len(candidates))
 	for _, member := range candidates {
+		if !drawingMemberSupportsResolution(c, member.Group) {
+			continue
+		}
 		if isGroupCombinationRuntimeMemberSkipped(source, breakerScope, configSignature, member.Group) {
 			continue
 		}

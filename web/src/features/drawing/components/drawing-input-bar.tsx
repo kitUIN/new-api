@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import { ImagePlusIcon, SendIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -46,11 +46,14 @@ import {
   DRAWING_ASPECT_RATIOS,
   DRAWING_RESOLUTIONS,
   MAX_UPLOAD_IMAGES,
-  resolveDrawingSize,
 } from '../constants'
 import { useDrawingAttachments } from '../hooks/use-drawing-attachments'
 import { readDrawingImageSize } from '../lib/image-input'
 import { mergeDrawingImages } from '../lib/images'
+import {
+  isDrawingSizeAligned,
+  resolveDrawingSizeSelection,
+} from '../lib/size-selection'
 import type { DrawingBalanceInfo, DrawingGenerateRequest } from '../types'
 import { BalancePopover } from './balance-popover'
 import { DrawingModelSelector } from './drawing-model-selector'
@@ -70,6 +73,8 @@ type DrawingInputBarProps = {
   disabled: boolean
   hasImage: boolean
   loading: boolean
+  size: string
+  onSizeChange: (size: string) => void
   models: string[]
   model: string
   modelsLoading: boolean
@@ -83,7 +88,7 @@ type DrawingInputBarProps = {
 export function DrawingInputBar(props: DrawingInputBarProps) {
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio | 'original'>(() =>
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>(() =>
     getStoredDrawingPreference(
       DRAWING_ASPECT_RATIO_STORAGE_KEY,
       DRAWING_ASPECT_RATIO_VALUES,
@@ -97,6 +102,7 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
       '1K'
     )
   )
+  const [originalImage, setOriginalImage] = useState('')
   const [previewImage, setPreviewImage] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -114,22 +120,26 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
   })
   const { images, setImages } = attachments
   const inputImages = mergeDrawingImages(referenceImages, images)
-  const singleImage = inputImages.length === 1 ? inputImages[0] : ''
-  const originalSizeQuery = useQuery({
-    queryKey: ['drawing-image-size', singleImage],
-    queryFn: () => readDrawingImageSize(singleImage),
-    enabled: Boolean(singleImage),
-    retry: false,
-    staleTime: Infinity,
-    gcTime: 0,
+  const imageSizeQueries = useQueries({
+    queries: inputImages.map((image) => ({
+      queryKey: ['drawing-image-size', image],
+      queryFn: () => readDrawingImageSize(image),
+      retry: false,
+      staleTime: Infinity,
+      gcTime: 0,
+    })),
   })
-  const originalSize = singleImage ? originalSizeQuery.data : undefined
-  const selectedAspectRatio =
-    aspectRatio === 'original' && !singleImage ? '1:1' : aspectRatio
-  const usesOriginalSize = selectedAspectRatio === 'original'
-  const size = usesOriginalSize
-    ? originalSize || ''
-    : resolveDrawingSize(selectedAspectRatio, resolution)
+  const { usesOriginalSize, originalSize, selectedAspectRatio, size } =
+    resolveDrawingSizeSelection({
+      images: inputImages,
+      sizes: imageSizeQueries.map((query) => query.data),
+      originalImage,
+      aspectRatio,
+      resolution,
+    })
+  useEffect(() => {
+    props.onSizeChange(size)
+  }, [size, props.onSizeChange])
   const canSubmit =
     hasPrompt &&
     !props.disabled &&
@@ -139,7 +149,8 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
     !props.modelsError &&
     props.models.includes(props.model) &&
     images.length <= maxUploadImages &&
-    Boolean(size)
+    Boolean(size) &&
+    size === props.size
 
   const payload = useMemo<DrawingGenerateRequest>(
     () => ({
@@ -187,55 +198,42 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
         )}
         {(referenceImages.length > 0 || images.length > 0) && (
           <div className='flex flex-wrap gap-2 px-4 pt-3'>
-            {referenceImages.map((image, index) => (
-              <button
-                aria-label={t('Preview image')}
-                className='border-primary focus-visible:ring-ring size-14 cursor-zoom-in overflow-hidden rounded-lg border-2 focus-visible:ring-2'
-                key={`reference-${index}`}
-                onClick={() => setPreviewImage(image)}
-                type='button'
-              >
-                <img
-                  alt={t('Reference image')}
-                  className='size-full object-cover'
-                  draggable={false}
-                  src={image}
-                />
-              </button>
-            ))}
-            {images.map((image, index) => (
-              <div
-                className='relative size-14'
-                key={`${image.slice(0, 24)}-${index}`}
-              >
+            {inputImages.map((image, index) => (
+              <div className='relative size-14' key={image}>
                 <button
                   aria-label={t('Preview image')}
-                  className='focus-visible:ring-ring size-14 cursor-zoom-in overflow-hidden rounded-lg focus-visible:ring-2'
+                  className={cn(
+                    'focus-visible:ring-ring size-14 cursor-zoom-in overflow-hidden rounded-lg focus-visible:ring-2',
+                    referenceImages.includes(image) && 'border-primary border-2'
+                  )}
                   onClick={() => setPreviewImage(image)}
                   type='button'
                 >
                   <img
-                    alt={t('Uploaded image')}
+                    alt={t('Image {{number}}', { number: index + 1 })}
                     className='size-full object-cover'
                     draggable={false}
                     src={image}
                   />
+                  <span className='absolute bottom-0 left-0 rounded bg-black/70 px-1 text-[10px] text-white'>
+                    {t('Image {{number}}', { number: index + 1 })}
+                  </span>
                 </button>
-                <Button
-                  aria-label={t('Remove image')}
-                  className='absolute -top-1 -right-1 size-5 rounded-full'
-                  disabled={props.disabled || isSubmitting}
-                  onClick={() =>
-                    setImages((prev) =>
-                      prev.filter((_, itemIndex) => itemIndex !== index)
-                    )
-                  }
-                  size='icon-sm'
-                  type='button'
-                  variant='secondary'
-                >
-                  <XIcon className='size-3' />
-                </Button>
+                {!referenceImages.includes(image) && (
+                  <Button
+                    aria-label={t('Remove image')}
+                    className='absolute -top-1 -right-1 size-5 rounded-full'
+                    disabled={props.disabled || isSubmitting}
+                    onClick={() =>
+                      setImages((prev) => prev.filter((item) => item !== image))
+                    }
+                    size='icon-sm'
+                    type='button'
+                    variant='secondary'
+                  >
+                    <XIcon className='size-3' />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -292,8 +290,10 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
           <Select
             value={selectedAspectRatio}
             onValueChange={(value) => {
-              if (value === 'original') {
-                if (originalSize) setAspectRatio('original')
+              if (value?.startsWith('image-')) {
+                const index = Number(value.slice(6))
+                if (isDrawingSizeAligned(imageSizeQueries[index]?.data))
+                  setOriginalImage(inputImages[index])
                 return
               }
               const nextValue = getValidDrawingPreference(
@@ -301,6 +301,7 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
                 DRAWING_ASPECT_RATIO_VALUES
               )
               if (!nextValue) return
+              setOriginalImage('')
               setAspectRatio(nextValue)
               saveDrawingPreference(DRAWING_ASPECT_RATIO_STORAGE_KEY, nextValue)
             }}
@@ -315,13 +316,28 @@ export function DrawingInputBar(props: DrawingInputBarProps) {
                     {t(item.label)}
                   </SelectItem>
                 ))}
-                <SelectItem
-                  disabled={!originalSize}
-                  title={t('Original size is available with exactly one image')}
-                  value='original'
-                >
-                  {t('Original size')}
-                </SelectItem>
+                {inputImages.map((image, index) => (
+                  <SelectItem
+                    key={image}
+                    disabled={
+                      !isDrawingSizeAligned(imageSizeQueries[index]?.data)
+                    }
+                    title={
+                      imageSizeQueries[index]?.data &&
+                      !isDrawingSizeAligned(imageSizeQueries[index]?.data)
+                        ? t('Image width and height must be multiples of 16')
+                        : undefined
+                    }
+                    value={`image-${index}`}
+                  >
+                    {t('Image {{number}} size', { number: index + 1 })}
+                    {imageSizeQueries[index]?.data &&
+                      ` (${imageSizeQueries[index].data})`}
+                    {imageSizeQueries[index]?.data &&
+                      !isDrawingSizeAligned(imageSizeQueries[index]?.data) &&
+                      ` · ${t('Image width and height must be multiples of 16')}`}
+                  </SelectItem>
+                ))}
               </SelectGroup>
             </SelectContent>
           </Select>

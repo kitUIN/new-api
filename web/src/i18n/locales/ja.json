@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Image width and height must be multiples of 16": "画像の幅と高さは16の倍数である必要があります",
+    "Image {{number}} size": "Image {{number}} size",
+    "Image {{number}}": "Image {{number}}",
+    "Drawing resolutions": "Drawing resolutions",
+    "Invalid drawing resolutions": "Invalid drawing resolutions",
+    "Configure gpt-image as a combination group to route drawing requests to members supporting the selected resolution. Unconfigured groups support all resolutions; clearing all disables drawing for the group.": "Configure gpt-image as a combination group to route drawing requests to members supporting the selected resolution. Unconfigured groups support all resolutions; clearing all disables drawing for the group.",
     "logs.requestDetail.mode": "リクエストとレスポンスのログ",
     "logs.requestDetail.off": "無効",
     "logs.requestDetail.failed": "失敗したリクエストのみ",

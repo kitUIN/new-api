@@ -285,6 +285,11 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "group_ratio_setting.group_drawing_resolutions":
+		if err := ratio_setting.CheckGroupDrawingResolutions(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
 	case "group_ratio_setting.group_opening_hours":
 		if err := ratio_setting.CheckGroupOpeningHours(option.Value.(string)); err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})

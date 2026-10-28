@@ -226,6 +226,7 @@ export type ModelSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  'group_ratio_setting.group_drawing_resolutions': string
   'group_ratio_setting.group_opening_hours': string
   'group_ratio_setting.group_timed_ratios': string
   'group_ratio_setting.group_combinations': string
@@ -277,6 +278,7 @@ export type BillingSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  'group_ratio_setting.group_drawing_resolutions': string
   'group_ratio_setting.group_opening_hours': string
   'group_ratio_setting.group_timed_ratios': string
   'group_ratio_setting.group_combinations': string

@@ -112,11 +112,13 @@ export function Drawing() {
     queryKey: ['drawing', 'pricing'],
     queryFn: getPricing,
   })
+  const [drawingSize, setDrawingSize] = useState('1024x1024')
   const modelsQuery = useQuery({
-    queryKey: ['drawing', 'models'],
-    queryFn: listDrawingModels,
+    queryKey: ['drawing', 'models', drawingSize],
+    queryFn: () => listDrawingModels(drawingSize),
+    enabled: Boolean(drawingSize),
   })
-  const availableModels = modelsQuery.data || []
+  const availableModels = modelsQuery.data?.models || []
   const selectedModel = resolveDrawingModel(availableModels, preferredModel)
 
   useEffect(() => {
@@ -274,6 +276,7 @@ export function Drawing() {
         quotaPerUnit: Number(status?.quota_per_unit || 1),
         model: pricingModel,
         modelName: selectedModel,
+        combination: modelsQuery.data?.combination,
         groupRatio: pricingQuery.data?.group_ratio || {},
         pricingLoading: pricingQuery.isLoading,
       }),
@@ -281,6 +284,7 @@ export function Drawing() {
       authUser?.quota,
       pricingModel,
       selectedModel,
+      modelsQuery.data?.combination,
       pricingQuery.data?.group_ratio,
       pricingQuery.isLoading,
       status?.quota_per_unit,
@@ -465,6 +469,8 @@ export function Drawing() {
       </div>
 
       <DrawingInputBar
+        size={drawingSize}
+        onSizeChange={setDrawingSize}
         balanceInfo={balanceInfo}
         disabled={referencesLoading}
         hasImage={messagesState.messages.some(

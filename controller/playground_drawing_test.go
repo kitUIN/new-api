@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -83,5 +84,43 @@ func TestSubmitDrawingTaskRejectsUnavailableModels(t *testing.T) {
 			require.False(t, response.Success)
 			require.Equal(t, "所选模型不在绘图分组中或已停用", response.Message)
 		})
+	}
+}
+
+func TestDrawingEndpointsEnforceResolution(t *testing.T) {
+	db := setupDrawingModelsTest(t)
+	original := ratio_setting.GetGroupRatioSetting().GroupDrawingResolutions
+	t.Cleanup(func() { ratio_setting.GetGroupRatioSetting().GroupDrawingResolutions = original })
+	config := &ratio_setting.GroupDrawingResolutionsConfig{}
+	ratio_setting.GetGroupRatioSetting().GroupDrawingResolutions = config
+	require.NoError(t, common.Unmarshal([]byte(`{"gpt-image":["1K"]}`), config))
+	require.NoError(t, db.Create(&model.Ability{Group: drawingGroup, Model: "image", ChannelId: 1, Enabled: true}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/?size=2048x2048", nil)
+	GetDrawingModels(ctx)
+	var modelsResponse struct {
+		Success bool     `json:"success"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &modelsResponse))
+	require.True(t, modelsResponse.Success)
+	require.Empty(t, modelsResponse.Data)
+
+	// A client bypassing the model selector is still rejected before any task is saved.
+	for _, size := range []string{"2048x2048", "4096x4096", "0x1024", "8192x8192", "1025x1024", "1024x1025"} {
+		recorder = httptest.NewRecorder()
+		ctx, _ = gin.CreateTestContext(recorder)
+		body, err := common.Marshal(DrawingGenerateRequest{Prompt: "test", Model: "image", Size: size})
+		require.NoError(t, err)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		SubmitDrawingTask(ctx)
+		var response struct {
+			Success bool `json:"success"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.False(t, response.Success, size)
 	}
 }

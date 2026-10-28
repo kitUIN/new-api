@@ -50,16 +50,6 @@ func ProcessImageTask(taskId string) {
 		group = g
 	}
 
-	channel, err := model.GetRandomSatisfiedChannel(group, msg.Model, 0)
-	if err != nil {
-		failImageTask(&task, "没有可用的渠道: "+err.Error())
-		return
-	}
-	if channel == nil {
-		failImageTask(&task, fmt.Sprintf("分组 %s 下没有支持模型 %s 的渠道", group, msg.Model))
-		return
-	}
-
 	var requestPath string
 	var body []byte
 	var contentType string
@@ -105,6 +95,17 @@ func ProcessImageTask(taskId string) {
 		UnlimitedQuota: true,
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
+
+	channel, selectedGroup, err := service.ResolveDrawingChannel(c, group, msg.Model, msg.Size)
+	if err != nil {
+		failImageTask(&task, "没有可用的渠道: "+err.Error())
+		return
+	}
+	if channel == nil {
+		failImageTask(&task, fmt.Sprintf("分组 %s 下没有支持模型 %s 和尺寸 %s 的渠道", group, msg.Model, msg.Size))
+		return
+	}
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, selectedGroup)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, msg.Model)
 	if newAPIError != nil {
