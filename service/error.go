@@ -96,6 +96,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	defer func() {
 		if newApiErr != nil {
 			newApiErr.ResponseBody = string(responseBody)
+			newApiErr.UpstreamStatusCode = resp.StatusCode
 		}
 	}()
 	var errResponse dto.GeneralErrorResponse

@@ -93,6 +93,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			if newAPIError.ResponseMessage != "" {
+				newAPIError.ResponseMessage = common.MessageWithRequestId(newAPIError.ResponseMessage, requestId)
+			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIErrorForResponse())
@@ -198,6 +201,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			// Keep the confirmed quota hint when retrying has exhausted the channel pool.
+			if channelErr.GetErrorCode() == types.ErrorCodeGetChannelFailed && relayInfo.LastError != nil && relayInfo.LastError.ResponseMessage != "" {
+				newAPIError = relayInfo.LastError
+			}
 			if service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupFailure(channelErr, relayInfo), 0, false) {
 				retryParam.SetRetry(0)
 				retryParam.ResetRetryNextTry()
@@ -243,6 +250,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
+		service.SetUpstreamUsageExhaustedMessage(relayInfo.UsingGroup, newAPIError)
 		relayInfo.LastError = newAPIError
 
 		shouldRetryNow := shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())

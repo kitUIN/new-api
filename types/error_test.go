@@ -30,3 +30,17 @@ func TestResponseErrorsAreLimitedWithoutMutatingOriginalError(t *testing.T) {
 	require.Equal(t, MaxErrorMessageRunes, utf8.RuneCountInString(err.ToClaudeErrorForResponse().Message))
 	require.Equal(t, message, err.Error())
 }
+
+func TestResponseMessageOverridesBothFormatsWithoutChangingUpstreamError(t *testing.T) {
+	for _, err := range []*NewAPIError{
+		NewOpenAIError(errors.New("upstream error"), ErrorCodeBadResponseStatusCode, 503),
+		WithClaudeError(ClaudeError{Type: "api_error", Message: "upstream error"}, 503),
+	} {
+		err.ResponseMessage = strings.Repeat("限额已用光", 150)
+		require.Equal(t, LimitErrorMessageForResponse(err.ResponseMessage), err.ToOpenAIErrorForResponse().Message)
+		require.Equal(t, LimitErrorMessageForResponse(err.ResponseMessage), err.ToClaudeErrorForResponse().Message)
+		require.Equal(t, "upstream error", err.Error())
+		require.Equal(t, "upstream error", err.ToOpenAIError().Message)
+		require.Equal(t, "upstream error", err.ToClaudeError().Message)
+	}
+}

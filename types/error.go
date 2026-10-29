@@ -97,15 +97,18 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
-	ResponseBody   string
+	Err                error
+	RelayError         any
+	skipRetry          bool
+	recordErrorLog     *bool
+	errorType          ErrorType
+	errorCode          ErrorCode
+	StatusCode         int
+	Metadata           json.RawMessage
+	ResponseBody       string
+	UpstreamStatusCode int
+	// ResponseMessage overrides only the client message, preserving upstream errors for retries and logs.
+	ResponseMessage string
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -222,6 +225,9 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 
 func (e *NewAPIError) ToOpenAIErrorForResponse() OpenAIError {
 	result := e.ToOpenAIError()
+	if e.ResponseMessage != "" {
+		result.Message = e.ResponseMessage
+	}
 	result.Message = LimitErrorMessageForResponse(result.Message)
 	return result
 }
@@ -257,6 +263,9 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 
 func (e *NewAPIError) ToClaudeErrorForResponse() ClaudeError {
 	result := e.ToClaudeError()
+	if e.ResponseMessage != "" {
+		result.Message = e.ResponseMessage
+	}
 	result.Message = LimitErrorMessageForResponse(result.Message)
 	return result
 }
