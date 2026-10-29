@@ -30,7 +30,6 @@ import {
   SquarePen,
   FileText,
   Zap,
-  WandSparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -83,6 +82,7 @@ import {
 import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
+import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
 export interface DetailSegment {
@@ -99,18 +99,6 @@ function FastModeIcon({ label }: { label: string }) {
       title={label}
     >
       <Zap className='size-3 fill-current' aria-hidden='true' />
-    </span>
-  )
-}
-
-function ReasoningEffortAutoIcon({ label }: { label: string }) {
-  return (
-    <span
-      className='text-muted-foreground inline-flex shrink-0 items-center'
-      aria-label={label}
-      title={label}
-    >
-      <WandSparkles className='size-3' aria-hidden='true' />
     </span>
   )
 }
@@ -1235,7 +1223,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const other = parseLogOther(log.other)
         const effort = other?.reasoning_effort
-        if (!effort) return <span className='text-muted-foreground/40'>-</span>
+        if (!effort)
+          return <span className='text-muted-foreground'>{t('未记录')}</span>
 
         return (
           <div className='flex items-center gap-1'>
@@ -1245,11 +1234,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               size='sm'
               copyable={false}
             />
-            {other?.reasoning_effort_auto && (
-              <ReasoningEffortAutoIcon
-                label={t('Reasoning effort not specified, auto-selected')}
-              />
-            )}
+            {other?.reasoning_effort_auto && <ReasoningEffortAutoIcon />}
           </div>
         )
       },

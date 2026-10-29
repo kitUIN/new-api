@@ -330,16 +330,6 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			request.LogProbs = nil
 		}
 
-		// 转换模型推理力度后缀
-		effort, originModel := parseReasoningEffortFromModelSuffix(info.UpstreamModelName)
-		if effort != "" {
-			request.ReasoningEffort = effort
-			info.UpstreamModelName = originModel
-			request.Model = originModel
-		}
-
-		info.ReasoningEffort = request.ReasoningEffort
-
 		// o系列模型developer适配（o1-mini除外）
 		if !strings.HasPrefix(info.UpstreamModelName, "o1-mini") && !strings.HasPrefix(info.UpstreamModelName, "o1-preview") {
 			//修改第一个Message的内容，将system改为developer
@@ -349,7 +339,39 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
+	isReasoningModel := strings.HasPrefix(info.UpstreamModelName, "o") ||
+		strings.HasPrefix(info.UpstreamModelName, "gpt-5") || strings.HasPrefix(info.UpstreamModelName, "gpt-6")
+	if isReasoningModel {
+		// 先解析模型后缀，保留后缀指定的思考等级优先级。
+		effort, originModel := parseReasoningEffortFromModelSuffix(info.UpstreamModelName)
+		if effort != "" {
+			request.ReasoningEffort = effort
+			info.UpstreamModelName = originModel
+			request.Model = originModel
+		}
+	}
+	if info.ChannelType == constant.ChannelTypeOpenAI || info.ChannelType == constant.ChannelTypeAzure {
+		info.ReasoningEffortAuto = false
+		if supportsDefaultReasoningEffort(info.UpstreamModelName) &&
+			(request.ReasoningEffort == "" || request.ReasoningEffort == "none") {
+			request.ReasoningEffort = "high"
+			info.ReasoningEffortAuto = true
+		}
+		info.ReasoningEffort = request.ReasoningEffort
+	} else if isReasoningModel {
+		info.ReasoningEffort = request.ReasoningEffort
+	}
+
 	return request, nil
+}
+
+func supportsDefaultReasoningEffort(model string) bool {
+	// 旧版 o1 和 chat-latest 模型不支持此参数，不自动添加。
+	if strings.HasPrefix(model, "o1-mini") || strings.HasPrefix(model, "o1-preview") || strings.Contains(model, "-chat") {
+		return false
+	}
+	return strings.HasPrefix(model, "o1") || strings.HasPrefix(model, "o3") || strings.HasPrefix(model, "o4") ||
+		strings.HasPrefix(model, "gpt-5") || strings.HasPrefix(model, "gpt-6")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -587,12 +609,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		}
 		request.Model = originModel
 	}
-	// 请求未指定思考等级时默认使用 high，避免上游回落到不被支持的 none
+	// 请求未指定思考等级或显式指定 none 时使用 high，避免上游拒绝 none
 	autoEffort := false
 	if request.Reasoning == nil {
 		request.Reasoning = &dto.Reasoning{Effort: "high"}
 		autoEffort = true
-	} else if request.Reasoning.Effort == "" {
+	} else if request.Reasoning.Effort == "" || request.Reasoning.Effort == "none" {
 		request.Reasoning.Effort = "high"
 		autoEffort = true
 	}

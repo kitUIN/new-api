@@ -170,9 +170,8 @@ function getCommonLogCell(
         : modelName
     }
     case 'reasoning_effort':
-      return displayable && other?.reasoning_effort
-        ? context.t(other.reasoning_effort)
-        : '-'
+      if (!displayable) return '-'
+      return context.t(other?.reasoning_effort || '未记录')
     case 'use_time': {
       if (!isTimingLogType(log.type)) return ''
       const tokensPerSecond =

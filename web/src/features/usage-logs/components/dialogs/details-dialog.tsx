@@ -29,7 +29,6 @@ import {
   ShieldCheck,
   UserCog,
   Info,
-  WandSparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -71,6 +70,7 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData, UsageLog } from '../../types'
+import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
 import { RelayTimingSection } from './relay-timing-section'
 
 function timingTextColorClass(
@@ -920,6 +920,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
 
             {/* Reasoning effort */}
+            {(isConsume || isError) && !other?.reasoning_effort && (
+              <DetailRow
+                label={t('Reasoning Effort')}
+                value={t('未记录')}
+                muted
+              />
+            )}
             {other?.reasoning_effort && (
               <DetailRow
                 label={t('Reasoning Effort')}
@@ -937,19 +944,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                       size='sm'
                       copyable={false}
                     />
-                    {other.reasoning_effort_auto && (
-                      <span
-                        className='text-muted-foreground inline-flex items-center'
-                        aria-label={t(
-                          'Reasoning effort not specified, auto-selected'
-                        )}
-                        title={t(
-                          'Reasoning effort not specified, auto-selected'
-                        )}
-                      >
-                        <WandSparkles className='size-3' aria-hidden='true' />
-                      </span>
-                    )}
+                    {other.reasoning_effort_auto && <ReasoningEffortAutoIcon />}
                   </span>
                 }
               />
