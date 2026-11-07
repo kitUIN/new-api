@@ -21,6 +21,10 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.GET("/ticket/:id/attachments/:attachment_id", middleware.UserAuth(), middleware.TicketAttachmentRateLimit(), controller.GetTicketImage)
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
+		serviceProbes := apiRouter.Group("/service-probes", middleware.AdminAuth())
+		serviceProbes.GET("", controller.GetServiceProbes)
+		serviceProbes.GET("/:id/current", controller.GetServiceProbeCurrent)
+		serviceProbes.GET("/:id/history", controller.GetServiceProbeHistory)
 		upstreamUsage := apiRouter.Group("/upstream-usage", middleware.AdminAuth())
 		upstreamUsage.GET("", controller.GetUpstreamUsage)
 		upstreamUsage.POST("", controller.SaveUpstreamUsage)
@@ -224,6 +228,8 @@ func SetApiRouter(router *gin.Engine) {
 		optionRoute.Use(middleware.RootAuth())
 		{
 			optionRoute.GET("/", controller.GetOptions)
+			optionRoute.GET("/service-probes", controller.GetServiceProbeSettings)
+			optionRoute.PUT("/service-probes", controller.SaveServiceProbeSettings)
 			optionRoute.PUT("/", controller.UpdateOption)
 			optionRoute.GET("/group_combination_circuit_breakers", controller.GetGroupCombinationCircuitBreakers)
 			optionRoute.POST("/group_combination_circuit_breakers/reset", controller.ResetGroupCombinationCircuitBreaker)

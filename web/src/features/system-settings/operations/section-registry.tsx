@@ -23,11 +23,17 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { RelayAssetSection } from '../maintenance/relay-asset-section'
+import { ServiceProbeSection } from '../maintenance/service-probe-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
 const OPERATIONS_SECTIONS = [
+  {
+    id: 'service-probes',
+    titleKey: 'serviceProbe.title',
+    build: () => <ServiceProbeSection />,
+  },
   {
     id: 'relay-assets',
     titleKey: 'Temporary URL cache',

@@ -262,6 +262,9 @@ func UpdateOption(key string, value string) error {
 		}
 		key, value = "LogRequestDetailMode", strconv.Itoa(int(mode))
 	}
+	if strings.EqualFold(strings.TrimSpace(key), ServiceProbeConfigOption) {
+		return errors.New("service probe configuration must be changed through service probe settings")
+	}
 	// MySQL option keys may use a case-insensitive, space-padding collation.
 	if strings.EqualFold(strings.TrimSpace(key), sessionSecretOptionKey) {
 		return errors.New("session secret cannot be changed through options; configure SESSION_SECRET and restart instead")

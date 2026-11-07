@@ -20,6 +20,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
+import { ROLE } from '@/lib/roles'
 import { useStatus } from '@/hooks/use-status'
 
 export type TopNavLink = {
@@ -94,6 +95,10 @@ export function useTopNavLinks(): TopNavLink[] {
       href: '/group-health',
       requiresAuth,
     })
+  }
+
+  if (auth.user && auth.user.role >= ROLE.ADMIN) {
+    links.push({ title: t('serviceProbe.title'), href: '/service-probes' })
   }
 
   // Docs (supports external links)
