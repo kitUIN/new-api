@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -59,6 +60,11 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	request, err := common.DeepCopy(responsesReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	// Retain background only for the WebSocket transport's validation. The
+	// existing HTTP conversion does not support background-response polling.
+	if !channel.UseResponsesWebSocket(info) {
+		request.Background = nil
 	}
 	filteredResponsesToolTypes := getFilteredResponsesToolTypes(info.ChannelOtherSettings)
 	if len(filteredResponsesToolTypes) > 0 {

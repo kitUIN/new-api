@@ -289,6 +289,10 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	info.UpstreamTransport = types.RelayTransportHTTP
+	if UseResponsesWebSocket(info) && info.RelayMode == constant.RelayModeResponses {
+		return doResponsesWebSocketRequest(a, c, info, requestBody)
+	}
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
@@ -353,24 +357,32 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 }
 
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
+	conn, response, err := dialWebSocket(a, c, info)
+	if err != nil && response != nil && response.Body != nil {
+		_ = response.Body.Close()
+	}
+	return conn, err
+}
+
+func dialWebSocket(a Adaptor, c *gin.Context, info *common.RelayInfo) (*websocket.Conn, *http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+		return nil, nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	fullRequestURL, err = ToWebSocketURL(fullRequestURL)
 	if err != nil {
-		return nil, fmt.Errorf("convert websocket request url failed: %w", err)
+		return nil, nil, fmt.Errorf("convert websocket request url failed: %w", err)
 	}
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
+		return nil, nil, fmt.Errorf("setup request header failed: %w", err)
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
 	headerOverride, err := processHeaderOverride(info, c)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for key, value := range headerOverride {
 		targetHeader.Set(key, value)
@@ -382,7 +394,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if info.ChannelSetting.Proxy != "" {
 		proxyClient, proxyErr := service.NewProxyHttpClient(info.ChannelSetting.Proxy)
 		if proxyErr != nil {
-			return nil, fmt.Errorf("create websocket proxy client failed: %w", proxyErr)
+			return nil, nil, fmt.Errorf("create websocket proxy client failed: %w", proxyErr)
 		}
 		if transport, ok := proxyClient.Transport.(*http.Transport); ok && transport != nil {
 			dialer.Proxy = transport.Proxy
@@ -395,16 +407,13 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	targetConn, response, err := dialer.DialContext(c.Request.Context(), fullRequestURL, targetHeader)
 	if err != nil {
 		info.MarkUpstreamRequestEnd()
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
+		return nil, response, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
 	}
 	info.MarkUpstreamResponseHeader()
 	// send request body
 	//all, err := io.ReadAll(requestBody)
 	//err = service.WssString(c, targetConn, string(all))
-	return targetConn, nil
+	return targetConn, response, nil
 }
 
 func ToWebSocketURL(rawURL string) (string, error) {

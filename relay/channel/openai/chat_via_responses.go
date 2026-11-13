@@ -102,13 +102,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	model := info.UpstreamModelName
 
 	var (
-		usage       = &dto.Usage{}
-		outputText  strings.Builder
-		usageText   strings.Builder
-		sentStart   bool
-		sentStop    bool
-		sawToolCall bool
-		streamErr   *types.NewAPIError
+		usage            = &dto.Usage{}
+		outputText       strings.Builder
+		usageText        strings.Builder
+		sentStart        bool
+		sentStop         bool
+		sawToolCall      bool
+		receivedTerminal bool
+		streamErr        *types.NewAPIError
 	)
 
 	toolCallIndexByID := make(map[string]int)
@@ -308,6 +309,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			sr.Error(err)
 			return
 		}
+		if streamErr = responsesStreamEventError(streamResp); streamErr != nil {
+			sr.Stop(streamErr)
+			return
+		}
 
 		switch streamResp.Type {
 		case "response.created":
@@ -442,7 +447,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		case "response.function_call_arguments.done":
 
-		case "response.completed":
+		case "response.completed", "response.incomplete":
+			receivedTerminal = true
 			if streamResp.Response != nil {
 				if streamResp.Response.Model != "" {
 					model = streamResp.Response.Model
@@ -487,6 +493,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				if sawToolCall && outputText.Len() == 0 {
 					finishReason = "tool_calls"
 				}
+				if streamResp.Type == "response.incomplete" {
+					finishReason = "length"
+				}
 				stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
 				if !sendChatChunk(stop) {
 					sr.Stop(streamErr)
@@ -495,23 +504,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				sentStop = true
 			}
 
-		case "response.error", "response.failed":
-			if streamResp.Response != nil {
-				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
-					sr.Stop(streamErr)
-					return
-				}
-			}
-			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
-			sr.Stop(streamErr)
-			return
-
 		default:
 		}
 	})
 
 	if streamErr != nil {
+		return nil, streamErr
+	}
+	if streamErr = responsesWebSocketStreamEndError(info, receivedTerminal); streamErr != nil {
 		return nil, streamErr
 	}
 

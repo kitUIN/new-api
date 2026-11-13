@@ -168,6 +168,9 @@ func AppendRelayTransportInfo(relayInfo *relaycommon.RelayInfo, other map[string
 	if relayInfo.Transport == types.RelayTransportWebSocket {
 		other["ws"] = true
 	}
+	if relayInfo.UpstreamTransport == types.RelayTransportWebSocket {
+		other["upstream_ws"] = true
+	}
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

@@ -55,6 +55,8 @@ web/           — React frontend
 
 For group timed pricing, use `ratio_setting.ResolveGroupRatioAt` for effective billing and routing ratios and preserve the matched window in billing/log snapshots. Keep base ratio getters for configuration and upstream synchronization. See `docs/group-timed-ratios.md` for scheduling and precedence rules.
 
+For upstream Responses WebSocket transport, keep `use_responses_websocket` independent from the client's transport and `supports_responses_websocket`. Preserve HTTP/SSE response formats and billing when bridging requests. See `docs/responses-websocket.md` for channel settings and conversion limits.
+
 ### Rule 1: JSON Package — Use `common/json.go`
 
 All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:

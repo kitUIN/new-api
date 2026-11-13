@@ -3776,6 +3776,8 @@
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
     "Enable Responses web search tool": "Включить инструмент веб-поиска Responses",
     "Turn off to remove web_search tools before forwarding Responses requests upstream": "Отключите, чтобы удалять инструменты web_search перед отправкой запросов Responses вышестоящему провайдеру",
+    "Use WebSocket for upstream requests": "Использовать WebSocket для запросов к провайдеру",
+    "Send Responses requests over WebSocket and automatically convert Chat Completions; clients keep HTTP/SSE. Overrides body passthrough for Chat Completions.": "Отправлять запросы Responses через WebSocket и автоматически преобразовывать Chat Completions; клиенты сохраняют HTTP/SSE. Имеет приоритет над прямой передачей тела Chat Completions.",
     "Enable Responses WebSocket": "Включить Responses WebSocket",
     "Allow this channel to relay GET /v1/responses WebSocket connections": "Разрешить этому каналу ретранслировать WebSocket-подключения GET /v1/responses",
     "Restore defaults": "Сбросить к значениям по умолчанию",

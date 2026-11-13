@@ -29,6 +29,7 @@ type ChannelOtherSettings struct {
 	DisableClaudeCode                     bool          `json:"disable_claude_code,omitempty"`
 	AzureResponsesVersion                 string        `json:"azure_responses_version,omitempty"`
 	SupportsResponsesWebSocket            *bool         `json:"supports_responses_websocket,omitempty"`
+	UseResponsesWebSocket                 bool          `json:"use_responses_websocket,omitempty"`
 	VertexKeyType                         VertexKeyType `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 	OpenRouterEnterprise                  *bool         `json:"openrouter_enterprise,omitempty"`
 	ClaudeBetaQuery                       bool          `json:"claude_beta_query,omitempty"`         // Claude 渠道是否强制追加 ?beta=true

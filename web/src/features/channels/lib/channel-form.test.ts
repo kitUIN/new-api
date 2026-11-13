@@ -28,6 +28,57 @@ import {
   transformProviderToCreateDefaults,
 } from './channel-form'
 
+test('upstream WebSocket defaults off and survives channel settings round trips', () => {
+  assert.equal(CHANNEL_FORM_DEFAULT_VALUES.use_responses_websocket, false)
+  for (const type of [1, 3, 57]) {
+    const form = channelFormSchema.parse({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      type,
+      name: 'Upstream WebSocket',
+      base_url: 'https://upstream.example',
+      models: 'gpt-test',
+      key: JSON.stringify({
+        access_token: 'test-token',
+        account_id: 'test-account',
+      }),
+      other: 'test',
+      remark: 'test',
+      use_responses_websocket: true,
+      supports_responses_websocket: false,
+      settings: JSON.stringify({ custom_setting: 'preserved' }),
+    })
+    const payload = transformFormDataToCreatePayload(form).channel
+    const settings = JSON.parse(payload.settings!)
+    assert.equal(settings.use_responses_websocket, true)
+    assert.equal(settings.supports_responses_websocket, false)
+    const stored = channelSchema.parse({
+      ...payload,
+      id: 1,
+      created_time: 0,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+    })
+    const edit = transformChannelToFormDefaults(stored)
+    assert.equal(edit.use_responses_websocket, true)
+    assert.equal(edit.supports_responses_websocket, false)
+    assert.equal(
+      transformChannelToFormDefaults({ ...stored, settings: '{}' })
+        .use_responses_websocket,
+      false
+    )
+    for (const update of [
+      { ...edit, use_responses_websocket: false },
+      { ...edit, type: 14 },
+    ]) {
+      const updated = transformFormDataToUpdatePayload(update, stored.id)
+      const settings = JSON.parse(updated.settings!)
+      assert.equal(settings.use_responses_websocket, undefined)
+      assert.equal(settings.custom_setting, 'preserved')
+    }
+  }
+})
+
 test('Claude Code restriction survives create, edit, channel type change and disable', () => {
   for (const type of [1, 14, 33]) {
     const form = channelFormSchema.parse({

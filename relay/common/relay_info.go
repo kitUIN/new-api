@@ -105,25 +105,25 @@ type RelayInfo struct {
 	upstreamTimingMu           sync.Mutex
 	isFirstResponse            bool
 	//SendLastReasoningResponse bool
-	IsStream                      bool
-	IsGeminiBatchEmbedding        bool
-	IsCountTokens                 bool
-	IsPlayground                  bool
-	UsePrice                      bool
-	RelayMode                     int
-	OriginModelName               string
-	RequestURLPath                string
-	RequestHeaders                map[string]string
-	ShouldIncludeUsage            bool
-	DisablePing                   bool // 是否禁止向下游发送自定义 Ping
-	ClientWs                      *websocket.Conn
-	TargetWs                      *websocket.Conn
-	InputAudioFormat              string
-	OutputAudioFormat             string
-	RealtimeTools                 []dto.RealTimeTool
-	IsFirstRequest                bool
-	AudioUsage                    bool
-	ReasoningEffort               string
+	IsStream               bool
+	IsGeminiBatchEmbedding bool
+	IsCountTokens          bool
+	IsPlayground           bool
+	UsePrice               bool
+	RelayMode              int
+	OriginModelName        string
+	RequestURLPath         string
+	RequestHeaders         map[string]string
+	ShouldIncludeUsage     bool
+	DisablePing            bool // 是否禁止向下游发送自定义 Ping
+	ClientWs               *websocket.Conn
+	TargetWs               *websocket.Conn
+	InputAudioFormat       string
+	OutputAudioFormat      string
+	RealtimeTools          []dto.RealTimeTool
+	IsFirstRequest         bool
+	AudioUsage             bool
+	ReasoningEffort        string
 	// ReasoningEffortAuto 表示思考等级由系统自动填充或调整
 	ReasoningEffortAuto           bool
 	ServiceTier                   string
@@ -134,6 +134,7 @@ type RelayInfo struct {
 	UserQuota                     int
 	RelayFormat                   types.RelayFormat
 	Transport                     types.RelayTransport
+	UpstreamTransport             types.RelayTransport
 	ResponsesWebSocketState       string
 	SendResponseCount             int
 	ReceivedResponseCount         int

@@ -491,6 +491,8 @@ const (
 // ResponsesStreamResponse 用于处理 /v1/responses 流式响应
 type ResponsesStreamResponse struct {
 	Type            string                   `json:"type"`
+	Error           *types.OpenAIError       `json:"error,omitempty"`
+	Status          int                      `json:"status,omitempty"`
 	Response        *OpenAIResponsesResponse `json:"response,omitempty"`
 	Code            string                   `json:"code,omitempty"`
 	Message         string                   `json:"message,omitempty"`

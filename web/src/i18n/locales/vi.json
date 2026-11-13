@@ -3776,6 +3776,8 @@
     "Remove image_generation tools before forwarding Responses requests upstream": "转发 Responses 请求到上游前移除 image_generation 工具",
     "Enable Responses web search tool": "Bật công cụ tìm kiếm web của Responses",
     "Turn off to remove web_search tools before forwarding Responses requests upstream": "Tắt để xóa công cụ web_search trước khi chuyển tiếp yêu cầu Responses đến thượng nguồn",
+    "Use WebSocket for upstream requests": "Dùng WebSocket để kết nối máy chủ thượng nguồn",
+    "Send Responses requests over WebSocket and automatically convert Chat Completions; clients keep HTTP/SSE. Overrides body passthrough for Chat Completions.": "Gửi yêu cầu Responses qua WebSocket và tự động chuyển đổi Chat Completions; máy khách vẫn dùng HTTP/SSE. Ghi đè chế độ chuyển tiếp nguyên nội dung yêu cầu Chat Completions.",
     "Enable Responses WebSocket": "Bật Responses WebSocket",
     "Allow this channel to relay GET /v1/responses WebSocket connections": "Cho phép kênh này chuyển tiếp kết nối WebSocket GET /v1/responses",
     "Restore defaults": "Khôi phục mặc định",

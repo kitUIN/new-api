@@ -342,6 +342,7 @@ export const channelFormSchema = z
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
     supports_responses_websocket: z.boolean().optional(), // Responses WebSocket capability
+    use_responses_websocket: z.boolean().optional(),
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
     disable_store: z.boolean().optional(), // OpenAI only
@@ -527,6 +528,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
   supports_responses_websocket: true,
+  use_responses_websocket: false,
   // Field passthrough controls
   allow_service_tier: false,
   disable_store: false,
@@ -802,6 +804,7 @@ export function transformChannelToFormDefaults(
   let responsesImageGenerationToolFilterEnabled = true
   let responsesWebSearchToolEnabled = true
   let supportsResponsesWebSocket = true
+  let useResponsesWebSocket = false
   let autoTestEnabled = true
   let disableClaudeCode = false
   let allowInferenceGeo = false
@@ -831,6 +834,7 @@ export function transformChannelToFormDefaults(
     responsesWebSearchToolEnabled =
       parsed.disable_responses_web_search_tool !== true
     supportsResponsesWebSocket = parsed.supports_responses_websocket !== false
+    useResponsesWebSocket = parsed.use_responses_websocket === true
     autoTestEnabled = parsed.auto_test_enabled !== false
     disableClaudeCode = parsed.disable_claude_code === true
     allowInferenceGeo = parsed.allow_inference_geo === true
@@ -892,6 +896,7 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     supports_responses_websocket: supportsResponsesWebSocket,
+    use_responses_websocket: useResponsesWebSocket,
     aws_key_type: awsKeyType,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
@@ -1029,6 +1034,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('supports_responses_websocket' in settingsObj) {
     delete settingsObj.supports_responses_websocket
+  }
+
+  if (
+    (formData.type === 1 || formData.type === 3 || formData.type === 57) &&
+    formData.use_responses_websocket === true
+  ) {
+    settingsObj.use_responses_websocket = true
+  } else {
+    delete settingsObj.use_responses_websocket
   }
 
   if (formData.auto_test_enabled === false) {

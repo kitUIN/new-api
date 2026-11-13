@@ -14,6 +14,32 @@
 
 该能力默认开启；旧渠道未保存该字段时也视为开启，只有显式设为 `false` 才会关闭。上游地址会按连接临时从 `https/http` 转换为 `wss/ws`，不会修改渠道保存的 Base URL。
 
+## HTTP/SSE 客户端使用 WebSocket 上游
+
+OpenAI、Azure、Codex 渠道新增“上游使用 WebSocket 连接”开关，默认关闭。开启后：
+
+- `POST /v1/responses` 通过 WebSocket 向上游发送 `response.create`。
+- `POST /v1/chat/completions` 自动转换为 Responses 请求并使用 WebSocket，上游结果转换回 Chat Completions 格式；该开关优先于全局转换策略以及 Chat Completions 的请求体透传设置。
+- 客户端 `stream: true` 仍接收 SSE，非流式请求仍接收 JSON；沿用原有用量结算流程。
+- 复用渠道的 Base URL、鉴权、代理和请求头覆盖设置，不需要填写 `ws://` 或 `wss://` 地址。
+- `response.completed`、`response.incomplete` 结束当前请求并按 usage 结算；流开始后的错误和非正常断连不会重试生成。
+- `background: true` 不支持；`background: false`、`stream` 和 `stream_options` 在发送 WebSocket 请求前移除，其余参数保留显式零值和 `false`。
+- `/v1/responses/compact` 和其他 API 保持原有连接方式。上游不支持 WebSocket 时返回错误，不自动回退 HTTP。
+
+渠道 `settings` JSON 对应字段：
+
+```json
+{
+  "use_responses_websocket": true
+}
+```
+
+该开关与控制客户端 `GET /v1/responses` 的 `supports_responses_websocket` 独立。消费日志附加 `upstream_ws: true`，客户端 HTTP 请求不会被标记为客户端 WebSocket。
+
+每个 HTTP 请求建立独立的上游 WebSocket，完成或客户端断开后关闭。不会跨 HTTP 请求复用连接，因此 `previous_response_id` 能否续接取决于上游是否持久化该响应，不能依赖上一连接的临时缓存。
+
+协议参考：[OpenAI Responses WebSocket mode](https://developers.openai.com/api/docs/guides/websocket-mode)。
+
 ## Codex 配置
 
 ```toml

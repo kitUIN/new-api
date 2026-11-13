@@ -4096,6 +4096,37 @@ export function ChannelMutateDrawer({
                               />
                             )}
 
+                            {(currentType === 1 ||
+                              currentType === 3 ||
+                              currentType === 57) && (
+                              <FormField
+                                control={form.control}
+                                name='use_responses_websocket'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel className='text-sm'>
+                                        {t(
+                                          'Use WebSocket for upstream requests'
+                                        )}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Send Responses requests over WebSocket and automatically convert Chat Completions; clients keep HTTP/SSE. Overrides body passthrough for Chat Completions.'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
                             {(currentType === 1 || currentType === 57) && (
                               <>
                                 <FormField

@@ -78,6 +78,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var streamErr *types.NewAPIError
+	var receivedTerminal bool
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -88,9 +90,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
+		if streamErr = responsesStreamEventError(streamResponse); streamErr != nil {
+			sr.Stop(streamErr)
+			return
+		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
-		case "response.completed":
+		case "response.completed", "response.incomplete":
+			receivedTerminal = true
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -129,6 +136,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if streamErr = responsesWebSocketStreamEndError(info, receivedTerminal); streamErr != nil {
+		return nil, streamErr
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
@@ -147,4 +160,36 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func responsesStreamEventError(event dto.ResponsesStreamResponse) *types.NewAPIError {
+	if event.Type != "error" && event.Type != "response.error" && event.Type != "response.failed" {
+		return nil
+	}
+	upstreamError := event.Error
+	if upstreamError == nil && event.Response != nil {
+		upstreamError = event.Response.GetOpenAIError()
+	}
+	if upstreamError == nil {
+		upstreamError = &types.OpenAIError{Code: event.Code, Message: event.Message}
+	}
+	if upstreamError.Type == "" {
+		upstreamError.Type = "upstream_error"
+	}
+	if upstreamError.Message == "" {
+		upstreamError.Message = "Responses stream returned " + event.Type
+	}
+	status := event.Status
+	if status < 400 || status > 599 {
+		status = http.StatusBadGateway
+	}
+	return types.WithOpenAIError(*upstreamError, status, types.ErrOptionWithSkipRetry())
+}
+
+func responsesWebSocketStreamEndError(info *relaycommon.RelayInfo, receivedTerminal bool) *types.NewAPIError {
+	if info.UpstreamTransport != types.RelayTransportWebSocket || receivedTerminal {
+		return nil
+	}
+	return types.NewErrorWithStatusCode(fmt.Errorf("upstream Responses WebSocket ended without a completed response"),
+		types.ErrorCodeBadResponse, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
 }
