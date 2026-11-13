@@ -77,7 +77,7 @@ supports_websockets = true
 - `background` 不受支持；只要传入该字段就会返回参数错误。
 - `generate: false` 用于预热，并保留显式 `false`。
 - `stream_id` 及未识别的 WebSocket 信封字段会原样保留。
-- 单连接同一时刻只允许一个活动回合；并行请求需建立多个连接。
+- 单连接同一时刻只允许一个活动回合；生成期间允许 `response.steer` 插话，独立并行请求需建立多个连接。
 - 单连接最长保持 60 分钟，到期后客户端需重新建立连接。
 
 握手后的错误使用 Responses WebSocket 事件返回：
@@ -94,3 +94,25 @@ supports_websockets = true
 ```
 
 一个连接可以顺序执行多个回合。`response.completed` 和 `response.incomplete` 会按实际 usage 结算，`response.failed`、终止 `error` 或连接中断会退回尚未结算的预扣额度。每个生成回合单独记录消费日志；零 usage 的 `generate: false` 预热回合不生成消费结算记录。
+
+## 执行中插话（Mid-turn steering）
+
+收到 `response.created` 后，可以在同一连接上向最近一次响应发送补充指令：
+
+```json
+{
+  "type": "response.steer",
+  "previous_response_id": "resp_123",
+  "input": "请同时补充错误处理和测试。"
+}
+```
+
+- 首条消息仍必须是包含模型的 `response.create`。`response.steer` 只接受 `type`、`previous_response_id` 和 `input`，不会添加模型、`stream_id` 或渠道参数覆盖。
+- `input` 可以是字符串或非空的 user 消息数组，内容支持 `input_text`、`input_image`、`input_file`；沿用敏感词检查。网关最多保留 128 条未处理插话，合计 input 不超过 16 MiB。
+- `response.steer.accepted` 只表示上游接受并排队。继续读取原响应及后续响应，不要重复提交已接受的指令。
+- 原响应可能以 `response.incomplete`（reason 为 `steered`）或 `response.completed` 结束。上游自动发出的续接 `response.created` 会使用原请求设置建立独立计费回合；网关不会再向上游发送一次 create。
+- 自动续接在收到 `response.created` 时进行价格和额度检查，通过后才向客户端转发。检查失败会返回相应错误并关闭连接，停止上游生成；已经完成的原回合仍按实际 usage 结算。
+- 如果需要客户端工具结果或审批，上游通过 `response.steer.pending` 通知。按正常流程发送带相同 `previous_response_id` 的 `response.create`，由上游加入已排队的插话；该显式请求使用自己的参数。工具结果可以在 pending 通知到达之前提交。
+- `response.steer.failed` 原样转发，只表示该条插话失败，不会退回或结束仍在生成的原回合。断开连接时，尚未结算的活动回合按原有规则退款。
+
+实际插话能力由上游及模型决定；不支持时会返回上游的 `steering_not_supported` 等错误。协议参考：[OpenAI Mid-turn steering](https://developers.openai.com/api/docs/guides/steering)。

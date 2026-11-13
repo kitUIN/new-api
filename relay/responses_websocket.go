@@ -130,6 +130,7 @@ type responsesWebSocketSession struct {
 	round           *relaycommon.RelayInfo
 	roundNumber     int64
 	connectionModel string
+	steering        responsesWebSocketSteering
 }
 
 func RunResponsesWebSocket(c *gin.Context, info *relaycommon.RelayInfo, firstFrame []byte) error {
@@ -207,7 +208,12 @@ func RunResponsesWebSocket(c *gin.Context, info *relaycommon.RelayInfo, firstFra
 			}
 			if err := session.handleUpstreamFrame(frame.messageType, frame.data); err != nil {
 				session.refundRound()
-				_ = WriteResponsesWebSocketError(c, session.client, http.StatusBadGateway, string(types.ErrorCodeBadResponse), err)
+				var apiErr *types.NewAPIError
+				if errors.As(err, &apiErr) {
+					_ = WriteResponsesWebSocketError(c, session.client, apiErr.StatusCode, string(apiErr.GetErrorCode()), apiErr)
+				} else {
+					_ = WriteResponsesWebSocketError(c, session.client, http.StatusBadGateway, string(types.ErrorCodeBadResponse), err)
+				}
 				return err
 			}
 		case <-pingTicker.C:
@@ -264,12 +270,24 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 	if messageType != websocket.TextMessage {
 		return types.NewErrorWithStatusCode(errors.New("only text WebSocket messages are supported"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	if s.state != responsesWebSocketStateIdle {
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := common.Unmarshal(data, &envelope); err != nil {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if envelope.Type == dto.OpenAIResponsesWebSocketEventTypeSteer {
+		return s.handleSteer(data)
+	}
+	if s.state != responsesWebSocketStateIdle || (len(s.steering.pending) > 0 && !s.steering.waitingForInput) {
 		return types.NewErrorWithStatusCode(errors.New("a response is already in progress on this connection"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
 	}
 	event, err := dto.ParseOpenAIResponsesWebSocketEvent(data)
 	if err != nil {
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if len(s.steering.pending) > 0 && event.PreviousResponseID != s.steering.responseID {
+		return types.NewErrorWithStatusCode(errors.New("pending steering requires a response.create with the same previous_response_id"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	if event.Model == "" {
 		event.Model = s.connectionModel
@@ -290,13 +308,44 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 		return types.NewErrorWithStatusCode(errors.New("background is not supported in Responses WebSocket mode"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	round, payload, apiErr := prepareResponsesWebSocketRound(s.c, s.connectionInfo, event, data, s.roundNumber+1)
+	payload, apiErr := s.startRound(event, data, true)
 	if apiErr != nil {
 		return apiErr
 	}
+	_ = s.upstream.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	if err = s.upstream.WriteMessage(websocket.TextMessage, payload); err != nil {
+		s.refundRound()
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
+	}
+	return nil
+}
+
+func (s *responsesWebSocketSession) startRound(event *dto.OpenAIResponsesWebSocketEvent, data []byte, includePendingInput bool) ([]byte, *types.NewAPIError) {
+	round, payload, apiErr := prepareResponsesWebSocketRound(s.c, s.connectionInfo, event, data, s.roundNumber+1)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	if includePendingInput && len(s.steering.pending) > 0 {
+		// The server prepends queued steering to an explicit tool-result create.
+		// Include it in billing estimates without sending it upstream twice.
+		request, err := common.DeepCopy(&event.OpenAIResponsesRequest)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		request.Input, err = s.steering.continuationInput(event.Input)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		round.Request = request
+		billingInput, err := helper.BuildBillingExprRequestInputFromRequest(request, round.RequestHeaders)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		round.BillingRequestInput = &billingInput
+	}
 	generate := event.Generate == nil || *event.Generate
 	if apiErr = preConsumeResponsesWebSocketRound(s.c, round, generate); apiErr != nil {
-		return apiErr
+		return nil, apiErr
 	}
 	s.roundNumber++
 	s.round = round
@@ -307,12 +356,8 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 		s.state = responsesWebSocketStateWarming
 	}
 	s.connectionInfo.ResponsesWebSocketState = s.state
-	_ = s.upstream.SetWriteDeadline(time.Now().Add(30 * time.Second))
-	if err = s.upstream.WriteMessage(websocket.TextMessage, payload); err != nil {
-		s.refundRound()
-		return types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
-	}
-	return nil
+	s.steering = responsesWebSocketSteering{request: event}
+	return payload, nil
 }
 
 func (s *responsesWebSocketSession) handleUpstreamFrame(messageType int, data []byte) error {
@@ -322,21 +367,24 @@ func (s *responsesWebSocketSession) handleUpstreamFrame(messageType int, data []
 	if messageType != websocket.TextMessage {
 		return nil
 	}
-	if s.round != nil {
-		s.round.SendResponseCount++
-	}
-	_ = s.client.SetWriteDeadline(time.Now().Add(30 * time.Second))
-	if err := s.client.WriteMessage(messageType, data); err != nil {
-		return err
-	}
-	var event dto.ResponsesStreamResponse
+	var event dto.OpenAIResponsesWebSocketServerEvent
 	if err := common.Unmarshal(data, &event); err != nil {
 		logger.LogError(s.c, "failed to parse Responses WebSocket upstream event: "+err.Error())
-		return nil
+	} else {
+		// Admit automatic successors before exposing response.created to the
+		// client. A pricing/quota failure terminates the upstream connection.
+		if apiErr := s.observeResponseCreated(event.ResponsesStreamResponse); apiErr != nil {
+			return apiErr
+		}
+		if s.round != nil {
+			s.round.SendResponseCount++
+		}
+		s.observeSteeringEvent(event)
+		s.observeFirstToken(event.ResponsesStreamResponse)
+		s.handleUpstreamEvent(event.ResponsesStreamResponse)
 	}
-	s.observeFirstToken(event)
-	s.handleUpstreamEvent(event)
-	return nil
+	_ = s.client.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	return s.client.WriteMessage(messageType, data)
 }
 
 func (s *responsesWebSocketSession) observeFirstToken(event dto.ResponsesStreamResponse) {
@@ -366,6 +414,10 @@ func (s *responsesWebSocketSession) handleUpstreamEvent(event dto.ResponsesStrea
 	s.observeBuiltInTool(event)
 	switch event.Type {
 	case "response.completed", "response.incomplete":
+		if event.Response != nil && event.Response.ID != "" && s.steering.responseID != "" && event.Response.ID != s.steering.responseID {
+			return
+		}
+		s.steering.waitingForInput = responsesWebSocketNeedsClientInput(event.Response)
 		s.completeRound(event.Response)
 	case "response.failed", "error":
 		s.refundRound()
@@ -437,6 +489,7 @@ func (s *responsesWebSocketSession) refundRound() {
 		s.round.Billing.Refund(s.c)
 	}
 	s.round = nil
+	s.steering = responsesWebSocketSteering{}
 	s.state = responsesWebSocketStateIdle
 	s.connectionInfo.ResponsesWebSocketState = s.state
 }
@@ -508,12 +561,8 @@ func prepareResponsesWebSocketRound(c *gin.Context, connectionInfo *relaycommon.
 
 func preConsumeResponsesWebSocketRound(c *gin.Context, round *relaycommon.RelayInfo, generate bool) *types.NewAPIError {
 	meta := round.Request.GetTokenCountMeta()
-	if setting.ShouldCheckPromptSensitive() && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, "Responses WebSocket sensitive words detected: "+strings.Join(words, ", "))
-			return types.NewError(errors.New("sensitive words detected"), types.ErrorCodeSensitiveWordsDetected, types.ErrOptionWithSkipRetry())
-		}
+	if apiErr := checkResponsesWebSocketSensitive(c, meta); apiErr != nil {
+		return apiErr
 	}
 	tokens, err := service.EstimateRequestToken(c, meta, round)
 	if err != nil {
@@ -528,6 +577,17 @@ func preConsumeResponsesWebSocketRound(c *gin.Context, round *relaycommon.RelayI
 		return nil
 	}
 	return service.PreConsumeBilling(c, priceData.QuotaToPreConsume, round)
+}
+
+func checkResponsesWebSocketSensitive(c *gin.Context, meta *types.TokenCountMeta) *types.NewAPIError {
+	if setting.ShouldCheckPromptSensitive() && meta != nil {
+		contains, words := service.CheckSensitiveText(meta.CombineText)
+		if contains {
+			logger.LogWarn(c, "Responses WebSocket sensitive words detected: "+strings.Join(words, ", "))
+			return types.NewError(errors.New("sensitive words detected"), types.ErrorCodeSensitiveWordsDetected, types.ErrOptionWithSkipRetry())
+		}
+	}
+	return nil
 }
 
 func responsesWebSocketRoundRequestID(base string, roundNumber int64) string {

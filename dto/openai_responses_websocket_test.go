@@ -72,6 +72,48 @@ func TestParseOpenAIResponsesWebSocketEventRejectsOtherTypes(t *testing.T) {
 	require.ErrorContains(t, err, "response.create")
 }
 
+func TestParseResponsesWebSocketSteer(t *testing.T) {
+	for _, input := range []string{
+		`"Please also cover failures"`,
+		`[{"role":"user","content":"Use Go"}]`,
+		`[{"type":"message","role":"user","content":[{"type":"input_text","text":"Check this"},{"type":"input_image","image_url":"https://example.com/image.png","detail":"low"},{"type":"input_file","file_id":"file_1"}]}]`,
+	} {
+		raw := `{"type":"response.steer","previous_response_id":"resp_1","input":` + input + `}`
+		event, err := ParseOpenAIResponsesWebSocketSteerEvent([]byte(raw))
+		require.NoError(t, err)
+		encoded, err := common.Marshal(event)
+		require.NoError(t, err)
+		require.JSONEq(t, raw, string(encoded))
+		// Steering cannot be the first request used for routing a connection.
+		_, err = ParseOpenAIResponsesWebSocketEvent([]byte(raw))
+		require.Error(t, err)
+	}
+}
+
+func TestParseResponsesWebSocketSteerRejectsInvalidInput(t *testing.T) {
+	for _, input := range []string{
+		`null`, `0`, `false`, `{}`, `[]`, `[null]`, `["text"]`,
+		`[{"role":"assistant","content":"text"}]`,
+		`[{"role":"user","type":"function_call_output","content":"text"}]`,
+		`[{"role":"user","content":null}]`,
+		`[{"role":"user","content":[{"type":"output_text","text":"text"}]}]`,
+		`[{"role":"user","id":"item_1","content":"text"}]`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, err := ParseOpenAIResponsesWebSocketSteerEvent([]byte(`{"type":"response.steer","previous_response_id":"resp_1","input":` + input + `}`))
+			require.Error(t, err)
+		})
+	}
+	for _, raw := range []string{
+		`{"type":"response.steer","input":"text"}`,
+		`{"type":"response.steer","previous_response_id":"resp_1","input":"text","model":"other"}`,
+		`{"type":"response.steer","previous_response_id":"resp_1","input":"text","stream_id":"main"}`,
+	} {
+		_, err := ParseOpenAIResponsesWebSocketSteerEvent([]byte(raw))
+		require.Error(t, err)
+	}
+}
+
 func TestResponsesWebSocketChannelCapabilityDefaultsOn(t *testing.T) {
 	settings := ChannelOtherSettings{}
 	require.True(t, settings.IsResponsesWebSocketEnabled())

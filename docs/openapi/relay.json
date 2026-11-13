@@ -249,7 +249,7 @@
       "get": {
         "summary": "建立 Responses WebSocket 连接",
         "deprecated": false,
-        "description": "将连接升级为 Responses WebSocket。每条客户端消息必须是 response.create；同一连接同一时刻只允许一个生成回合。渠道能力默认开启，可通过 supports_responses_websocket=false 显式关闭。",
+        "description": "将连接升级为 Responses WebSocket。首条消息必须是包含模型的 response.create；后续支持 response.create 及执行中插话 response.steer。同一连接同一时刻只允许一个生成回合，插话的自动续接响应独立计费。渠道能力默认开启，可通过 supports_responses_websocket=false 显式关闭。",
         "operationId": "createResponsesWebSocket",
         "tags": [
           "OpenAI格式(Responses)"
