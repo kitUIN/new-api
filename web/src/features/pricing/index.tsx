@@ -97,10 +97,11 @@ export function Pricing() {
 
   const availableGroups = useMemo(
     () =>
-      Object.keys(usableGroup || {}).filter(
-        (g) => !EXCLUDED_GROUPS.includes(g)
+      Object.keys(groupRatio).filter(
+        (group) =>
+          Object.hasOwn(usableGroup, group) && !EXCLUDED_GROUPS.includes(group)
       ),
-    [usableGroup]
+    [groupRatio, usableGroup]
   )
 
   const handleClearAll = useCallback(() => {

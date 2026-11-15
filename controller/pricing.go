@@ -56,12 +56,24 @@ func GetPricing(c *gin.Context) {
 	}
 
 	usableGroup = service.GetUserUsableGroups(group)
+	// User groups classify accounts; they are not public pricing options.
+	for g := range usableGroup {
+		if ratio_setting.GetGroupType(g) == ratio_setting.GroupTypeUser {
+			delete(usableGroup, g)
+		}
+	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {
 			delete(groupRatio, group)
 			delete(groupTimedRatio, group)
+		}
+	}
+	autoGroups := make([]string, 0)
+	for _, g := range service.GetUserAutoGroup(group) {
+		if _, ok := usableGroup[g]; ok {
+			autoGroups = append(autoGroups, g)
 		}
 	}
 
@@ -73,7 +85,7 @@ func GetPricing(c *gin.Context) {
 		"group_timed_ratio":  groupTimedRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
+		"auto_groups":        autoGroups,
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }
