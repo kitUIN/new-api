@@ -94,7 +94,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Stop(streamErr)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed", "response.incomplete":
 			receivedTerminal = true
@@ -119,6 +118,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 				}
 			}
+			// Clients may close the connection as soon as this event is flushed.
+			// Record completion first so that cancellation cannot win the race.
+			sr.Done()
 		case "response.output_text.delta":
 			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
@@ -135,6 +137,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				}
 			}
 		}
+		sendResponsesStreamData(c, streamResponse, data)
 	})
 	if streamErr != nil {
 		return nil, streamErr

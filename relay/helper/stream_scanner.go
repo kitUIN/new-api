@@ -45,13 +45,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		info.StreamStatus = relaycommon.NewStreamStatus()
 	}
 
-	// 确保响应体总是被关闭
-	defer func() {
-		if resp.Body != nil {
-			resp.Body.Close()
-		}
-	}()
-
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
 	if streamingTimeout <= 0 {
 		streamingTimeout = DefaultStreamingTimeout
@@ -94,6 +87,12 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		ticker.Stop()
 		if pingTicker != nil {
 			pingTicker.Stop()
+		}
+
+		// A handler can finish before upstream EOF. Close the body before
+		// waiting so a scanner blocked in Read can exit immediately.
+		if resp.Body != nil {
+			resp.Body.Close()
 		}
 
 		// 等待所有 goroutine 退出，最多等待5秒
@@ -280,6 +279,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 		}
 
+		// Closing the body during cleanup is expected after completion,
+		// cancellation, or timeout; it is not another upstream error.
+		if ctx.Err() != nil {
+			return
+		}
 		if err := scanner.Err(); err != nil {
 			if err != io.EOF {
 				logger.LogError(c, "scanner error: "+err.Error())
