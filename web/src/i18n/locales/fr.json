@@ -1,5 +1,13 @@
 {
   "translation": {
+    "请求体传输": "Transfert du corps de requête",
+    "客户端传入": "Depuis le client",
+    "发送给上游": "Vers le fournisseur",
+    "传输方向": "Direction",
+    "请求体大小": "Taille du corps",
+    "编码模式": "Encodage",
+    "未压缩": "Non compressé",
+    "记录编码后的请求体大小，不含请求头和传输协议开销。": "Taille du contenu encodé, hors en-têtes de requête et encapsulation du transport.",
     "channels.requestBodyCompression.label": "Compression des requêtes vers le fournisseur",
     "channels.requestBodyCompression.description": "zstd par défaut. Choisissez un format accepté par le fournisseur. Seules les requêtes JSON d’au moins 1 Kio sont compressées, si le résultat est plus petit.",
     "channels.requestBodyCompression.none": "Sans compression",

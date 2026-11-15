@@ -1,5 +1,13 @@
 {
   "translation": {
+    "请求体传输": "Request body transfer",
+    "客户端传入": "From client",
+    "发送给上游": "To upstream",
+    "传输方向": "Direction",
+    "请求体大小": "Body size",
+    "编码模式": "Encoding",
+    "未压缩": "Uncompressed",
+    "记录编码后的请求体大小，不含请求头和传输协议开销。": "Encoded payload size, excluding request headers and transport framing.",
     "channels.requestBodyCompression.label": "Upstream request compression",
     "channels.requestBodyCompression.description": "Defaults to zstd. Choose a format supported by the upstream. Only compresses JSON requests of at least 1 KiB when the result is smaller.",
     "channels.requestBodyCompression.none": "No compression",

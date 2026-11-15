@@ -57,39 +57,52 @@ func TestDecompressRequestMiddlewareReusableJSON(t *testing.T) {
 				compressed.Write(payload)
 			}
 
-			router := gin.New()
-			router.Use(DecompressRequestMiddleware(), BodyStorageCleanup())
-			router.POST("/v1/chat/completions", func(c *gin.Context) {
-				require.Empty(t, c.GetHeader("Content-Encoding"))
-				if encoding != "" {
-					require.Empty(t, c.GetHeader("Content-Length"))
-					require.EqualValues(t, -1, c.Request.ContentLength)
-				}
-				// Distribution and relay both parse the same request body.
-				for i := 0; i < 2; i++ {
-					var request struct {
-						Model string `json:"model"`
+			for _, contentLength := range []int64{-1, int64(compressed.Len())} {
+				router := gin.New()
+				router.Use(DecompressRequestMiddleware(), BodyStorageCleanup())
+				router.POST("/v1/chat/completions", func(c *gin.Context) {
+					require.Empty(t, c.GetHeader("Content-Encoding"))
+					if encoding != "" {
+						require.Empty(t, c.GetHeader("Content-Length"))
+						require.EqualValues(t, -1, c.Request.ContentLength)
 					}
-					require.NoError(t, common.UnmarshalBodyReusable(c, &request))
-					require.Equal(t, "test-model", request.Model)
-				}
-				body, err := io.ReadAll(c.Request.Body)
-				require.NoError(t, err)
-				require.Equal(t, payload, body)
-				c.Status(http.StatusNoContent)
-			})
+					// Distribution and relay both parse the same request body.
+					for i := 0; i < 2; i++ {
+						var request struct {
+							Model string `json:"model"`
+						}
+						require.NoError(t, common.UnmarshalBodyReusable(c, &request))
+						require.Equal(t, "test-model", request.Model)
+					}
+					body, err := io.ReadAll(c.Request.Body)
+					require.NoError(t, err)
+					require.Equal(t, payload, body)
+					info := common.GetRequestBodyInfo(c, constant.ContextKeyClientRequestBodyInfo)
+					require.NotNil(t, info)
+					require.NotNil(t, info.Size)
+					require.EqualValues(t, compressed.Len(), *info.Size)
+					wantEncoding := encoding
+					if wantEncoding == "" {
+						wantEncoding = "identity"
+					}
+					require.Equal(t, wantEncoding, info.Encoding)
+					c.Status(http.StatusNoContent)
+				})
 
-			body := &trackedCompressedBody{Reader: bytes.NewReader(compressed.Bytes())}
-			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-			request.Body = body
-			request.ContentLength = int64(compressed.Len())
-			request.Header.Set("Content-Length", strconv.Itoa(compressed.Len()))
-			request.Header.Set("Content-Type", "application/json")
-			request.Header.Set("Content-Encoding", encoding)
-			response := httptest.NewRecorder()
-			router.ServeHTTP(response, request)
-			require.Equal(t, http.StatusNoContent, response.Code)
-			require.True(t, body.closed)
+				body := &trackedCompressedBody{Reader: bytes.NewReader(compressed.Bytes())}
+				request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+				request.Body = body
+				request.ContentLength = contentLength
+				if contentLength >= 0 {
+					request.Header.Set("Content-Length", strconv.Itoa(compressed.Len()))
+				}
+				request.Header.Set("Content-Type", "application/json")
+				request.Header.Set("Content-Encoding", encoding)
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+				require.Equal(t, http.StatusNoContent, response.Code)
+				require.True(t, body.closed)
+			}
 		})
 	}
 }

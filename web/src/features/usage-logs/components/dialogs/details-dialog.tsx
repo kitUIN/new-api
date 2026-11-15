@@ -72,6 +72,7 @@ import {
 import type { LogOtherData, UsageLog } from '../../types'
 import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
 import { RelayTimingSection } from './relay-timing-section'
+import { RequestBodySection } from './request-body-section'
 
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
@@ -701,6 +702,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             </div>
 
             <RelayTimingSection other={other} />
+            <RequestBodySection other={other} />
 
             {/* Request conversion (admin only, not for refund) */}
             {showConversion && (

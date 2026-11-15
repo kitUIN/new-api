@@ -1,5 +1,13 @@
 {
   "translation": {
+    "请求体传输": "Truyền nội dung yêu cầu",
+    "客户端传入": "Từ máy khách",
+    "发送给上游": "Gửi đến nhà cung cấp",
+    "传输方向": "Hướng truyền",
+    "请求体大小": "Kích thước nội dung",
+    "编码模式": "Mã hóa",
+    "未压缩": "Không nén",
+    "记录编码后的请求体大小，不含请求头和传输协议开销。": "Kích thước nội dung sau mã hóa, không gồm tiêu đề yêu cầu và phần phụ trội của giao thức truyền.",
     "channels.requestBodyCompression.label": "Nén yêu cầu gửi đến nhà cung cấp",
     "channels.requestBodyCompression.description": "Mặc định dùng zstd. Chọn định dạng được nhà cung cấp hỗ trợ. Chỉ nén yêu cầu JSON từ 1 KiB khi kết quả nhỏ hơn bản gốc.",
     "channels.requestBodyCompression.none": "Không nén",

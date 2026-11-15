@@ -93,6 +93,9 @@ func doResponsesWebSocketRequest(a Adaptor, c *gin.Context, info *relaycommon.Re
 		_ = body.Close()
 		return nil, fmt.Errorf("write Responses WebSocket request: %w", err)
 	}
+	common.SetContextKey(c, constant.ContextKeyUpstreamRequestBodyInfo, common.RequestBodyInfo{
+		Size: common.GetPointer(int64(len(payload))), Encoding: "identity",
+	})
 	// Read the first event before committing downstream headers. A first-frame
 	// error can still be returned as a regular HTTP error and retried safely.
 	data, event, err := body.readEvent()

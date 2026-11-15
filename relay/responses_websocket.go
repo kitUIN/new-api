@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -309,6 +310,9 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 	}
 
 	payload, apiErr := s.startRound(event, data, true)
+	common.SetContextKey(s.c, constant.ContextKeyClientRequestBodyInfo, common.RequestBodyInfo{
+		Size: common.GetPointer(int64(len(data))), Encoding: "identity",
+	})
 	if apiErr != nil {
 		return apiErr
 	}
@@ -317,10 +321,16 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 		s.refundRound()
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
 	}
+	common.SetContextKey(s.c, constant.ContextKeyUpstreamRequestBodyInfo, common.RequestBodyInfo{
+		Size: common.GetPointer(int64(len(payload))), Encoding: "identity",
+	})
 	return nil
 }
 
 func (s *responsesWebSocketSession) startRound(event *dto.OpenAIResponsesWebSocketEvent, data []byte, includePendingInput bool) ([]byte, *types.NewAPIError) {
+	// Automatic steering continuations do not transmit a new create payload.
+	common.SetContextKey(s.c, constant.ContextKeyClientRequestBodyInfo, nil)
+	common.SetContextKey(s.c, constant.ContextKeyUpstreamRequestBodyInfo, nil)
 	round, payload, apiErr := prepareResponsesWebSocketRound(s.c, s.connectionInfo, event, data, s.roundNumber+1)
 	if apiErr != nil {
 		return nil, apiErr

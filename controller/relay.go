@@ -296,6 +296,8 @@ var upgrader = websocket.Upgrader{
 }
 
 func addUsedChannel(c *gin.Context, channelId int) {
+	// Each attempt must describe its own payload, including failures before send.
+	common.SetContextKey(c, constant.ContextKeyUpstreamRequestBodyInfo, nil)
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)

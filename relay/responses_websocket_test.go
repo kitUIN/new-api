@@ -171,6 +171,8 @@ func TestResponsesWebSocketSequentialWarmupRounds(t *testing.T) {
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	var receivedMu sync.Mutex
 	received := make([]map[string]json.RawMessage, 0, 2)
+	receivedSizes := make([]int, 0, 2)
+	bodyInfo := make(chan [2]*common.RequestBodyInfo, 1)
 	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
@@ -182,6 +184,7 @@ func TestResponsesWebSocketSequentialWarmupRounds(t *testing.T) {
 			require.NoError(t, common.Unmarshal(payload, &event))
 			receivedMu.Lock()
 			received = append(received, event)
+			receivedSizes = append(receivedSizes, len(payload))
 			receivedMu.Unlock()
 			require.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.failed","response":{"status":"failed"}}`)))
 		}
@@ -214,6 +217,10 @@ func TestResponsesWebSocketSequentialWarmupRounds(t *testing.T) {
 		info.RequestId = "request-integration"
 		info.TargetWs = upstream
 		_ = RunResponsesWebSocket(c, info, first)
+		bodyInfo <- [2]*common.RequestBodyInfo{
+			common.GetRequestBodyInfo(c, constant.ContextKeyClientRequestBodyInfo),
+			common.GetRequestBodyInfo(c, constant.ContextKeyUpstreamRequestBodyInfo),
+		}
 	})
 	server := httptest.NewServer(gateway)
 	defer server.Close()
@@ -226,11 +233,26 @@ func TestResponsesWebSocketSequentialWarmupRounds(t *testing.T) {
 	_, firstResponse, err := client.ReadMessage()
 	require.NoError(t, err)
 	require.Contains(t, string(firstResponse), "response.failed")
-	require.NoError(t, client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","generate":false,"previous_response_id":"resp_1","input":[]}`)))
+	secondFrame := []byte(`{"type":"response.create","generate":false,"previous_response_id":"resp_1","input":[]}`)
+	require.NoError(t, client.WriteMessage(websocket.TextMessage, secondFrame))
 	_, secondResponse, err := client.ReadMessage()
 	require.NoError(t, err)
 	require.Contains(t, string(secondResponse), "response.failed")
 	_ = client.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "done"), time.Now().Add(time.Second))
+	select {
+	case info := <-bodyInfo:
+		require.NotNil(t, info[0])
+		require.NotNil(t, info[1])
+		require.EqualValues(t, len(secondFrame), *info[0].Size)
+		receivedMu.Lock()
+		sentSize := receivedSizes[len(receivedSizes)-1]
+		receivedMu.Unlock()
+		require.EqualValues(t, sentSize, *info[1].Size)
+		require.Equal(t, "identity", info[0].Encoding)
+		require.Equal(t, "identity", info[1].Encoding)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for request body metadata")
+	}
 
 	require.Eventually(t, func() bool {
 		receivedMu.Lock()

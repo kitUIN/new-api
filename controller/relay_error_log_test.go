@@ -18,6 +18,16 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestAddUsedChannelResetsUpstreamBodyInfo(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := common.RequestBodyInfo{Size: common.GetPointer(int64(123)), Encoding: "gzip"}
+	common.SetContextKey(c, constant.ContextKeyClientRequestBodyInfo, info)
+	common.SetContextKey(c, constant.ContextKeyUpstreamRequestBodyInfo, info)
+	addUsedChannel(c, 7)
+	require.Nil(t, common.GetRequestBodyInfo(c, constant.ContextKeyUpstreamRequestBodyInfo))
+	require.Equal(t, info, *common.GetRequestBodyInfo(c, constant.ContextKeyClientRequestBodyInfo))
+}
+
 func TestProcessChannelErrorRecordsCompleteRawUpstreamResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

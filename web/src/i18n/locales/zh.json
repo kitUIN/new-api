@@ -1,5 +1,13 @@
 {
   "translation": {
+    "请求体传输": "请求体传输",
+    "客户端传入": "客户端传入",
+    "发送给上游": "发送给上游",
+    "传输方向": "传输方向",
+    "请求体大小": "请求体大小",
+    "编码模式": "编码模式",
+    "未压缩": "未压缩",
+    "记录编码后的请求体大小，不含请求头和传输协议开销。": "记录编码后的请求体大小，不含请求头和传输协议开销。",
     "channels.requestBodyCompression.label": "上游请求压缩",
     "channels.requestBodyCompression.description": "默认使用 zstd。请根据上游支持情况选择；仅压缩至少 1 KiB 且压缩后更小的 JSON 请求。",
     "channels.requestBodyCompression.none": "不压缩",

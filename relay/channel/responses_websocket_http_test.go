@@ -60,6 +60,7 @@ func TestResponsesWebSocketHTTPBridge(t *testing.T) {
 	for _, channelType := range []int{constant.ChannelTypeOpenAI, constant.ChannelTypeAzure, constant.ChannelTypeCodex} {
 		for _, stream := range []bool{false, true} {
 			t.Run(common.Interface2String(channelType)+"/stream="+common.Interface2String(stream), func(t *testing.T) {
+				receivedSize := make(chan int, 1)
 				upgrader := websocket.Upgrader{}
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					assert.Equal(t, "GET", r.Method)
@@ -87,6 +88,7 @@ func TestResponsesWebSocketHTTPBridge(t *testing.T) {
 						return
 					}
 					assert.Equal(t, "response.create", gjson.GetBytes(payload, "type").String())
+					receivedSize <- len(payload)
 					assert.False(t, gjson.GetBytes(payload, "stream").Exists())
 					assert.False(t, gjson.GetBytes(payload, "background").Exists())
 					assert.False(t, gjson.GetBytes(payload, "stream_options").Exists())
@@ -113,6 +115,10 @@ func TestResponsesWebSocketHTTPBridge(t *testing.T) {
 				require.Equal(t, types.RelayTransportHTTP, info.Transport)
 				require.Equal(t, types.RelayTransportWebSocket, info.UpstreamTransport)
 				require.Equal(t, server.URL, info.ChannelBaseUrl)
+				bodyInfo := common.GetRequestBodyInfo(c, constant.ContextKeyUpstreamRequestBodyInfo)
+				require.NotNil(t, bodyInfo)
+				require.EqualValues(t, <-receivedSize, *bodyInfo.Size)
+				require.Equal(t, "identity", bodyInfo.Encoding)
 			})
 		}
 	}

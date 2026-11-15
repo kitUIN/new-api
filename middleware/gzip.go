@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,7 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		common.TrackRequestBody(c, c.Request, constant.ContextKeyClientRequestBodyInfo)
 		maxMB := constant.MaxRequestBodyMB
 		if maxMB <= 0 {
 			maxMB = 32

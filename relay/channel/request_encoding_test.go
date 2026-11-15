@@ -13,10 +13,74 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDoRequestRecordsFinalBodyInfo(t *testing.T) {
+	service.InitHttpClient()
+	previousMode := common.LogRequestDetailMode.Load()
+	common.LogRequestDetailMode.Store(common.RequestDetailLogOff)
+	t.Cleanup(func() { common.LogRequestDetailMode.Store(previousMode) })
+	for _, tc := range []struct {
+		name, compression, contentType, encoding string
+		payload                                  []byte
+		chunked                                  bool
+	}{
+		{name: "default zstd", contentType: "application/json", encoding: "zstd"},
+		{name: "gzip", compression: "gzip", contentType: "application/json", encoding: "gzip"},
+		{name: "disabled", compression: "none", contentType: "application/json", encoding: "identity"},
+		{name: "small", contentType: "application/json", encoding: "identity", payload: []byte(`{"input":"你好"}`)},
+		{name: "chunked multipart", contentType: "multipart/form-data; boundary=test", encoding: "identity", chunked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := tc.payload
+			if payload == nil {
+				payload = bytes.Repeat([]byte("payload"), 1024)
+			}
+			received := make(chan common.RequestBodyInfo, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				data, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Error(err)
+				}
+				encoding := r.Header.Get("Content-Encoding")
+				if encoding == "" {
+					encoding = "identity"
+				}
+				received <- common.RequestBodyInfo{Size: common.GetPointer(int64(len(data))), Encoding: encoding}
+				w.WriteHeader(http.StatusBadRequest) // Failed requests need the same metadata.
+			}))
+			defer server.Close()
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(payload))
+			req, err := http.NewRequest(http.MethodPost, server.URL, bytes.NewReader(payload))
+			require.NoError(t, err)
+			if tc.chunked {
+				req.ContentLength = -1
+			}
+			req.Header.Set("Content-Type", tc.contentType)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelSetting: dto.ChannelSettings{RequestBodyCompression: tc.compression},
+			}}
+			resp, err := doRequest(ctx, req, info)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			got := common.GetRequestBodyInfo(ctx, constant.ContextKeyUpstreamRequestBodyInfo)
+			require.NotNil(t, got)
+			want := <-received
+			require.Equal(t, want, *got)
+			require.Equal(t, tc.encoding, got.Encoding)
+			if tc.encoding != "identity" {
+				require.Less(t, *got.Size, int64(len(payload)))
+			} else {
+				require.EqualValues(t, len(payload), *got.Size)
+			}
+		})
+	}
+}
 
 func TestPrepareUpstreamJSONBodyCompression(t *testing.T) {
 	enabled, disabled := true, false

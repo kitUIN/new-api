@@ -135,6 +135,22 @@ func appendRequestLogInfo(c *gin.Context, other map[string]interface{}) map[stri
 	if c == nil {
 		return other
 	}
+	for _, entry := range []struct {
+		contextKey constant.ContextKey
+		logKey     string
+	}{
+		{constant.ContextKeyClientRequestBodyInfo, "client_request_body"},
+		{constant.ContextKeyUpstreamRequestBodyInfo, "upstream_request_body"},
+	} {
+		if info := common.GetRequestBodyInfo(c, entry.contextKey); info != nil {
+			if other == nil {
+				other = make(map[string]interface{})
+			}
+			other[entry.logKey] = info
+		} else {
+			delete(other, entry.logKey)
+		}
+	}
 	if c.Request != nil {
 		// The public reverse proxy must overwrite X-Forwarded-Host with the
 		// original request host; intermediate proxies must preserve it.

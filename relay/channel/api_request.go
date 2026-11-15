@@ -13,6 +13,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	globalconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -586,6 +587,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		c.Set("upstream_request_headers", req.Header.Clone())
 	}
 
+	common2.TrackRequestBody(c, req, globalconstant.ContextKeyUpstreamRequestBodyInfo)
 	info.MarkUpstreamRequestStart()
 	resp, err := client.Do(req)
 	if err != nil {

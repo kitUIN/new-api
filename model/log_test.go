@@ -94,6 +94,51 @@ func TestRecordLogsPreservesRequestHost(t *testing.T) {
 	}
 }
 
+func TestRecordLogsPreservesRequestBodyInfo(t *testing.T) {
+	for _, logType := range []int{LogTypeConsume, LogTypeError} {
+		t.Run(common.GetJsonString(logType), func(t *testing.T) {
+			truncateTables(t)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+			common.SetContextKey(ctx, constant.ContextKeyClientRequestBodyInfo, common.RequestBodyInfo{
+				Size: common.GetPointer(int64(2048)), Encoding: "gzip",
+			})
+			common.SetContextKey(ctx, constant.ContextKeyUpstreamRequestBodyInfo, common.RequestBodyInfo{
+				Size: common.GetPointer(int64(1024)), Encoding: "zstd",
+			})
+			if logType == LogTypeConsume {
+				RecordConsumeLog(ctx, 42, RecordConsumeLogParams{})
+			} else {
+				RecordErrorLog(ctx, 42, 7, "test-model", "", "error", 0, 1, false, "", nil)
+			}
+			logs, total, err := GetUserLogs(42, logType, 0, 0, "", "", 0, 10, "", "", "")
+			require.NoError(t, err)
+			require.EqualValues(t, 1, total)
+			var other struct {
+				Client   common.RequestBodyInfo `json:"client_request_body"`
+				Upstream common.RequestBodyInfo `json:"upstream_request_body"`
+			}
+			require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+			require.EqualValues(t, 2048, *other.Client.Size)
+			require.Equal(t, "gzip", other.Client.Encoding)
+			require.EqualValues(t, 1024, *other.Upstream.Size)
+			require.Equal(t, "zstd", other.Upstream.Encoding)
+		})
+	}
+}
+
+func TestAppendRequestLogInfoClearsStaleBodyInfo(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyClientRequestBodyInfo, common.RequestBodyInfo{
+		Size: common.GetPointer(int64(0)), Encoding: "identity",
+	})
+	other := appendRequestLogInfo(ctx, map[string]interface{}{"upstream_request_body": "previous attempt"})
+	require.NotContains(t, other, "upstream_request_body")
+	data, err := common.Marshal(other)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"client_request_body":{"size":0,"encoding":"identity"}}`, string(data))
+}
+
 func TestGetUserLogsPreservesErrorDetails(t *testing.T) {
 	truncateTables(t)
 	rawContent := "status_code=401, invalid API key: sk-secret"
