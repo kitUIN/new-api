@@ -1241,7 +1241,11 @@ export function ChannelMutateDrawer({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={handleOpenChange}>
+      <Sheet
+        open={open}
+        onOpenChange={handleOpenChange}
+        disablePointerDismissal
+      >
         <SheetContent className={sideDrawerContentClassName('sm:max-w-3xl')}>
           <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle className='flex items-center gap-3'>
