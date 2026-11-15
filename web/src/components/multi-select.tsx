@@ -86,7 +86,7 @@ function splitDraft(value: string): { completed: string[]; draft: string } {
  * MultiSelect — tags/chips style multi-select built on Base UI Combobox.
  *
  * Behaviour:
- * - Search filters built-in options (Base UI handles fuzzy filtering).
+ * - Search filters built-in options by their display labels.
  * - When `allowCreate` is true, custom values can be added inline:
  *   - Type and press Enter / "," to add a single value.
  *   - Paste a comma- (or newline-) separated list to add many at once.
@@ -217,6 +217,7 @@ export function MultiSelect(props: MultiSelectProps) {
     <Combobox
       multiple
       items={items}
+      itemToStringLabel={(value) => labelMap.get(value) ?? value}
       value={props.selected}
       onValueChange={handleValueChange}
       inputValue={inputValue}

@@ -16,14 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId } from 'react'
+import { useId, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { MultiSelect } from '@/components/multi-select'
-import { CHANNEL_STATUS_CONFIG } from '@/features/channels/constants'
+import {
+  CHANNEL_STATUS,
+  CHANNEL_STATUS_CONFIG,
+} from '@/features/channels/constants'
 import { getGroupChannelOptions, setGroupChannels } from '../api'
 import { useSystemOptions } from '../hooks/use-system-options'
 import type { GroupBoundChannel } from '../types'
@@ -47,6 +50,20 @@ export function GroupChannelsEditor(props: Props) {
     queryKey: ['group-channel-options'],
     queryFn: getGroupChannelOptions,
   })
+  const options = useMemo(
+    () =>
+      (optionsQuery.data ?? [])
+        .filter((channel) => channel.status === CHANNEL_STATUS.ENABLED)
+        .map((channel) => ({
+          value: String(channel.id),
+          label: `${channel.name} #${channel.id} · ${t(CHANNEL_STATUS_CONFIG[CHANNEL_STATUS.ENABLED].label)}`,
+        })),
+    [optionsQuery.data, t]
+  )
+  const enabledChannelIds = useMemo(
+    () => new Set(options.map((option) => option.value)),
+    [options]
+  )
   const { data: settings } = useSystemOptions()
   const savedRatios = safeJsonParse<Record<string, number>>(
     settings?.data.find((option) => option.key === 'GroupRatio')?.value ?? '{}',
@@ -80,18 +97,15 @@ export function GroupChannelsEditor(props: Props) {
       <Label htmlFor={id}>{t('Select channels')}</Label>
       <MultiSelect
         id={id}
-        options={(optionsQuery.data ?? []).map((channel) => {
-          const status =
-            CHANNEL_STATUS_CONFIG[
-              channel.status as keyof typeof CHANNEL_STATUS_CONFIG
-            ] ?? CHANNEL_STATUS_CONFIG[0]
-          return {
-            value: String(channel.id),
-            label: `${channel.name} #${channel.id} · ${t(status.label)}`,
-          }
-        })}
-        selected={selected}
-        onChange={props.onDraftChange}
+        options={options}
+        selected={selected.filter((value) => enabledChannelIds.has(value))}
+        onChange={(values) => {
+          // Keep hidden bindings when editing the enabled channels.
+          const hiddenSelected = selected.filter(
+            (value) => !enabledChannelIds.has(value)
+          )
+          props.onDraftChange([...hiddenSelected, ...values])
+        }}
         disabled={disabled}
         maxVisibleChips={5}
         placeholder={t('Search and select channels')}
