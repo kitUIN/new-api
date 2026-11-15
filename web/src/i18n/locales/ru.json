@@ -1,5 +1,11 @@
 {
   "translation": {
+    "channels.clientAccess.title": "Доступ клиентов",
+    "channels.clientAccess.description": "Задайте правило для каждого клиента. При выборе «Разрешить только» доступ получают лишь соответствующие клиенты. Если этот режим выбран для обоих, допускается любой из них. Запрет имеет приоритет.",
+    "channels.clientAccess.unrestricted": "Без ограничений",
+    "channels.clientAccess.deny": "Запретить",
+    "channels.clientAccess.allowOnly": "Разрешить только",
+    "channels.clientAccess.detection": "Клиенты определяются по заголовкам запросов; изменение идентификаторов может помешать распознаванию.",
     "Image width and height must be multiples of 16": "Ширина и высота изображения должны быть кратны 16",
     "Image {{number}} size": "Image {{number}} size",
     "Image {{number}}": "Image {{number}}",

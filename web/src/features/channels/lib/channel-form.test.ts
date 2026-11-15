@@ -79,45 +79,141 @@ test('upstream WebSocket defaults off and survives channel settings round trips'
   }
 })
 
-test('Claude Code restriction survives create, edit, channel type change and disable', () => {
+test('client restrictions survive create, edit, channel type change and removal', () => {
   for (const type of [1, 14, 33]) {
-    const form = channelFormSchema.parse({
+    for (const codexAccess of ['unrestricted', 'deny', 'allow_only'] as const) {
+      for (const claudeCodeAccess of [
+        'unrestricted',
+        'deny',
+        'allow_only',
+      ] as const) {
+        const form = channelFormSchema.parse({
+          ...CHANNEL_FORM_DEFAULT_VALUES,
+          type,
+          name: 'Client restriction',
+          models: 'claude-test',
+          key: 'test-key',
+          other: 'test',
+          remark: 'test',
+          group: ['default'],
+          codex_access: codexAccess,
+          claude_code_access: claudeCodeAccess,
+          settings: JSON.stringify({ custom_setting: 'preserved' }),
+        })
+        const payload = transformFormDataToCreatePayload(form).channel
+        const expectedRules =
+          codexAccess === 'unrestricted' && claudeCodeAccess === 'unrestricted'
+            ? undefined
+            : { codex: codexAccess, claude_code: claudeCodeAccess }
+        assert.deepEqual(
+          JSON.parse(payload.settings!).client_restrictions,
+          expectedRules
+        )
+
+        const stored = channelSchema.parse({
+          ...payload,
+          id: 1,
+          created_time: 0,
+          test_time: 0,
+          response_time: 0,
+          balance_updated_time: 0,
+        })
+        const edit = transformChannelToFormDefaults(stored)
+        assert.equal(edit.codex_access, codexAccess)
+        assert.equal(edit.claude_code_access, claudeCodeAccess)
+        const changedType = transformFormDataToUpdatePayload(
+          { ...edit, type: 14 },
+          stored.id
+        )
+        assert.deepEqual(
+          JSON.parse(changedType.settings!).client_restrictions,
+          expectedRules
+        )
+        const updated = transformFormDataToUpdatePayload(
+          {
+            ...edit,
+            type: 14,
+            codex_access: 'unrestricted',
+            claude_code_access: 'unrestricted',
+          },
+          stored.id
+        )
+        const settings = JSON.parse(updated.settings!)
+        assert.equal(settings.client_restrictions, undefined)
+        assert.equal(settings.disable_claude_code, undefined)
+        assert.equal(settings.custom_setting, 'preserved')
+        assert.equal(
+          transformChannelToFormDefaults({ ...stored, settings: '{}' })
+            .claude_code_access,
+          'unrestricted'
+        )
+      }
+    }
+  }
+})
+
+test('legacy Claude Code switch migrates and can be cleared without losing other settings', () => {
+  const channel = channelSchema.parse({
+    ...transformFormDataToCreatePayload({
       ...CHANNEL_FORM_DEFAULT_VALUES,
-      type,
-      name: 'Client restriction',
+      name: 'Legacy channel',
       models: 'claude-test',
       key: 'test-key',
       other: 'test',
       remark: 'test',
-      group: ['default'],
+    }).channel,
+    id: 1,
+    created_time: 0,
+    test_time: 0,
+    response_time: 0,
+    balance_updated_time: 0,
+    settings: JSON.stringify({
       disable_claude_code: true,
-      settings: JSON.stringify({ custom_setting: 'preserved' }),
-    })
-    const payload = transformFormDataToCreatePayload(form).channel
-    assert.equal(JSON.parse(payload.settings!).disable_claude_code, true)
+      custom_setting: 'preserved',
+    }),
+  })
+  const edit = transformChannelToFormDefaults(channel)
+  assert.equal(edit.codex_access, 'unrestricted')
+  assert.equal(edit.claude_code_access, 'deny')
+  const migrated = JSON.parse(
+    transformFormDataToUpdatePayload(edit, channel.id).settings!
+  )
+  assert.deepEqual(migrated.client_restrictions, {
+    codex: 'unrestricted',
+    claude_code: 'deny',
+  })
+  assert.equal(migrated.disable_claude_code, undefined)
+  assert.equal(migrated.custom_setting, 'preserved')
+  const cleared = JSON.parse(
+    transformFormDataToUpdatePayload(
+      { ...edit, claude_code_access: 'unrestricted' },
+      channel.id
+    ).settings!
+  )
+  assert.equal(cleared.client_restrictions, undefined)
+  assert.equal(cleared.disable_claude_code, undefined)
+  assert.equal(cleared.custom_setting, 'preserved')
+  const explicit = transformChannelToFormDefaults({
+    ...channel,
+    settings: JSON.stringify({
+      disable_claude_code: true,
+      client_restrictions: {},
+    }),
+  })
+  assert.equal(explicit.claude_code_access, 'unrestricted')
+})
 
-    const stored = channelSchema.parse({
-      ...payload,
-      id: 1,
-      created_time: 0,
-      test_time: 0,
-      response_time: 0,
-      balance_updated_time: 0,
+test('invalid client access rules are rejected by the form', () => {
+  for (const field of ['codex_access', 'claude_code_access']) {
+    const result = channelFormSchema.safeParse({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'Invalid rule',
+      models: 'test',
+      key: 'test-key',
+      [field]: 'unknown',
     })
-    const edit = transformChannelToFormDefaults(stored)
-    assert.equal(edit.disable_claude_code, true)
-    const updated = transformFormDataToUpdatePayload(
-      { ...edit, type: 14, disable_claude_code: false },
-      stored.id
-    )
-    const settings = JSON.parse(updated.settings!)
-    assert.notEqual(settings.disable_claude_code, true)
-    assert.equal(settings.custom_setting, 'preserved')
-    assert.equal(
-      transformChannelToFormDefaults({ ...stored, settings: '{}' })
-        .disable_claude_code,
-      false
-    )
+    assert.equal(result.success, false)
+    assert.ok(result.error?.issues.some((issue) => issue.path[0] === field))
   }
 })
 

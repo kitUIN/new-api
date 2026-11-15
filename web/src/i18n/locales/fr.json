@@ -1,5 +1,11 @@
 {
   "translation": {
+    "channels.clientAccess.title": "Accès des clients",
+    "channels.clientAccess.description": "Définissez la règle de chaque client. Si « Autoriser uniquement » est sélectionné, seuls les clients correspondants sont admis. Sélectionner ce mode pour les deux autorise l’un ou l’autre. Les interdictions sont prioritaires.",
+    "channels.clientAccess.unrestricted": "Sans restriction",
+    "channels.clientAccess.deny": "Interdire",
+    "channels.clientAccess.allowOnly": "Autoriser uniquement",
+    "channels.clientAccess.detection": "Les clients sont identifiés par les en-têtes de requête ; des identifiants modifiés peuvent empêcher leur détection.",
     "Image width and height must be multiples of 16": "La largeur et la hauteur de l’image doivent être des multiples de 16",
     "Image {{number}} size": "Image {{number}} size",
     "Image {{number}}": "Image {{number}}",

@@ -1,5 +1,11 @@
 {
   "translation": {
+    "channels.clientAccess.title": "特定客户端访问",
+    "channels.clientAccess.description": "分别设置客户端规则。任一客户端设为“只允许”后，仅允许匹配的客户端访问；两者都设为“只允许”时允许其中任意一个，禁止规则优先。",
+    "channels.clientAccess.unrestricted": "不限制",
+    "channels.clientAccess.deny": "禁止",
+    "channels.clientAccess.allowOnly": "只允许",
+    "channels.clientAccess.detection": "基于客户端请求头识别；客户端改写标识后可能无法识别。",
     "Image width and height must be multiples of 16": "图片宽度和高度必须为 16 的倍数",
     "Image {{number}} size": "图{{number}}尺寸",
     "Image {{number}}": "图{{number}}",

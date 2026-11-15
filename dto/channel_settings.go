@@ -26,6 +26,8 @@ const (
 )
 
 type ChannelOtherSettings struct {
+	ClientRestrictions *ChannelClientRestrictions `json:"client_restrictions,omitempty"`
+
 	DisableClaudeCode                     bool          `json:"disable_claude_code,omitempty"`
 	AzureResponsesVersion                 string        `json:"azure_responses_version,omitempty"`
 	SupportsResponsesWebSocket            *bool         `json:"supports_responses_websocket,omitempty"`

@@ -239,7 +239,7 @@ func Distribute() func(c *gin.Context) {
 		}
 		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil {
 			switch setupErr.GetErrorCode() {
-			case types.ErrorCodeGroupNotOpen, types.ErrorCodeClaudeCodeNotAllowed:
+			case types.ErrorCodeGroupNotOpen, types.ErrorCodeClaudeCodeNotAllowed, types.ErrorCodeClientNotAllowed:
 				abortWithOpenAiMessage(c, http.StatusForbidden, setupErr.Error(), setupErr.GetErrorCode())
 				return
 			}
@@ -452,7 +452,12 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if service.IsChannelBlockedForClient(c, channel) {
-		return types.NewError(errors.New("Claude Code clients are not allowed on this channel"), types.ErrorCodeClaudeCodeNotAllowed, types.ErrOptionWithSkipRetry(), types.ErrOptionWithStatusCode(http.StatusForbidden))
+		errorCode := types.ErrorCodeClientNotAllowed
+		settings := channel.GetOtherSettings()
+		if settings.ClientRestrictions == nil && settings.DisableClaudeCode {
+			errorCode = types.ErrorCodeClaudeCodeNotAllowed
+		}
+		return types.NewError(errors.New("this client is not allowed on this channel"), errorCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithStatusCode(http.StatusForbidden))
 	}
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)

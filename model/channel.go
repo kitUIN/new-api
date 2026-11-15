@@ -1031,10 +1031,16 @@ func (channel *Channel) ValidateSettings() error {
 	}
 	if channel.OtherSettings != "" {
 		var clientSettings struct {
-			DisableClaudeCode bool `json:"disable_claude_code"`
+			DisableClaudeCode  bool                           `json:"disable_claude_code"`
+			ClientRestrictions *dto.ChannelClientRestrictions `json:"client_restrictions"`
 		}
 		if err := common.UnmarshalJsonStr(channel.OtherSettings, &clientSettings); err != nil {
 			return err
+		}
+		if clientSettings.ClientRestrictions != nil {
+			if err := clientSettings.ClientRestrictions.Validate(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -1,5 +1,11 @@
 {
   "translation": {
+    "channels.clientAccess.title": "クライアントのアクセス",
+    "channels.clientAccess.description": "クライアントごとにルールを設定します。「のみ許可」を選ぶと、該当するクライアントだけがアクセスできます。両方を「のみ許可」にすると、いずれかを許可します。禁止ルールが優先されます。",
+    "channels.clientAccess.unrestricted": "制限なし",
+    "channels.clientAccess.deny": "禁止",
+    "channels.clientAccess.allowOnly": "のみ許可",
+    "channels.clientAccess.detection": "リクエストヘッダーで識別するため、識別情報が変更されると検出できない場合があります。",
     "Image width and height must be multiples of 16": "画像の幅と高さは16の倍数である必要があります",
     "Image {{number}} size": "Image {{number}} size",
     "Image {{number}}": "Image {{number}}",

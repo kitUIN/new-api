@@ -20,7 +20,24 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestDistributeClaudeCodeRestriction(t *testing.T) {
+func TestDistributeClientRestrictions(t *testing.T) {
+	for _, tc := range []struct {
+		name, settings, blockedUA, allowedUA string
+		errorCode                            types.ErrorCode
+	}{
+		{"legacy Claude Code", `{"disable_claude_code":true}`, "claude-cli/2.0", "Anthropic/JS 0.67.0", types.ErrorCodeClaudeCodeNotAllowed},
+		{"deny Codex", `{"client_restrictions":{"codex":"deny"}}`, "codex_cli_rs/1.0", "OpenAI/Python 1.0", types.ErrorCodeClientNotAllowed},
+		{"only Codex", `{"client_restrictions":{"codex":"allow_only"}}`, "", "codex_cli_rs/1.0", types.ErrorCodeClientNotAllowed},
+		{"only both", `{"client_restrictions":{"codex":"allow_only","claude_code":"allow_only"}}`, "OpenAI/Python 1.0", "claude-cli/2.0", types.ErrorCodeClientNotAllowed},
+		{"mixed rules", `{"client_restrictions":{"codex":"deny","claude_code":"allow_only"}}`, "codex_cli_rs/1.0", "claude-cli/2.0", types.ErrorCodeClientNotAllowed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testDistributeClientRestrictions(t, tc.settings, tc.blockedUA, tc.allowedUA, tc.errorCode)
+		})
+	}
+}
+
+func testDistributeClientRestrictions(t *testing.T, settingsJSON, blockedUA, allowedUA string, errorCode types.ErrorCode) {
 	require.NoError(t, i18n.Init())
 	originalDB, originalCache := model.DB, common.MemoryCacheEnabled
 	originalSQLite, originalMySQL, originalPostgres := common.UsingSQLite, common.UsingMySQL, common.UsingPostgreSQL
@@ -50,7 +67,7 @@ func TestDistributeClaudeCodeRestriction(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
-	channel := &model.Channel{Id: 1, Type: constant.ChannelTypeAnthropic, Key: "test-key", Status: common.ChannelStatusEnabled, Group: "client-test,client-blocked", Models: "claude-test", Priority: common.GetPointer(int64(10)), OtherSettings: `{"disable_claude_code":true}`}
+	channel := &model.Channel{Id: 1, Type: constant.ChannelTypeAnthropic, Key: "test-key", Status: common.ChannelStatusEnabled, Group: "client-test,client-blocked", Models: "claude-test", Priority: common.GetPointer(int64(10)), OtherSettings: settingsJSON}
 	require.NoError(t, db.Create(channel).Error)
 	require.NoError(t, channel.AddAbilities(nil))
 	allowed := &model.Channel{Id: 2, Type: constant.ChannelTypeAnthropic, Key: "test-key", Status: common.ChannelStatusEnabled, Group: "client-test", Models: "claude-test", Priority: common.GetPointer(int64(5))}
@@ -63,12 +80,12 @@ func TestDistributeClaudeCodeRestriction(t *testing.T) {
 		affinity                         bool
 		status                           int
 	}{
-		{name: "explicit channel", userAgent: "claude-cli/2.0", group: "client-test", specific: "1", status: http.StatusForbidden},
-		{name: "legacy fixed route", userAgent: "claude-cli/2.0", group: "client-fixed", status: http.StatusForbidden},
-		{name: "automatic all blocked", userAgent: "claude-cli/2.0", group: "client-blocked", status: http.StatusServiceUnavailable},
-		{name: "automatic skips blocked", userAgent: "claude-cli/2.0", group: "client-test", status: http.StatusOK},
-		{name: "affinity skips blocked", userAgent: "claude-cli/2.0", group: "client-test", status: http.StatusOK, affinity: true},
-		{name: "ordinary SDK allowed", userAgent: "Anthropic/JS 0.67.0", group: "client-test", specific: "1", status: http.StatusOK},
+		{name: "explicit channel", userAgent: blockedUA, group: "client-test", specific: "1", status: http.StatusForbidden},
+		{name: "legacy fixed route", userAgent: blockedUA, group: "client-fixed", status: http.StatusForbidden},
+		{name: "automatic all blocked", userAgent: blockedUA, group: "client-blocked", status: http.StatusServiceUnavailable},
+		{name: "automatic skips blocked", userAgent: blockedUA, group: "client-test", status: http.StatusOK},
+		{name: "affinity skips blocked", userAgent: blockedUA, group: "client-test", status: http.StatusOK, affinity: true},
+		{name: "allowed client", userAgent: allowedUA, group: "client-test", specific: "1", status: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -101,14 +118,14 @@ func TestDistributeClaudeCodeRestriction(t *testing.T) {
 				require.Empty(t, c.GetString("channel_key"))
 			}
 			if tc.status == http.StatusForbidden {
-				require.Contains(t, w.Body.String(), string(types.ErrorCodeClaudeCodeNotAllowed))
+				require.Contains(t, w.Body.String(), string(errorCode))
 			}
 		})
 	}
 
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	c.Request.Header.Set("User-Agent", "claude-cli/2.0")
+	c.Request.Header.Set("User-Agent", blockedUA)
 	setupErr := SetupContextForSelectedChannel(c, channel, "claude-test")
 	require.NotNil(t, setupErr)
 	require.Equal(t, http.StatusForbidden, setupErr.StatusCode)

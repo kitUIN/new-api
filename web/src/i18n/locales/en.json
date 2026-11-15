@@ -1,5 +1,11 @@
 {
   "translation": {
+    "channels.clientAccess.title": "Client access",
+    "channels.clientAccess.description": "Set each client's rule. If either is set to Only allow, access is limited to matching clients. Selecting Only allow for both permits either client. Deny rules take priority.",
+    "channels.clientAccess.unrestricted": "Unrestricted",
+    "channels.clientAccess.deny": "Deny",
+    "channels.clientAccess.allowOnly": "Only allow",
+    "channels.clientAccess.detection": "Clients are identified by request headers; modified identifiers may prevent detection.",
     "Image width and height must be multiples of 16": "Image width and height must be multiples of 16",
     "Image {{number}} size": "Image {{number}} size",
     "Image {{number}}": "Image {{number}}",

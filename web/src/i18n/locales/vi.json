@@ -1,5 +1,11 @@
 {
   "translation": {
+    "channels.clientAccess.title": "Quyền truy cập của ứng dụng",
+    "channels.clientAccess.description": "Đặt quy tắc cho từng ứng dụng. Khi chọn Chỉ cho phép, chỉ ứng dụng phù hợp được truy cập. Chọn chế độ này cho cả hai sẽ cho phép một trong hai. Quy tắc cấm được ưu tiên.",
+    "channels.clientAccess.unrestricted": "Không hạn chế",
+    "channels.clientAccess.deny": "Cấm",
+    "channels.clientAccess.allowOnly": "Chỉ cho phép",
+    "channels.clientAccess.detection": "Ứng dụng được nhận diện qua tiêu đề yêu cầu; việc sửa định danh có thể khiến nhận diện không thành công.",
     "Image width and height must be multiples of 16": "Chiều rộng và chiều cao của ảnh phải là bội số của 16",
     "Image {{number}} size": "Image {{number}} size",
     "Image {{number}}": "Image {{number}}",

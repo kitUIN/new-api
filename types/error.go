@@ -73,6 +73,7 @@ const (
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
 	ErrorCodeGroupNotOpen          ErrorCode = "group_not_open"
 	ErrorCodeClaudeCodeNotAllowed  ErrorCode = "claude_code_not_allowed"
+	ErrorCodeClientNotAllowed      ErrorCode = "client_not_allowed"
 
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"

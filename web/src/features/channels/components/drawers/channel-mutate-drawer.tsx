@@ -168,6 +168,7 @@ import {
   ChannelEditorLoadingState,
   ChannelModelsSection,
 } from './sections'
+import { ChannelClientAccessSection } from './sections/channel-client-access-section'
 
 type ChannelMutateDrawerProps = {
   open: boolean
@@ -2832,29 +2833,10 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
-                        <FormField
-                          control={form.control}
-                          name='disable_claude_code'
-                          render={({ field }) => (
-                            <FormItem className='flex items-center justify-between'>
-                              <div className='space-y-0.5'>
-                                <FormLabel>
-                                  {t('channels.disableClaudeCode.label')}
-                                </FormLabel>
-                                <FormDescription>
-                                  {t('channels.disableClaudeCode.description')}
-                                </FormDescription>
-                              </div>
-                              <FormControl>
-                                <Switch
-                                  checked={field.value === true}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
                       </div>
+
+                      <Separator />
+                      <ChannelClientAccessSection control={form.control} />
 
                       <div className='flex flex-col gap-4 border-t pt-4'>
                         <SubHeading

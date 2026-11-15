@@ -228,7 +228,13 @@ export type ChannelProviderSettings = {
   group_query?: GroupQueryConfig
 }
 
+export type ChannelClientAccess = 'unrestricted' | 'deny' | 'allow_only'
+
 export interface ChannelOtherSettings {
+  client_restrictions?: {
+    codex?: ChannelClientAccess
+    claude_code?: ChannelClientAccess
+  }
   disable_claude_code?: boolean
   azure_responses_version?: string
   supports_responses_websocket?: boolean
@@ -391,7 +397,12 @@ export interface MultiKeyStatusResponse {
 // ============================================================================
 
 export type ChannelSortBy =
-  'id' | 'name' | 'priority' | 'balance' | 'response_time' | 'test_time'
+  | 'id'
+  | 'name'
+  | 'priority'
+  | 'balance'
+  | 'response_time'
+  | 'test_time'
 
 export type ChannelSortOrder = 'asc' | 'desc'
 

@@ -26,6 +26,7 @@ import type {
   AddChannelRequest,
   BalanceQueryConfig,
   Channel,
+  ChannelClientAccess,
   GroupQueryConfig,
   ProviderRow,
 } from '../types'
@@ -33,6 +34,13 @@ import type {
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
+
+const clientAccessSchema = z.enum(['unrestricted', 'deny', 'allow_only'])
+
+function parseClientAccess(value: unknown): ChannelClientAccess {
+  const result = clientAccessSchema.safeParse(value)
+  return result.success ? result.data : 'unrestricted'
+}
 
 export const BALANCE_QUERY_NEWAPI_TEMPLATE = {
   request: {
@@ -291,7 +299,8 @@ export const channelFormSchema = z
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
     auto_test_enabled: z.boolean().optional(),
-    disable_claude_code: z.boolean().optional(),
+    codex_access: clientAccessSchema.optional(),
+    claude_code_access: clientAccessSchema.optional(),
     status: z.number(),
     status_code_mapping: z
       .string()
@@ -499,7 +508,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   test_model: '',
   auto_ban: 1,
   auto_test_enabled: true,
-  disable_claude_code: false,
+  codex_access: 'unrestricted',
+  claude_code_access: 'unrestricted',
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
   tag: '',
@@ -806,7 +816,8 @@ export function transformChannelToFormDefaults(
   let supportsResponsesWebSocket = true
   let useResponsesWebSocket = false
   let autoTestEnabled = true
-  let disableClaudeCode = false
+  let codexAccess: ChannelClientAccess = 'unrestricted'
+  let claudeCodeAccess: ChannelClientAccess = 'unrestricted'
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
@@ -836,7 +847,14 @@ export function transformChannelToFormDefaults(
     supportsResponsesWebSocket = parsed.supports_responses_websocket !== false
     useResponsesWebSocket = parsed.use_responses_websocket === true
     autoTestEnabled = parsed.auto_test_enabled !== false
-    disableClaudeCode = parsed.disable_claude_code === true
+    if (isJsonObjectValue(parsed.client_restrictions)) {
+      codexAccess = parseClientAccess(parsed.client_restrictions.codex)
+      claudeCodeAccess = parseClientAccess(
+        parsed.client_restrictions.claude_code
+      )
+    } else if (parsed.disable_claude_code === true) {
+      claudeCodeAccess = 'deny'
+    }
     allowInferenceGeo = parsed.allow_inference_geo === true
     allowSpeed = parsed.allow_speed === true
     claudeBetaQuery = parsed.claude_beta_query === true
@@ -875,7 +893,8 @@ export function transformChannelToFormDefaults(
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
     auto_test_enabled: autoTestEnabled,
-    disable_claude_code: disableClaudeCode,
+    codex_access: codexAccess,
+    claude_code_access: claudeCodeAccess,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
     tag: channel.tag || '',
@@ -1051,11 +1070,17 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.auto_test_enabled
   }
 
-  if (formData.disable_claude_code === true) {
-    settingsObj.disable_claude_code = true
+  const codexAccess = formData.codex_access ?? 'unrestricted'
+  const claudeCodeAccess = formData.claude_code_access ?? 'unrestricted'
+  if (codexAccess !== 'unrestricted' || claudeCodeAccess !== 'unrestricted') {
+    settingsObj.client_restrictions = {
+      codex: codexAccess,
+      claude_code: claudeCodeAccess,
+    }
   } else {
-    delete settingsObj.disable_claude_code
+    delete settingsObj.client_restrictions
   }
+  delete settingsObj.disable_claude_code
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
   if (formData.type === 14) {
