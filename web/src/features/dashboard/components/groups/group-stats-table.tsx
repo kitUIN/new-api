@@ -62,6 +62,7 @@ import {
   getPresetUnixTimeRange,
   toUnixTimeRange,
 } from '@/features/dashboard/lib'
+import { buildGroupStatsRows } from '@/features/dashboard/lib/group-stats'
 import type { GroupQuotaDataItem } from '@/features/dashboard/types'
 import {
   formatLatency,
@@ -95,6 +96,7 @@ interface GroupDetailStats {
 
 interface GroupStats {
   isCombinationGroup?: boolean
+  memberGroups?: string[]
   group: string
   quota: number
   count: number
@@ -276,6 +278,7 @@ function processGroupStats(
 
     const groupStats = groups.get(group) ?? emptyGroupStats(group)
     groupStats.isCombinationGroup = item.is_combination_group
+    groupStats.memberGroups = item.member_groups
     groupStats.quota += quota
     groupStats.count += count
     groupStats.tokens += tokens
@@ -345,7 +348,7 @@ function processGroupStats(
       }
     )
 
-  return { rows, summary }
+  return { rows: buildGroupStatsRows(rows), summary }
 }
 
 function SummaryItem(props: {
@@ -648,7 +651,7 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
     7 + (showUserBreakdown ? 1 : 0) + (showPerformance ? 3 : 0)
 
   useEffect(() => {
-    setExpandedGroups(new Set(rows.map((row) => row.group)))
+    setExpandedGroups(new Set(rows.map((row) => row.key)))
   }, [rows])
 
   const toggleGroup = useCallback((group: string) => {
@@ -819,19 +822,21 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((group) => {
-                const expanded = expandedGroups.has(group.group)
+              rows.map((row) => {
+                const group = row.stats
+                const expanded = expandedGroups.has(row.key)
 
                 return (
-                  <Fragment key={group.group}>
+                  <Fragment key={row.key}>
                     <TableRow
                       aria-expanded={expanded}
                       className='bg-muted/35 font-medium'
                     >
-                      <TableCell>
+                      <TableCell className={cn(row.depth === 1 && 'pl-10')}>
                         <button
                           type='button'
-                          onClick={() => toggleGroup(group.group)}
+                          onClick={() => toggleGroup(row.key)}
+                          aria-expanded={expanded}
                           className='focus-visible:ring-ring flex min-w-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2'
                         >
                           <ChevronRight
@@ -864,7 +869,9 @@ export function GroupStatsTable({ isAdmin = false }: GroupStatsTableProps) {
                     {expanded &&
                       group.details.map((detail) => (
                         <TableRow key={`${group.group}-${detail.key}`}>
-                          <TableCell className='pl-10'>
+                          <TableCell
+                            className={cn('pl-10', row.depth === 1 && 'pl-18')}
+                          >
                             {showUserBreakdown ? (
                               <UserIdentity
                                 displayName={detail.displayName}

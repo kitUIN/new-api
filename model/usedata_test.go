@@ -525,9 +525,11 @@ func TestGroupQuotaDataIncludesCombinationMemberTotals(t *testing.T) {
 			for _, row := range rows {
 				if row.Group != "combo" {
 					require.False(t, row.IsCombinationGroup)
+					require.Empty(t, row.MemberGroups)
 					continue
 				}
 				require.True(t, row.IsCombinationGroup)
+				require.Equal(t, []string{"first", "second"}, row.MemberGroups)
 				count += row.Count
 				quota += row.Quota
 				tokens += row.TokenUsed

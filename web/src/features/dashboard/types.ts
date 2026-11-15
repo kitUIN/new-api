@@ -52,6 +52,7 @@ export interface QuotaDataItem {
 
 export interface GroupQuotaDataItem {
   is_combination_group?: boolean
+  member_groups?: string[]
   user_id?: number
   username?: string
   display_name?: string

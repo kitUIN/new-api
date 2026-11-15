@@ -29,7 +29,8 @@ type QuotaData struct {
 	Count            int    `json:"count" gorm:"default:0"`
 	Quota            int    `json:"quota" gorm:"default:0"`
 
-	IsCombinationGroup bool `json:"is_combination_group,omitempty" gorm:"-"`
+	IsCombinationGroup bool     `json:"is_combination_group,omitempty" gorm:"-"`
+	MemberGroups       []string `json:"member_groups,omitempty" gorm:"-"`
 
 	PerfRequestCount     int64   `json:"perf_request_count,omitempty" gorm:"-"`
 	LatencyCount         int64   `json:"latency_count,omitempty" gorm:"-"`
@@ -335,11 +336,13 @@ func withCombinationQuotaData(rows []*QuotaData) []*QuotaData {
 		}
 		totals := make(map[detailKey]*QuotaData)
 		seen := make(map[string]bool)
+		memberGroups := make([]string, 0, len(combinations[name]))
 		for _, member := range combinations[name] {
 			if seen[member.Group] {
 				continue
 			}
 			seen[member.Group] = true
+			memberGroups = append(memberGroups, member.Group)
 			for _, row := range byGroup[member.Group] {
 				key := detailKey{row.ModelName, row.UserID}
 				total := totals[key]
@@ -365,6 +368,7 @@ func withCombinationQuotaData(rows []*QuotaData) []*QuotaData {
 			}
 		}
 		for _, total := range totals {
+			total.MemberGroups = memberGroups
 			if total.LatencyCount > 0 {
 				total.AvgLatencyMs = float64(total.TotalLatencyMs) / float64(total.LatencyCount)
 			}
