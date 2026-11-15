@@ -40,12 +40,12 @@ export async function sendChatCompletion(
 /**
  * Get user available models
  */
-export async function getUserModels(): Promise<ModelOption[]> {
-  const res = await api.get(API_ENDPOINTS.USER_MODELS)
+export async function getUserModels(group: string): Promise<ModelOption[]> {
+  const res = await api.get(API_ENDPOINTS.USER_MODELS, { params: { group } })
   const { data } = res
 
   if (!data.success || !Array.isArray(data.data)) {
-    return []
+    throw new Error(data.message || 'Failed to load playground models')
   }
 
   return data.data.map((model: string) => ({
@@ -62,14 +62,17 @@ export async function getUserGroups(): Promise<GroupOption[]> {
   const { data } = res
 
   if (!data.success || !data.data) {
-    return []
+    throw new Error(data.message || 'Failed to load playground groups')
   }
 
-  const groupData = data.data as Record<string, { desc: string; ratio: number }>
+  const groupData = data.data as Record<
+    string,
+    { label?: string; desc: string; ratio: number | string }
+  >
 
   // label is for button display (name only); desc is for dropdown content
   return Object.entries(groupData).map(([group, info]) => ({
-    label: group,
+    label: info.label || group,
     value: group,
     ratio: info.ratio,
     desc: info.desc,

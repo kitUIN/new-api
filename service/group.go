@@ -179,6 +179,29 @@ func GroupInUserUsableGroups(userGroup, groupName string) bool {
 	return ok
 }
 
+// GetUserGroupModels lists models routable through the selected group,
+// including the eligible members of automatic and combination groups.
+func GetUserGroupModels(userGroup, group string) []string {
+	groups := []string{group}
+	if group == "auto" {
+		groups = GetUserAutoGroup(userGroup)
+	} else if IsRuleAutoGroup(group) {
+		groups = GetRuleAutoGroupCandidates(userGroup, group)
+	}
+	models := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, candidate := range groups {
+		for _, name := range model.GetGroupEnabledModels(candidate) {
+			if !seen[name] {
+				seen[name] = true
+				models = append(models, name)
+			}
+		}
+	}
+	sort.Strings(models)
+	return models
+}
+
 // GetUserAutoGroup 根据用户分组获取自动分组设置
 func GetUserAutoGroup(userGroup string) []string {
 	groups := GetUserUsableGroups(userGroup)

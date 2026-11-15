@@ -1,5 +1,17 @@
 {
   "translation": {
+    "playground.parameters.title": "聊天参数",
+    "playground.parameters.description": "仅发送已开启的参数。温度默认关闭，使用模型默认值；参数支持范围因模型而异。",
+    "playground.parameters.temperature": "温度（temperature）",
+    "playground.parameters.topP": "核采样（top_p）",
+    "playground.parameters.maxTokens": "最大输出 Token 数",
+    "playground.parameters.frequencyPenalty": "频率惩罚",
+    "playground.parameters.presencePenalty": "存在惩罚",
+    "playground.parameters.seed": "随机种子",
+    "playground.parameters.send": "发送 {{parameter}}",
+    "playground.parameters.invalid": "请输入 {{min}} 到 {{max}} 之间的有效数值；Token 数与种子须为整数。",
+    "playground.selection.loadFailed": "无法加载分组或模型，请重试。",
+    "playground.selection.noModels": "当前分组没有可用模型，请选择其他分组。",
     "channels.clientAccess.title": "特定客户端访问",
     "channels.clientAccess.description": "分别设置客户端规则。任一客户端设为“只允许”后，仅允许匹配的客户端访问；两者都设为“只允许”时允许其中任意一个，禁止规则优先。",
     "channels.clientAccess.unrestricted": "不限制",

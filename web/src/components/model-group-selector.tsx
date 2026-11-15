@@ -21,6 +21,7 @@ import { ChevronsUpDown, Check, CpuIcon, LayersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -53,7 +54,7 @@ interface ModelOption {
 interface GroupOption {
   label: string
   value: string
-  ratio?: number
+  ratio?: number | string
   desc?: string
   description?: string
 }
@@ -110,14 +111,31 @@ const ModelTriggerButton = React.forwardRef<
 
 ModelTriggerButton.displayName = 'ModelTriggerButton'
 
+function GroupRatio(props: { ratio?: number | string }) {
+  const { t } = useTranslation()
+  if (props.ratio === undefined || props.ratio === '') return null
+  let label = props.ratio
+  if (typeof props.ratio === 'number') label = `${props.ratio}×`
+  if (props.ratio === '自动') label = t('Auto')
+  return (
+    <Badge
+      variant='secondary'
+      aria-label={t('Ratio: {{value}}', { value: label })}
+    >
+      {label}
+    </Badge>
+  )
+}
+
 const GroupTriggerButton = React.forwardRef<
   React.ComponentRef<typeof Button>,
   React.ComponentPropsWithoutRef<typeof Button> & {
     currentLabel: string
+    ratio?: number | string
     triggerClassName?: string
     isDisabled?: boolean
   }
->(({ currentLabel, triggerClassName, isDisabled, ...props }, ref) => (
+>(({ currentLabel, ratio, triggerClassName, isDisabled, ...props }, ref) => (
   <Button
     ref={ref}
     variant='outline'
@@ -126,8 +144,7 @@ const GroupTriggerButton = React.forwardRef<
     disabled={isDisabled}
     className={cn(
       'flex h-8 items-center gap-2 border px-3 font-medium',
-      'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-      'w-8',
+      'w-auto justify-start px-2 sm:px-3',
       'bg-background text-foreground',
       'hover:bg-accent transition-colors',
       'focus:!ring-0 focus:!outline-none',
@@ -137,9 +154,8 @@ const GroupTriggerButton = React.forwardRef<
     {...props}
   >
     <LayersIcon className='text-muted-foreground block size-4 sm:hidden' />
-    <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
-      {currentLabel}
-    </span>
+    <span className='max-w-24 truncate sm:max-w-40'>{currentLabel}</span>
+    <GroupRatio ratio={ratio} />
     <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
   </Button>
 ))
@@ -418,15 +434,10 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                     <span className='text-foreground truncate text-[11px] font-medium'>
                       {group.label}
                     </span>
+                    <GroupRatio ratio={group.ratio} />
                     {(group.desc || group.description) && (
                       <div className='text-muted-foreground truncate text-[9px] leading-tight'>
                         {group.desc || group.description}
-                        {group.ratio && (
-                          <>
-                            {' · '}
-                            {t('Ratio: {{value}}', { value: group.ratio })}
-                          </>
-                        )}
                       </div>
                     )}
                   </div>
@@ -451,6 +462,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
             <DrawerTrigger asChild>
               <GroupTriggerButton
                 currentLabel={currentGroup?.label || t('Group')}
+                ratio={currentGroup?.ratio}
                 triggerClassName={className}
                 isDisabled={disabled}
                 aria-expanded={open}
@@ -480,17 +492,10 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                           <span className='text-foreground text-sm font-medium'>
                             {group.label}
                           </span>
+                          <GroupRatio ratio={group.ratio} />
                           {(group.desc || group.description) && (
                             <div className='text-muted-foreground mt-0.5 text-xs'>
                               {group.desc || group.description}
-                              {group.ratio && (
-                                <>
-                                  {' · '}
-                                  {t('Ratio: {{value}}', {
-                                    value: group.ratio,
-                                  })}
-                                </>
-                              )}
                             </div>
                           )}
                         </div>
@@ -515,6 +520,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
               render={
                 <GroupTriggerButton
                   currentLabel={currentGroup?.label || t('Group')}
+                  ratio={currentGroup?.ratio}
                   triggerClassName={className}
                   isDisabled={disabled}
                   aria-expanded={open}
@@ -552,6 +558,8 @@ export interface ModelGroupSelectorProps {
   // Common props
   className?: string
   disabled?: boolean
+  modelDisabled?: boolean
+  groupDisabled?: boolean
 }
 
 /**
@@ -567,6 +575,8 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   onGroupChange,
   className,
   disabled = false,
+  modelDisabled = false,
+  groupDisabled = false,
 }) => {
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -574,13 +584,13 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         selectedGroup={selectedGroup}
         groups={groups}
         onGroupChange={onGroupChange}
-        disabled={disabled}
+        disabled={disabled || groupDisabled}
       />
       <ModelSelector
         selectedModel={selectedModel}
         models={models}
         onModelChange={onModelChange}
-        disabled={disabled}
+        disabled={disabled || modelDisabled}
       />
     </div>
   )

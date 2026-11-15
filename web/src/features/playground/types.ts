@@ -128,6 +128,8 @@ export interface ParameterEnabled {
   seed: boolean
 }
 
+export type PlaygroundParameters = Omit<PlaygroundConfig, 'model' | 'group'>
+
 // Model and group options
 export interface ModelOption {
   label: string
@@ -137,6 +139,6 @@ export interface ModelOption {
 export interface GroupOption {
   label: string
   value: string
-  ratio: number
+  ratio: number | string
   desc?: string
 }

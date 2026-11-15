@@ -55,7 +55,10 @@ export function loadParameterEnabled(): Partial<ParameterEnabled> {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.PARAMETER_ENABLED)
     if (saved) {
-      return JSON.parse(saved)
+      const parsed = JSON.parse(saved)
+      if (parsed.version === 2) return parsed.parameters
+      // Old versions enabled temperature implicitly, before exposing controls.
+      return { ...parsed, temperature: false }
     }
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -73,7 +76,7 @@ export function saveParameterEnabled(
   try {
     localStorage.setItem(
       STORAGE_KEYS.PARAMETER_ENABLED,
-      JSON.stringify(parameterEnabled)
+      JSON.stringify({ version: 2, parameters: parameterEnabled })
     )
   } catch (error) {
     // eslint-disable-next-line no-console

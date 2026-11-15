@@ -1,5 +1,17 @@
 {
   "translation": {
+    "playground.parameters.title": "Chat parameters",
+    "playground.parameters.description": "Only enabled parameters are sent. Temperature is off by default to use the model default. Supported parameters vary by model.",
+    "playground.parameters.temperature": "Temperature",
+    "playground.parameters.topP": "Top P",
+    "playground.parameters.maxTokens": "Maximum output tokens",
+    "playground.parameters.frequencyPenalty": "Frequency penalty",
+    "playground.parameters.presencePenalty": "Presence penalty",
+    "playground.parameters.seed": "Seed",
+    "playground.parameters.send": "Send {{parameter}}",
+    "playground.parameters.invalid": "Enter a valid value from {{min}} to {{max}}. Token count and seed must be integers.",
+    "playground.selection.loadFailed": "Could not load groups or models. Please retry.",
+    "playground.selection.noModels": "No models are available in this group. Choose another group.",
     "channels.clientAccess.title": "Client access",
     "channels.clientAccess.description": "Set each client's rule. If either is set to Only allow, access is limited to matching clients. Selecting Only allow for both permits either client. Deny rules take priority.",
     "channels.clientAccess.unrestricted": "Unrestricted",

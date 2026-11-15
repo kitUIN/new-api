@@ -1,5 +1,17 @@
 {
   "translation": {
+    "playground.parameters.title": "Paramètres de conversation",
+    "playground.parameters.description": "Seuls les paramètres activés sont envoyés. La température est désactivée par défaut pour utiliser celle du modèle. Les paramètres pris en charge varient selon le modèle.",
+    "playground.parameters.temperature": "Température",
+    "playground.parameters.topP": "Top P",
+    "playground.parameters.maxTokens": "Nombre maximal de tokens de sortie",
+    "playground.parameters.frequencyPenalty": "Pénalité de fréquence",
+    "playground.parameters.presencePenalty": "Pénalité de présence",
+    "playground.parameters.seed": "Graine aléatoire",
+    "playground.parameters.send": "Envoyer {{parameter}}",
+    "playground.parameters.invalid": "Saisissez une valeur valide entre {{min}} et {{max}}. Le nombre de tokens et la graine doivent être entiers.",
+    "playground.selection.loadFailed": "Impossible de charger les groupes ou les modèles. Réessayez.",
+    "playground.selection.noModels": "Aucun modèle disponible dans ce groupe. Choisissez un autre groupe.",
     "channels.clientAccess.title": "Accès des clients",
     "channels.clientAccess.description": "Définissez la règle de chaque client. Si « Autoriser uniquement » est sélectionné, seuls les clients correspondants sont admis. Sélectionner ce mode pour les deux autorise l’un ou l’autre. Les interdictions sont prioritaires.",
     "channels.clientAccess.unrestricted": "Sans restriction",

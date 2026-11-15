@@ -1,5 +1,17 @@
 {
   "translation": {
+    "playground.parameters.title": "チャットパラメーター",
+    "playground.parameters.description": "有効なパラメーターのみ送信します。温度は初期状態では無効で、モデルの既定値を使用します。対応するパラメーターはモデルにより異なります。",
+    "playground.parameters.temperature": "温度",
+    "playground.parameters.topP": "Top P",
+    "playground.parameters.maxTokens": "最大出力トークン数",
+    "playground.parameters.frequencyPenalty": "頻度ペナルティ",
+    "playground.parameters.presencePenalty": "存在ペナルティ",
+    "playground.parameters.seed": "シード",
+    "playground.parameters.send": "{{parameter}}を送信",
+    "playground.parameters.invalid": "{{min}}から{{max}}までの有効な値を入力してください。トークン数とシードは整数で指定します。",
+    "playground.selection.loadFailed": "グループまたはモデルを読み込めませんでした。再試行してください。",
+    "playground.selection.noModels": "このグループには利用可能なモデルがありません。別のグループを選択してください。",
     "channels.clientAccess.title": "クライアントのアクセス",
     "channels.clientAccess.description": "クライアントごとにルールを設定します。「のみ許可」を選ぶと、該当するクライアントだけがアクセスできます。両方を「のみ許可」にすると、いずれかを許可します。禁止ルールが優先されます。",
     "channels.clientAccess.unrestricted": "制限なし",

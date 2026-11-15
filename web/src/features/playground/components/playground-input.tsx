@@ -26,17 +26,13 @@ import {
   GlobeIcon,
   SendIcon,
   SquareIcon,
-  BarChartIcon,
-  BoxIcon,
-  NotepadTextIcon,
-  CodeSquareIcon,
-  GraduationCapIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -48,7 +44,6 @@ import {
   PromptInputTools,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
-import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import type { ModelOption, GroupOption } from '../types'
 
@@ -56,6 +51,7 @@ interface PlaygroundInputProps {
   onSubmit: (text: string) => void
   onStop?: () => void
   disabled?: boolean
+  canSend: boolean
   isGenerating?: boolean
   models: ModelOption[]
   modelValue: string
@@ -66,19 +62,11 @@ interface PlaygroundInputProps {
   onGroupChange: (value: string) => void
 }
 
-const suggestions = [
-  { icon: BarChartIcon, text: 'Analyze data', color: '#76d0eb' },
-  { icon: BoxIcon, text: 'Surprise me', color: '#76d0eb' },
-  { icon: NotepadTextIcon, text: 'Summarize text', color: '#ea8444' },
-  { icon: CodeSquareIcon, text: 'Code', color: '#6c71ff' },
-  { icon: GraduationCapIcon, text: 'Get advice', color: '#76d0eb' },
-  { icon: null, text: 'More' },
-]
-
 export function PlaygroundInput({
   onSubmit,
   onStop,
   disabled,
+  canSend,
   isGenerating,
   models,
   modelValue,
@@ -96,7 +84,7 @@ export function PlaygroundInput({
   const isGroupSelectDisabled = disabled || groups.length === 0
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || disabled) return
+    if (!message.text?.trim() || disabled || !canSend) return
     onSubmit(message.text)
     setText('')
   }
@@ -105,10 +93,6 @@ export function PlaygroundInput({
     toast.info(t('Feature in development'), {
       description: action,
     })
-  }
-
-  const handleSuggestionClick = (suggestion: string) => {
-    onSubmit(suggestion)
   }
 
   return (
@@ -126,7 +110,7 @@ export function PlaygroundInput({
           value={text}
         />
 
-        <PromptInputFooter className='p-2.5'>
+        <PromptInputFooter className='flex-wrap gap-2 p-2.5'>
           <PromptInputTools>
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -143,30 +127,32 @@ export function PlaygroundInput({
                 <span className='sr-only sm:hidden'>{t('Attach')}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-file')}
-                >
-                  <FileIcon className='mr-2' size={16} />
-                  {t('Upload file')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-photo')}
-                >
-                  <ImageIcon className='mr-2' size={16} />
-                  {t('Upload photo')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('take-screenshot')}
-                >
-                  <ScreenShareIcon className='mr-2' size={16} />
-                  {t('Take screenshot')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('take-photo')}
-                >
-                  <CameraIcon className='mr-2' size={16} />
-                  {t('Take photo')}
-                </DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={() => handleFileAction('upload-file')}
+                  >
+                    <FileIcon className='mr-2' size={16} />
+                    {t('Upload file')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleFileAction('upload-photo')}
+                  >
+                    <ImageIcon className='mr-2' size={16} />
+                    {t('Upload photo')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleFileAction('take-screenshot')}
+                  >
+                    <ScreenShareIcon className='mr-2' size={16} />
+                    {t('Take screenshot')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleFileAction('take-photo')}
+                  >
+                    <CameraIcon className='mr-2' size={16} />
+                    {t('Take photo')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -182,7 +168,7 @@ export function PlaygroundInput({
             </PromptInputButton>
           </PromptInputTools>
 
-          <div className='flex items-center gap-1.5 md:gap-2'>
+          <div className='ml-auto flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2'>
             <ModelGroupSelector
               selectedModel={modelValue}
               models={models}
@@ -190,7 +176,8 @@ export function PlaygroundInput({
               selectedGroup={groupValue}
               groups={groups}
               onGroupChange={onGroupChange}
-              disabled={isModelSelectDisabled || isGroupSelectDisabled}
+              modelDisabled={isModelSelectDisabled}
+              groupDisabled={isGroupSelectDisabled}
             />
 
             {isGenerating && onStop ? (
@@ -206,7 +193,7 @@ export function PlaygroundInput({
             ) : (
               <PromptInputButton
                 className='text-foreground font-medium'
-                disabled={disabled || !text.trim()}
+                disabled={disabled || !canSend || !text.trim()}
                 type='submit'
                 variant='secondary'
               >
@@ -218,22 +205,6 @@ export function PlaygroundInput({
           </div>
         </PromptInputFooter>
       </PromptInput>
-
-      <Suggestions>
-        {suggestions.map(({ icon: Icon, text, color }) => (
-          <Suggestion
-            className={`text-xs font-normal sm:text-sm ${
-              text === 'More' ? 'hidden sm:flex' : ''
-            }`}
-            key={text}
-            onClick={() => handleSuggestionClick(text)}
-            suggestion={text}
-          >
-            {Icon && <Icon size={16} style={{ color }} />}
-            {text}
-          </Suggestion>
-        ))}
-      </Suggestions>
     </div>
   )
 }

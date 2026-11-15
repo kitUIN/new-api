@@ -1,5 +1,17 @@
 {
   "translation": {
+    "playground.parameters.title": "Параметры чата",
+    "playground.parameters.description": "Отправляются только включённые параметры. Температура по умолчанию отключена: используется значение модели. Поддержка параметров зависит от модели.",
+    "playground.parameters.temperature": "Температура",
+    "playground.parameters.topP": "Top P",
+    "playground.parameters.maxTokens": "Максимум выходных токенов",
+    "playground.parameters.frequencyPenalty": "Штраф за частоту",
+    "playground.parameters.presencePenalty": "Штраф за присутствие",
+    "playground.parameters.seed": "Случайное зерно",
+    "playground.parameters.send": "Отправлять {{parameter}}",
+    "playground.parameters.invalid": "Введите допустимое значение от {{min}} до {{max}}. Число токенов и зерно должны быть целыми.",
+    "playground.selection.loadFailed": "Не удалось загрузить группы или модели. Повторите попытку.",
+    "playground.selection.noModels": "В этой группе нет доступных моделей. Выберите другую группу.",
     "channels.clientAccess.title": "Доступ клиентов",
     "channels.clientAccess.description": "Задайте правило для каждого клиента. При выборе «Разрешить только» доступ получают лишь соответствующие клиенты. Если этот режим выбран для обоих, допускается любой из них. Запрет имеет приоритет.",
     "channels.clientAccess.unrestricted": "Без ограничений",

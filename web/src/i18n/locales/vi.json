@@ -1,5 +1,17 @@
 {
   "translation": {
+    "playground.parameters.title": "Tham số trò chuyện",
+    "playground.parameters.description": "Chỉ gửi các tham số đã bật. Nhiệt độ mặc định tắt để dùng giá trị mặc định của mô hình. Các tham số được hỗ trợ tùy thuộc vào mô hình.",
+    "playground.parameters.temperature": "Nhiệt độ",
+    "playground.parameters.topP": "Top P",
+    "playground.parameters.maxTokens": "Số token đầu ra tối đa",
+    "playground.parameters.frequencyPenalty": "Phạt tần suất",
+    "playground.parameters.presencePenalty": "Phạt hiện diện",
+    "playground.parameters.seed": "Hạt giống ngẫu nhiên",
+    "playground.parameters.send": "Gửi {{parameter}}",
+    "playground.parameters.invalid": "Nhập giá trị hợp lệ từ {{min}} đến {{max}}. Số token và hạt giống phải là số nguyên.",
+    "playground.selection.loadFailed": "Không thể tải nhóm hoặc mô hình. Vui lòng thử lại.",
+    "playground.selection.noModels": "Nhóm này không có mô hình khả dụng. Hãy chọn nhóm khác.",
     "channels.clientAccess.title": "Quyền truy cập của ứng dụng",
     "channels.clientAccess.description": "Đặt quy tắc cho từng ứng dụng. Khi chọn Chỉ cho phép, chỉ ứng dụng phù hợp được truy cập. Chọn chế độ này cho cả hai sẽ cho phép một trong hai. Quy tắc cấm được ưu tiên.",
     "channels.clientAccess.unrestricted": "Không hạn chế",

@@ -16,16 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useState } from 'react'
 import { Eraser } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { getUserModels, getUserGroups } from './api'
+import { ParameterSettings } from './components/parameter-settings'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { usePlaygroundState, useChatHandler } from './hooks'
+import { usePlaygroundOptions } from './hooks/use-playground-options'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
 
@@ -35,17 +35,15 @@ export function Playground() {
     config,
     parameterEnabled,
     messages,
-    models,
-    groups,
     updateMessages,
     clearMessages,
-    setModels,
-    setGroups,
     updateConfig,
+    updateParameters,
   } = usePlaygroundState()
+  const options = usePlaygroundOptions(config)
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
-    config,
+    config: { ...config, group: options.group, model: options.model },
     parameterEnabled,
     onMessageUpdate: updateMessages,
   })
@@ -55,69 +53,8 @@ export function Playground() {
     null
   )
 
-  // Load models
-  const { data: modelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ['playground-models'],
-    queryFn: async () => {
-      try {
-        return await getUserModels()
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t('Failed to load playground models')
-        )
-        return []
-      }
-    },
-  })
-
-  // Load groups
-  const { data: groupsData } = useQuery({
-    queryKey: ['playground-groups'],
-    queryFn: async () => {
-      try {
-        return await getUserGroups()
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t('Failed to load playground groups')
-        )
-        return []
-      }
-    },
-  })
-
-  // Update models when data changes
-  useEffect(() => {
-    if (!modelsData) return
-
-    setModels(modelsData)
-
-    // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
-    if (modelsData.length > 0 && !isCurrentModelValid) {
-      updateConfig('model', modelsData[0].value)
-    }
-  }, [modelsData, config.model, setModels, updateConfig])
-
-  // Update groups when data changes
-  useEffect(() => {
-    if (!groupsData) return
-
-    setGroups(groupsData)
-
-    const hasCurrentGroup = groupsData.some((g) => g.value === config.group)
-    if (!hasCurrentGroup && groupsData.length > 0) {
-      const fallback =
-        groupsData.find((g) => g.value === 'default')?.value ??
-        groupsData[0].value
-      updateConfig('group', fallback)
-    }
-  }, [groupsData, setGroups, config.group, updateConfig])
-
   const handleSendMessage = (text: string) => {
+    if (!options.canSend || isGenerating) return
     const userMessage = createUserMessage(text)
     const assistantMessage = createLoadingAssistantMessage()
 
@@ -135,6 +72,7 @@ export function Playground() {
   }
 
   const handleRegenerateMessage = (message: MessageType) => {
+    if (!options.canSend || isGenerating) return
     // Find the message index and regenerate from there
     const messageIndex = messages.findIndex((m) => m.key === message.key)
     if (messageIndex === -1) return
@@ -160,6 +98,7 @@ export function Playground() {
   const applyEdit = useCallback(
     (newContent: string, submit: boolean) => {
       if (!editingMessageKey) return
+      if (submit && (!options.canSend || isGenerating)) return
       const index = messages.findIndex((m) => m.key === editingMessageKey)
       if (index === -1) return
 
@@ -183,7 +122,14 @@ export function Playground() {
       updateMessages(toSubmit)
       sendChat(toSubmit)
     },
-    [editingMessageKey, messages, updateMessages, sendChat]
+    [
+      editingMessageKey,
+      messages,
+      updateMessages,
+      sendChat,
+      options.canSend,
+      isGenerating,
+    ]
   )
 
   const handleDeleteMessage = (message: MessageType) => {
@@ -199,7 +145,13 @@ export function Playground() {
 
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
-      <div className='mx-auto flex w-full max-w-4xl justify-end px-4 py-2'>
+      <div className='mx-auto flex w-full max-w-4xl justify-end gap-2 px-4 py-2'>
+        <ParameterSettings
+          config={config}
+          enabled={parameterEnabled}
+          disabled={isGenerating}
+          onApply={updateParameters}
+        />
         <Button
           type='button'
           variant='outline'
@@ -229,14 +181,35 @@ export function Playground() {
 
       {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>
+        {!options.isLoading && !options.canSend && (
+          <Alert
+            className='mb-2'
+            variant={options.hasError ? 'destructive' : 'default'}
+          >
+            <AlertDescription className='flex items-center justify-between gap-2'>
+              {options.hasError
+                ? t('playground.selection.loadFailed')
+                : t('playground.selection.noModels')}
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={options.retry}
+              >
+                {t('Retry')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <PlaygroundInput
           disabled={isGenerating}
-          groups={groups}
-          groupValue={config.group}
+          canSend={options.canSend}
+          groups={options.groups}
+          groupValue={options.group}
           isGenerating={isGenerating}
-          isModelLoading={isLoadingModels}
-          modelValue={config.model}
-          models={models}
+          isModelLoading={options.isLoading}
+          modelValue={options.model}
+          models={options.models}
           onGroupChange={(value) => updateConfig('group', value)}
           onModelChange={(value) => updateConfig('model', value)}
           onStop={stopGeneration}

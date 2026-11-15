@@ -570,6 +570,17 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if group := c.Query("group"); group != "" {
+		if !service.GroupInUserUsableGroups(user.Group, group) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgDistributorGroupAccessDenied),
+			})
+			return
+		}
+		common.ApiSuccess(c, service.GetUserGroupModels(user.Group, group))
+		return
+	}
 	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
 	for group := range groups {

@@ -30,8 +30,7 @@ import type {
   Message,
   PlaygroundConfig,
   ParameterEnabled,
-  ModelOption,
-  GroupOption,
+  PlaygroundParameters,
 } from '../types'
 
 /**
@@ -55,9 +54,6 @@ export function usePlaygroundState() {
     return loadMessages() || []
   })
 
-  const [models, setModels] = useState<ModelOption[]>([])
-  const [groups, setGroups] = useState<GroupOption[]>([])
-
   // Update config with automatic save
   const updateConfig = useCallback(
     <K extends keyof PlaygroundConfig>(key: K, value: PlaygroundConfig[K]) => {
@@ -78,6 +74,19 @@ export function usePlaygroundState() {
         saveParameterEnabled(updated)
         return updated
       })
+    },
+    []
+  )
+
+  const updateParameters = useCallback(
+    (values: PlaygroundParameters, enabled: ParameterEnabled) => {
+      setConfig((prev) => {
+        const updated = { ...prev, ...values }
+        saveConfig(updated)
+        return updated
+      })
+      setParameterEnabled(enabled)
+      saveParameterEnabled(enabled)
     },
     []
   )
@@ -113,16 +122,11 @@ export function usePlaygroundState() {
     config,
     parameterEnabled,
     messages,
-    models,
-    groups,
-
-    // Setters
-    setModels,
-    setGroups,
 
     // Actions
     updateConfig,
     updateParameterEnabled,
+    updateParameters,
     updateMessages,
     clearMessages,
     resetConfig,
