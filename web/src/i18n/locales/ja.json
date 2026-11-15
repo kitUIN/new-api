@@ -1,5 +1,10 @@
 {
   "translation": {
+    "channels.requestBodyCompression.label": "上流リクエストの圧縮",
+    "channels.requestBodyCompression.description": "デフォルトは zstd です。上流が対応する形式を選択してください。1 KiB 以上の JSON リクエストで、圧縮後にサイズが小さくなる場合のみ圧縮します。",
+    "channels.requestBodyCompression.none": "圧縮なし",
+    "channels.requestBodyCompression.gzip": "gzip 圧縮",
+    "channels.requestBodyCompression.zstd": "zstd 圧縮",
     "usageLogs.cacheHitRate": "キャッシュヒット率",
     "playground.parameters.title": "チャットパラメーター",
     "playground.parameters.description": "有効なパラメーターのみ送信します。温度は初期状態では無効で、モデルの既定値を使用します。対応するパラメーターはモデルにより異なります。",

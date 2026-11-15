@@ -2,6 +2,7 @@ package dto
 
 type ChannelSettings struct {
 	RequestBodyGzip        *bool  `json:"request_body_gzip,omitempty"`
+	RequestBodyCompression string `json:"request_body_compression,omitempty"`
 	ResponsesImageURLs     bool   `json:"responses_image_urls,omitempty"`
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
@@ -9,6 +10,22 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+}
+
+// GetRequestBodyCompression preserves explicit legacy gzip settings while new
+// channels default to zstd. The single compression setting takes precedence.
+func (s ChannelSettings) GetRequestBodyCompression() string {
+	switch s.RequestBodyCompression {
+	case "none", "gzip", "zstd":
+		return s.RequestBodyCompression
+	}
+	if s.RequestBodyGzip != nil {
+		if *s.RequestBodyGzip {
+			return "gzip"
+		}
+		return "none"
+	}
+	return "zstd"
 }
 
 type VertexKeyType string

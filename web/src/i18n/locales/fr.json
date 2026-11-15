@@ -1,5 +1,10 @@
 {
   "translation": {
+    "channels.requestBodyCompression.label": "Compression des requêtes vers le fournisseur",
+    "channels.requestBodyCompression.description": "zstd par défaut. Choisissez un format accepté par le fournisseur. Seules les requêtes JSON d’au moins 1 Kio sont compressées, si le résultat est plus petit.",
+    "channels.requestBodyCompression.none": "Sans compression",
+    "channels.requestBodyCompression.gzip": "Compression gzip",
+    "channels.requestBodyCompression.zstd": "Compression zstd",
     "usageLogs.cacheHitRate": "Taux de cache",
     "playground.parameters.title": "Paramètres de conversation",
     "playground.parameters.description": "Seuls les paramètres activés sont envoyés. La température est désactivée par défaut pour utiliser celle du modèle. Les paramètres pris en charge varient selon le modèle.",

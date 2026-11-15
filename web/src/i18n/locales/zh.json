@@ -1,5 +1,10 @@
 {
   "translation": {
+    "channels.requestBodyCompression.label": "上游请求压缩",
+    "channels.requestBodyCompression.description": "默认使用 zstd。请根据上游支持情况选择；仅压缩至少 1 KiB 且压缩后更小的 JSON 请求。",
+    "channels.requestBodyCompression.none": "不压缩",
+    "channels.requestBodyCompression.gzip": "gzip 压缩",
+    "channels.requestBodyCompression.zstd": "zstd 压缩",
     "usageLogs.cacheHitRate": "缓存命中率",
     "playground.parameters.title": "聊天参数",
     "playground.parameters.description": "仅发送已开启的参数。温度默认关闭，使用模型默认值；参数支持范围因模型而异。",

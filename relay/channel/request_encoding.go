@@ -16,6 +16,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/klauspost/compress/zstd"
 )
 
 type assetResponseBody struct {
@@ -57,7 +58,8 @@ func prepareUpstreamJSONBody(c *gin.Context, req *http.Request, info *relaycommo
 	if info.ChannelType == constant.ChannelTypeAws || info.ChannelType == constant.ChannelTypeTencent || strings.HasPrefix(auth, "TC3-") || strings.Contains(auth, "AWS4-") || strings.Contains(auth, "HMAC-SHA256") {
 		return noop, nil
 	}
-	compress := info.ChannelSetting.RequestBodyGzip == nil || *info.ChannelSetting.RequestBodyGzip
+	compression := info.ChannelSetting.GetRequestBodyCompression()
+	compress := compression != "none"
 	rewrite := info.ChannelSetting.ResponsesImageURLs
 	if !compress && !rewrite {
 		return noop, nil
@@ -79,8 +81,18 @@ func prepareUpstreamJSONBody(c *gin.Context, req *http.Request, info *relaycommo
 	encoding := "identity"
 	if compress && len(body) >= 1024 {
 		var buf bytes.Buffer
-		writer := gzip.NewWriter(&buf)
+		var writer io.WriteCloser
+		if compression == "zstd" {
+			writer, err = zstd.NewWriter(&buf, zstd.WithEncoderConcurrency(1), zstd.WithEncoderLevel(zstd.SpeedFastest))
+			if err != nil {
+				release()
+				return noop, err
+			}
+		} else {
+			writer = gzip.NewWriter(&buf)
+		}
 		if _, err = writer.Write(body); err != nil {
+			_ = writer.Close()
 			release()
 			return noop, err
 		}
@@ -90,7 +102,7 @@ func prepareUpstreamJSONBody(c *gin.Context, req *http.Request, info *relaycommo
 		}
 		if buf.Len() < len(body) {
 			body = buf.Bytes()
-			encoding = "gzip"
+			encoding = compression
 			req.Header.Set("Content-Encoding", encoding)
 		}
 	}

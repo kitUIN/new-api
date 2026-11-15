@@ -27,6 +27,7 @@ import type {
   BalanceQueryConfig,
   Channel,
   ChannelClientAccess,
+  ChannelRequestBodyCompression,
   GroupQueryConfig,
   ProviderRow,
 } from '../types'
@@ -36,6 +37,18 @@ import type {
 // ============================================================================
 
 const clientAccessSchema = z.enum(['unrestricted', 'deny', 'allow_only'])
+const requestBodyCompressionSchema = z.enum(['none', 'gzip', 'zstd'])
+
+function parseRequestBodyCompression(
+  value: unknown,
+  legacyGzip?: unknown
+): ChannelRequestBodyCompression {
+  const result = requestBodyCompressionSchema.safeParse(value)
+  if (result.success) return result.data
+  if (legacyGzip === true) return 'gzip'
+  if (legacyGzip === false) return 'none'
+  return 'zstd'
+}
 
 function parseClientAccess(value: unknown): ChannelClientAccess {
   const result = clientAccessSchema.safeParse(value)
@@ -337,7 +350,7 @@ export const channelFormSchema = z
     batch_add_set_key_prefix_2_name: z.boolean().optional(),
     key_mode: z.enum(['append', 'replace']).optional(), // For editing multi-key channels
     // Channel extra settings (stored in setting JSON, not sent directly)
-    request_body_gzip: z.boolean().optional(),
+    request_body_compression: requestBodyCompressionSchema.optional(),
     responses_image_urls: z.boolean().optional(),
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
@@ -524,7 +537,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   batch_add_set_key_prefix_2_name: false,
   key_mode: 'append',
   // Channel extra settings
-  request_body_gzip: true,
+  request_body_compression: 'zstd',
   responses_image_urls: true,
   force_format: false,
   thinking_to_content: false,
@@ -773,7 +786,7 @@ export function transformChannelToFormDefaults(
 ): ChannelFormValues {
   // Parse channel extra settings from setting field
   let extraSettings = {
-    request_body_gzip: true,
+    request_body_compression: parseRequestBodyCompression(undefined),
     responses_image_urls: false,
     force_format: false,
     thinking_to_content: false,
@@ -787,7 +800,10 @@ export function transformChannelToFormDefaults(
     try {
       const parsed = JSON.parse(channel.setting)
       extraSettings = {
-        request_body_gzip: parsed.request_body_gzip ?? true,
+        request_body_compression: parseRequestBodyCompression(
+          parsed.request_body_compression,
+          parsed.request_body_gzip
+        ),
         responses_image_urls: parsed.responses_image_urls ?? false,
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
@@ -954,7 +970,7 @@ export function transformProviderToCreateDefaults(
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
   const settingObj = {
-    request_body_gzip: formData.request_body_gzip ?? true,
+    request_body_compression: formData.request_body_compression ?? 'zstd',
     responses_image_urls: formData.responses_image_urls ?? false,
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,

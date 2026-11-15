@@ -1,5 +1,10 @@
 {
   "translation": {
+    "channels.requestBodyCompression.label": "Сжатие запросов к провайдеру",
+    "channels.requestBodyCompression.description": "По умолчанию zstd. Выберите формат, поддерживаемый провайдером. Сжимаются только JSON-запросы размером от 1 КиБ, если результат меньше исходного.",
+    "channels.requestBodyCompression.none": "Без сжатия",
+    "channels.requestBodyCompression.gzip": "Сжатие gzip",
+    "channels.requestBodyCompression.zstd": "Сжатие zstd",
     "usageLogs.cacheHitRate": "Доля попаданий в кэш",
     "playground.parameters.title": "Параметры чата",
     "playground.parameters.description": "Отправляются только включённые параметры. Температура по умолчанию отключена: используется значение модели. Поддержка параметров зависит от модели.",

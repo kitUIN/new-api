@@ -131,8 +131,11 @@ export type ChannelProvider = z.infer<typeof channelProviderSummarySchema> & {
 // Channel Settings Types
 // ============================================================================
 
+export type ChannelRequestBodyCompression = 'none' | 'gzip' | 'zstd'
+
 export interface ChannelSettings {
   request_body_gzip?: boolean
+  request_body_compression?: ChannelRequestBodyCompression
   responses_image_urls?: boolean
   force_format?: boolean
   thinking_to_content?: boolean

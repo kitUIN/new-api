@@ -1,5 +1,10 @@
 {
   "translation": {
+    "channels.requestBodyCompression.label": "Upstream request compression",
+    "channels.requestBodyCompression.description": "Defaults to zstd. Choose a format supported by the upstream. Only compresses JSON requests of at least 1 KiB when the result is smaller.",
+    "channels.requestBodyCompression.none": "No compression",
+    "channels.requestBodyCompression.gzip": "gzip compression",
+    "channels.requestBodyCompression.zstd": "zstd compression",
     "usageLogs.cacheHitRate": "Cache Hit Rate",
     "playground.parameters.title": "Chat parameters",
     "playground.parameters.description": "Only enabled parameters are sent. Temperature is off by default to use the model default. Supported parameters vary by model.",

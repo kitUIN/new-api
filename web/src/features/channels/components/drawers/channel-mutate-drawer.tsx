@@ -85,6 +85,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
@@ -4367,24 +4368,42 @@ export function ChannelMutateDrawer({
                       <div className='divide-border space-y-0 divide-y border-y'>
                         <FormField
                           control={form.control}
-                          name='request_body_gzip'
+                          name='request_body_compression'
                           render={({ field }) => (
-                            <FormItem className='flex items-center justify-between px-4 py-3'>
-                              <div className='space-y-0.5'>
+                            <FormItem className='flex flex-col gap-3 px-4 py-3'>
+                              <div className='flex flex-col gap-0.5'>
                                 <FormLabel>
-                                  {t('Use gzip for upstream JSON')}
+                                  {t('channels.requestBodyCompression.label')}
                                 </FormLabel>
                                 <FormDescription>
                                   {t(
-                                    'Disable if the upstream does not accept compressed requests.'
+                                    'channels.requestBodyCompression.description'
                                   )}
                                 </FormDescription>
                               </div>
                               <FormControl>
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
+                                <ToggleGroup
+                                  variant='outline'
+                                  value={[field.value ?? 'zstd']}
+                                  onValueChange={(values) => {
+                                    if (values.length > 0) {
+                                      field.onChange(values[0])
+                                    }
+                                  }}
+                                  aria-label={t(
+                                    'channels.requestBodyCompression.label'
+                                  )}
+                                >
+                                  <ToggleGroupItem value='none'>
+                                    {t('channels.requestBodyCompression.none')}
+                                  </ToggleGroupItem>
+                                  <ToggleGroupItem value='gzip'>
+                                    {t('channels.requestBodyCompression.gzip')}
+                                  </ToggleGroupItem>
+                                  <ToggleGroupItem value='zstd'>
+                                    {t('channels.requestBodyCompression.zstd')}
+                                  </ToggleGroupItem>
+                                </ToggleGroup>
                               </FormControl>
                             </FormItem>
                           )}

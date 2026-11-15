@@ -28,6 +28,70 @@ import {
   transformProviderToCreateDefaults,
 } from './channel-form'
 
+test('compression defaults to zstd and all three choices survive create and edit', () => {
+  assert.equal(CHANNEL_FORM_DEFAULT_VALUES.request_body_compression, 'zstd')
+  for (const compression of ['none', 'gzip', 'zstd'] as const) {
+    const form = channelFormSchema.parse({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'Compressed upstream',
+      models: 'test-model',
+      key: 'test-key',
+      other: 'test',
+      remark: 'test',
+      request_body_compression: compression,
+    })
+    const payload = transformFormDataToCreatePayload(form).channel
+    assert.equal(
+      JSON.parse(payload.setting!).request_body_compression,
+      compression
+    )
+    assert.equal(JSON.parse(payload.setting!).request_body_gzip, undefined)
+    const stored = channelSchema.parse({
+      ...payload,
+      id: 1,
+      created_time: 0,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+    })
+    const edit = transformChannelToFormDefaults(stored)
+    assert.equal(edit.request_body_compression, compression)
+    for (const next of ['none', 'gzip', 'zstd'] as const) {
+      const updated = transformFormDataToUpdatePayload(
+        { ...edit, request_body_compression: next },
+        stored.id
+      )
+      assert.equal(JSON.parse(updated.setting!).request_body_compression, next)
+    }
+    for (const legacyGzip of [undefined, true, false]) {
+      const legacy = transformChannelToFormDefaults({
+        ...stored,
+        setting: JSON.stringify({ request_body_gzip: legacyGzip }),
+      })
+      const expected = new Map([
+        [undefined, 'zstd'],
+        [true, 'gzip'],
+        [false, 'none'],
+      ])
+      assert.equal(legacy.request_body_compression, expected.get(legacyGzip))
+      const migrated = transformFormDataToUpdatePayload(legacy, stored.id)
+      assert.equal(
+        JSON.parse(migrated.setting!).request_body_compression,
+        expected.get(legacyGzip)
+      )
+      assert.equal(JSON.parse(migrated.setting!).request_body_gzip, undefined)
+      const explicit = transformChannelToFormDefaults({
+        ...stored,
+        setting: JSON.stringify({
+          request_body_gzip: legacyGzip,
+          request_body_compression: compression,
+        }),
+      })
+      assert.equal(explicit.request_body_compression, compression)
+    }
+  }
+})
+
 test('upstream WebSocket defaults off and survives channel settings round trips', () => {
   assert.equal(CHANNEL_FORM_DEFAULT_VALUES.use_responses_websocket, false)
   for (const type of [1, 3, 57]) {
