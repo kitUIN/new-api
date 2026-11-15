@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.cacheHitRate": "Cache Hit Rate",
     "playground.parameters.title": "Chat parameters",
     "playground.parameters.description": "Only enabled parameters are sent. Temperature is off by default to use the model default. Supported parameters vary by model.",
     "playground.parameters.temperature": "Temperature",

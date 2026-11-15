@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.cacheHitRate": "Доля попаданий в кэш",
     "playground.parameters.title": "Параметры чата",
     "playground.parameters.description": "Отправляются только включённые параметры. Температура по умолчанию отключена: используется значение модели. Поддержка параметров зависит от модели.",
     "playground.parameters.temperature": "Температура",

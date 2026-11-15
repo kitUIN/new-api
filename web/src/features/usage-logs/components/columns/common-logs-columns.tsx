@@ -208,6 +208,16 @@ export function getPrimaryInputTokens(
     : toPositiveNumber(log.prompt_tokens)
 }
 
+export function getCacheHitRate(
+  log: UsageLog,
+  other: LogOtherData | null
+): number {
+  const inputTokens = getPrimaryInputTokens(log, other)
+  return inputTokens > 0
+    ? (getCacheReadTokens(log, other) / inputTokens) * 100
+    : 0
+}
+
 function getBillableInputTokens(
   log: UsageLog,
   other: LogOtherData | null
@@ -1007,8 +1017,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <TooltipContent side='top' className='max-w-xs text-xs'>
                   <div className='flex flex-col gap-1'>
                     <p className='font-medium'>{t('Session Key')}</p>
-                    <p>
-                      {t('Session Key')}: {displayKey}
+                    <p className='break-all whitespace-pre-wrap'>
+                      {t('Session Key')}: {sessionKey}
                     </p>
                     {sessionKeyInfo?.key_fp && (
                       <p>
@@ -1380,13 +1390,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const inputTokens = getPrimaryInputTokens(log, other)
         const outputTokens = toPositiveNumber(log.completion_tokens)
-        const cacheReadTokens = getCacheReadTokens(log, other)
-        const cacheWriteTokens = getCacheWriteTokens(log, other)
         const totalTokens = inputTokens + outputTokens
-        const hasAnyTokens =
-          totalTokens > 0 || cacheReadTokens > 0 || cacheWriteTokens > 0
 
-        if (!hasAnyTokens) {
+        if (totalTokens === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
@@ -1408,22 +1414,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {formatTokenCount(outputTokens)}
                   </span>
                 </div>
-                {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
-                  <div className='text-muted-foreground/60 flex items-center gap-2 text-[11px]'>
-                    {cacheReadTokens > 0 && (
-                      <span className='inline-flex items-center gap-1'>
-                        <Package className='size-3' />
-                        {formatTokenCount(cacheReadTokens)}
-                      </span>
-                    )}
-                    {cacheWriteTokens > 0 && (
-                      <span className='inline-flex items-center gap-1'>
-                        <SquarePen className='size-3' />
-                        {formatTokenCount(cacheWriteTokens)}
-                      </span>
-                    )}
-                  </div>
-                )}
               </TooltipTrigger>
               <TooltipContent className={DETAIL_TOOLTIP_CONTENT_CLASS}>
                 <div className='space-y-1 text-xs'>
@@ -1442,22 +1432,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       {formatTokenCount(outputTokens)}
                     </span>
                   </div>
-                  {cacheReadTokens > 0 && (
-                    <div className={DETAIL_TOOLTIP_ROW_CLASS}>
-                      <span>{t('Cache Read')}</span>
-                      <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                        {formatTokenCount(cacheReadTokens)}
-                      </span>
-                    </div>
-                  )}
-                  {cacheWriteTokens > 0 && (
-                    <div className={DETAIL_TOOLTIP_ROW_CLASS}>
-                      <span>{t('Cache Write')}</span>
-                      <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                        {formatTokenCount(cacheWriteTokens)}
-                      </span>
-                    </div>
-                  )}
                   <div
                     className={cn(
                       DETAIL_TOOLTIP_BORDER_ROW_CLASS,
@@ -1476,6 +1450,77 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: 'Tokens', mobileHidden: true },
+    },
+
+    {
+      id: 'cache',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Cache')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const inputTokens = getPrimaryInputTokens(log, other)
+        const cacheReadTokens = getCacheReadTokens(log, other)
+        const cacheWriteTokens = getCacheWriteTokens(log, other)
+        if (inputTokens + cacheReadTokens + cacheWriteTokens === 0) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+
+        const cacheHitRate = getCacheHitRate(log, other)
+        const cacheHitRateLabel = `${cacheHitRate.toFixed(2)}%`
+        let variant: StatusBadgeProps['variant'] = 'neutral'
+        if (cacheHitRate >= 80) variant = 'success'
+        else if (cacheHitRate > 0) variant = 'warning'
+
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger render={<span className='inline-flex' />}>
+                <StatusBadge
+                  icon={Package}
+                  label={cacheHitRateLabel}
+                  variant={variant}
+                  copyable={false}
+                  aria-label={`${t('usageLogs.cacheHitRate')}: ${cacheHitRateLabel}`}
+                  className='font-mono tabular-nums'
+                />
+              </TooltipTrigger>
+              <TooltipContent className={DETAIL_TOOLTIP_CONTENT_CLASS}>
+                <div className='flex flex-col gap-1 text-xs'>
+                  <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                    <span>{t('usageLogs.cacheHitRate')}</span>
+                    <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                      {cacheHitRateLabel}
+                    </span>
+                  </div>
+                  <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                    <span>{t('Total Input Tokens')}</span>
+                    <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                      {formatTokenCount(inputTokens)}
+                    </span>
+                  </div>
+                  <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                    <span>{t('Cache Read')}</span>
+                    <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                      {formatTokenCount(cacheReadTokens)}
+                    </span>
+                  </div>
+                  <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                    <span>{t('Cache Write')}</span>
+                    <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                      {formatTokenCount(cacheWriteTokens)}
+                    </span>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      meta: { label: t('Cache'), mobileHidden: true },
     },
 
     {

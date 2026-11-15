@@ -25,6 +25,7 @@ import {
 } from '@/lib/format'
 import {
   buildDetailSegments,
+  getCacheHitRate,
   getCacheReadTokens,
   getCacheWriteTokens,
   getGroupRatioText,
@@ -53,7 +54,6 @@ import {
 } from './mappers'
 import {
   fetchLogsByCategory,
-  formatChannelAffinitySessionKey,
   getChannelAffinitySessionKey,
   getLogTypeConfig,
   getUsageLogSessionKeyInfo,
@@ -141,9 +141,7 @@ function getCommonLogCell(
         other?.admin_info?.session_key,
         affinity
       )
-      return formatChannelAffinitySessionKey(
-        getChannelAffinitySessionKey(sessionKeyInfo)
-      )
+      return getChannelAffinitySessionKey(sessionKeyInfo)
     }
     case 'request_id':
       return log.request_id || '-'
@@ -206,18 +204,22 @@ function getCommonLogCell(
       if (!displayable) return ''
       const input = getPrimaryInputTokens(log, other)
       const output = Math.max(Number(log.completion_tokens) || 0, 0)
-      const cacheRead = getCacheReadTokens(log, other)
-      const cacheWrite = getCacheWriteTokens(log, other)
-      if (input + output + cacheRead + cacheWrite === 0) return '-'
+      if (input + output === 0) return '-'
       return joinLines([
         `${context.t('Input')}: ${input.toLocaleString()}`,
         `${context.t('Output')}: ${output.toLocaleString()}`,
-        cacheRead > 0
-          ? `${context.t('Cache Read')}: ${cacheRead.toLocaleString()}`
-          : undefined,
-        cacheWrite > 0
-          ? `${context.t('Cache Write')}: ${cacheWrite.toLocaleString()}`
-          : undefined,
+      ])
+    }
+    case 'cache': {
+      if (!displayable) return ''
+      const input = getPrimaryInputTokens(log, other)
+      const cacheRead = getCacheReadTokens(log, other)
+      const cacheWrite = getCacheWriteTokens(log, other)
+      if (input + cacheRead + cacheWrite === 0) return '-'
+      return joinLines([
+        `${context.t('usageLogs.cacheHitRate')}: ${getCacheHitRate(log, other).toFixed(2)}%`,
+        `${context.t('Cache Read')}: ${cacheRead.toLocaleString()}`,
+        `${context.t('Cache Write')}: ${cacheWrite.toLocaleString()}`,
       ])
     }
     case 'quota': {

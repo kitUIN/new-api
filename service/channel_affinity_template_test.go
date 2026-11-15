@@ -33,6 +33,7 @@ func TestAppendChannelAffinitySessionKeyAdminInfo(t *testing.T) {
 		RequestPath:    "/v1/responses",
 		KeySourceType:  "gjson",
 		KeySourcePath:  "prompt_cache_key",
+		KeyValue:       "abcd-complete-session-key-wxyz",
 		KeyHint:        "abcd...wxyz",
 		KeyFingerprint: "fp123456",
 	})
@@ -43,6 +44,7 @@ func TestAppendChannelAffinitySessionKeyAdminInfo(t *testing.T) {
 	sessionKey, ok := adminInfo["session_key"].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, "codex-session", sessionKey["rule_name"])
+	require.Equal(t, "abcd-complete-session-key-wxyz", sessionKey["key_value"])
 	require.Equal(t, "abcd...wxyz", sessionKey["key_hint"])
 	require.Equal(t, "fp123456", sessionKey["key_fp"])
 	require.NotContains(t, adminInfo, "channel_affinity")
@@ -58,7 +60,7 @@ func TestEnsureChannelAffinitySessionKeyWhenAffinityDisabled(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"prompt_cache_key":"session-abc"}`))
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"prompt_cache_key":"session-abcdefghijklmnopqrstuvwxyz"}`))
 
 	EnsureChannelAffinitySessionKey(ctx, "gpt-5", "default")
 	adminInfo := map[string]interface{}{}
@@ -67,7 +69,8 @@ func TestEnsureChannelAffinitySessionKeyWhenAffinityDisabled(t *testing.T) {
 	sessionKey, ok := adminInfo["session_key"].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, "codex cli trace", sessionKey["rule_name"])
-	require.Equal(t, "session-abc", sessionKey["key_hint"])
+	require.Equal(t, "session-abcdefghijklmnopqrstuvwxyz", sessionKey["key_value"])
+	require.Equal(t, "sess...wxyz", sessionKey["key_hint"])
 
 	merged, applied := ApplyChannelAffinityOverrideTemplate(ctx, map[string]interface{}{"temperature": 0.7})
 	require.False(t, applied)

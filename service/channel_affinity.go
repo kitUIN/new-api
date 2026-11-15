@@ -52,6 +52,7 @@ type channelAffinityMeta struct {
 	KeySourceType  string
 	KeySourceKey   string
 	KeySourcePath  string
+	KeyValue       string
 	KeyHint        string
 	KeyFingerprint string
 	UsingGroup     string
@@ -411,6 +412,7 @@ func resolveChannelAffinityMeta(c *gin.Context, modelName string, usingGroup str
 			KeySourceType:  strings.TrimSpace(usedSource.Type),
 			KeySourceKey:   strings.TrimSpace(usedSource.Key),
 			KeySourcePath:  strings.TrimSpace(usedSource.Path),
+			KeyValue:       affinityValue,
 			KeyHint:        buildChannelAffinityKeyHint(affinityValue),
 			KeyFingerprint: affinityFingerprint(affinityValue),
 			UsingGroup:     usingGroup,
@@ -753,6 +755,7 @@ func channelAffinitySessionKeyLogInfo(meta channelAffinityMeta) map[string]inter
 		"key_source":   meta.KeySourceType,
 		"key_key":      meta.KeySourceKey,
 		"key_path":     meta.KeySourcePath,
+		"key_value":    meta.KeyValue,
 		"key_hint":     meta.KeyHint,
 		"key_fp":       meta.KeyFingerprint,
 	}

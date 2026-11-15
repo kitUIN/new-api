@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.cacheHitRate": "Tỷ lệ trúng bộ nhớ đệm",
     "playground.parameters.title": "Tham số trò chuyện",
     "playground.parameters.description": "Chỉ gửi các tham số đã bật. Nhiệt độ mặc định tắt để dùng giá trị mặc định của mô hình. Các tham số được hỗ trợ tùy thuộc vào mô hình.",
     "playground.parameters.temperature": "Nhiệt độ",

@@ -121,7 +121,9 @@ export function formatChannelAffinitySessionKey(value?: string): string {
 export function getChannelAffinitySessionKey(
   affinity?: ChannelAffinityInfo | null
 ): string {
-  return String(affinity?.key_hint || affinity?.key_fp || '').trim()
+  return String(
+    affinity?.key_value || affinity?.key_hint || affinity?.key_fp || ''
+  ).trim()
 }
 
 export function getUsageLogSessionKeyInfo(

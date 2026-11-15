@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.cacheHitRate": "缓存命中率",
     "playground.parameters.title": "聊天参数",
     "playground.parameters.description": "仅发送已开启的参数。温度默认关闭，使用模型默认值；参数支持范围因模型而异。",
     "playground.parameters.temperature": "温度（temperature）",

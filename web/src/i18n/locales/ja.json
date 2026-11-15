@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.cacheHitRate": "キャッシュヒット率",
     "playground.parameters.title": "チャットパラメーター",
     "playground.parameters.description": "有効なパラメーターのみ送信します。温度は初期状態では無効で、モデルの既定値を使用します。対応するパラメーターはモデルにより異なります。",
     "playground.parameters.temperature": "温度",

@@ -33,6 +33,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { isColumnVisible } from './column-visibility'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -61,6 +62,10 @@ function getCellLabel<TData>(cell: Cell<TData, unknown>): string | null {
   if (meta?.label) return meta.label
   const header = cell.column.columnDef.header
   return typeof header === 'string' ? header : null
+}
+
+function isCellVisibleOnMobile<TData>(cell: Cell<TData, unknown>): boolean {
+  return isColumnVisible(cell.getContext().table, cell.column, true)
 }
 
 function renderCellContent<TData>(cell: Cell<TData, unknown>): React.ReactNode {
@@ -137,7 +142,7 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
       c !== titleCell &&
       c !== badgeCell &&
       c !== actionsCell &&
-      !getCellMeta(c)?.mobileHidden
+      isCellVisibleOnMobile(c)
   )
 
   return (
@@ -196,7 +201,7 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
 
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
   const contentCells = allCells.filter(
-    (c) => c.column.id !== 'actions' && !getCellMeta(c)?.mobileHidden
+    (c) => c.column.id !== 'actions' && isCellVisibleOnMobile(c)
   )
 
   return (
@@ -245,7 +250,7 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
  * Column meta extensions:
  * - `mobileTitle`  — card header (left, larger text)
  * - `mobileBadge`  — inline with title (right, e.g. status badge)
- * - `mobileHidden` — hidden on mobile
+ * - `mobileHidden` — hidden on mobile unless explicitly shown in the column menu
  *
  * When mobileTitle or mobileBadge is set on any column, uses a structured
  * two-tier layout: title+badge header, then 2 key fields side-by-side.

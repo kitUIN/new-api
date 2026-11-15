@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type Table } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { getViewOptionColumns, isColumnVisible } from './column-visibility'
 
 type DataTableViewOptionsProps<TData> = {
   table: Table<TData>
@@ -36,6 +38,7 @@ export function DataTableViewOptions<TData>({
   table,
 }: DataTableViewOptionsProps<TData>) {
   const { t } = useTranslation()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
@@ -52,24 +55,19 @@ export function DataTableViewOptions<TData>({
       <DropdownMenuContent align='end' className='w-[150px]'>
         <DropdownMenuGroup>
           <DropdownMenuLabel>{t('Toggle columns')}</DropdownMenuLabel>
-          {table
-            .getAllColumns()
-            .filter(
-              (column) =>
-                typeof column.accessorFn !== 'undefined' && column.getCanHide()
+          {getViewOptionColumns(table).map((column) => {
+            return (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                className='capitalize'
+                checked={isColumnVisible(table, column, isMobile)}
+                onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                closeOnClick={false}
+              >
+                {column.columnDef.meta?.label ?? column.id}
+              </DropdownMenuCheckboxItem>
             )
-            .map((column) => {
-              return (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  className='capitalize'
-                  checked={column.getIsVisible()}
-                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                >
-                  {column.columnDef.meta?.label ?? column.id}
-                </DropdownMenuCheckboxItem>
-              )
-            })}
+          })}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

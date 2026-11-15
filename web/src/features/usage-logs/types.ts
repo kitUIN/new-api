@@ -118,6 +118,7 @@ export interface ChannelAffinityInfo {
   key_source?: string
   key_path?: string
   key_key?: string
+  key_value?: string
   key_hint?: string
   key_fp?: string
   using_group?: string
