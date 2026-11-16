@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -221,7 +222,10 @@ export function IoNetDeploymentSettingsSection({
                       type='button'
                       variant='outline'
                       onClick={() =>
-                        window.open('https://ai.io.net/ai/api-keys', '_blank')
+                        openWithConfirmation(
+                          'https://ai.io.net/ai/api-keys',
+                          '_blank'
+                        )
                       }
                     >
                       {t('Go to io.net API Keys')}

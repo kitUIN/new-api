@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { confirmNavigation } from '@/lib/confirmed-navigation'
 import {
   PAYMENT_TYPES,
   DEFAULT_PRESET_MULTIPLIERS,
@@ -44,28 +45,28 @@ function isSafariBrowser(): boolean {
 export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
-): void {
-  const form = document.createElement('form')
-  form.action = url
-  form.method = 'POST'
+): Promise<boolean> {
+  const target = isSafariBrowser() ? '_self' : '_blank'
+  return confirmNavigation(url, target, () => {
+    const form = document.createElement('form')
+    form.action = url
+    form.method = 'POST'
 
-  // Don't open in new tab for Safari
-  if (!isSafariBrowser()) {
-    form.target = '_blank'
-  }
+    form.target = target
 
-  // Add form parameters
-  Object.entries(params).forEach(([key, value]) => {
-    const input = document.createElement('input')
-    input.type = 'hidden'
-    input.name = key
-    input.value = String(value)
-    form.appendChild(input)
+    // Add form parameters
+    Object.entries(params).forEach(([key, value]) => {
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = key
+      input.value = String(value)
+      form.appendChild(input)
+    })
+
+    document.body.appendChild(form)
+    form.submit()
+    document.body.removeChild(form)
   })
-
-  document.body.appendChild(form)
-  form.submit()
-  document.body.removeChild(form)
 }
 
 /**

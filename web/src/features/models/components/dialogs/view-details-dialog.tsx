@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Copy, ExternalLink, Loader2, RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -242,7 +243,9 @@ export function ViewDetailsDialog({
                             <Button
                               variant='outline'
                               size='sm'
-                              onClick={() => window.open(url, '_blank')}
+                              onClick={() =>
+                                openWithConfirmation(url, '_blank')
+                              }
                             >
                               <ExternalLink className='mr-2 h-4 w-4' />
                               {t('Open')}

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -154,9 +155,9 @@ export function DataTableRowActions<TData>({
       if (typeof window === 'undefined') return
 
       try {
-        window.open(resolvedUrl, '_blank', 'noopener')
+        openWithConfirmation(resolvedUrl, '_blank', 'noopener')
       } catch {
-        window.location.href = resolvedUrl
+        openWithConfirmation(resolvedUrl, '_self')
       }
     },
     [resolveRealKey, apiKey.id, serverAddress, t]

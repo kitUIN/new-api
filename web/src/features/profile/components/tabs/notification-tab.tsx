@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { ROLE } from '@/lib/roles'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -208,7 +209,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         </RadioGroup>
         {settings.notify_type === 'qq' && (
           <p className='text-muted-foreground text-xs'>
-            {t('Before saving, we will verify that your bound QQ account is already a friend.')}
+            {t(
+              'Before saving, we will verify that your bound QQ account is already a friend.'
+            )}
           </p>
         )}
       </div>
@@ -448,7 +451,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             }
           />
         </div>
-
       </div>
 
       {/* Save Button */}
@@ -459,10 +461,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         </Button>
       </div>
 
-      <Dialog
-        open={qqFriendDialogOpen}
-        onOpenChange={setQQFriendDialogOpen}
-      >
+      <Dialog open={qqFriendDialogOpen} onOpenChange={setQQFriendDialogOpen}>
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
             <DialogTitle>{t('Add QQ friend')}</DialogTitle>
@@ -478,7 +477,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             </div>
           ) : (
             <p className='text-muted-foreground text-sm'>
-              {t('QQ friend link is not configured. Please contact the administrator.')}
+              {t(
+                'QQ friend link is not configured. Please contact the administrator.'
+              )}
             </p>
           )}
           <DialogFooter>
@@ -494,7 +495,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
               disabled={!qqFriendLink}
               onClick={() => {
                 if (qqFriendLink) {
-                  window.open(qqFriendLink, '_blank', 'noopener')
+                  openWithConfirmation(qqFriendLink, '_blank', 'noopener')
                 }
               }}
             >

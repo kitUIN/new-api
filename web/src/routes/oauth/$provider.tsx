@@ -28,6 +28,10 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
+import {
+  confirmNavigation,
+  requiresNavigationConfirmation,
+} from '@/lib/confirmed-navigation'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 
@@ -59,6 +63,14 @@ function OAuthCallback() {
   useEffect(() => {
     ;(async () => {
       const safeNavigate = (target: string) => {
+        if (
+          requiresNavigationConfirmation(target, '_self', window.location.href)
+        ) {
+          void confirmNavigation(target, '_self', () =>
+            window.location.replace(target)
+          )
+          return
+        }
         navigate({ to: target as never, replace: true })
         if (typeof window !== 'undefined') {
           setTimeout(() => {

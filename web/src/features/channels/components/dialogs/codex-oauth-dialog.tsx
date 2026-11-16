@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Copy, Check, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { tryPrettyJson } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -88,7 +89,8 @@ export function CodexOAuthDialog({
 
       setState((prev) => ({ ...prev, authorizeUrl: url }))
       try {
-        window.open(url, '_blank', 'noopener,noreferrer')
+        if (!(await openWithConfirmation(url, '_blank', 'noopener,noreferrer')))
+          return
         toast.success(t('Opened authorization page'))
       } catch (error) {
         // eslint-disable-next-line no-console

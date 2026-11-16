@@ -21,6 +21,7 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { ExternalLink, Loader2, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import {
   Collapsible,
   CollapsibleContent,
@@ -210,7 +211,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
 
       if (typeof window === 'undefined') return
 
-      window.open(url, '_blank', 'noopener')
+      openWithConfirmation(url, '_blank', 'noopener')
       setOpenMobile(false)
     },
     [serverAddress, setOpenMobile, t]

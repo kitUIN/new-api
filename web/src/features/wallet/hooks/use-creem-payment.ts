@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { requestCreemPayment, isApiSuccess } from '../api'
 
 /**
@@ -36,7 +37,8 @@ export function useCreemPayment() {
       })
 
       if (isApiSuccess(response) && response.data?.checkout_url) {
-        window.open(response.data.checkout_url, '_blank')
+        if (!(await openWithConfirmation(response.data.checkout_url, '_blank')))
+          return false
         toast.success(i18next.t('Redirecting to Creem checkout...'))
         return true
       }

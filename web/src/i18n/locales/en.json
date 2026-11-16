@@ -1,5 +1,8 @@
 {
   "translation": {
+    "navigation.confirm.title": "Confirm navigation",
+    "navigation.confirm.newTab": "This link will open in a new tab or window. Continue?",
+    "navigation.confirm.leavePage": "You are about to leave this page and open the following address. Continue?",
     "客户端识别": "Client identification",
     "识别规则（正则）": "Detection rules (regex)",
     "添加规则": "Add rule",

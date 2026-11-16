@@ -1,5 +1,8 @@
 {
   "translation": {
+    "navigation.confirm.title": "确认跳转",
+    "navigation.confirm.newTab": "即将在新标签页或窗口中打开以下链接，是否继续？",
+    "navigation.confirm.leavePage": "即将离开当前页面并打开以下地址，是否继续？",
     "客户端识别": "客户端识别",
     "识别规则（正则）": "识别规则（正则）",
     "添加规则": "添加规则",

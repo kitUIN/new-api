@@ -21,7 +21,7 @@ import { ExternalLink, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { FaQq } from 'react-icons/fa'
 import { toast } from 'sonner'
-import { CopyButton } from '@/components/copy-button'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { CopyButton } from '@/components/copy-button'
 import { bindQQ, type QQBindingSession } from '../../api'
 
 interface QQBindDialogProps {
@@ -112,7 +113,8 @@ export function QQBindDialog(props: QQBindDialogProps) {
                   size='icon-xs'
                   className='-my-1'
                   onClick={() =>
-                    window.open(props.friendLink, '_blank', 'noopener')
+                    props.friendLink &&
+                    openWithConfirmation(props.friendLink, '_blank', 'noopener')
                   }
                   aria-label={t('Open QQ friend link')}
                 >

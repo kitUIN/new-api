@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { formatQuota } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { GroupBadge } from '@/components/group-badge'
+import { submitPaymentForm } from '@/features/wallet/lib/payment'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -105,7 +107,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank')
+        if (!(await openWithConfirmation(res.data.pay_link, '_blank'))) return
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
@@ -127,7 +129,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
-        window.open(res.data.checkout_url, '_blank')
+        if (!(await openWithConfirmation(res.data.checkout_url, '_blank')))
+          return
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
@@ -144,15 +147,15 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
-  // In-tab redirect (not window.open) — user-gesture context is lost
-  // across the await, so a popup would be blocked. Same as the wallet hook.
+  // Keep hosted checkout in the current tab after navigation confirmation.
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {
       const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
+        if (!(await openWithConfirmation(res.data.checkout_url, '_self')))
+          return
         toast.success(t('Redirecting to payment page...'))
-        window.location.href = res.data.checkout_url
       } else {
         toast.error(
           res.message && res.message !== 'success'
@@ -167,10 +170,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
-  const isSafari =
-    typeof navigator !== 'undefined' &&
-    /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
   const handlePayEpay = async () => {
     if (!selectedEpayMethod) {
       toast.error(t('Please select a payment method'))
@@ -183,22 +182,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         payment_method: selectedEpayMethod,
       })
       if (res.message === 'success' && res.url) {
-        const form = document.createElement('form')
-        form.action = res.url
-        form.method = 'POST'
-        if (!isSafari) {
-          form.target = '_blank'
-        }
-        Object.entries(res.data || {}).forEach(([key, value]) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = key
-          input.value = String(value)
-          form.appendChild(input)
-        })
-        document.body.appendChild(form)
-        form.submit()
-        document.body.removeChild(form)
+        if (!(await submitPaymentForm(res.url, res.data || {}))) return
         toast.success(t('Payment initiated'))
         props.onOpenChange(false)
       } else {

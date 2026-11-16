@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useState } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { isApiSuccess, requestXznPayPayment } from '../api'
 
 function getSafePaymentUrl(data: unknown): string | null {
@@ -53,7 +54,14 @@ export function useXznPayPayment() {
         if (isApiSuccess(response)) {
           const paymentUrl = getSafePaymentUrl(response.data)
           if (paymentUrl) {
-            window.open(paymentUrl, '_blank', 'noopener,noreferrer')
+            if (
+              !(await openWithConfirmation(
+                paymentUrl,
+                '_blank',
+                'noopener,noreferrer'
+              ))
+            )
+              return false
             toast.success(i18next.t('Redirecting to payment page...'))
             return true
           }

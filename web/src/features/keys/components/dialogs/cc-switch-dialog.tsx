@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getUserModels } from '@/lib/api'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { ComboboxInput } from '@/components/ui/combobox-input'
@@ -267,7 +268,7 @@ export function CCSwitchDialog(props: Props) {
         userId,
         baseUrl
       )
-      window.open(url, '_blank')
+      if (!(await openWithConfirmation(url, '_blank'))) return
       props.onOpenChange(false)
     } catch {
       toast.error(t('Failed to load profile'))

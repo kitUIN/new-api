@@ -30,6 +30,7 @@ import {
 import { Check, Copy, Info, Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Badge } from '@/components/ui/badge'
@@ -856,7 +857,10 @@ function FailureStatusContent({
             size='sm'
             className='h-7 w-fit px-2 text-xs'
             onClick={() =>
-              window.open('/system-settings/billing/model-pricing', '_blank')
+              openWithConfirmation(
+                '/system-settings/billing/model-pricing',
+                '_blank'
+              )
             }
           >
             <Settings className='mr-1 h-3 w-3 shrink-0' />

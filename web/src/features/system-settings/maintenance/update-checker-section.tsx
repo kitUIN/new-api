@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -447,7 +448,8 @@ export function UpdateCheckerSection(props: UpdateCheckerSectionProps) {
               <Button
                 type='button'
                 onClick={() =>
-                  window.open(
+                  updateInfo.release_url &&
+                  openWithConfirmation(
                     updateInfo.release_url,
                     '_blank',
                     'noopener,noreferrer'

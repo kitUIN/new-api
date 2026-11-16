@@ -20,6 +20,7 @@ import { useState, useRef, useEffect } from 'react'
 import { ExternalLink, Copy, Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -114,7 +115,7 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
               variant='outline'
               size='sm'
               className='h-7 gap-1 text-xs'
-              onClick={() => window.open(audioUrl, '_blank')}
+              onClick={() => openWithConfirmation(audioUrl, '_blank')}
             >
               <ExternalLink className='h-3 w-3' />
               {t('Open in new tab')}

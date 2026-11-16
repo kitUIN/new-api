@@ -1,5 +1,8 @@
 {
   "translation": {
+    "navigation.confirm.title": "移動の確認",
+    "navigation.confirm.newTab": "次のリンクを新しいタブまたはウィンドウで開きます。続行しますか？",
+    "navigation.confirm.leavePage": "現在のページを離れて次のアドレスを開きます。続行しますか？",
     "客户端识别": "クライアント識別",
     "识别规则（正则）": "識別ルール（正規表現）",
     "添加规则": "ルールを追加",

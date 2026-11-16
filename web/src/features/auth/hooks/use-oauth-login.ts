@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
@@ -106,7 +107,12 @@ export function useOAuthLogin(status: SystemStatus | null) {
       }
 
       const url = buildGitHubOAuthUrl(status.github_client_id, state)
-      window.open(url, '_self')
+      if (githubTimeoutRef.current) clearTimeout(githubTimeoutRef.current)
+      if (!(await openWithConfirmation(url, '_self'))) {
+        setIsLoading(false)
+        setGithubButtonText(t('Continue with GitHub'))
+        setGithubButtonDisabled(false)
+      }
     } catch (_error) {
       toast.error(t('Failed to start GitHub login'))
       if (githubTimeoutRef.current) {
@@ -131,7 +137,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
       }
 
       const url = buildDiscordOAuthUrl(status.discord_client_id, state)
-      window.open(url, '_self')
+      await openWithConfirmation(url, '_self')
     } catch (_error) {
       toast.error(t('Failed to start Discord login'))
     } finally {
@@ -156,7 +162,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
         status.oidc_client_id,
         state
       )
-      window.open(url, '_self')
+      await openWithConfirmation(url, '_self')
     } catch (_error) {
       toast.error(t('Failed to start OIDC login'))
     } finally {
@@ -177,7 +183,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
       }
 
       const url = buildLinuxDOOAuthUrl(status.linuxdo_client_id, state)
-      window.open(url, '_self')
+      await openWithConfirmation(url, '_self')
     } catch (_error) {
       toast.error(t('Failed to start LinuxDO login'))
     } finally {
@@ -211,7 +217,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
         url.searchParams.set('scope', provider.scopes)
       }
 
-      window.open(url.toString(), '_self')
+      await openWithConfirmation(url.toString(), '_self')
     } catch (_error) {
       toast.error(
         t('Failed to start {{provider}} login', { provider: provider.name })

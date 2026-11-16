@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import type { PingStatus } from '@/features/dashboard/types'
 
 /**
@@ -57,7 +58,7 @@ export async function testUrlLatency(url: string): Promise<PingStatus> {
 export function openExternalSpeedTest(url: string): void {
   const encodedUrl = encodeURIComponent(url)
   const speedTestUrl = `https://www.tcptest.cn/http/${encodedUrl}`
-  window.open(speedTestUrl, '_blank', 'noopener,noreferrer')
+  openWithConfirmation(speedTestUrl, '_blank', 'noopener,noreferrer')
 }
 
 /**

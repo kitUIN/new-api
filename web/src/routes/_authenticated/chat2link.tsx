@@ -21,6 +21,8 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useNavigationConfirmationStore } from '@/stores/navigation-confirmation-store'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl } from '@/features/chat/lib/chat-links'
@@ -70,7 +72,20 @@ function Chat2LinkPage() {
     })
 
     if (url) {
-      window.location.href = url
+      let active = true
+      const store = useNavigationConfirmationStore
+      // An effect can be re-run or unmounted while confirmation is pending.
+      if (store.getState().pending) return
+      void openWithConfirmation(url, '_self').then((confirmed) => {
+        if (active && !confirmed) void navigate({ to: '/keys' })
+      })
+      const pending = store.getState().pending
+      return () => {
+        active = false
+        if (pending && store.getState().pending === pending) {
+          store.getState().cancel()
+        }
+      }
     }
   }, [
     firstWebPreset,

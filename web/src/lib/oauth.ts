@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { api } from './api'
 
 // ============================================================================
@@ -104,7 +105,7 @@ export async function handleGitHubOAuth(clientId: string): Promise<void> {
   if (!state) return
 
   const url = buildGitHubOAuthUrl(clientId, state)
-  window.open(url, '_blank')
+  openWithConfirmation(url, '_blank')
 }
 
 /**
@@ -115,7 +116,7 @@ export async function handleDiscordOAuth(clientId: string): Promise<void> {
   if (!state) return
 
   const url = buildDiscordOAuthUrl(clientId, state)
-  window.open(url, '_blank')
+  openWithConfirmation(url, '_blank')
 }
 
 /**
@@ -129,7 +130,7 @@ export async function handleOIDCOAuth(
   if (!state) return
 
   const url = buildOIDCOAuthUrl(authUrl, clientId, state)
-  window.open(url, '_blank')
+  openWithConfirmation(url, '_blank')
 }
 
 /**
@@ -140,5 +141,5 @@ export async function handleLinuxDOOAuth(clientId: string): Promise<void> {
   if (!state) return
 
   const url = buildLinuxDOOAuthUrl(clientId, state)
-  window.open(url, '_blank')
+  openWithConfirmation(url, '_blank')
 }

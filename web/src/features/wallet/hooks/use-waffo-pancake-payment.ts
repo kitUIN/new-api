@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { requestWaffoPancakePayment, isApiSuccess } from '../api'
 
 function getCheckoutUrl(data: unknown): string | null {
@@ -61,8 +62,7 @@ function getErrorMessage(message: string | undefined, data: unknown): string {
 /**
  * Hook for the Waffo Pancake hosted-checkout flow.
  *
- * Same-tab redirect (window.location.href) rather than window.open: the
- * user-gesture context is lost across the await, so popups get blocked.
+ * Keep hosted checkout in the current tab after navigation confirmation.
  */
 export function useWaffoPancakePayment() {
   const [processing, setProcessing] = useState(false)
@@ -84,8 +84,9 @@ export function useWaffoPancakePayment() {
               toast.error(i18next.t('Invalid payment redirect URL'))
               return false
             }
+            if (!(await openWithConfirmation(checkoutUrl, '_self')))
+              return false
             toast.success(i18next.t('Redirecting to payment page...'))
-            window.location.href = checkoutUrl
             return true
           }
         }

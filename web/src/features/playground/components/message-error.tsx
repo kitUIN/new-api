@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { MESSAGE_STATUS } from '../constants'
@@ -57,7 +58,10 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
               variant='outline'
               size='sm'
               onClick={() =>
-                window.open('/system-settings/billing/model-pricing', '_blank')
+                openWithConfirmation(
+                  '/system-settings/billing/model-pricing',
+                  '_blank'
+                )
               }
             >
               <Settings className='mr-1 h-3.5 w-3.5' />

@@ -34,6 +34,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserGroups, type TimedRatioSnapshot } from '@/lib/api'
+import { openWithConfirmation } from '@/lib/confirmed-navigation'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,
@@ -1217,7 +1218,7 @@ export function useChannelsColumns(): ColumnDef<ChannelRow>[] {
                           e.stopPropagation()
                           if (!deploymentId) return
                           const targetUrl = `/models/deployments?dFilter=${encodeURIComponent(String(deploymentId))}`
-                          window.open(targetUrl, '_blank', 'noopener')
+                          openWithConfirmation(targetUrl, '_blank', 'noopener')
                         }}
                       />
                     }
