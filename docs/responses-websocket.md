@@ -95,6 +95,8 @@ supports_websockets = true
 
 一个连接可以顺序执行多个回合。`response.completed` 和 `response.incomplete` 会按实际 usage 结算，`response.failed`、终止 `error` 或连接中断会退回尚未结算的预扣额度。每个生成回合单独记录消费日志；零 usage 的 `generate: false` 预热回合不生成消费结算记录。
 
+非零 usage 的预热回合仍按实际用量结算，消费日志附加 `ws_warmup: true`，使用日志及导出中的“WS”显示为“预热”。该标记按每条请求的 `generate: false` 设置，不影响同一连接后续的正式生成回合；历史记录没有该标记时继续显示“WS”。
+
 ## 执行中插话（Mid-turn steering）
 
 收到 `response.created` 后，可以在同一连接上向最近一次响应发送补充指令：

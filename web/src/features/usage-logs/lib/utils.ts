@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Utility functions for usage logs feature
  */
+import type { TFunction } from 'i18next'
 import {
   getAllLogs,
   getUserLogs,
@@ -39,6 +40,7 @@ import type {
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   ChannelAffinityInfo,
+  LogOtherData,
 } from '../types'
 
 // ============================================================================
@@ -57,6 +59,17 @@ export function isDisplayableLogType(type: number): boolean {
  */
 export function isTimingLogType(type: number): boolean {
   return (TIMING_LOG_TYPES as readonly number[]).includes(type)
+}
+
+export function getLogRequestModeLabel(
+  isStream: boolean | undefined,
+  other: LogOtherData | null | undefined,
+  t: TFunction
+): string {
+  if (other?.ws) {
+    return other.ws_warmup ? t('usageLogs.warmup') : 'WS'
+  }
+  return isStream ? t('Stream') : t('Non-stream')
 }
 
 /**

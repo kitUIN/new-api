@@ -510,6 +510,7 @@ func prepareResponsesWebSocketRound(c *gin.Context, connectionInfo *relaycommon.
 		return nil, nil, types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 	round := relaycommon.GenRelayInfoResponsesWebSocket(c, request, connectionInfo.ClientWs)
+	round.ResponsesWebSocketWarmup = event.Generate != nil && !*event.Generate
 	round.RequestId = responsesWebSocketRoundRequestID(connectionInfo.RequestId, roundNumber)
 	round.StartTime = time.Now()
 	round.FirstResponseTime = round.StartTime.Add(-time.Second)

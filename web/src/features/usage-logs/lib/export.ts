@@ -56,6 +56,7 @@ import {
   fetchLogsByCategory,
   getChannelAffinitySessionKey,
   getLogTypeConfig,
+  getLogRequestModeLabel,
   getUsageLogSessionKeyInfo,
   isDisplayableLogType,
   isTimingLogType,
@@ -176,11 +177,7 @@ function getCommonLogCell(
         log.use_time > 0 && log.completion_tokens > 0
           ? `${(log.completion_tokens / log.use_time).toFixed(1)} t/s`
           : undefined
-      const mode = other?.ws
-        ? 'WS'
-        : log.is_stream
-          ? context.t('Stream')
-          : context.t('Non-stream')
+      const mode = getLogRequestModeLabel(log.is_stream, other, context.t)
       const ttft =
         log.is_stream && other?.frt
           ? `TTFT ${formatUseTime(other.frt / 1000)}`

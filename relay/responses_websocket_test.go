@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,7 @@ func TestPrepareResponsesWebSocketRoundPreservesEnvelopeAndExplicitZero(t *testi
 	round, payload, apiErr := prepareResponsesWebSocketRound(c, info, event, raw, 1)
 	require.Nil(t, apiErr)
 	require.Equal(t, "request-test-1", round.RequestId)
+	require.True(t, round.ResponsesWebSocketWarmup)
 
 	var output map[string]json.RawMessage
 	require.NoError(t, common.Unmarshal(payload, &output))
@@ -72,6 +74,29 @@ func TestPrepareResponsesWebSocketRoundPreservesEnvelopeAndExplicitZero(t *testi
 	require.JSONEq(t, `"stream_1"`, string(output["stream_id"]))
 	require.JSONEq(t, `"resp_1"`, string(output["previous_response_id"]))
 	require.JSONEq(t, `"evt_1"`, string(output["client_event_id"]))
+}
+
+func TestResponsesWebSocketWarmupMarkerIsPerRound(t *testing.T) {
+	c, info := newResponsesWebSocketTestContext(t)
+	for i, raw := range []string{
+		`{"type":"response.create","model":"gpt-4o","generate":false,"input":[]}`,
+		`{"type":"response.create","model":"gpt-4o","input":[]}`,
+		`{"type":"response.create","model":"gpt-4o","generate":true,"input":[]}`,
+	} {
+		event, err := dto.ParseOpenAIResponsesWebSocketEvent([]byte(raw))
+		require.NoError(t, err)
+		round, _, apiErr := prepareResponsesWebSocketRound(c, info, event, []byte(raw), int64(i+1))
+		require.Nil(t, apiErr)
+		other := map[string]interface{}{}
+		service.AppendRelayTransportInfo(round, other)
+		require.Equal(t, true, other["ws"])
+		if i == 0 {
+			require.Equal(t, true, other["ws_warmup"])
+		} else {
+			require.NotContains(t, other, "ws_warmup")
+		}
+	}
+	require.False(t, info.ResponsesWebSocketWarmup)
 }
 
 func TestResponsesWebSocketRoundRequestIDLimitedTo64Runes(t *testing.T) {

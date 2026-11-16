@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.warmup": "Préchauffage",
     "请求体传输": "Transfert du corps de requête",
     "客户端传入": "Depuis le client",
     "发送给上游": "Vers le fournisseur",

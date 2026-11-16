@@ -167,6 +167,9 @@ func AppendRelayTransportInfo(relayInfo *relaycommon.RelayInfo, other map[string
 	}
 	if relayInfo.Transport == types.RelayTransportWebSocket {
 		other["ws"] = true
+		if relayInfo.ResponsesWebSocketWarmup {
+			other["ws_warmup"] = true
+		}
 	}
 	if relayInfo.UpstreamTransport == types.RelayTransportWebSocket {
 		other["upstream_ws"] = true

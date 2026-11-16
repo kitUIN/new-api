@@ -1,5 +1,6 @@
 {
   "translation": {
+    "usageLogs.warmup": "Warmup",
     "请求体传输": "Request body transfer",
     "客户端传入": "From client",
     "发送给上游": "To upstream",

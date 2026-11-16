@@ -136,6 +136,7 @@ type RelayInfo struct {
 	Transport                     types.RelayTransport
 	UpstreamTransport             types.RelayTransport
 	ResponsesWebSocketState       string
+	ResponsesWebSocketWarmup      bool // Whether this round explicitly requested generate: false.
 	SendResponseCount             int
 	ReceivedResponseCount         int
 	FinalPreConsumedQuota         int // 最终预消耗的配额

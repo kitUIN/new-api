@@ -77,6 +77,7 @@ import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
+  getLogRequestModeLabel,
   isPerCallBilling,
 } from '../../lib/utils'
 import type { LogOtherData, UsageLog } from '../../types'
@@ -1321,11 +1322,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
             <div className='flex items-center gap-1 text-[11px]'>
               <span className='text-muted-foreground/60'>
-                {other?.ws
-                  ? 'WS'
-                  : log.is_stream
-                    ? t('Stream')
-                    : t('Non-stream')}
+                {getLogRequestModeLabel(log.is_stream, other, t)}
                 {tokensPerSecond != null && (
                   <>
                     {' · '}

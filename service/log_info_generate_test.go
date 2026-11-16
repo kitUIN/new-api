@@ -58,6 +58,7 @@ func TestAppendRelayTransportInfoMarksOnlyWebSocket(t *testing.T) {
 		Transport: types.RelayTransportWebSocket,
 	}, webSocketOther)
 	require.Equal(t, true, webSocketOther["ws"])
+	require.NotContains(t, webSocketOther, "ws_warmup")
 
 	httpOther := map[string]interface{}{}
 	AppendRelayTransportInfo(&relaycommon.RelayInfo{
