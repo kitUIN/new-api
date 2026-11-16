@@ -84,6 +84,7 @@ import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
 import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
+import { ReasoningEffortBadge } from '../reasoning-effort-badge'
 import { RequestBodyCell } from '../request-body-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
@@ -582,27 +583,6 @@ function formatUnitPrice(amount: number | undefined | null): string {
     digitsSmall: 6,
     abbreviate: false,
   })}/M`
-}
-
-function getReasoningEffortVariant(
-  effort: string | undefined
-): StatusBadgeProps['variant'] {
-  switch (effort?.toLowerCase()) {
-    case 'none':
-      return 'grey'
-    case 'minimal':
-      return 'teal'
-    case 'low':
-      return 'green'
-    case 'medium':
-      return 'blue'
-    case 'high':
-      return 'orange'
-    case 'xhigh':
-      return 'red'
-    default:
-      return 'violet'
-  }
 }
 
 export function buildDetailSegments(
@@ -1257,12 +1237,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='flex items-center gap-1'>
-            <StatusBadge
-              label={t(effort)}
-              variant={getReasoningEffortVariant(effort)}
-              size='sm'
-              copyable={false}
-            />
+            <ReasoningEffortBadge effort={effort} />
             {other?.reasoning_effort_auto && <ReasoningEffortAutoIcon />}
           </div>
         )

@@ -71,6 +71,7 @@ import {
 } from '../../lib/utils'
 import type { LogOtherData, UsageLog } from '../../types'
 import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
+import { ReasoningEffortBadge } from '../reasoning-effort-badge'
 import { RelayTimingSection } from './relay-timing-section'
 import { RequestBodySection } from './request-body-section'
 
@@ -962,18 +963,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 label={t('Reasoning Effort')}
                 value={
                   <span className='inline-flex items-center gap-1'>
-                    <StatusBadge
-                      label={other.reasoning_effort}
-                      variant={
-                        other.reasoning_effort === 'high'
-                          ? 'orange'
-                          : other.reasoning_effort === 'medium'
-                            ? 'yellow'
-                            : 'green'
-                      }
-                      size='sm'
-                      copyable={false}
-                    />
+                    <ReasoningEffortBadge effort={other.reasoning_effort} />
                     {other.reasoning_effort_auto && <ReasoningEffortAutoIcon />}
                   </span>
                 }

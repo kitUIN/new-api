@@ -30,6 +30,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
+import '@/styles/usage-log-row.css'
 import { Download, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -39,13 +40,10 @@ import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { DataTablePage } from '@/components/data-table'
-import {
-  DEFAULT_LOGS_DATA,
-  LOG_TYPE_ALL_VALUE,
-  LOG_TYPE_ENUM,
-} from '../constants'
+import { DEFAULT_LOGS_DATA, LOG_TYPE_ALL_VALUE } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { exportUsageLogsToExcel } from '../lib/export'
+import { getUsageLogRowClassName } from '../lib/row-style'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
@@ -53,11 +51,6 @@ import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
-
-const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
-  [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
-}
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
   const values = Array.isArray(value) ? value : value ? [value] : []
@@ -276,6 +269,9 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       skeletonKeyPrefix='usage-log-skeleton'
       tableClassName='overflow-x-auto'
       tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
+      getRowClassName={(row) =>
+        getUsageLogRowClassName(row.original, logCategory)
+      }
       toolbar={
         isCommon ? (
           <CommonLogsFilterBar table={table} actions={exportAction} />
@@ -287,23 +283,21 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           />
         )
       }
-      renderRow={(row) => {
-        const logType = (row.original as Record<string, unknown>).type as
-          | number
-          | undefined
-        const tintClass =
-          isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
-
-        return (
-          <TableRow key={row.id} className={cn('transition-colors', tintClass)}>
-            {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
-          </TableRow>
-        )
-      }}
+      renderRow={(row) => (
+        <TableRow
+          key={row.id}
+          className={cn(
+            'transition-colors',
+            getUsageLogRowClassName(row.original, logCategory)
+          )}
+        >
+          {row.getVisibleCells().map((cell) => (
+            <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          ))}
+        </TableRow>
+      )}
     />
   )
 }

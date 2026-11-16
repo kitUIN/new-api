@@ -1,0 +1,55 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+.reasoning-effort-ultra {
+  --ultra-flow-tint: rgb(139 92 246 / 12%);
+
+  color: #6d28d9;
+  background-color: rgb(139 92 246 / 10%);
+  background-image: linear-gradient(
+    110deg,
+    transparent 40%,
+    var(--ultra-flow-tint) 50%,
+    transparent 60%
+  );
+  background-size: 260% 100%;
+  background-position: 100% 50%;
+  background-repeat: no-repeat;
+}
+
+.dark .reasoning-effort-ultra {
+  --ultra-flow-tint: rgb(196 181 253 / 12%);
+
+  color: #c4b5fd;
+  background-color: rgb(167 139 250 / 12%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reasoning-effort-ultra {
+    animation: reasoning-ultra-flow 3s ease-in-out infinite;
+  }
+}
+
+@keyframes reasoning-ultra-flow {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0% 50%;
+  }
+}

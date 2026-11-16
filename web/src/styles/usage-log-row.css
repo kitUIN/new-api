@@ -1,0 +1,115 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+.usage-log-fast-ultra {
+  --fast-ultra-blue: rgb(79 70 229 / 8%);
+  --fast-ultra-violet: rgb(139 92 246 / 13%);
+  --fast-ultra-star: rgb(124 58 237 / 35%);
+  --fast-ultra-star-dim: rgb(139 92 246 / 22%);
+  --fast-ultra-edge: #a78bfa;
+  --fast-ultra-star-delay: -4s;
+
+  /* Sparse particles at different speeds over a stationary blue-violet tint. */
+  background-image:
+    radial-gradient(
+      circle at 24px 14px,
+      var(--fast-ultra-star) 0 1px,
+      transparent 1.8px
+    ),
+    radial-gradient(
+      circle at 108px 38px,
+      var(--fast-ultra-star-dim) 0 1.3px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 176px 22px,
+      var(--fast-ultra-star) 0 0.8px,
+      transparent 1.6px
+    ),
+    radial-gradient(
+      circle at 64px 48px,
+      var(--fast-ultra-star-dim) 0 0.8px,
+      transparent 1.5px
+    ),
+    linear-gradient(
+      110deg,
+      var(--fast-ultra-blue),
+      var(--fast-ultra-violet) 55%,
+      var(--fast-ultra-blue)
+    );
+  background-size:
+    210px 62px,
+    310px 78px,
+    270px 66px,
+    390px 94px,
+    100% 100%;
+  background-position: 0 0;
+  box-shadow: inset 2px 0 0 var(--fast-ultra-edge);
+}
+
+.dark .usage-log-fast-ultra {
+  --fast-ultra-blue: rgb(79 70 229 / 14%);
+  --fast-ultra-violet: rgb(139 92 246 / 21%);
+  --fast-ultra-star: rgb(237 233 254 / 55%);
+  --fast-ultra-star-dim: rgb(221 214 254 / 30%);
+}
+
+.usage-log-fast-ultra:nth-child(3n + 2) {
+  --fast-ultra-star-delay: -12s;
+}
+
+.usage-log-fast-ultra:nth-child(3n) {
+  --fast-ultra-star-delay: -20s;
+}
+
+/* Keep error/refund status visible alongside the Fast + Ultra treatment. */
+.usage-log-fast-ultra.usage-log-fast-ultra-error {
+  --fast-ultra-edge: var(--destructive);
+}
+
+.usage-log-fast-ultra.usage-log-fast-ultra-refund {
+  --fast-ultra-edge: var(--info);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Override the table's one-time row entrance animation without moving text. */
+  [data-slot='table'] tbody [data-slot='table-row'].usage-log-fast-ultra,
+  .usage-log-fast-ultra {
+    animation: usage-log-fast-ultra-stars 24s linear infinite;
+    animation-delay: var(--fast-ultra-star-delay);
+  }
+}
+
+@keyframes usage-log-fast-ultra-stars {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      -210px 0,
+      -310px 0,
+      -270px 0,
+      -390px 0,
+      0 0;
+  }
+}
