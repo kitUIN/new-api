@@ -1387,9 +1387,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const inputTokens = getPrimaryInputTokens(log, other)
         const outputTokens = toPositiveNumber(log.completion_tokens)
+        const cacheReadTokens = getCacheReadTokens(log, other)
+        const cacheWriteTokens = getCacheWriteTokens(log, other)
         const totalTokens = inputTokens + outputTokens
 
-        if (totalTokens === 0) {
+        if (totalTokens + cacheReadTokens + cacheWriteTokens === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
@@ -1411,6 +1413,28 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {formatTokenCount(outputTokens)}
                   </span>
                 </div>
+                {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
+                  <div className='text-muted-foreground/60 flex items-center gap-2 text-[11px]'>
+                    {cacheReadTokens > 0 && (
+                      <span
+                        className='inline-flex items-center gap-1'
+                        aria-label={`${t('Cache Read')}: ${formatTokenCount(cacheReadTokens)}`}
+                      >
+                        <Package className='size-3' aria-hidden='true' />
+                        {formatTokenCount(cacheReadTokens)}
+                      </span>
+                    )}
+                    {cacheWriteTokens > 0 && (
+                      <span
+                        className='inline-flex items-center gap-1'
+                        aria-label={`${t('Cache Write')}: ${formatTokenCount(cacheWriteTokens)}`}
+                      >
+                        <SquarePen className='size-3' aria-hidden='true' />
+                        {formatTokenCount(cacheWriteTokens)}
+                      </span>
+                    )}
+                  </div>
+                )}
               </TooltipTrigger>
               <TooltipContent className={DETAIL_TOOLTIP_CONTENT_CLASS}>
                 <div className='space-y-1 text-xs'>
@@ -1429,6 +1453,22 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       {formatTokenCount(outputTokens)}
                     </span>
                   </div>
+                  {cacheReadTokens > 0 && (
+                    <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                      <span>{t('Cache Read')}</span>
+                      <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                        {formatTokenCount(cacheReadTokens)}
+                      </span>
+                    </div>
+                  )}
+                  {cacheWriteTokens > 0 && (
+                    <div className={DETAIL_TOOLTIP_ROW_CLASS}>
+                      <span>{t('Cache Write')}</span>
+                      <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
+                        {formatTokenCount(cacheWriteTokens)}
+                      </span>
+                    </div>
+                  )}
                   <div
                     className={cn(
                       DETAIL_TOOLTIP_BORDER_ROW_CLASS,
@@ -1533,9 +1573,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
         const costDetail = buildCostDetail(log, other)
-        const cacheReadQuota = toPositiveNumber(log.cache_read_quota)
-        const cacheWriteQuota = toPositiveNumber(log.cache_write_quota)
-        const hasCacheQuota = cacheReadQuota > 0 || cacheWriteQuota > 0
 
         const costTooltip = (
           <TooltipContent className={DETAIL_TOOLTIP_CONTENT_CLASS}>
@@ -1773,22 +1810,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     <FastModeIcon label={t('Fast Mode')} />
                   )}
                 </span>
-                {hasCacheQuota && (
-                  <div className='text-muted-foreground/60 flex flex-col gap-0.5 text-[11px]'>
-                    {cacheReadQuota > 0 && (
-                      <span className='inline-flex items-center gap-1'>
-                        <Package className='size-3' />
-                        {t('Cache Read')} {formatLogQuota(cacheReadQuota)}
-                      </span>
-                    )}
-                    {cacheWriteQuota > 0 && (
-                      <span className='inline-flex items-center gap-1'>
-                        <SquarePen className='size-3' />
-                        {t('Cache Write')} {formatLogQuota(cacheWriteQuota)}
-                      </span>
-                    )}
-                  </div>
-                )}
               </TooltipTrigger>
               {costTooltip}
             </Tooltip>
