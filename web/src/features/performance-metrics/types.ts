@@ -101,6 +101,7 @@ export type PerfGroupHealth = {
   recent_request_count?: number
   recent_success_rate?: number
   recent_window_minutes?: number
+  traffic_share?: number
   buckets: PerfGroupHealthBucket[]
 }
 

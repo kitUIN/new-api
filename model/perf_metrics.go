@@ -116,6 +116,7 @@ type PerfGroupHealth struct {
 	Juice               string                         `json:"juice"`
 	JuiceUpdatedTime    int64                          `json:"juice_updated_time"`
 	RequestCount        int64                          `json:"request_count"`
+	TrafficShare        float64                        `json:"traffic_share"` // Non-test request share over the latest hour of buckets.
 	SuccessRate         float64                        `json:"success_rate"`
 	AvgTTFTMs           float64                        `json:"avg_ttft_ms"`
 	AvgLatencyMs        float64                        `json:"avg_latency_ms"`
@@ -223,10 +224,11 @@ func groupModelPerfKeyFromValues(groupName string, modelName string) groupModelP
 }
 
 type perfRecentMetricSample struct {
-	Timestamp     int64
-	Group         string
-	Success       bool
-	IsTestRequest bool
+	Timestamp          int64
+	Group              string
+	Success            bool
+	IsTestRequest      bool
+	IsCombinationEntry bool
 }
 
 type perfAccumulator struct {
@@ -334,10 +336,11 @@ func RecordPerfMetricSample(sample PerfMetricSample) {
 		healthAcc.add(acc)
 		pendingGroupHealthPerfMetrics[healthKey] = healthAcc
 		recentPerfMetrics = append(recentPerfMetrics, perfRecentMetricSample{
-			Timestamp:     sample.Timestamp,
-			Group:         entryGroup,
-			Success:       sample.Success,
-			IsTestRequest: sample.IsTestRequest,
+			Timestamp:          sample.Timestamp,
+			Group:              entryGroup,
+			Success:            sample.Success,
+			IsTestRequest:      sample.IsTestRequest,
+			IsCombinationEntry: true,
 		})
 	}
 	pruneRecentPerfMetricsLocked(sample.Timestamp - perfRecentMetricRetentionSeconds)
@@ -908,7 +911,6 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 	if err != nil {
 		return PerfGroupHealthSummary{}, err
 	}
-	rows = append(rows, entryRows...)
 	for key, acc := range snapshotPendingPerfMetrics() {
 		if key.bucketStart < startBucket || key.bucketStart >= endExclusive {
 			continue
@@ -932,7 +934,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		if key.bucketStart < startBucket || key.bucketStart >= endExclusive {
 			continue
 		}
-		rows = append(rows, perfMetricAggregateRow{
+		entryRows = append(entryRows, perfMetricAggregateRow{
 			Group:             key.group,
 			BucketStart:       key.bucketStart,
 			BucketSeconds:     key.bucketSeconds,
@@ -946,6 +948,13 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			CompletionTokens:  acc.completionTokens,
 			TotalTPSLatencyMs: acc.totalTPSLatencyMs,
 		})
+	}
+	for _, row := range entryRows {
+		// Member-based combinations are derived below. Their entry metrics
+		// must not also count as physical traffic, including self-members.
+		if _, memberBased := combinations[normalizePerfMetricGroupName(row.Group)]; !memberBased {
+			rows = append(rows, row)
+		}
 	}
 
 	for _, row := range rows {
@@ -977,6 +986,19 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			continue
 		}
 		group.series[endBucketStart] = &acc
+	}
+
+	// Capture physical traffic before creating virtual combination views.
+	// Hidden members still contribute, and shared members are counted once.
+	trafficBucketCount := (int64(3600) + intervalSeconds - 1) / intervalSeconds
+	trafficStart := endExclusive - trafficBucketCount*intervalSeconds
+	trafficCounts := make(map[string]int64, len(groups))
+	for groupName, group := range groups {
+		for ts, acc := range group.series {
+			if ts >= trafficStart {
+				trafficCounts[groupName] += max(int64(0), acc.requestCount-acc.testRequestCount)
+			}
+		}
 	}
 
 	// Member-based combinations are virtual views of all member traffic.
@@ -1151,6 +1173,7 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 			Buckets:             buckets,
 		})
 	}
+	applyPerfGroupTrafficShares(resultGroups, trafficCounts)
 	sort.SliceStable(resultGroups, func(i, j int) bool {
 		leftRequests := resultGroups[i].RecentRequestCount
 		rightRequests := resultGroups[j].RecentRequestCount
@@ -1181,6 +1204,34 @@ func GetPerfGroupHealthSummary(hours int, intervalMinutes int) (PerfGroupHealthS
 		SeriesSchema:    common.GetPerfMetricsConfig().BucketTime,
 		Groups:          resultGroups,
 	}, nil
+}
+
+func applyPerfGroupTrafficShares(groups []PerfGroupHealth, trafficCounts map[string]int64) {
+	countedGroups := make(map[string]bool)
+	counts := make([]int64, len(groups))
+	var total int64
+	for i, group := range groups {
+		sources := []string{group.Group}
+		if len(group.CombinationMembers) > 0 {
+			sources = make([]string, 0, len(group.CombinationMembers))
+			for _, member := range group.CombinationMembers {
+				sources = append(sources, member.Group)
+			}
+		}
+		for _, source := range sources {
+			counts[i] += trafficCounts[source]
+			if !countedGroups[source] {
+				total += trafficCounts[source]
+				countedGroups[source] = true
+			}
+		}
+	}
+	if total <= 0 {
+		return
+	}
+	for i := range groups {
+		groups[i].TrafficShare = float64(counts[i]) / float64(total) * 100
+	}
 }
 
 type GroupProviderStats struct {
@@ -1347,11 +1398,15 @@ func currentGroupHealthBucketFallbacks(samples []perfRecentMetricSample, bucketS
 		return nil
 	}
 	fallbacks := make(map[string]perfAccumulator)
+	combinations := ratio_setting.GetGroupCombinationsCopy()
 	for _, sample := range samples {
 		if sample.Timestamp < bucketStart || sample.Timestamp >= bucketEnd {
 			continue
 		}
 		groupName := normalizePerfMetricGroupName(sample.Group)
+		if _, memberBased := combinations[groupName]; sample.IsCombinationEntry && memberBased {
+			continue
+		}
 		acc := fallbacks[groupName]
 		acc.requestCount++
 		if sample.Success {

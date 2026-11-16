@@ -90,7 +90,6 @@ import { UsageBattery } from '@/features/upstream-usage/usage-battery'
 const HEALTH_WINDOW_HOURS = 24
 const HEALTH_7D_WINDOW_HOURS = 168
 const HEALTH_BAR_WINDOW_HOURS = 6
-const HEALTH_TRAFFIC_SHARE_WINDOW_HOURS = 1
 const HEALTH_INTERVAL_MINUTES = 10
 const HEALTH_7D_INTERVAL_MINUTES = 60
 const HEALTH_REFRESH_INTERVAL_MS = 60 * 1000
@@ -295,16 +294,6 @@ function calculateRecentSuccessRate(
     successRate:
       totals.requests > 0 ? (totals.successes / totals.requests) * 100 : 0,
   }
-}
-
-function calculateRecentRequestCount(
-  buckets: PerfGroupHealthBucket[],
-  hours: number
-): number {
-  const bucketCount = Math.ceil((hours * 60) / HEALTH_INTERVAL_MINUTES)
-  return buckets
-    .slice(-bucketCount)
-    .reduce((total, bucket) => total + (bucket.non_test_request_count || 0), 0)
 }
 
 function formatSharePct(value: number): string {
@@ -519,27 +508,6 @@ export function GroupHealthGrid() {
         : allGroups,
     [allGroups, normalizedSearchText]
   )
-  const trafficShareMap = useMemo(() => {
-    const counts = new Map<string, number>()
-    let total = 0
-    for (const group of allGroups) {
-      const count = calculateRecentRequestCount(
-        group.buckets,
-        HEALTH_TRAFFIC_SHARE_WINDOW_HOURS
-      )
-      counts.set(group.group, count)
-      total += count
-    }
-    const shares = new Map<string, number>()
-    if (total <= 0) return shares
-    for (const group of allGroups) {
-      const count = counts.get(group.group) ?? 0
-      if (count > 0) {
-        shares.set(group.group, (count / total) * 100)
-      }
-    }
-    return shares
-  }, [allGroups])
   const ratioHistoryMap = useMemo(() => {
     const map = new Map<string, GroupRatioHistorySeries>()
     for (const item of ratioHistoryQuery.data?.data.groups ?? []) {
@@ -640,7 +608,7 @@ export function GroupHealthGrid() {
           <GroupHealthCard
             key={group.group}
             group={group}
-            trafficShare={trafficShareMap.get(group.group) ?? 0}
+            trafficShare={group.traffic_share ?? 0}
             ratioHistory={ratioHistoryMap.get(group.group)}
             usageAccounts={usageMap.get(group.group) ?? []}
             ratioRange={ratioRange}

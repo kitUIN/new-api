@@ -560,6 +560,100 @@ func TestGetPerfGroupHealthSummaryTracksCombinationEntryGroup(t *testing.T) {
 	require.EqualValues(t, 3, nonTests)
 }
 
+func TestGetPerfGroupHealthSummaryTrafficShares(t *testing.T) {
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalUserUsableGroups := setting.UserUsableGroups2JSONString()
+	originalCombinations := ratio_setting.GroupCombinations2JSONString()
+	monitorSetting := operation_setting.GetMonitorSetting()
+	originalSkipGroups := monitorSetting.AutoTestChannelSkipGroups
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUserUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(originalCombinations))
+		monitorSetting.AutoTestChannelSkipGroups = originalSkipGroups
+	})
+	monitorSetting.AutoTestChannelSkipGroups = ""
+	const combination = `{"A":[{"group":"B","models":["test"]},{"group":"C","models":["test"]}]}`
+	const selfCombination = `{"B":[{"group":"B","models":["test"]},{"group":"C","models":["test"]}]}`
+	const sharedCombination = `{"A":[{"group":"B","models":["test"]},{"group":"C","models":["test"]}],"E":[{"group":"C","models":["test"]},{"group":"D","models":["test"]}]}`
+	for _, tc := range []struct {
+		name         string
+		combinations string
+		visible      string
+		standalone   bool
+		expected     map[string]float64
+	}{
+		{"all requests through A", combination, `{"A":"A","B":"B","C":"C"}`, false, map[string]float64{"A": 100, "B": 60, "C": 40}},
+		{"one hidden member", combination, `{"A":"A","B":"B"}`, false, map[string]float64{"A": 100, "B": 60}},
+		{"all members hidden", combination, `{"A":"A"}`, false, map[string]float64{"A": 100}},
+		{"standalone traffic", combination, `{"A":"A","B":"B","C":"C","D":"D"}`, true, map[string]float64{"A": 50, "B": 30, "C": 20, "D": 50}},
+		{"shared members", sharedCombination, `{"A":"A","B":"B","C":"C","D":"D","E":"E"}`, true, map[string]float64{"A": 50, "B": 30, "C": 20, "D": 50, "E": 70}},
+		{"shared hidden members", sharedCombination, `{"A":"A","E":"E"}`, true, map[string]float64{"A": 50, "E": 70}},
+		{"ordinary groups", `{}`, `{"B":"B","C":"C"}`, false, map[string]float64{"B": 60, "C": 40}},
+		{"self member", selfCombination, `{"B":"B","C":"C"}`, false, map[string]float64{"B": 100, "C": 40}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			ResetPerfMetricsForTest()
+			require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"A":1,"B":1,"C":1,"D":1,"E":1}`))
+			require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(tc.visible))
+			require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(tc.combinations))
+			insertEnabledChannel(t, 1, "B")
+			insertEnabledChannel(t, 2, "C")
+			insertEnabledChannel(t, 3, "D")
+			common.SetPerfMetricsConfig(common.PerfMetricsConfig{Enabled: true, BucketTime: "10min", FlushInterval: 5})
+
+			summary, err := GetPerfGroupHealthSummary(24, 10)
+			require.NoError(t, err)
+			for _, group := range summary.Groups {
+				require.Zero(t, group.TrafficShare)
+			}
+
+			base := time.Now().Unix()
+			base -= base % 600
+			// Old traffic and automated tests must not dilute the last hour's shares.
+			RecordPerfMetricSample(PerfMetricSample{Timestamp: base - 3600, ModelName: "test", Group: "C", Success: true})
+			RecordPerfMetricSample(PerfMetricSample{Timestamp: base, ModelName: "test", Group: "C", Success: true, IsTestRequest: true})
+			for group, count := range map[string]int{"B": 3, "C": 2} {
+				entryGroup := "A"
+				if tc.combinations == selfCombination {
+					entryGroup = "B"
+				}
+				for i := 0; i < count; i++ {
+					RecordPerfMetricSample(PerfMetricSample{Timestamp: base, ModelName: "test", Group: group, EntryGroup: entryGroup, Success: i != 0})
+				}
+			}
+			if tc.standalone {
+				for i := 0; i < 5; i++ {
+					RecordPerfMetricSample(PerfMetricSample{Timestamp: base, ModelName: "test", Group: "D", Success: true})
+				}
+			}
+			for _, flushed := range []bool{false, true} {
+				if flushed {
+					require.NoError(t, FlushPerfMetrics())
+				}
+				summary, err = GetPerfGroupHealthSummary(24, 10)
+				require.NoError(t, err)
+				require.Len(t, summary.Groups, len(tc.expected))
+				for name, share := range tc.expected {
+					group := requirePerfGroupHealth(t, summary.Groups, name)
+					require.InDelta(t, share, group.TrafficShare, 0.001, "group=%s flushed=%v", name, flushed)
+				}
+			}
+			// During a flush, recent samples temporarily provide the current bucket.
+			takePendingPerfMetrics()
+			require.NoError(t, LOG_DB.Where("1 = 1").Delete(&PerfMetricBucket{}).Error)
+			require.NoError(t, LOG_DB.Where("1 = 1").Delete(&PerfGroupHealthMetricBucket{}).Error)
+			summary, err = GetPerfGroupHealthSummary(24, 10)
+			require.NoError(t, err)
+			for name, share := range tc.expected {
+				group := requirePerfGroupHealth(t, summary.Groups, name)
+				require.InDelta(t, share, group.TrafficShare, 0.001, "recent fallback group=%s", name)
+			}
+		})
+	}
+}
+
 func TestGetPerfGroupHealthSummaryCombinationRatioRanges(t *testing.T) {
 	truncateTables(t)
 	ResetPerfMetricsForTest()
