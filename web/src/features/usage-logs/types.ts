@@ -157,6 +157,8 @@ export interface LogOtherData {
   status_code?: number
   request_path?: string
   request_host?: string
+  request_client?: string
+  user_agent?: string
   request_conversion?: string[]
   ws?: boolean
   ws_warmup?: boolean

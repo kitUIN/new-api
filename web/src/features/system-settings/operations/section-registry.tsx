@@ -23,12 +23,23 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { RelayAssetSection } from '../maintenance/relay-asset-section'
+import { RequestClientSettingsSection } from '../maintenance/request-client-settings-section'
 import { ServiceProbeSection } from '../maintenance/service-probe-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
 const OPERATIONS_SECTIONS = [
+  {
+    id: 'request-clients',
+    titleKey: '客户端识别',
+    build: (settings: OperationsSettings) => (
+      <RequestClientSettingsSection
+        key={settings.RequestClientRules}
+        value={settings.RequestClientRules}
+      />
+    ),
+  },
   {
     id: 'service-probes',
     titleKey: 'serviceProbe.title',

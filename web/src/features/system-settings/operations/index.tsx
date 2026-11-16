@@ -26,6 +26,7 @@ import {
 } from './section-registry.tsx'
 
 const defaultOperationsSettings: OperationsSettings = {
+  RequestClientRules: '[]',
   'relay_asset_setting.cache_mb': 8192,
   'relay_asset_setting.cache_dir': 'data/relay-asset-cache',
   'relay_asset_setting.ttl_seconds': 3600,

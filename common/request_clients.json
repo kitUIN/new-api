@@ -1,0 +1,200 @@
+[
+  {
+    "id": "codex-tui-vscode",
+    "name": "Codex TUI (VS Code)",
+    "icon": "codex-tui-vscode",
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^(codex-tui|codex-cli|codex_cli_rs)/.*\\s(vscode|code-server)/"
+      }
+    ],
+    "url": "https://openai.com/codex/",
+    "enabled": true
+  },
+  {
+    "id": "codex-vscode",
+    "name": "Codex VS Code",
+    "icon": "codex-vscode",
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)codex_vscode/"
+      },
+      {
+        "header": "Originator",
+        "pattern": "(?i)^codex_vscode$"
+      }
+    ],
+    "url": "https://openai.com/codex/",
+    "enabled": true
+  },
+  {
+    "id": "codex-desktop",
+    "name": "Codex Desktop",
+    "icon": "codex-desktop",
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)(codex desktop|codex_desktop|codex_app)/"
+      },
+      {
+        "header": "Originator",
+        "pattern": "(?i)^(codex desktop|codex_desktop|codex_app)$"
+      }
+    ],
+    "url": "https://openai.com/codex/",
+    "enabled": true
+  },
+  {
+    "id": "codex-tui",
+    "name": "Codex TUI / CLI",
+    "icon": "codex-tui",
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)(codex-tui|codex-cli|codex_cli_rs)/"
+      },
+      {
+        "header": "Originator",
+        "pattern": "(?i)^(codex cli|codex-tui|codex-cli|codex_cli_rs)$"
+      }
+    ],
+    "url": "https://openai.com/codex/",
+    "enabled": true
+  },
+  {
+    "id": "codex",
+    "name": "Codex",
+    "icon": "codex",
+    "url": "https://openai.com/codex/",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)(codex desktop|codex|codex-cli|codex-tui|codex_cli_rs|codex_exec|codex_vscode|codex_desktop|codex_app|codex_sdk_ts)/"
+      },
+      {
+        "header": "Originator",
+        "pattern": "(?i)^(codex( cli| desktop)?|codex-cli|codex-tui|codex_cli_rs|codex_exec|codex_vscode|codex_desktop|codex_app|codex_sdk_ts)$"
+      }
+    ]
+  },
+  {
+    "id": "pi",
+    "name": "Pi",
+    "icon": "pi",
+    "url": "https://pi.dev",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^pi(?:/|\\s+\\()"
+      }
+    ]
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "icon": "opencode",
+    "url": "https://opencode.ai",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)opencode/"
+      }
+    ]
+  },
+  {
+    "id": "codebuddy",
+    "name": "CodeBuddy",
+    "icon": "codebuddy",
+    "url": "https://www.codebuddy.ai",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)codebuddy/"
+      }
+    ]
+  },
+  {
+    "id": "deepseek-harness",
+    "name": "DeepSeek Harness",
+    "icon": "deepseek-harness",
+    "url": "https://github.com/deepseek-ai/deepseek-harness",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^deepseek-harness/"
+      }
+    ]
+  },
+  {
+    "id": "rikkahub",
+    "name": "RikkaHub",
+    "icon": "/images/clients/rikkahub.png",
+    "url": "https://github.com/rikkahub/rikkahub",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^rikkahub-android/"
+      }
+    ]
+  },
+  {
+    "id": "magpie",
+    "name": "Magpie",
+    "icon": "/images/clients/magpie.svg",
+    "url": "https://github.com/yetone/magpie",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^magpie/"
+      }
+    ]
+  },
+  {
+    "id": "cc-pocket",
+    "name": "CC Pocket / Pairlet",
+    "icon": "/images/clients/cc-pocket.svg",
+    "url": "https://github.com/heypandax/pairlet",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^cc-pocket/"
+      }
+    ]
+  },
+  {
+    "id": "omp",
+    "name": "Oh My Pi",
+    "icon": "/images/clients/omp.svg",
+    "url": "https://github.com/can1357/oh-my-pi",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^omp/"
+      }
+    ]
+  },
+  {
+    "id": "claude-code",
+    "name": "Claude Code",
+    "icon": "claude-code",
+    "url": "https://code.claude.com",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)(^|\\s)(claude-cli|claude-code|claudecode)/"
+      }
+    ]
+  }
+]

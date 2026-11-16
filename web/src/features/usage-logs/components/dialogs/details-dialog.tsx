@@ -648,6 +648,34 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               )}
 
+              {other?.user_agent && (
+                <DetailRow
+                  label='User-Agent'
+                  mono
+                  value={
+                    <span className='flex min-w-0 items-start gap-1'>
+                      <span className='min-w-0 flex-1 break-all'>
+                        {other.user_agent}
+                      </span>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='size-5 shrink-0'
+                        aria-label={t('Copy')}
+                        onClick={() => copyToClipboard(other.user_agent!)}
+                      >
+                        {copiedText === other.user_agent ? (
+                          <Check className='size-3' />
+                        ) : (
+                          <Copy className='size-3' />
+                        )}
+                      </Button>
+                    </span>
+                  }
+                />
+              )}
+
               {showAdminIp && (
                 <DetailRow
                   label={t('IP Address')}

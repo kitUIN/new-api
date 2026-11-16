@@ -24,6 +24,7 @@ import type { UpdateOptionRequest } from '../types'
 
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = [
+  'RequestClientRules',
   'theme.frontend',
   'HeaderNavModules',
   'SidebarModulesAdmin',

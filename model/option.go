@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"gorm.io/gorm/clause"
 )
 
 type Option struct {
@@ -24,6 +25,7 @@ type Option struct {
 }
 
 var groupRatioOptionUpdateMutex sync.Mutex
+var requestClientOptionUpdateMutex sync.Mutex
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -36,6 +38,7 @@ func AllOption() ([]*Option, error) {
 func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
+	common.OptionMap["RequestClientRules"] = common.DefaultRequestClientRules
 
 	// 添加原有的系统配置
 	common.OptionMap["FileUploadPermission"] = strconv.Itoa(common.FileUploadPermission)
@@ -255,6 +258,21 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if strings.EqualFold(strings.TrimSpace(key), "RequestClientRules") {
+		key = "RequestClientRules"
+	}
+	if key == "RequestClientRules" {
+		requestClientOptionUpdateMutex.Lock()
+		defer requestClientOptionUpdateMutex.Unlock()
+		if err := common.CheckRequestClientRules(value); err != nil {
+			return err
+		}
+		option := Option{Key: key, Value: value}
+		if err := DB.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "key"}}, DoUpdates: clause.AssignmentColumns([]string{"value"})}).Create(&option).Error; err != nil {
+			return err
+		}
+		return updateOptionMap(key, value)
+	}
 	if key == "LogRequestDetailMode" || key == "LogRequestDetailEnabled" {
 		mode, err := parseRequestDetailLogOption(key, value)
 		if err != nil {
@@ -435,6 +453,13 @@ func updateGroupSpecialUsableGroupOption(value string) error {
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	if key == "RequestClientRules" {
+		if err := common.UpdateRequestClientRules(value); err != nil {
+			return err
+		}
+		common.OptionMap[key] = value
+		return nil
+	}
 	if key == "LogRequestDetailMode" || key == "LogRequestDetailEnabled" {
 		mode, err := parseRequestDetailLogOption(key, value)
 		if err != nil {

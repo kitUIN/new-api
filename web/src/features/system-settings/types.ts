@@ -345,6 +345,7 @@ export type BillingSettings = {
 }
 
 export type OperationsSettings = {
+  RequestClientRules: string
   'relay_asset_setting.cache_mb': number
   'relay_asset_setting.cache_dir': string
   'relay_asset_setting.ttl_seconds': number

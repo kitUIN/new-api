@@ -152,6 +152,22 @@ func appendRequestLogInfo(c *gin.Context, other map[string]interface{}) map[stri
 		}
 	}
 	if c.Request != nil {
+		if userAgent := c.Request.UserAgent(); userAgent != "" {
+			if other == nil {
+				other = make(map[string]interface{})
+			}
+			other["user_agent"] = userAgent
+		} else {
+			delete(other, "user_agent")
+		}
+		if client := common.DetectRequestClient(c.Request.Header); client != "" {
+			if other == nil {
+				other = make(map[string]interface{})
+			}
+			other["request_client"] = client
+		} else {
+			delete(other, "request_client")
+		}
 		// The public reverse proxy must overwrite X-Forwarded-Host with the
 		// original request host; intermediate proxies must preserve it.
 		host := strings.TrimSpace(strings.SplitN(c.GetHeader("X-Forwarded-Host"), ",", 2)[0])

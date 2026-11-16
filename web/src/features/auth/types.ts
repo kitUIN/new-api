@@ -86,6 +86,7 @@ export interface ApiResponse {
 // ============================================================================
 
 export interface SystemStatus {
+  request_clients?: import('@/features/usage-logs/lib/request-client').RequestClientDisplay[]
   success?: boolean
   message?: string
   data?: {
