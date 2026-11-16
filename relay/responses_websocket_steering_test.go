@@ -135,12 +135,33 @@ func assertSteeringBilling(t *testing.T, db *gorm.DB, prompts, completions []int
 	require.NoError(t, db.Order("id").Find(&logs).Error)
 	require.Len(t, logs, len(prompts))
 	total := 0
+	var previousEnd time.Time
 	for i, log := range logs {
 		require.Equal(t, fmt.Sprintf("request-test-%d", i+1), log.RequestId)
 		require.Equal(t, prompts[i], log.PromptTokens)
 		require.Equal(t, completions[i], log.CompletionTokens)
 		require.Positive(t, log.Quota)
 		require.Equal(t, "gpt-4o", log.ModelName)
+		var other map[string]interface{}
+		require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+		var timestamps []time.Time
+		for _, key := range []string{"request_start_at", "upstream_request_start_at", "upstream_first_byte_at", "upstream_request_end_at"} {
+			value, ok := other[key].(string)
+			require.True(t, ok, "round %d is missing %s", i+1, key)
+			at, err := time.Parse(time.RFC3339Nano, value)
+			require.NoError(t, err)
+			require.False(t, at.IsZero())
+			if len(timestamps) > 0 {
+				require.False(t, at.Before(timestamps[len(timestamps)-1]), "%s precedes the previous timestamp", key)
+			}
+			timestamps = append(timestamps, at)
+		}
+		require.False(t, timestamps[0].Before(previousEnd), "round timing must not reuse an earlier round or connection handshake")
+		previousEnd = timestamps[3]
+		require.NotContains(t, other, "upstream_response_header_at")
+		require.EqualValues(t, 2, other["relay_timing_version"])
+		require.EqualValues(t, timestamps[2].Sub(timestamps[1]).Milliseconds(), other["upstream_first_byte_ms"])
+		require.EqualValues(t, timestamps[3].Sub(timestamps[1]).Milliseconds(), other["upstream_total_ms"])
 		total += log.Quota
 	}
 	var user model.User

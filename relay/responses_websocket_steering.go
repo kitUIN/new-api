@@ -148,6 +148,9 @@ func (s *responsesWebSocketSession) observeResponseCreated(event dto.ResponsesSt
 		if _, apiErr := s.startRound(request, raw, false); apiErr != nil {
 			return apiErr
 		}
+		// No new request is sent for an automatic successor. Its measurable
+		// upstream interval starts when we admit response.created locally.
+		s.round.MarkUpstreamRequestStart()
 	}
 	s.steering.responseID = event.Response.ID
 	return nil

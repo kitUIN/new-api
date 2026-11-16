@@ -317,6 +317,9 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 		return apiErr
 	}
 	_ = s.upstream.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	// The connection handshake belongs to connectionInfo; usage logs are
+	// generated from a fresh RelayInfo for each response.create.
+	s.round.MarkUpstreamRequestStart()
 	if err = s.upstream.WriteMessage(websocket.TextMessage, payload); err != nil {
 		s.refundRound()
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
@@ -387,6 +390,9 @@ func (s *responsesWebSocketSession) handleUpstreamFrame(messageType int, data []
 			return apiErr
 		}
 		if s.round != nil {
+			// Match HTTP/SSE timing: the first upstream event may be a lifecycle
+			// event, while downstream TTFT still waits for a token-bearing delta.
+			s.round.MarkUpstreamFirstByte()
 			s.round.SendResponseCount++
 		}
 		s.observeSteeringEvent(event)
@@ -452,6 +458,7 @@ func (s *responsesWebSocketSession) completeRound(response *dto.OpenAIResponsesR
 		s.connectionInfo.ResponsesWebSocketState = s.state
 		return
 	}
+	s.round.MarkUpstreamRequestEnd()
 	usage := &dto.Usage{}
 	if response != nil && response.Usage != nil {
 		usage.PromptTokens = response.Usage.InputTokens
@@ -495,6 +502,7 @@ func shouldRecordResponsesWebSocketConsumption(state string, usage *dto.Usage) b
 }
 
 func (s *responsesWebSocketSession) refundRound() {
+	s.round.MarkUpstreamRequestEnd()
 	if s.round != nil && s.round.Billing != nil {
 		s.round.Billing.Refund(s.c)
 	}
