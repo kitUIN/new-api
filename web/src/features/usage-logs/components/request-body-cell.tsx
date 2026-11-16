@@ -52,7 +52,7 @@ export function RequestBodyCell(props: { other: LogOtherData | null }) {
           {formatBodySize(rawSize) ?? t('未记录')}
           {imageCount != null && imageCount > 0 && (
             <ImageIcon
-              className='size-3.5 shrink-0'
+              className='text-muted-foreground/60 size-3 shrink-0'
               aria-label={`${t('图片数量')}: ${imageCount}`}
             />
           )}
