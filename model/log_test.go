@@ -102,6 +102,7 @@ func TestRecordLogsPreservesRequestBodyInfo(t *testing.T) {
 			ctx.Request = httptest.NewRequest("POST", "/v1/responses", nil)
 			common.SetContextKey(ctx, constant.ContextKeyClientRequestBodyInfo, common.RequestBodyInfo{
 				Size: common.GetPointer(int64(2048)), Encoding: "gzip",
+				RawSize: common.GetPointer(int64(8192)), ImageCount: common.GetPointer(2),
 			})
 			common.SetContextKey(ctx, constant.ContextKeyUpstreamRequestBodyInfo, common.RequestBodyInfo{
 				Size: common.GetPointer(int64(1024)), Encoding: "zstd",
@@ -121,6 +122,8 @@ func TestRecordLogsPreservesRequestBodyInfo(t *testing.T) {
 			require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
 			require.EqualValues(t, 2048, *other.Client.Size)
 			require.Equal(t, "gzip", other.Client.Encoding)
+			require.EqualValues(t, 8192, *other.Client.RawSize)
+			require.Equal(t, 2, *other.Client.ImageCount)
 			require.EqualValues(t, 1024, *other.Upstream.Size)
 			require.Equal(t, "zstd", other.Upstream.Encoding)
 		})

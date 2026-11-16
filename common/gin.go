@@ -88,6 +88,10 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	// Record only the first successful read; cached reads and retries retain this boundary.
 	SetContextKey(c, constant.ContextKeyRequestBodyReceivedTime, bodyReceivedAt)
+	if info := GetRequestBodyInfo(c, constant.ContextKeyClientRequestBodyInfo); info != nil {
+		info.RawSize = GetPointer(storage.Size())
+		SetContextKey(c, constant.ContextKeyClientRequestBodyInfo, *info)
+	}
 
 	// 缓存存储对象
 	c.Set(KeyBodyStorage, storage)
@@ -129,6 +133,7 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
+		recordClientJSONImages(c, requestBody)
 		err = Unmarshal(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
 		err = parseFormData(requestBody, v)
@@ -276,6 +281,7 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	if err != nil {
 		return nil, err
 	}
+	recordClientMultipartImages(c, form)
 
 	// Reset request body
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
@@ -327,6 +333,7 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 	boundary, err := parseBoundary(contentType)
 	if err != nil {
 		if errors.Is(err, errBoundaryNotFound) {
+			recordClientJSONImages(c, data)
 			return Unmarshal(data, v) // Fallback to JSON
 		}
 		return err
@@ -338,6 +345,7 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 		return err
 	}
 	defer form.RemoveAll()
+	recordClientMultipartImages(c, form)
 	formMap := make(map[string]any)
 	for key, vals := range form.Value {
 		if len(vals) == 1 {

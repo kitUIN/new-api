@@ -124,6 +124,13 @@ export interface ChannelAffinityInfo {
   using_group?: string
 }
 
+export interface RequestBodyInfo {
+  size?: number
+  encoding: string
+  raw_size?: number
+  image_count?: number
+}
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
@@ -197,8 +204,8 @@ export interface LogOtherData {
   upstream_request_end_at?: string
   request_body_received_at?: string
   request_body_receive_ms?: number
-  client_request_body?: { size?: number; encoding: string }
-  upstream_request_body?: { size?: number; encoding: string }
+  client_request_body?: RequestBodyInfo
+  upstream_request_body?: RequestBodyInfo
   upstream_prepare_ms?: number
   pre_upstream_ms?: number
   upstream_header_ms?: number

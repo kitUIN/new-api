@@ -25,16 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { formatBodySize, getRawRequestBodySize } from '../../lib/request-body'
 import type { LogOtherData } from '../../types'
-
-function formatBodySize(size: number | undefined): string | null {
-  if (size === undefined || !Number.isFinite(size) || size < 0) return null
-  const bytes = `${size.toLocaleString()} B`
-  if (size < 1024) return bytes
-  const unit = size >= 1024 * 1024 ? 'MiB' : 'KiB'
-  const divisor = unit === 'MiB' ? 1024 * 1024 : 1024
-  return `${(size / divisor).toFixed(2)} ${unit} (${bytes})`
-}
 
 export function RequestBodySection(props: { other: LogOtherData | null }) {
   const { t } = useTranslation()
@@ -55,6 +47,16 @@ export function RequestBodySection(props: { other: LogOtherData | null }) {
       aria-label={t('请求体传输')}
     >
       <h3 className='text-xs font-semibold'>{t('请求体传输')}</h3>
+      <p className='text-xs'>
+        {t('原始大小')}:{' '}
+        {formatBodySize(
+          getRawRequestBodySize(props.other.client_request_body),
+          true
+        ) ?? t('未记录')}
+        {' · '}
+        {t('图片数量')}:{' '}
+        {props.other.client_request_body?.image_count ?? t('未记录')}
+      </p>
       <div className='overflow-hidden rounded-md border'>
         <Table>
           <TableHeader>
@@ -69,7 +71,7 @@ export function RequestBodySection(props: { other: LogOtherData | null }) {
               <TableRow key={row.label}>
                 <TableCell>{row.label}</TableCell>
                 <TableCell>
-                  {formatBodySize(row.info?.size) ?? t('未记录')}
+                  {formatBodySize(row.info?.size, true) ?? t('未记录')}
                 </TableCell>
                 <TableCell>
                   {row.info?.encoding === 'identity'

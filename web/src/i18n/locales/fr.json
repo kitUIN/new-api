@@ -1,5 +1,10 @@
 {
   "translation": {
+    "请求体": "Corps de requête",
+    "原始大小": "Taille originale",
+    "客户端 → 网关": "Client → Passerelle",
+    "网关 → 上游": "Passerelle → Amont",
+    "图片数量": "Nombre d’images",
     "usageLogs.warmup": "Préchauffage",
     "请求体传输": "Transfert du corps de requête",
     "客户端传入": "Depuis le client",

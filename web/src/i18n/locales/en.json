@@ -1,5 +1,10 @@
 {
   "translation": {
+    "请求体": "Request body",
+    "原始大小": "Original size",
+    "客户端 → 网关": "Client → Gateway",
+    "网关 → 上游": "Gateway → Upstream",
+    "图片数量": "Image count",
     "usageLogs.warmup": "Warmup",
     "请求体传输": "Request body transfer",
     "客户端传入": "From client",

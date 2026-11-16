@@ -1,5 +1,10 @@
 {
   "translation": {
+    "请求体": "Nội dung yêu cầu",
+    "原始大小": "Kích thước gốc",
+    "客户端 → 网关": "Máy khách → Cổng",
+    "网关 → 上游": "Cổng → Thượng nguồn",
+    "图片数量": "Số lượng ảnh",
     "usageLogs.warmup": "Khởi động",
     "请求体传输": "Truyền nội dung yêu cầu",
     "客户端传入": "Từ máy khách",

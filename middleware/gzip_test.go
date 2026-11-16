@@ -36,7 +36,7 @@ func (b *trackedCompressedBody) Close() error {
 }
 
 func TestDecompressRequestMiddlewareReusableJSON(t *testing.T) {
-	payload := []byte(`{"model":"test-model","messages":[{"role":"user","content":"你好"}]}`)
+	payload := []byte(`{"model":"test-model","messages":[{"role":"user","content":[{"type":"text","text":"你好"},{"type":"image_url","image_url":{"url":"data:image/png;base64,YQ=="}}]}]}`)
 	for _, encoding := range []string{"", "gzip", "br", "zstd"} {
 		t.Run(encoding, func(t *testing.T) {
 			var compressed bytes.Buffer
@@ -81,6 +81,10 @@ func TestDecompressRequestMiddlewareReusableJSON(t *testing.T) {
 					require.NotNil(t, info)
 					require.NotNil(t, info.Size)
 					require.EqualValues(t, compressed.Len(), *info.Size)
+					require.NotNil(t, info.RawSize)
+					require.EqualValues(t, len(payload), *info.RawSize)
+					require.NotNil(t, info.ImageCount)
+					require.Equal(t, 1, *info.ImageCount)
 					wantEncoding := encoding
 					if wantEncoding == "" {
 						wantEncoding = "identity"

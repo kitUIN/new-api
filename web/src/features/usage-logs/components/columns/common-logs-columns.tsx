@@ -84,6 +84,7 @@ import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
 import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
+import { RequestBodyCell } from '../request-body-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
 export interface DetailSegment {
@@ -778,6 +779,80 @@ export function buildDetailSegments(
 
 export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const { t } = useTranslation()
+  const sessionKeyColumn: ColumnDef<UsageLog> = {
+    id: 'session_key',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('Session Key')} />
+    ),
+    cell: function SessionKeyCell({ row }) {
+      const log = row.original
+      if (!isDisplayableLogType(log.type)) return null
+
+      const other = parseLogOther(log.other)
+      const affinity = other?.admin_info?.channel_affinity
+      const sessionKeyInfo = getUsageLogSessionKeyInfo(
+        other?.admin_info?.session_key,
+        affinity
+      )
+      const sessionKey = getChannelAffinitySessionKey(sessionKeyInfo)
+      const displayKey = formatChannelAffinitySessionKey(sessionKey)
+
+      if (!displayKey) {
+        return <span className='text-muted-foreground/40 text-xs'>—</span>
+      }
+
+      return (
+        <TooltipProvider delay={300}>
+          <Tooltip>
+            <TooltipTrigger render={<div className='max-w-[120px]' />}>
+              <StatusBadge
+                label={displayKey}
+                icon={Sparkles}
+                copyText={sessionKey}
+                size='sm'
+                variant='amber'
+                className='max-w-full rounded-md font-mono'
+              />
+            </TooltipTrigger>
+            <TooltipContent side='top' className='max-w-xs text-xs'>
+              <div className='flex flex-col gap-1'>
+                <p className='font-medium'>{t('Session Key')}</p>
+                <p className='break-all whitespace-pre-wrap'>
+                  {t('Session Key')}: {sessionKey}
+                </p>
+                {sessionKeyInfo?.key_fp && (
+                  <p>
+                    {t('Key Fingerprint')}: {sessionKeyInfo.key_fp}
+                  </p>
+                )}
+                {sessionKeyInfo?.rule_name && (
+                  <p>
+                    {t('Rule')}: {sessionKeyInfo.rule_name}
+                  </p>
+                )}
+                {(sessionKeyInfo?.key_source ||
+                  sessionKeyInfo?.key_path ||
+                  sessionKeyInfo?.key_key) && (
+                  <p>
+                    {t('Source')}:{' '}
+                    {[
+                      sessionKeyInfo.key_source,
+                      sessionKeyInfo.key_path || sessionKeyInfo.key_key,
+                    ]
+                      .filter(Boolean)
+                      .join(':')}
+                  </p>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    },
+    meta: { label: t('Session Key'), mobileHidden: true },
+    size: 120,
+  }
+
   const columns: ColumnDef<UsageLog>[] = [
     {
       accessorKey: 'created_at',
@@ -980,79 +1055,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         },
         meta: { label: t('User'), mobileHidden: true },
       },
-      {
-        id: 'session_key',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Session Key')} />
-        ),
-        cell: function SessionKeyCell({ row }) {
-          const log = row.original
-          if (!isDisplayableLogType(log.type)) return null
-
-          const other = parseLogOther(log.other)
-          const affinity = other?.admin_info?.channel_affinity
-          const sessionKeyInfo = getUsageLogSessionKeyInfo(
-            other?.admin_info?.session_key,
-            affinity
-          )
-          const sessionKey = getChannelAffinitySessionKey(sessionKeyInfo)
-          const displayKey = formatChannelAffinitySessionKey(sessionKey)
-
-          if (!displayKey) {
-            return <span className='text-muted-foreground/40 text-xs'>—</span>
-          }
-
-          return (
-            <TooltipProvider delay={300}>
-              <Tooltip>
-                <TooltipTrigger render={<div className='max-w-[120px]' />}>
-                  <StatusBadge
-                    label={displayKey}
-                    icon={Sparkles}
-                    copyText={sessionKey}
-                    size='sm'
-                    variant='amber'
-                    className='max-w-full rounded-md font-mono'
-                  />
-                </TooltipTrigger>
-                <TooltipContent side='top' className='max-w-xs text-xs'>
-                  <div className='flex flex-col gap-1'>
-                    <p className='font-medium'>{t('Session Key')}</p>
-                    <p className='break-all whitespace-pre-wrap'>
-                      {t('Session Key')}: {sessionKey}
-                    </p>
-                    {sessionKeyInfo?.key_fp && (
-                      <p>
-                        {t('Key Fingerprint')}: {sessionKeyInfo.key_fp}
-                      </p>
-                    )}
-                    {sessionKeyInfo?.rule_name && (
-                      <p>
-                        {t('Rule')}: {sessionKeyInfo.rule_name}
-                      </p>
-                    )}
-                    {(sessionKeyInfo?.key_source ||
-                      sessionKeyInfo?.key_path ||
-                      sessionKeyInfo?.key_key) && (
-                      <p>
-                        {t('Source')}:{' '}
-                        {[
-                          sessionKeyInfo.key_source,
-                          sessionKeyInfo.key_path || sessionKeyInfo.key_key,
-                        ]
-                          .filter(Boolean)
-                          .join(':')}
-                      </p>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )
-        },
-        meta: { label: t('Session Key'), mobileHidden: true },
-        size: 120,
-      },
+      sessionKeyColumn,
       {
         id: 'request_id',
         header: ({ column }) => (
@@ -1108,6 +1111,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       }
     )
   }
+
+  if (!isAdmin) columns.push(sessionKeyColumn)
+
+  columns.push({
+    id: 'request_body',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('请求体')} />
+    ),
+    cell: ({ row }) => {
+      if (!isDisplayableLogType(row.original.type)) return null
+      return <RequestBodyCell other={parseLogOther(row.original.other)} />
+    },
+    meta: { label: t('请求体') },
+    size: 110,
+  })
 
   columns.push({
     accessorKey: 'token_name',

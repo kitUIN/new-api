@@ -312,6 +312,7 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 	payload, apiErr := s.startRound(event, data, true)
 	common.SetContextKey(s.c, constant.ContextKeyClientRequestBodyInfo, common.RequestBodyInfo{
 		Size: common.GetPointer(int64(len(data))), Encoding: "identity",
+		RawSize: common.GetPointer(int64(len(data))), ImageCount: common.CountRequestImages(data),
 	})
 	if apiErr != nil {
 		return apiErr

@@ -269,6 +269,9 @@ func TestResponsesWebSocketSequentialWarmupRounds(t *testing.T) {
 		require.NotNil(t, info[0])
 		require.NotNil(t, info[1])
 		require.EqualValues(t, len(secondFrame), *info[0].Size)
+		require.EqualValues(t, len(secondFrame), *info[0].RawSize)
+		require.NotNil(t, info[0].ImageCount)
+		require.Zero(t, *info[0].ImageCount)
 		receivedMu.Lock()
 		sentSize := receivedSizes[len(receivedSizes)-1]
 		receivedMu.Unlock()

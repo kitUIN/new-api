@@ -52,6 +52,7 @@ import {
   taskActionMapper,
   taskStatusMapper,
 } from './mappers'
+import { formatBodySize, getRawRequestBodySize } from './request-body'
 import {
   fetchLogsByCategory,
   getChannelAffinitySessionKey,
@@ -146,6 +147,19 @@ function getCommonLogCell(
     }
     case 'request_id':
       return log.request_id || '-'
+    case 'request_body': {
+      if (!displayable) return ''
+      const client = other?.client_request_body
+      const upstream = other?.upstream_request_body
+      if (!client && !upstream) return '-'
+      const missing = context.t('未记录')
+      return joinLines([
+        `${context.t('原始大小')}: ${formatBodySize(getRawRequestBodySize(client), true) ?? missing}`,
+        `${context.t('客户端 → 网关')}: ${formatBodySize(client?.size, true) ?? missing} (${client?.encoding || missing})`,
+        `${context.t('网关 → 上游')}: ${formatBodySize(upstream?.size, true) ?? missing} (${upstream?.encoding || missing})`,
+        `${context.t('图片数量')}: ${client?.image_count ?? missing}`,
+      ])
+    }
     case 'token_name': {
       if (!displayable || !log.token_name) return ''
       const tokenName = context.sensitiveVisible ? log.token_name : '••••'
