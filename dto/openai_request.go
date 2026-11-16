@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -1049,88 +1050,83 @@ type MediaInput struct {
 //   - input can be an array of objects with a `type` field
 //     supported types: input_text, input_image, input_file
 func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
-	if r.Input == nil {
+	if len(r.Input) == 0 || !gjson.ValidBytes(r.Input) {
 		return nil
 	}
-
 	var mediaInputs []MediaInput
-
-	// Try string first
-	// if str, ok := common.GetJsonType(r.Input); ok {
-	// 	inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
-	// 	return inputs
-	// }
-	if common.GetJsonType(r.Input) == "string" {
-		var str string
-		_ = common.Unmarshal(r.Input, &str)
-		mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: str})
-		return mediaInputs
+	root := gjson.ParseBytes(r.Input)
+	if root.Type == gjson.String {
+		return []MediaInput{{Type: "input_text", Text: root.Str}}
 	}
-
-	// Try array of parts
-	if common.GetJsonType(r.Input) == "array" {
-		var inputs []Input
-		_ = common.Unmarshal(r.Input, &inputs)
-		for _, input := range inputs {
-			if common.GetJsonType(input.Content) == "string" {
-				var str string
-				_ = common.Unmarshal(input.Content, &str)
-				mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: str})
-			}
-
-			if common.GetJsonType(input.Content) == "array" {
-				var array []any
-				_ = common.Unmarshal(input.Content, &array)
-				for _, itemAny := range array {
-					// Already parsed MediaContent
-					if media, ok := itemAny.(MediaInput); ok {
-						mediaInputs = append(mediaInputs, media)
-						continue
-					}
-
-					// Generic map
-					item, ok := itemAny.(map[string]any)
-					if !ok {
-						continue
-					}
-
-					typeVal, ok := item["type"].(string)
-					if !ok {
-						continue
-					}
-					switch typeVal {
-					case "input_text":
-						text, _ := item["text"].(string)
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
-					case "input_image":
-						// image_url may be string or object with url field
-						var imageUrl string
-						switch v := item["image_url"].(type) {
-						case string:
-							imageUrl = v
-						case map[string]any:
-							if url, ok := v["url"].(string); ok {
-								imageUrl = url
-							}
-						}
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_image", ImageUrl: imageUrl})
-					case "input_file":
-						// file_url may be string or object with url field
-						var fileUrl string
-						switch v := item["file_url"].(type) {
-						case string:
-							fileUrl = v
-						case map[string]any:
-							if url, ok := v["url"].(string); ok {
-								fileUrl = url
-							}
-						}
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
-					}
-				}
-			}
+	if !root.IsArray() {
+		return nil
+	}
+	// Walk the raw JSON instead of decoding Input.Content and then decoding it
+	// again into generic maps. Base64 strings stay in one backing buffer.
+	stringValue := func(value gjson.Result) string {
+		if value.Type == gjson.String {
+			return value.Str
 		}
+		return ""
 	}
-
+	urlValue := func(value gjson.Result) string {
+		if value.IsObject() {
+			var url gjson.Result
+			value.ForEach(func(key, field gjson.Result) bool {
+				if key.Str == "url" {
+					url = field
+				}
+				return true
+			})
+			value = url
+		}
+		return stringValue(value)
+	}
+	root.ForEach(func(_, input gjson.Result) bool {
+		var content gjson.Result
+		if !input.IsObject() {
+			return true
+		}
+		input.ForEach(func(key, value gjson.Result) bool {
+			if strings.EqualFold(key.Str, "content") {
+				content = value
+			}
+			return true
+		})
+		if content.Type == gjson.String {
+			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: content.Str})
+		} else if content.IsArray() {
+			content.ForEach(func(_, part gjson.Result) bool {
+				if !part.IsObject() {
+					return true
+				}
+				var kind, text, imageURL, fileURL string
+				// ForEach retains the last duplicate key, matching common.Unmarshal.
+				part.ForEach(func(key, value gjson.Result) bool {
+					switch key.Str {
+					case "type":
+						kind = stringValue(value)
+					case "text":
+						text = stringValue(value)
+					case "image_url":
+						imageURL = urlValue(value)
+					case "file_url":
+						fileURL = urlValue(value)
+					}
+					return true
+				})
+				switch kind {
+				case "input_text":
+					mediaInputs = append(mediaInputs, MediaInput{Type: kind, Text: text})
+				case "input_image":
+					mediaInputs = append(mediaInputs, MediaInput{Type: kind, ImageUrl: imageURL})
+				case "input_file":
+					mediaInputs = append(mediaInputs, MediaInput{Type: kind, FileUrl: fileURL})
+				}
+				return true
+			})
+		}
+		return true
+	})
 	return mediaInputs
 }

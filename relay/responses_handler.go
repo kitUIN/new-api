@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
@@ -20,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
@@ -57,7 +59,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		)
 	}
 
+	stageStart := time.Now()
 	request, err := common.DeepCopy(responsesReq)
+	info.RecordPreparationDuration("responses_copy", time.Since(stageStart))
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
@@ -102,32 +106,42 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 		requestBody = bytes.NewBuffer(jsonData)
 	} else {
+		stageStart = time.Now()
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
+		info.RecordPreparationDuration("responses_convert", time.Since(stageStart))
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
+		stageStart = time.Now()
 		jsonData, err := common.Marshal(convertedRequest)
+		info.RecordPreparationDuration("responses_marshal", time.Since(stageStart))
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 
 		// remove disabled fields for OpenAI Responses API
+		stageStart = time.Now()
 		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+		info.RecordPreparationDuration("responses_filter", time.Since(stageStart))
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 
 		// apply param override
 		if len(info.ParamOverride) > 0 {
+			stageStart = time.Now()
 			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			info.RecordPreparationDuration("param_override", time.Since(stageStart))
 			if err != nil {
 				return newAPIErrorFromParamOverride(err)
 			}
 		}
 
 		if len(filteredResponsesToolTypes) > 0 {
+			stageStart = time.Now()
 			jsonData, err = removeResponsesToolsFromBody(jsonData, filteredResponsesToolTypes...)
+			info.RecordPreparationDuration("responses_filter", time.Since(stageStart))
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
@@ -139,7 +153,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
+	stageStart = time.Now()
 	reqBodyForLog := requestBodySnapshot(c, requestBody)
+	info.RecordPreparationDuration("request_snapshot", time.Since(stageStart))
 
 	var httpResp *http.Response
 	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
@@ -217,6 +233,27 @@ func removeResponsesWebSearchToolsFromBody(jsonData []byte) ([]byte, error) {
 }
 
 func removeResponsesToolsFromBody(jsonData []byte, filteredToolTypes ...string) ([]byte, error) {
+	// Tools are usually unchanged. Inspect only that value before allocating a
+	// RawMessage copy of every field (especially the large input field).
+	if gjson.ValidBytes(jsonData) {
+		root := gjson.ParseBytes(jsonData)
+		if root.IsObject() {
+			var tools gjson.Result
+			root.ForEach(func(key, value gjson.Result) bool {
+				if key.Str == "tools" {
+					tools = value
+				}
+				return true
+			})
+			_, removed, err := dto.FilterOpenAIResponsesTools([]byte(tools.Raw), filteredToolTypes...)
+			if err != nil {
+				return nil, err
+			}
+			if !removed {
+				return jsonData, nil
+			}
+		}
+	}
 	var request map[string]json.RawMessage
 	if err := common.Unmarshal(jsonData, &request); err != nil {
 		return nil, err

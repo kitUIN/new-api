@@ -1,12 +1,38 @@
 package relay
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestRemoveResponsesToolsPreservesNoOpAndRawValues(t *testing.T) {
+	for _, input := range []string{
+		`{ "input": {"id":9007199254740993,"value":0,"flag":false} }`,
+		`{ "input": "hi", "tools": [{"type":"function","name":"keep"}] }`,
+		`{ "input": "hi", "tools": null }`,
+	} {
+		body := []byte(input)
+		out, err := removeResponsesImageGenerationToolsFromBody(body)
+		require.NoError(t, err)
+		require.True(t, bytes.Equal(body, out))
+		require.True(t, &body[0] == &out[0])
+	}
+	input := []byte(`{"tools":[{"type":"image_generation"}],"input":{"id":9007199254740993,"value":0,"flag":false}}`)
+	out, err := removeResponsesImageGenerationToolsFromBody(input)
+	require.NoError(t, err)
+	require.Equal(t, gjson.GetBytes(input, "input").Raw, gjson.GetBytes(out, "input").Raw)
+	require.False(t, gjson.GetBytes(out, "tools").Exists())
+	duplicate := []byte(`{"tools":[{"type":"function","name":"first"}],"tools":[{"type":"image_generation"}]}`)
+	out, err = removeResponsesImageGenerationToolsFromBody(duplicate)
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(out, "tools").Exists(), "filter the last duplicate key, matching JSON decoding")
+	_, err = removeResponsesImageGenerationToolsFromBody([]byte(`{"tools":`))
+	require.Error(t, err)
+}
 
 func TestGetFilteredResponsesToolTypesWebSearchDefaultsToEnabled(t *testing.T) {
 	require.Equal(t,

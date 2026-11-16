@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -67,8 +68,10 @@ func prepareUpstreamJSONBody(c *gin.Context, req *http.Request, info *relaycommo
 	if req.Header.Get("Content-Encoding") != "" {
 		return noop, fmt.Errorf("automatic upstream JSON encoding conflicts with Content-Encoding override")
 	}
+	stageStart := time.Now()
 	original, err := io.ReadAll(req.Body)
 	_ = req.Body.Close()
+	info.RecordPreparationDuration("request_encode_read", time.Since(stageStart))
 	if err != nil {
 		return noop, err
 	}
@@ -76,10 +79,13 @@ func prepareUpstreamJSONBody(c *gin.Context, req *http.Request, info *relaycommo
 	release := noop
 	count := 0
 	if rewrite {
+		stageStart = time.Now()
 		body, release, count = service.RewriteRelayAssetURLs(body, service.RelayAssets, service.RelayAssetRewriteOptions{Protocol: upstreamAssetProtocol(req), ChannelType: info.ChannelType, Model: info.UpstreamModelName, UserID: info.UserId, BaseURL: service.RelayAssetBaseURL()})
+		info.RecordPreparationDuration("asset_rewrite", time.Since(stageStart))
 	}
 	encoding := "identity"
 	if compress && len(body) >= 1024 {
+		stageStart = time.Now()
 		var buf bytes.Buffer
 		var writer io.WriteCloser
 		if compression == "zstd" {
@@ -105,8 +111,11 @@ func prepareUpstreamJSONBody(c *gin.Context, req *http.Request, info *relaycommo
 			encoding = compression
 			req.Header.Set("Content-Encoding", encoding)
 		}
+		info.RecordPreparationDuration("request_compress", time.Since(stageStart))
 	}
+	stageStart = time.Now()
 	storage, err := common.CreateBodyStorage(body)
+	info.RecordPreparationDuration("request_encode_storage", time.Since(stageStart))
 	if err != nil {
 		release()
 		return noop, err

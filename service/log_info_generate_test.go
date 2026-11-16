@@ -106,7 +106,9 @@ func TestAppendRelayTimingRecordsBodyReceiptSeparately(t *testing.T) {
 		UpstreamRequestEndTime:     start.Add(5 * time.Second),
 	}
 	other := map[string]interface{}{}
+	info.RecordPreparationDuration("responses_copy", 1500*time.Microsecond)
 	AppendRelayTimingInfo(nil, info, other)
+	require.Equal(t, map[string]float64{"responses_copy": 1.5}, other["prepare_stages_ms"])
 	require.Equal(t, 2, other["relay_timing_version"])
 	require.Equal(t, int64(100), other["upstream_header_ms"])
 	require.Equal(t, int64(400), other["upstream_first_byte_ms"])

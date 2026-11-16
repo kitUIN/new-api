@@ -59,6 +59,10 @@ func AppendRelayTimingInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 	}
 	upstreamStart, upstreamHeader, upstreamFirstByte, upstreamEnd := relayInfo.UpstreamTiming()
 	other["relay_timing_version"] = 2
+	preparationStages := relayInfo.PreparationTimingMs()
+	if len(preparationStages) > 0 {
+		other["prepare_stages_ms"] = preparationStages
+	}
 
 	if !requestStart.IsZero() {
 		other["request_start_at"] = formatRelayTiming(requestStart)
@@ -96,10 +100,12 @@ func AppendRelayTimingInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 	requestID := ""
 	if ctx != nil {
 		requestID = ctx.GetString(common.RequestIdKey)
+		stagesJSON, _ := common.Marshal(preparationStages)
 		logger.LogInfo(ctx, "relay timing: request_id="+requestID+
 			" request_start_at="+formatRelayTiming(requestStart)+
 			" upstream_request_start_at="+formatRelayTiming(upstreamStart)+
-			" upstream_response_header_at="+formatRelayTiming(upstreamHeader))
+			" upstream_response_header_at="+formatRelayTiming(upstreamHeader)+
+			" prepare_stages_ms="+string(stagesJSON))
 	}
 }
 

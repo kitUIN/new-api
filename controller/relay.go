@@ -112,7 +112,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
+	decodeStart := time.Now()
 	request, err := helper.GetAndValidateRequest(c, relayFormat)
+	decodeEnd := time.Now()
 	if err != nil {
 		// Map "request body too large" to 413 so clients can handle it correctly
 		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
@@ -130,17 +132,25 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	if received := relayInfo.RequestBodyReceivedTime; received.After(decodeStart) {
+		decodeStart = received
+	}
+	relayInfo.RecordPreparationDuration("request_decode", decodeEnd.Sub(decodeStart))
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
+	stageStart := time.Now()
 	if needSensitiveCheck || needCountToken {
 		meta = request.GetTokenCountMeta()
 	} else {
 		meta = fastTokenCountMetaForPricing(request)
 	}
+	relayInfo.RecordPreparationDuration("token_metadata", time.Since(stageStart))
 
 	if needSensitiveCheck && meta != nil {
+		stageStart = time.Now()
 		contains, words := service.CheckSensitiveText(meta.CombineText)
+		relayInfo.RecordPreparationDuration("sensitive_check", time.Since(stageStart))
 		if contains {
 			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
 			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
@@ -148,7 +158,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}
 
+	stageStart = time.Now()
 	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
+	relayInfo.RecordPreparationDuration("token_estimate", time.Since(stageStart))
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
 		return
@@ -156,7 +168,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
+	stageStart = time.Now()
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	relayInfo.RecordPreparationDuration("pricing", time.Since(stageStart))
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 		return
@@ -169,7 +183,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
 		}
 	} else {
+		stageStart = time.Now()
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+		relayInfo.RecordPreparationDuration("preconsume", time.Since(stageStart))
 		if newAPIError != nil {
 			return
 		}

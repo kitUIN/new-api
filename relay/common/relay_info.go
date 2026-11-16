@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
 )
 
 type ThinkingContentInfo struct {
@@ -103,6 +104,7 @@ type RelayInfo struct {
 	UpstreamFirstByteTime      time.Time
 	UpstreamRequestEndTime     time.Time
 	upstreamTimingMu           sync.Mutex
+	preparationDurations       map[string]time.Duration
 	isFirstResponse            bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
@@ -884,7 +886,35 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		return jsonData, nil
 	}
 
-	var data map[string]interface{}
+	// Probe only the top-level fields first. Most requests need no filtering;
+	// avoid decoding and re-encoding their (potentially multi-MB) input images.
+	disabled := map[string]bool{
+		"service_tier":      !channelOtherSettings.AllowServiceTier,
+		"inference_geo":     !channelOtherSettings.AllowInferenceGeo,
+		"speed":             !channelOtherSettings.AllowSpeed,
+		"store":             channelOtherSettings.DisableStore,
+		"safety_identifier": !channelOtherSettings.AllowSafetyIdentifier,
+	}
+	needsFiltering := false
+	root := gjson.ParseBytes(jsonData)
+	root.ForEach(func(key, value gjson.Result) bool {
+		if disabled[key.String()] {
+			needsFiltering = true
+		}
+		if key.String() == "stream_options" && !channelOtherSettings.AllowIncludeObfuscation && value.IsObject() {
+			options := value.Map()
+			_, hasObfuscation := options["include_obfuscation"]
+			needsFiltering = needsFiltering || hasObfuscation || len(options) == 0
+		}
+		return !needsFiltering
+	})
+	if !needsFiltering && root.IsObject() && gjson.ValidBytes(jsonData) {
+		return jsonData, nil
+	}
+
+	// Preserve unrelated values as raw JSON, including large integer IDs and
+	// explicit false/zero values, when filtering is actually necessary.
+	var data map[string]json.RawMessage
 	if err := common.Unmarshal(jsonData, &data); err != nil {
 		common.SysError("RemoveDisabledFields Unmarshal error :" + err.Error())
 		return jsonData, nil
@@ -927,15 +957,16 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 
 	// 默认移除 stream_options.include_obfuscation，除非明确允许（避免关闭响应流混淆保护）
 	if !channelOtherSettings.AllowIncludeObfuscation {
-		if streamOptionsAny, exists := data["stream_options"]; exists {
-			if streamOptions, ok := streamOptionsAny.(map[string]interface{}); ok {
+		if streamOptionsRaw, exists := data["stream_options"]; exists {
+			var streamOptions map[string]json.RawMessage
+			if common.GetJsonType(streamOptionsRaw) == "object" && common.Unmarshal(streamOptionsRaw, &streamOptions) == nil {
 				if _, includeExists := streamOptions["include_obfuscation"]; includeExists {
 					delete(streamOptions, "include_obfuscation")
 				}
 				if len(streamOptions) == 0 {
 					delete(data, "stream_options")
 				} else {
-					data["stream_options"] = streamOptions
+					data["stream_options"], _ = common.Marshal(streamOptions)
 				}
 			}
 		}
