@@ -31,7 +31,7 @@ import {
   getGroupRatioText,
   getPrimaryInputTokens,
 } from '../components/columns/common-logs-columns'
-import { LOG_CATEGORY_LABELS } from '../constants'
+import { LOG_CATEGORY_LABELS, LOG_TYPE_ENUM } from '../constants'
 import type {
   FetchLogsConfig,
   LogCategory,
@@ -118,7 +118,9 @@ function getCommonLogCell(
     case 'created_at':
       return joinLines([
         formatTimestampToDate(log.created_at),
-        context.t(getLogTypeConfig(log.type).label),
+        log.status === 'interrupted'
+          ? context.t('usageLogs.interrupted')
+          : context.t(getLogTypeConfig(log.type).label),
       ])
     case 'channel': {
       if (!displayable) return ''
@@ -187,6 +189,8 @@ function getCommonLogCell(
       return context.t(other?.reasoning_effort || '未记录')
     case 'use_time': {
       if (!isTimingLogType(log.type)) return ''
+      if (log.type === LOG_TYPE_ENUM.PENDING)
+        return context.t('usageLogs.inProgress')
       const tokensPerSecond =
         log.use_time > 0 && log.completion_tokens > 0
           ? `${(log.completion_tokens / log.use_time).toFixed(1)} t/s`
@@ -235,6 +239,7 @@ function getCommonLogCell(
     }
     case 'quota': {
       if (!displayable) return ''
+      if (log.type === LOG_TYPE_ENUM.PENDING) return '—'
       const cacheReadQuota = Math.max(Number(log.cache_read_quota) || 0, 0)
       const cacheWriteQuota = Math.max(Number(log.cache_write_quota) || 0, 0)
       return joinLines([

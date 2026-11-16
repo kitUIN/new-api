@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -314,6 +315,7 @@ func InitResources() error {
 	}
 
 	// 启动系统监控
+	model.StartUsageLogMaintenance(context.Background())
 	common.StartSystemMonitor()
 
 	// Initialize i18n

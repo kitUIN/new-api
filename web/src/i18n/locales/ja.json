@@ -1,5 +1,8 @@
 {
   "translation": {
+    "usageLogs.inProgress": "処理中",
+    "usageLogs.interrupted": "中断",
+    "usageLogs.retryErrors": "再試行エラー",
     "navigation.confirm.title": "移動の確認",
     "navigation.confirm.newTab": "次のリンクを新しいタブまたはウィンドウで開きます。続行しますか？",
     "navigation.confirm.leavePage": "現在のページを離れて次のアドレスを開きます。続行しますか？",

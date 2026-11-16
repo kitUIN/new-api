@@ -58,7 +58,7 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { RatioBadge } from '@/components/ratio-badge'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { LOG_TYPE_ALL_VALUE } from '../../constants'
+import { LOG_TYPE_ALL_VALUE, LOG_TYPE_ENUM } from '../../constants'
 import {
   formatModelName,
   getFirstResponseTimeColor,
@@ -83,6 +83,7 @@ import {
 import type { LogOtherData, UsageLog } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
+import { PendingLogTiming } from '../pending-log-timing'
 import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
 import { ReasoningEffortBadge } from '../reasoning-effort-badge'
 import { RequestBodyCell } from '../request-body-cell'
@@ -590,6 +591,9 @@ export function buildDetailSegments(
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string
 ): DetailSegment[] {
+  if (log.type === LOG_TYPE_ENUM.PENDING) {
+    return [{ text: t('usageLogs.inProgress'), muted: true }]
+  }
   if (log.type === 6) {
     return [{ text: t('Async task refund') }]
   }
@@ -850,7 +854,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               {formatTimestampToDate(timestamp)}
             </span>
             <StatusBadge
-              label={t(config.label)}
+              label={
+                log.status === 'interrupted'
+                  ? t('usageLogs.interrupted')
+                  : t(config.label)
+              }
               variant={config.color as StatusBadgeProps['variant']}
               size='sm'
               copyable={false}
@@ -1253,6 +1261,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
+        if (log.type === LOG_TYPE_ENUM.PENDING)
+          return <PendingLogTiming startedAt={log.created_at} />
 
         const useTime = row.getValue('use_time') as number
         const other = parseLogOther(log.other)
@@ -1563,6 +1573,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isDisplayableLogType(log.type)) return null
 
         const quota = row.getValue('quota') as number
+        if (log.type === LOG_TYPE_ENUM.PENDING)
+          return <span className='text-muted-foreground text-xs'>—</span>
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
         const costDetail = buildCostDetail(log, other)

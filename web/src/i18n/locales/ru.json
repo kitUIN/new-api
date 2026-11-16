@@ -1,5 +1,8 @@
 {
   "translation": {
+    "usageLogs.inProgress": "В процессе",
+    "usageLogs.interrupted": "Прервано",
+    "usageLogs.retryErrors": "Ошибки повторных попыток",
     "navigation.confirm.title": "Подтвердите переход",
     "navigation.confirm.newTab": "Ссылка откроется в новой вкладке или окне. Продолжить?",
     "navigation.confirm.leavePage": "Вы покинете эту страницу и перейдёте по следующему адресу. Продолжить?",

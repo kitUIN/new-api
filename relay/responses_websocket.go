@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -358,7 +359,9 @@ func (s *responsesWebSocketSession) startRound(event *dto.OpenAIResponsesWebSock
 		round.BillingRequestInput = &billingInput
 	}
 	generate := event.Generate == nil || *event.Generate
+	service.BeginRelayLog(s.c, round)
 	if apiErr = preConsumeResponsesWebSocketRound(s.c, round, generate); apiErr != nil {
+		model.FinishRequestLog(s.c, round, apiErr)
 		return nil, apiErr
 	}
 	s.roundNumber++
@@ -437,6 +440,16 @@ func (s *responsesWebSocketSession) handleUpstreamEvent(event dto.ResponsesStrea
 		s.steering.waitingForInput = responsesWebSocketNeedsClientInput(event.Response)
 		s.completeRound(event.Response)
 	case "response.failed", "error":
+		message := event.Message
+		if event.Error != nil {
+			message = event.Error.Message
+		} else if event.Response != nil && event.Response.GetOpenAIError() != nil {
+			message = event.Response.GetOpenAIError().Message
+		}
+		if message == "" {
+			message = "upstream response failed"
+		}
+		model.FinishRequestLog(s.c, s.round, types.NewError(errors.New(message), types.ErrorCodeBadResponse))
 		s.refundRound()
 	}
 }
@@ -503,6 +516,7 @@ func shouldRecordResponsesWebSocketConsumption(state string, usage *dto.Usage) b
 }
 
 func (s *responsesWebSocketSession) refundRound() {
+	model.FinishRequestLog(s.c, s.round, nil)
 	s.round.MarkUpstreamRequestEnd()
 	if s.round != nil && s.round.Billing != nil {
 		s.round.Billing.Refund(s.c)

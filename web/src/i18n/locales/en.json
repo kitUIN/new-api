@@ -1,5 +1,8 @@
 {
   "translation": {
+    "usageLogs.inProgress": "In progress",
+    "usageLogs.interrupted": "Interrupted",
+    "usageLogs.retryErrors": "Retry errors",
     "navigation.confirm.title": "Confirm navigation",
     "navigation.confirm.newTab": "This link will open in a new tab or window. Continue?",
     "navigation.confirm.leavePage": "You are about to leave this page and open the following address. Continue?",

@@ -14,7 +14,7 @@ import (
 func SetApiRouter(router *gin.Engine) {
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
-	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
+	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/api/log/events", "/api/log/self/events"})))
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	// Register attachment downloads before the shared API quota: a message page can
 	// contain 200 images. Authentication and a separate per-user quota still apply.
@@ -380,6 +380,8 @@ func SetApiRouter(router *gin.Engine) {
 			invitationRoute.DELETE("/:id", controller.DeleteInvitation)
 		}
 		logRoute := apiRouter.Group("/log")
+		logRoute.GET("/events", middleware.AdminAuth(), controller.StreamAllLogs)
+		logRoute.GET("/self/events", middleware.UserAuth(), controller.StreamUserLogs)
 		logRoute.GET("/sessions", middleware.AdminAuth(), controller.GetAllRelaySessions)
 		logRoute.GET("/self/sessions", middleware.UserAuth(), controller.GetSelfRelaySessions)
 		logRoute.GET("/sessions/:id/groups", middleware.AdminAuth(), controller.GetRelaySessionGroups)

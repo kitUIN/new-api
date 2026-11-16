@@ -26,6 +26,8 @@ export interface UsageLog {
   id: number
   user_id: number
   created_at: number
+  status?: 'in_progress' | 'completed' | 'failed' | 'interrupted' | ''
+  finished_at?: number
   type: number
   content?: string
   username?: string
@@ -133,6 +135,11 @@ export interface RequestBodyInfo {
 
 export interface LogOtherData {
   admin_info?: {
+    retry_errors?: Array<{
+      channel: number
+      message: string
+      created_at: number
+    }>
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]

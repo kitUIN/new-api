@@ -2,6 +2,7 @@ package relay
 
 import (
 	"fmt"
+	"github.com/QuantumNous/new-api/model"
 	"testing"
 	"time"
 
@@ -81,6 +82,15 @@ func TestResponsesWebSocketTimingEndsOnFailure(t *testing.T) {
 			require.False(t, end.After(time.Now()))
 			require.Nil(t, s.round)
 			assertSteeringBilling(t, db, nil, nil)
+			var log model.Log
+			require.NoError(t, db.First(&log).Error)
+			require.Equal(t, model.LogTypeError, log.Type)
+			require.Positive(t, log.FinishedAt)
+			if event == "disconnect" {
+				require.Equal(t, "interrupted", log.Status)
+			} else {
+				require.Equal(t, "failed", log.Status)
+			}
 		})
 	}
 }

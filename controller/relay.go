@@ -132,6 +132,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	service.BeginRelayLog(c, relayInfo)
+	defer func() { model.FinishRequestLog(c, relayInfo, newAPIError) }()
 	if received := relayInfo.RequestBodyReceivedTime; received.After(decodeStart) {
 		decodeStart = received
 	}
@@ -548,6 +550,16 @@ func RelayMidjourney(c *gin.Context) {
 	}
 
 	var mjErr *dto.MidjourneyResponse
+	mjCompleted := false
+	defer func() {
+		var apiErr *types.NewAPIError
+		if mjErr != nil {
+			apiErr = types.NewError(errors.New(mjErr.Description), types.ErrorCodeBadResponse)
+		} else if mjCompleted {
+			model.DiscardRequestLog(c, relayInfo)
+		}
+		model.FinishRequestLog(c, relayInfo, apiErr)
+	}()
 	switch relayInfo.RelayMode {
 	case relayconstant.RelayModeMidjourneyNotify:
 		mjErr = relay.RelayMidjourneyNotify(c)
@@ -556,11 +568,14 @@ func RelayMidjourney(c *gin.Context) {
 	case relayconstant.RelayModeMidjourneyTaskImageSeed:
 		mjErr = relay.RelayMidjourneyTaskImageSeed(c)
 	case relayconstant.RelayModeSwapFace:
+		service.BeginRelayLog(c, relayInfo)
 		mjErr = relay.RelaySwapFace(c, relayInfo)
 	default:
+		service.BeginRelayLog(c, relayInfo)
 		mjErr = relay.RelayMidjourneySubmit(c, relayInfo)
 	}
 	//err = relayMidjourneySubmit(c, relayMode)
+	mjCompleted = true
 	log.Println(mjErr)
 	if mjErr != nil {
 		statusCode := http.StatusBadRequest
@@ -635,6 +650,14 @@ func RelayTask(c *gin.Context) {
 
 	var result *relay.TaskSubmitResult
 	var taskErr *dto.TaskError
+	service.BeginRelayLog(c, relayInfo)
+	defer func() {
+		var apiErr *types.NewAPIError
+		if taskErr != nil {
+			apiErr = types.NewError(errors.New(taskErr.Message), types.ErrorCodeBadResponse)
+		}
+		model.FinishRequestLog(c, relayInfo, apiErr)
+	}()
 	defer func() {
 		if taskErr != nil && relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(c)

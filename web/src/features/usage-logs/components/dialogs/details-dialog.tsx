@@ -70,6 +70,7 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData, UsageLog } from '../../types'
+import { PendingLogTiming } from '../pending-log-timing'
 import { ReasoningEffortAutoIcon } from '../reasoning-effort-auto-icon'
 import { ReasoningEffortBadge } from '../reasoning-effort-badge'
 import { RelayTimingSection } from './relay-timing-section'
@@ -146,6 +147,7 @@ function BillingBreakdown(props: {
 }) {
   const { t } = useTranslation()
   const { log, other, isAdmin } = props
+  if (log.type === 7) return null
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
@@ -329,7 +331,7 @@ function BillingBreakdown(props: {
 
   rows.push({
     label: t('Total Cost'),
-    value: formatLogQuota(log.quota),
+    value: log.type === 7 ? '—' : formatLogQuota(log.quota),
   })
 
   if (rows.length === 0) return null
@@ -527,7 +529,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
           <DialogTitle className='flex items-center gap-2 text-base'>
             {t('Log Details')}
             <StatusBadge
-              label={t(typeConfig.label)}
+              label={
+                props.log.status === 'interrupted'
+                  ? t('usageLogs.interrupted')
+                  : t(typeConfig.label)
+              }
               variant={typeConfig.color as StatusBadgeProps['variant']}
               size='sm'
               copyable={false}
@@ -693,6 +699,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               )}
 
+              {props.log.type === 7 && (
+                <DetailRow
+                  label={t('Response Time')}
+                  value={<PendingLogTiming startedAt={props.log.created_at} />}
+                />
+              )}
               {showTiming && props.log.use_time > 0 && (
                 <DetailRow
                   label={t('Response Time')}
@@ -732,6 +744,17 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             <RelayTimingSection other={other} />
             <RequestBodySection other={other} />
+
+            {props.isAdmin &&
+              Boolean(other?.admin_info?.retry_errors?.length) && (
+                <DetailSection label={t('usageLogs.retryErrors')}>
+                  {other?.admin_info?.retry_errors?.map((attempt, index) => (
+                    <p key={index} className='text-xs break-all'>
+                      #{attempt.channel}: {attempt.message}
+                    </p>
+                  ))}
+                </DetailSection>
+              )}
 
             {/* Request conversion (admin only, not for refund) */}
             {showConversion && (

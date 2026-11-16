@@ -132,7 +132,7 @@ func sendSteeringSubmission(t *testing.T, s *responsesWebSocketSession, provider
 func assertSteeringBilling(t *testing.T, db *gorm.DB, prompts, completions []int) {
 	t.Helper()
 	var logs []model.Log
-	require.NoError(t, db.Order("id").Find(&logs).Error)
+	require.NoError(t, db.Where("type = ?", model.LogTypeConsume).Order("id").Find(&logs).Error)
 	require.Len(t, logs, len(prompts))
 	total := 0
 	var previousEnd time.Time
@@ -269,8 +269,12 @@ func TestResponsesWebSocketSteeringAfterParentCompletionAndQuotaFailure(t *testi
 	require.Nil(t, s.round)
 	require.EqualValues(t, 1, s.roundNumber)
 	var count int64
-	require.NoError(t, db.Model(&model.Log{}).Count(&count).Error)
+	require.NoError(t, db.Model(&model.Log{}).Where("type = ?", model.LogTypeConsume).Count(&count).Error)
 	require.EqualValues(t, 1, count)
+	var failed model.Log
+	require.NoError(t, db.Where("type = ?", model.LogTypeError).First(&failed).Error)
+	require.Equal(t, "failed", failed.Status)
+	require.Zero(t, failed.Quota)
 }
 
 func TestResponsesWebSocketSteeringDisconnectRefundsOnlySuccessor(t *testing.T) {
@@ -337,8 +341,12 @@ func TestResponsesWebSocketSteeringRunClosesOnSuccessorQuotaFailure(t *testing.T
 	_, _, err := provider.ReadMessage()
 	require.Error(t, err)
 	var count int64
-	require.NoError(t, db.Model(&model.Log{}).Count(&count).Error)
+	require.NoError(t, db.Model(&model.Log{}).Where("type = ?", model.LogTypeConsume).Count(&count).Error)
 	require.EqualValues(t, 1, count)
+	var failed model.Log
+	require.NoError(t, db.Where("type = ?", model.LogTypeError).First(&failed).Error)
+	require.Equal(t, "failed", failed.Status)
+	require.Zero(t, failed.Quota)
 }
 
 func TestResponsesWebSocketSteeringRejectsInvalidTargetsWithoutChangingRound(t *testing.T) {

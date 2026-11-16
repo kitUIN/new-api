@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -104,6 +105,10 @@ func RelayResponsesWebSocket(c *gin.Context) {
 		Retry:      common.GetPointer(0),
 	}
 	var finalErr *types.NewAPIError
+	if event.Generate == nil || *event.Generate {
+		service.BeginRelayLog(c, info)
+		defer func() { model.FinishRequestLog(c, info, finalErr) }()
+	}
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		info.RetryIndex = retryParam.GetRetry()
 		selectedChannel, channelErr := getChannel(c, info, retryParam)
@@ -118,6 +123,7 @@ func RelayResponsesWebSocket(c *gin.Context) {
 			service.RecordGroupCombinationSuccess(c)
 			service.RecordChannelAffinity(c, selectedChannel.Id)
 			if runErr := relay.RunResponsesWebSocket(c, info, firstFrame); runErr != nil && !websocket.IsCloseError(runErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				finalErr = types.NewError(runErr, types.ErrorCodeBadResponse)
 				logger.LogError(c, "Responses WebSocket relay ended: "+runErr.Error())
 			}
 			return

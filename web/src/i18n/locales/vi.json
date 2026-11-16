@@ -1,5 +1,8 @@
 {
   "translation": {
+    "usageLogs.inProgress": "Đang xử lý",
+    "usageLogs.interrupted": "Bị gián đoạn",
+    "usageLogs.retryErrors": "Lỗi thử lại",
     "navigation.confirm.title": "Xác nhận chuyển trang",
     "navigation.confirm.newTab": "Liên kết này sẽ mở trong tab hoặc cửa sổ mới. Tiếp tục?",
     "navigation.confirm.leavePage": "Bạn sắp rời trang hiện tại để mở địa chỉ sau. Tiếp tục?",

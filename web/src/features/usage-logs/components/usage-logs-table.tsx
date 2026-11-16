@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { DataTablePage } from '@/components/data-table'
 import { DEFAULT_LOGS_DATA, LOG_TYPE_ALL_VALUE } from '../constants'
+import { useLiveUsageLogs } from '../hooks/use-live-usage-logs'
 import { useColumnsByCategory } from '../lib/columns'
 import { exportUsageLogsToExcel } from '../lib/export'
 import { getUsageLogRowClassName } from '../lib/row-style'
@@ -64,6 +65,7 @@ interface UsageLogsTableProps {
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
+  useLiveUsageLogs(logCategory === 'common', isAdmin)
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
   const { sensitiveVisible } = useUsageLogsContext()
@@ -164,6 +166,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       pagination,
     },
     enableRowSelection: false,
+    getRowId: (row) => String(row.id),
     onPaginationChange,
     onColumnFiltersChange,
     getCoreRowModel: getCoreRowModel(),
