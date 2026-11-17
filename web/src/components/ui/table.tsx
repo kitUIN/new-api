@@ -91,19 +91,16 @@ function TableHorizontalScrollProvider({
     })
   }, [])
 
-  const registerScrollbar = React.useCallback(
-    (node: HTMLDivElement) => {
-      scrollbarRefs.current.add(node)
-      if (tableScrollContainerRef.current) {
-        node.scrollLeft = tableScrollContainerRef.current.scrollLeft
-      }
+  const registerScrollbar = React.useCallback((node: HTMLDivElement) => {
+    scrollbarRefs.current.add(node)
+    if (tableScrollContainerRef.current) {
+      node.scrollLeft = tableScrollContainerRef.current.scrollLeft
+    }
 
-      return () => {
-        scrollbarRefs.current.delete(node)
-      }
-    },
-    []
-  )
+    return () => {
+      scrollbarRefs.current.delete(node)
+    }
+  }, [])
 
   const syncFromTable = React.useCallback(
     (source: HTMLDivElement) => {
@@ -220,7 +217,7 @@ function Table(props: TableProps) {
   return <TableContent {...props} />
 }
 
-function TableContent({ className, ref, ...props }: TableProps) {
+function TableContent({ className, ref, children, ...props }: TableProps) {
   const horizontalScrollContext = React.useContext(TableHorizontalScrollContext)
   const tableRef = React.useRef<HTMLTableElement>(null)
   const frameRef = React.useRef<number | null>(null)
@@ -327,7 +324,13 @@ function TableContent({ className, ref, ...props }: TableProps) {
             className
           )}
           {...props}
-        />
+        >
+          {/* Nested tables (including portaled dialogs) need their own scroll
+              state so they cannot replace this table's container or metrics. */}
+          <TableHorizontalScrollContext.Provider value={null}>
+            {children}
+          </TableHorizontalScrollContext.Provider>
+        </table>
       </div>
     </div>
   )
