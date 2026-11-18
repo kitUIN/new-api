@@ -68,6 +68,7 @@ export const STATIC_I18N_KEYS = [
   'Maintenance',
 
   // Pricing constants
+  'Model name already exists',
   'Name',
   'Price: Low to High',
   'Price: High to Low',

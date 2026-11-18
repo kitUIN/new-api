@@ -61,6 +61,7 @@ import {
   splitBillingExprAndRequestRules,
 } from '@/features/pricing/lib/billing-expr'
 import { safeJsonParse } from '../utils/json-parser'
+import { CopyModelPricingDialog } from './copy-model-pricing-dialog'
 import {
   ModelPricingEditorPanel,
   ModelPricingSheet,
@@ -223,6 +224,7 @@ export const ModelRatioVisualEditor = memo(
     const { t } = useTranslation()
     const isMobile = useMediaQuery('(max-width: 767px)')
     const [sheetOpen, setSheetOpen] = useState(false)
+    const [copySource, setCopySource] = useState<string | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
     const [editData, setEditData] = useState<ModelRatioData | null>(null)
     const [sorting, setSorting] = useState<SortingState>([])
@@ -272,7 +274,7 @@ export const ModelRatioVisualEditor = memo(
       localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility))
     }, [columnVisibility])
 
-    const models = useMemo(() => {
+    const { models, pricingMaps } = useMemo(() => {
       const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
         fallback: {},
         context: 'model prices',
@@ -320,18 +322,21 @@ export const ModelRatioVisualEditor = memo(
         }
       )
 
-      const modelNames = new Set([
-        ...Object.keys(priceMap),
-        ...Object.keys(ratioMap),
-        ...Object.keys(cacheMap),
-        ...Object.keys(createCacheMap),
-        ...Object.keys(completionMap),
-        ...Object.keys(imageMap),
-        ...Object.keys(audioMap),
-        ...Object.keys(audioCompletionMap),
-        ...Object.keys(billingModeMap),
-        ...Object.keys(billingExprMap),
-      ])
+      const pricingMaps = {
+        ModelPrice: priceMap,
+        ModelRatio: ratioMap,
+        CacheRatio: cacheMap,
+        CreateCacheRatio: createCacheMap,
+        CompletionRatio: completionMap,
+        ImageRatio: imageMap,
+        AudioRatio: audioMap,
+        AudioCompletionRatio: audioCompletionMap,
+        'billing_setting.billing_mode': billingModeMap,
+        'billing_setting.billing_expr': billingExprMap,
+      }
+      const modelNames = new Set(
+        Object.values(pricingMaps).flatMap(Object.keys)
+      )
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
         const price = priceMap[name]?.toString() || ''
@@ -391,7 +396,10 @@ export const ModelRatioVisualEditor = memo(
         }
       })
 
-      return modelData.sort((a, b) => a.name.localeCompare(b.name))
+      return {
+        models: modelData.sort((a, b) => a.name.localeCompare(b.name)),
+        pricingMaps,
+      }
     }, [
       modelPrice,
       modelRatio,
@@ -690,6 +698,19 @@ export const ModelRatioVisualEditor = memo(
                 <Pencil />
               </Button>
               <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                aria-label={t('Copy {{name}} pricing', {
+                  name: row.original.name,
+                })}
+                title={t('Copy {{name}} pricing', { name: row.original.name })}
+                onClick={() => setCopySource(row.original.name)}
+              >
+                <Copy data-icon='inline-start' />
+                {t('Copy')}
+              </Button>
+              <Button
                 variant='ghost'
                 size='sm'
                 onClick={() => handleDelete(row.original.name)}
@@ -705,6 +726,7 @@ export const ModelRatioVisualEditor = memo(
 
     const table = useReactTable({
       data: models,
+      getRowId: (row) => `model:${row.name}`,
       columns,
       state: {
         sorting,
@@ -1028,6 +1050,7 @@ export const ModelRatioVisualEditor = memo(
             {editorOpen ? (
               <ModelPricingEditorPanel
                 onSave={handleSave}
+                onCopy={setCopySource}
                 onCancel={handleCancel}
                 editData={editData}
                 selectedTargetCount={selectedTargetCount}
@@ -1062,11 +1085,21 @@ export const ModelRatioVisualEditor = memo(
           </Button>
         </DataTableBulkActions>
 
+        {copySource !== null && (
+          <CopyModelPricingDialog
+            sourceName={copySource}
+            pricingMaps={pricingMaps}
+            onChange={onChange}
+            onClose={() => setCopySource(null)}
+          />
+        )}
+
         {isMobile && (
           <ModelPricingSheet
             open={sheetOpen}
             onOpenChange={setSheetOpen}
             onSave={handleSave}
+            onCopy={setCopySource}
             onCancel={handleCancel}
             editData={editData}
             selectedTargetCount={selectedTargetCount}

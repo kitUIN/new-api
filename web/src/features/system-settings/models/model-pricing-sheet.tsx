@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, ChevronDown } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -118,6 +118,7 @@ type ModelPricingSheetProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: (data: ModelRatioData) => void
+  onCopy: (name: string) => void
   onCancel?: () => void
   editData?: ModelRatioData | null
   selectedTargetCount?: number
@@ -382,6 +383,7 @@ export function ModelPricingSheet({
   open,
   onOpenChange,
   onSave,
+  onCopy,
   onCancel,
   editData,
   selectedTargetCount = 0,
@@ -403,6 +405,7 @@ export function ModelPricingSheet({
         </SheetHeader>
         <ModelPricingEditorPanel
           onSave={onSave}
+          onCopy={onCopy}
           editData={editData}
           selectedTargetCount={selectedTargetCount}
           groupOptions={groupOptions}
@@ -419,6 +422,7 @@ export function ModelPricingSheet({
 
 export function ModelPricingEditorPanel({
   onSave,
+  onCopy,
   editData,
   selectedTargetCount = 0,
   onCancel,
@@ -749,7 +753,7 @@ export function ModelPricingEditorPanel({
       )}
     >
       <div className='border-b p-4'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='flex flex-wrap items-start justify-between gap-3 max-md:pe-8'>
           <div className='min-w-0'>
             <h3 className='truncate text-base font-medium'>
               {isEditMode ? t('Edit model pricing') : t('Add model pricing')}
@@ -758,9 +762,22 @@ export function ModelPricingEditorPanel({
               {activeName}
             </p>
           </div>
-          <Badge variant={getModeBadgeVariant(pricingMode)}>
-            {t(getModeLabel(pricingMode))}
-          </Badge>
+          <div className='flex flex-wrap items-center gap-2'>
+            {editData && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => onCopy(editData.name)}
+              >
+                <Copy data-icon='inline-start' />
+                {t('Copy model')}
+              </Button>
+            )}
+            <Badge variant={getModeBadgeVariant(pricingMode)}>
+              {t(getModeLabel(pricingMode))}
+            </Badge>
+          </div>
         </div>
       </div>
 
