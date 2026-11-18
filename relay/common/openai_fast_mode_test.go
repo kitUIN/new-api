@@ -41,6 +41,16 @@ func TestServiceTierFromRequestRecognizesOpenAIFastAliases(t *testing.T) {
 			want: "fast",
 		},
 		{
+			name:    "chat ultrafast",
+			request: &dto.GeneralOpenAIRequest{ServiceTier: []byte(`"ultrafast"`)},
+			want:    "ultrafast",
+		},
+		{
+			name:    "responses ultrafast",
+			request: &dto.OpenAIResponsesRequest{ServiceTier: "ultrafast"},
+			want:    "ultrafast",
+		},
+		{
 			name: "invalid chat tier",
 			request: &dto.GeneralOpenAIRequest{
 				ServiceTier: []byte(`true`),
@@ -54,10 +64,6 @@ func TestServiceTierFromRequestRecognizesOpenAIFastAliases(t *testing.T) {
 			require.Equal(t, tt.want, serviceTierFromRequest(tt.request))
 		})
 	}
-
-	require.True(t, IsOpenAIFastServiceTier("fast"))
-	require.True(t, IsOpenAIFastServiceTier("priority"))
-	require.False(t, IsOpenAIFastServiceTier("default"))
 }
 
 func TestRefreshOpenAIFastModeBillingRequiresOpenAIPassthrough(t *testing.T) {
@@ -79,6 +85,28 @@ func TestRefreshOpenAIFastModeBillingRequiresOpenAIPassthrough(t *testing.T) {
 		wantPassthrough        bool
 		wantMultiplier         float64
 	}{
+		{
+			name:             "ultrafast service tier allowance",
+			channelType:      constant.ChannelTypeOpenAI,
+			tier:             "ultrafast",
+			allowServiceTier: true,
+			wantPassthrough:  true,
+			wantMultiplier:   8,
+		},
+		{
+			name:           "filtered ultrafast request",
+			channelType:    constant.ChannelTypeOpenAI,
+			tier:           "ultrafast",
+			wantMultiplier: 1,
+		},
+		{
+			name:             "ultrafast on non OpenAI channel",
+			channelType:      constant.ChannelTypeAzure,
+			tier:             "ultrafast",
+			allowServiceTier: true,
+			wantPassthrough:  true,
+			wantMultiplier:   1,
+		},
 		{
 			name:           "filtered fast request",
 			channelType:    constant.ChannelTypeOpenAI,

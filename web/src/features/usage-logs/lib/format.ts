@@ -113,22 +113,34 @@ export function getServiceTierBillingMultiplier(
   const tier = String(other?.service_tier || other?.tier || '')
     .trim()
     .toLowerCase()
+  if (tier === 'ultrafast') return 8
   return tier === 'fast' || tier === 'priority' ? 2 : 1
 }
 
 export function getServiceTierLabel(
   other: LogOtherData | null
-): 'fast' | 'default' | null {
+): 'fast' | 'ultrafast' | 'default' | null {
   const tier = String(other?.service_tier || other?.tier || '')
     .trim()
     .toLowerCase()
   const hasTierMetadata = tier !== '' || other?.service_tier_multiplier != null
   if (!hasTierMetadata) return null
+  if (tier === 'ultrafast') return 'ultrafast'
   return getServiceTierBillingMultiplier(other) > 1 ||
     tier === 'fast' ||
     tier === 'priority'
     ? 'fast'
     : 'default'
+}
+
+export function getFastModeLabel(
+  other: LogOtherData | null,
+  t: (key: string) => string
+): string {
+  if (getServiceTierBillingMultiplier(other) <= 1) return ''
+  return getServiceTierLabel(other) === 'ultrafast'
+    ? t('Ultrafast')
+    : t('Fast Mode')
 }
 
 /**

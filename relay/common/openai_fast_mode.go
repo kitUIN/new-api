@@ -11,18 +11,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const OpenAIFastModeBillingMultiplier = 2.5
+const (
+	OpenAIFastModeBillingMultiplier      = 2.5
+	OpenAIUltrafastModeBillingMultiplier = 8.0
+)
 
 func normalizeServiceTier(tier string) string {
 	return strings.ToLower(strings.TrimSpace(tier))
 }
 
-func IsOpenAIFastServiceTier(tier string) bool {
+func OpenAIBillingServiceTier(tier string) string {
 	switch normalizeServiceTier(tier) {
 	case "fast", "priority":
-		return true
+		return "fast"
+	case "ultrafast":
+		return "ultrafast"
 	default:
-		return false
+		return "default"
 	}
 }
 
@@ -66,10 +71,14 @@ func (info *RelayInfo) RefreshOpenAIFastModeBilling(c *gin.Context) {
 		channelSetting.PassThroughBodyEnabled || channelOtherSetting.AllowServiceTier
 
 	channelType := rootcommon.GetContextKeyInt(c, constant.ContextKeyChannelType)
-	if channelType == constant.ChannelTypeOpenAI &&
-		info.ServiceTierPassthroughEnabled &&
-		IsOpenAIFastServiceTier(info.ServiceTier) {
+	if channelType != constant.ChannelTypeOpenAI || !info.ServiceTierPassthroughEnabled {
+		return
+	}
+	switch OpenAIBillingServiceTier(info.ServiceTier) {
+	case "fast":
 		info.ServiceTierBillingMultiplier = OpenAIFastModeBillingMultiplier
+	case "ultrafast":
+		info.ServiceTierBillingMultiplier = OpenAIUltrafastModeBillingMultiplier
 	}
 }
 

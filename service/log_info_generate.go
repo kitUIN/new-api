@@ -238,7 +238,7 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		multiplier := relayInfo.GetServiceTierBillingMultiplier()
 		serviceTier := "default"
 		if multiplier > 1 {
-			serviceTier = "fast"
+			serviceTier = relaycommon.OpenAIBillingServiceTier(relayInfo.ServiceTier)
 		}
 		other["service_tier"] = serviceTier
 		other["service_tier_multiplier"] = multiplier

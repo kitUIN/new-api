@@ -5328,6 +5328,7 @@
     "请求将按优先级使用第一个支持所请求模型的分组。": "请求将按优先级使用第一个支持所请求模型的分组。",
     "Fast": "快速",
     "Fast Mode": "Fast 模式",
+    "Ultrafast": "超快速",
     "Reasoning effort automatically set by the system": "推理强度已由系统自动设置",
     "未记录": "未记录",
     "Service Tier Multiplier": "服务层级倍率",

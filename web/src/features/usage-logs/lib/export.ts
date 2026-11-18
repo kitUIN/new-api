@@ -42,7 +42,7 @@ import type {
 import {
   formatDuration,
   formatModelName,
-  getServiceTierBillingMultiplier,
+  getFastModeLabel,
   parseLogOther,
 } from './format'
 import {
@@ -180,9 +180,8 @@ function getCommonLogCell(
       const modelName = model.actualModel
         ? `${model.name} -> ${model.actualModel}`
         : model.name
-      return getServiceTierBillingMultiplier(other) > 1
-        ? `${modelName}\n${context.t('Fast Mode')}`
-        : modelName
+      const fastLabel = getFastModeLabel(other, context.t)
+      return fastLabel ? `${modelName}\n${fastLabel}` : modelName
     }
     case 'reasoning_effort':
       if (!displayable) return '-'

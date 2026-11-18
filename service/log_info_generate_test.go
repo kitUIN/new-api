@@ -25,12 +25,24 @@ func TestAppendBillingInfoIncludesOpenAIFastModeMetadata(t *testing.T) {
 	require.Equal(t, relaycommon.OpenAIFastModeBillingMultiplier, other["service_tier_multiplier"])
 }
 
+func TestAppendBillingInfoIncludesOpenAIUltrafastServiceTierMetadata(t *testing.T) {
+	other := map[string]interface{}{}
+	appendBillingInfo(&relaycommon.RelayInfo{
+		ChannelMeta:                  &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI},
+		ServiceTier:                  "ultrafast",
+		ServiceTierBillingMultiplier: relaycommon.OpenAIUltrafastModeBillingMultiplier,
+	}, other)
+	require.Equal(t, "ultrafast", other["service_tier"])
+	require.Equal(t, 8.0, other["service_tier_multiplier"])
+}
+
 func TestAppendBillingInfoIncludesOpenAIDefaultServiceTierMetadata(t *testing.T) {
 	other := map[string]interface{}{}
 	appendBillingInfo(&relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeOpenAI,
 		},
+		ServiceTier:                  "ultrafast",
 		ServiceTierBillingMultiplier: 1,
 	}, other)
 

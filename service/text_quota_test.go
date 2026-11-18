@@ -392,9 +392,11 @@ func TestCalculateTextQuotaSummaryAppliesOpenAIFastModeMultiplier(t *testing.T) 
 
 	standardSummary := calculateTextQuotaSummary(ctx, newRelayInfo(1), usage)
 	fastSummary := calculateTextQuotaSummary(ctx, newRelayInfo(relaycommon.OpenAIFastModeBillingMultiplier), usage)
+	ultrafastSummary := calculateTextQuotaSummary(ctx, newRelayInfo(relaycommon.OpenAIUltrafastModeBillingMultiplier), usage)
 
 	require.Equal(t, 1200, standardSummary.Quota)
 	require.Equal(t, int(float64(standardSummary.Quota)*2.5), fastSummary.Quota)
+	require.Equal(t, 8*standardSummary.Quota, ultrafastSummary.Quota)
 }
 
 func TestCalculateTextQuotaSummaryBillsGeminiGoogleSearch(t *testing.T) {

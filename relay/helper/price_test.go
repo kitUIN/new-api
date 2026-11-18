@@ -152,7 +152,7 @@ func newOpenAIFastPricingContext(body []byte) *gin.Context {
 	return ctx
 }
 
-func TestModelPriceHelperOpenAIFastModeAppliesTwoPointFiveMultiplier(t *testing.T) {
+func TestModelPriceHelperOpenAIFastModeMultipliers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldModes := billing_setting.GetBillingModeCopy()
@@ -184,16 +184,17 @@ func TestModelPriceHelperOpenAIFastModeAppliesTwoPointFiveMultiplier(t *testing.
 	require.NoError(t, err)
 	require.Greater(t, standardPrice.QuotaToPreConsume, 0)
 
-	fastInfo := newRelayInfo("fast")
-	fastPrice, err := ModelPriceHelper(
-		newOpenAIFastPricingContext([]byte(`{"service_tier":"fast"}`)),
-		fastInfo,
-		1000,
-		&types.TokenCountMeta{},
-	)
-	require.NoError(t, err)
-	require.Equal(t, 2.5, fastInfo.GetServiceTierBillingMultiplier())
-	require.Equal(t, int(float64(standardPrice.QuotaToPreConsume)*2.5), fastPrice.QuotaToPreConsume)
+	for tier, multiplier := range map[string]float64{"fast": 2.5, "ultrafast": 8} {
+		t.Run(tier, func(t *testing.T) {
+			body, err := common.Marshal(map[string]string{"service_tier": tier})
+			require.NoError(t, err)
+			info := newRelayInfo(tier)
+			price, err := ModelPriceHelper(newOpenAIFastPricingContext(body), info, 1000, &types.TokenCountMeta{})
+			require.NoError(t, err)
+			require.Equal(t, multiplier, info.GetServiceTierBillingMultiplier())
+			require.Equal(t, int(float64(standardPrice.QuotaToPreConsume)*multiplier), price.QuotaToPreConsume)
+		})
+	}
 }
 
 func TestModelPriceHelperTieredFastModeDoesNotStackExistingTierRule(t *testing.T) {
@@ -206,41 +207,46 @@ func TestModelPriceHelperTieredFastModeDoesNotStackExistingTierRule(t *testing.T
 	})
 
 	modelName := "tiered-fast-mode-test-model"
-	expr := `tier("fast", p * 1) * (param("service_tier") == "fast" ? 2 : 1)`
+	expr := `tier("base", p * 1) * (param("service_tier") == "fast" ? 2 : (param("service_tier") == "ultrafast" ? 8 : 1))`
 	updateBillingSettingForTest(t, map[string]string{
 		modelName: billing_setting.BillingModeTieredExpr,
 	}, map[string]string{
 		modelName: expr,
 	})
 
-	body := []byte(`{"service_tier":"fast","messages":[{"role":"user","content":"hi"}]}`)
-	info := &relaycommon.RelayInfo{
-		OriginModelName: modelName,
-		UserGroup:       "default",
-		UsingGroup:      "default",
-		ServiceTier:     "fast",
-		RequestHeaders: map[string]string{
-			"Content-Type": "application/json",
-		},
+	for tier, multiplier := range map[string]float64{"fast": 2.5, "ultrafast": 8} {
+		t.Run(tier, func(t *testing.T) {
+			body, err := common.Marshal(map[string]string{"service_tier": tier})
+			require.NoError(t, err)
+			info := &relaycommon.RelayInfo{
+				OriginModelName: modelName,
+				UserGroup:       "default",
+				UsingGroup:      "default",
+				ServiceTier:     tier,
+				RequestHeaders: map[string]string{
+					"Content-Type": "application/json",
+				},
+			}
+
+			const promptTokens = 1000
+			priceData, err := ModelPriceHelper(
+				newOpenAIFastPricingContext(body),
+				info,
+				promptTokens,
+				&types.TokenCountMeta{},
+			)
+			require.NoError(t, err)
+			require.NotNil(t, info.BillingRequestInput)
+			require.False(t, gjson.GetBytes(info.BillingRequestInput.Body, "service_tier").Exists())
+			require.NotNil(t, info.TieredBillingSnapshot)
+
+			expectedBeforeGroup := float64(promptTokens) / 1_000_000 * common.QuotaPerUnit * multiplier
+			require.InDelta(t, expectedBeforeGroup, info.TieredBillingSnapshot.EstimatedQuotaBeforeGroup, 0.000001)
+			require.Equal(
+				t,
+				billingexpr.QuotaRound(expectedBeforeGroup*info.TieredBillingSnapshot.GroupRatio),
+				priceData.QuotaToPreConsume,
+			)
+		})
 	}
-
-	const promptTokens = 1000
-	priceData, err := ModelPriceHelper(
-		newOpenAIFastPricingContext(body),
-		info,
-		promptTokens,
-		&types.TokenCountMeta{},
-	)
-	require.NoError(t, err)
-	require.NotNil(t, info.BillingRequestInput)
-	require.False(t, gjson.GetBytes(info.BillingRequestInput.Body, "service_tier").Exists())
-	require.NotNil(t, info.TieredBillingSnapshot)
-
-	expectedBeforeGroup := float64(promptTokens) / 1_000_000 * common.QuotaPerUnit * relaycommon.OpenAIFastModeBillingMultiplier
-	require.InDelta(t, expectedBeforeGroup, info.TieredBillingSnapshot.EstimatedQuotaBeforeGroup, 0.000001)
-	require.Equal(
-		t,
-		billingexpr.QuotaRound(expectedBeforeGroup*info.TieredBillingSnapshot.GroupRatio),
-		priceData.QuotaToPreConsume,
-	)
 }

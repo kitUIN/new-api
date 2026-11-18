@@ -64,6 +64,7 @@ import {
   getFirstResponseTimeColor,
   getResponseTimeColor,
   getTieredBillingSummary,
+  getFastModeLabel,
   getServiceTierBillingMultiplier,
   getServiceTierLabel,
   hasAnyCacheTokens,
@@ -116,11 +117,7 @@ const DETAIL_TOOLTIP_BORDER_ROW_CLASS = cn(
 )
 const DETAIL_TOOLTIP_VALUE_CLASS = 'text-right font-mono tabular-nums'
 
-function UnitPriceValue(props: {
-  value: string
-  isFast: boolean
-  fastLabel: string
-}) {
+function UnitPriceValue(props: { value: string; fastLabel: string }) {
   return (
     <span
       className={cn(
@@ -129,7 +126,7 @@ function UnitPriceValue(props: {
       )}
     >
       {props.value}
-      {props.isFast && <FastModeIcon label={props.fastLabel} />}
+      {props.fastLabel && <FastModeIcon label={props.fastLabel} />}
     </span>
   )
 }
@@ -634,6 +631,9 @@ export function buildDetailSegments(
   const tieredSummary = getTieredBillingSummary(other)
   const billingMultiplier = getServiceTierBillingMultiplier(other)
   const serviceTier = getServiceTierLabel(other)
+  let acceleratedTierLabel: string | undefined
+  if (serviceTier === 'ultrafast') acceleratedTierLabel = t('Ultrafast')
+  if (serviceTier === 'fast') acceleratedTierLabel = t('Fast')
   if (isTieredExpr) {
     if (tieredSummary) {
       const baseEntries = tieredSummary.priceEntries
@@ -641,9 +641,7 @@ export function buildDetailSegments(
         .map((entry) => formatPriceCompact(entry.price * billingMultiplier))
       if (baseEntries.length > 0) {
         const tierLabel =
-          serviceTier === 'fast'
-            ? t('Fast')
-            : tieredSummary.tier.label || t('Default')
+          acceleratedTierLabel || tieredSummary.tier.label || t('Default')
         segments.push({
           text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
         })
@@ -707,7 +705,7 @@ export function buildDetailSegments(
         )
       }
       segments.push({
-        text: `${serviceTier === 'fast' ? t('Fast') : t('Standard')} · ${formatPriceList(baseEntries, true)}`,
+        text: `${acceleratedTierLabel || t('Standard')} · ${formatPriceList(baseEntries, true)}`,
       })
 
       if (hasAnyCacheTokens(other)) {
@@ -1220,8 +1218,7 @@ function createCommonLogsColumns(
         if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
-        const isFast =
-          getServiceTierBillingMultiplier(parseLogOther(log.other)) > 1
+        const fastLabel = getFastModeLabel(parseLogOther(log.other), t)
 
         return (
           <div className='flex max-w-[220px] items-center gap-1'>
@@ -1229,7 +1226,7 @@ function createCommonLogsColumns(
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
             />
-            {isFast && <FastModeIcon label={t('Fast Mode')} />}
+            {fastLabel && <FastModeIcon label={fastLabel} />}
           </div>
         )
       },
@@ -1585,6 +1582,7 @@ function createCommonLogsColumns(
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
         const costDetail = buildCostDetail(log, other)
+        const fastLabel = getFastModeLabel(other, t)
 
         const costTooltip = (
           <TooltipContent className={DETAIL_TOOLTIP_CONTENT_CLASS}>
@@ -1653,8 +1651,7 @@ function createCommonLogsColumns(
                   <span>{t('Input price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.inputUnitPrice)}
-                    isFast={costDetail.billingMultiplier > 1}
-                    fastLabel={t('Fast Mode')}
+                    fastLabel={fastLabel}
                   />
                 </div>
               )}
@@ -1663,8 +1660,7 @@ function createCommonLogsColumns(
                   <span>{t('Output price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.outputUnitPrice)}
-                    isFast={costDetail.billingMultiplier > 1}
-                    fastLabel={t('Fast Mode')}
+                    fastLabel={fastLabel}
                   />
                 </div>
               )}
@@ -1673,8 +1669,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache read price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheReadUnitPrice)}
-                    isFast={costDetail.billingMultiplier > 1}
-                    fastLabel={t('Fast Mode')}
+                    fastLabel={fastLabel}
                   />
                 </div>
               )}
@@ -1683,8 +1678,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache write price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheWriteUnitPrice)}
-                    isFast={costDetail.billingMultiplier > 1}
-                    fastLabel={t('Fast Mode')}
+                    fastLabel={fastLabel}
                   />
                 </div>
               )}
@@ -1693,8 +1687,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache create price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheWriteUnitPrice5m)}
-                    isFast={costDetail.billingMultiplier > 1}
-                    fastLabel={t('Fast Mode')}
+                    fastLabel={fastLabel}
                   />
                 </div>
               )}
@@ -1703,8 +1696,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache create (1h) price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheWriteUnitPrice1h)}
-                    isFast={costDetail.billingMultiplier > 1}
-                    fastLabel={t('Fast Mode')}
+                    fastLabel={fastLabel}
                   />
                 </div>
               )}
@@ -1818,9 +1810,7 @@ function createCommonLogsColumns(
               >
                 <span className='border-border/80 bg-muted/60 inline-flex w-fit items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-semibold'>
                   {formatLogQuota(quota)}
-                  {costDetail.billingMultiplier > 1 && (
-                    <FastModeIcon label={t('Fast Mode')} />
-                  )}
+                  {fastLabel && <FastModeIcon label={fastLabel} />}
                 </span>
               </TooltipTrigger>
               {costTooltip}
