@@ -27,15 +27,25 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 	}
 
 	systemRole := request.GetSystemRoleName()
+	turnScopedInstructions := common.UsesTurnScopedResponsesInstructions(request.Model)
+	if turnScopedInstructions {
+		systemRole = "developer"
+	}
 
 	containSystemPrompt := false
 	for _, message := range request.Messages {
-		if message.Role == systemRole {
+		if message.Role == systemRole || (turnScopedInstructions && message.Role == "system") {
 			containSystemPrompt = true
 			break
 		}
 	}
-	if !containSystemPrompt {
+	if containSystemPrompt {
+		if !info.ChannelSetting.SystemPromptOverride {
+			return
+		}
+		common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+	}
+	if !containSystemPrompt || turnScopedInstructions {
 		systemMessage := dto.Message{
 			Role:    systemRole,
 			Content: info.ChannelSetting.SystemPrompt,
@@ -44,11 +54,6 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 		return
 	}
 
-	if !info.ChannelSetting.SystemPromptOverride {
-		return
-	}
-
-	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 	for i, message := range request.Messages {
 		if message.Role != systemRole {
 			continue

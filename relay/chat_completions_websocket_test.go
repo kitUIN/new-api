@@ -65,8 +65,13 @@ func TestChatCompletionsViaResponsesWebSocket(t *testing.T) {
 						return
 					}
 					assert.Equal(t, "response.create", gjson.GetBytes(payload, "type").String())
-					assert.Equal(t, "gpt-test", gjson.GetBytes(payload, "model").String())
-					assert.Equal(t, "hello", gjson.GetBytes(payload, "input.0.content").String())
+					assert.Equal(t, "gpt-6.2-sol", gjson.GetBytes(payload, "model").String())
+					assert.JSONEq(t, `[{"role":"developer","content":"site"},{"role":"developer","content":"client"},{"role":"user","content":"hello"}]`, gjson.GetBytes(payload, "input").Raw)
+					if channelType == constant.ChannelTypeCodex {
+						assert.Equal(t, `""`, gjson.GetBytes(payload, "instructions").Raw)
+					} else {
+						assert.False(t, gjson.GetBytes(payload, "instructions").Exists())
+					}
 					assert.Equal(t, "false", gjson.GetBytes(payload, "parallel_tool_calls").Raw)
 					assert.False(t, gjson.GetBytes(payload, "messages").Exists())
 					assert.False(t, gjson.GetBytes(payload, "stream").Exists())
@@ -74,9 +79,9 @@ func TestChatCompletionsViaResponsesWebSocket(t *testing.T) {
 						assert.Equal(t, "0", gjson.GetBytes(payload, "temperature").Raw)
 						assert.Equal(t, "0", gjson.GetBytes(payload, "max_output_tokens").Raw)
 					}
-					_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"resp_chat","model":"gpt-test"}}`))
+					_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"resp_chat","model":"gpt-6.2-sol"}}`))
 					_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.output_text.delta","delta":"world"}`))
-					_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"resp_chat","object":"response","model":"gpt-test","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"world"}]}],"usage":{"input_tokens":9,"output_tokens":2,"total_tokens":11,"input_tokens_details":{"cached_tokens":3}}}}`))
+					_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"resp_chat","object":"response","model":"gpt-6.2-sol","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"world"}]}],"usage":{"input_tokens":9,"output_tokens":2,"total_tokens":11,"input_tokens_details":{"cached_tokens":3}}}}`))
 				}))
 				defer server.Close()
 				gin.SetMode(gin.TestMode)
@@ -87,10 +92,10 @@ func TestChatCompletionsViaResponsesWebSocket(t *testing.T) {
 				defer cancel()
 				c.Request = c.Request.WithContext(ctx)
 				var request dto.GeneralOpenAIRequest
-				require.NoError(t, common.UnmarshalJsonStr(`{"model":"gpt-test","messages":[{"role":"user","content":"hello"}],"temperature":0,"max_tokens":0,"parallel_tool_calls":false}`, &request))
+				require.NoError(t, common.UnmarshalJsonStr(`{"model":"gpt-6.2-sol","messages":[{"role":"developer","content":"client"},{"role":"user","content":"hello"}],"temperature":0,"max_tokens":0,"parallel_tool_calls":false}`, &request))
 				request.Stream = &stream
 				info := &relaycommon.RelayInfo{
-					ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelType, ChannelBaseUrl: server.URL, ApiKey: "test-key", UpstreamModelName: "gpt-test", ChannelOtherSettings: dto.ChannelOtherSettings{UseResponsesWebSocket: true}},
+					ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelType, ChannelBaseUrl: server.URL, ApiKey: "test-key", UpstreamModelName: request.Model, ChannelOtherSettings: dto.ChannelOtherSettings{UseResponsesWebSocket: true}},
 					RelayMode:   relayconstant.RelayModeChatCompletions, RequestURLPath: "/v1/chat/completions",
 					IsStream: stream, ShouldIncludeUsage: true, RelayFormat: types.RelayFormatOpenAI, Transport: types.RelayTransportHTTP,
 				}
@@ -100,6 +105,8 @@ func TestChatCompletionsViaResponsesWebSocket(t *testing.T) {
 					info.ApiKey = `{"access_token":"test-token","account_id":"test-account"}`
 				}
 				adaptor.Init(info)
+				info.ChannelSetting = dto.ChannelSettings{SystemPrompt: "site", SystemPromptOverride: true}
+				applySystemPromptIfNeeded(c, info, &request)
 				usage, apiErr := chatCompletionsViaResponses(c, info, adaptor, &request)
 				require.Nil(t, apiErr)
 				require.Equal(t, 11, usage.TotalTokens)

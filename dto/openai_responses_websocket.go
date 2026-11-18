@@ -99,17 +99,7 @@ func ParseOpenAIResponsesWebSocketSteerEvent(data []byte) (*OpenAIResponsesWebSo
 // ResponsesWebSocketInputItems normalizes input for billing only. Accepted
 // steering must never be replayed in the upstream response.create payload.
 func ResponsesWebSocketInputItems(input json.RawMessage) ([]json.RawMessage, error) {
-	switch common.GetJsonType(input) {
-	case "string":
-		message, err := common.Marshal(map[string]any{"role": "user", "content": input})
-		return []json.RawMessage{message}, err
-	case "array":
-		var items []json.RawMessage
-		err := common.Unmarshal(input, &items)
-		return items, err
-	default:
-		return nil, fmt.Errorf("input must be a string or an array")
-	}
+	return ResponsesInputItems(input)
 }
 
 // OpenAIResponsesWebSocketEvent is a Responses request plus the WebSocket

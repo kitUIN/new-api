@@ -73,6 +73,19 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	return textRaw
 }
 
+func chatInstructionText(message dto.Message) string {
+	if message.IsStringContent() {
+		return message.StringContent()
+	}
+	var texts []string
+	for _, part := range message.ParseContent() {
+		if part.Type == dto.ContentTypeText && strings.TrimSpace(part.Text) != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
+}
+
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
@@ -85,6 +98,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	}
 
 	var instructionsParts []string
+	turnScopedInstructions := common.UsesTurnScopedResponsesInstructions(req.Model)
 	inputItems := make([]map[string]any, 0, len(req.Messages))
 
 	for _, msg := range req.Messages {
@@ -125,29 +139,15 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			continue
 		}
 
-		// Prefer mapping system/developer messages into `instructions`.
 		if role == "system" || role == "developer" {
-			if msg.Content == nil {
+			text := chatInstructionText(msg)
+			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			if msg.IsStringContent() {
-				if s := strings.TrimSpace(msg.StringContent()); s != "" {
-					instructionsParts = append(instructionsParts, s)
-				}
-				continue
-			}
-			parts := msg.ParseContent()
-			var sb strings.Builder
-			for _, part := range parts {
-				if part.Type == dto.ContentTypeText && strings.TrimSpace(part.Text) != "" {
-					if sb.Len() > 0 {
-						sb.WriteString("\n")
-					}
-					sb.WriteString(part.Text)
-				}
-			}
-			if s := strings.TrimSpace(sb.String()); s != "" {
-				instructionsParts = append(instructionsParts, s)
+			if turnScopedInstructions {
+				inputItems = append(inputItems, map[string]any{"role": "developer", "content": text})
+			} else {
+				instructionsParts = append(instructionsParts, strings.TrimSpace(text))
 			}
 			continue
 		}

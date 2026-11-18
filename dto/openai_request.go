@@ -877,6 +877,20 @@ const (
 	OpenAIResponsesToolTypeWebSearch       = "web_search"
 )
 
+func ResponsesInputItems(input json.RawMessage) ([]json.RawMessage, error) {
+	switch common.GetJsonType(input) {
+	case "string":
+		message, err := common.Marshal(map[string]any{"role": "user", "content": input})
+		return []json.RawMessage{message}, err
+	case "array":
+		var items []json.RawMessage
+		err := common.Unmarshal(input, &items)
+		return items, err
+	default:
+		return nil, fmt.Errorf("input must be a string or an array")
+	}
+}
+
 func (r *OpenAIResponsesRequest) RemoveImageGenerationTools() error {
 	return r.RemoveTools(OpenAIResponsesToolTypeImageGeneration)
 }

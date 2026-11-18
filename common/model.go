@@ -1,6 +1,9 @@
 package common
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 var (
 	// OpenAIResponseOnlyModels is a list of models that are only available for OpenAI responses.
@@ -33,6 +36,22 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 		}
 	}
 	return false
+}
+
+func UsesTurnScopedResponsesInstructions(modelName string) bool {
+	modelName = strings.TrimPrefix(strings.ToLower(modelName), "openai/")
+	version, found := strings.CutPrefix(modelName, "gpt-")
+	if !found {
+		return false
+	}
+	version, _, _ = strings.Cut(version, "-")
+	majorText, minorText, hasMinor := strings.Cut(version, ".")
+	major, err := strconv.ParseUint(majorText, 10, 32)
+	if err != nil || !hasMinor {
+		return err == nil && major > 6
+	}
+	minor, err := strconv.ParseUint(minorText, 10, 32)
+	return err == nil && (major > 6 || major == 6 && minor >= 2)
 }
 
 func IsImageGenerationModel(modelName string) bool {
