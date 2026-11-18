@@ -35,6 +35,10 @@ interface UsageLogsContextValue {
   setRequestDetailDialogOpen: (open: boolean) => void
   sensitiveVisible: boolean
   setSensitiveVisible: (visible: boolean) => void
+  autoRefresh: boolean
+  setAutoRefresh: (enabled: boolean) => void
+  manualRefreshVersion: number
+  markManualRefresh: () => void
 }
 
 const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
@@ -52,6 +56,8 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
   >(null)
   const [requestDetailDialogOpen, setRequestDetailDialogOpen] = useState(false)
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [manualRefreshVersion, setManualRefreshVersion] = useState(0)
 
   return (
     <UsageLogsContext.Provider
@@ -70,6 +76,11 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
         setRequestDetailDialogOpen,
         sensitiveVisible,
         setSensitiveVisible,
+        autoRefresh,
+        setAutoRefresh,
+        manualRefreshVersion,
+        markManualRefresh: () =>
+          setManualRefreshVersion((version) => version + 1),
       }}
     >
       {children}

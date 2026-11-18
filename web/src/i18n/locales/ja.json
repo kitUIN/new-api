@@ -5401,6 +5401,8 @@
     "Wednesday": "水曜日",
     "Thursday": "木曜日",
     "Friday": "金曜日",
+    "usageLogs.newLogs": "新しいログ {{count}} 件 · 最新を表示",
+    "usageLogs.updatesAvailable": "ログが更新されました · 最新を表示",
     "Saturday": "土曜日"
   }
 }

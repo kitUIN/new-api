@@ -114,7 +114,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
 
           <div className='mt-2 flex flex-col gap-2'>
             {props.stats}
-            <div className='flex items-center justify-end gap-1.5'>
+            <div className='flex flex-wrap items-center justify-end gap-1.5'>
               <DrawerTrigger asChild>
                 <Button
                   type='button'

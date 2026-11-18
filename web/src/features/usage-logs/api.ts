@@ -28,6 +28,7 @@ import type {
   GetRequestDetailResponse,
   GetRequestDetailsResponse,
   UserInfo,
+  UsageLog,
 } from './types'
 
 // ============================================================================
@@ -73,6 +74,23 @@ async function fetchLogStats<T>(
 
 export const getAllLogs = (params: GetLogsParams = {}) =>
   fetchLogs('/api/log', params, true)
+
+export async function refreshLogsByIDs(
+  ids: number[],
+  isAdmin: boolean
+): Promise<UsageLog[]> {
+  const path = isAdmin ? '/api/log/refresh' : '/api/log/self/refresh'
+  const response = await api.get(
+    `${path}?${buildQueryParams({ ids: ids.join(',') })}`
+  )
+  const result = response.data as {
+    success: boolean
+    data?: UsageLog[]
+    message?: string
+  }
+  if (!result.success) throw new Error(result.message || 'Failed to load logs')
+  return result.data ?? []
+}
 
 export const getUserLogs = (
   params: Omit<GetLogsParams, 'username' | 'channel'> = {}

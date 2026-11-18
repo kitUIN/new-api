@@ -5401,6 +5401,8 @@
     "Wednesday": "周三",
     "Thursday": "周四",
     "Friday": "周五",
+    "usageLogs.newLogs": "有 {{count}} 条新日志 · 查看最新",
+    "usageLogs.updatesAvailable": "日志有更新 · 查看最新",
     "Saturday": "周六"
   }
 }

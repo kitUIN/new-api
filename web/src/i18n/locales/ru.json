@@ -5401,6 +5401,8 @@
     "Wednesday": "Среда",
     "Thursday": "Четверг",
     "Friday": "Пятница",
+    "usageLogs.newLogs": "Новые записи: {{count}} · Показать последние",
+    "usageLogs.updatesAvailable": "Журнал обновлён · Показать последние",
     "Saturday": "Суббота"
   }
 }

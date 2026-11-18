@@ -5401,6 +5401,8 @@
     "Wednesday": "Wednesday",
     "Thursday": "Thursday",
     "Friday": "Friday",
+    "usageLogs.newLogs": "New logs: {{count}} · View latest",
+    "usageLogs.updatesAvailable": "Logs updated · View latest",
     "Saturday": "Saturday"
   }
 }

@@ -16,12 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { hashKey, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   type ColumnDef,
-  flexRender,
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
@@ -31,24 +30,28 @@ import {
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import '@/styles/usage-log-row.css'
-import { Download, Loader2 } from 'lucide-react'
+import { ArrowUp, Download, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Button } from '@/components/ui/button'
-import { TableCell, TableRow } from '@/components/ui/table'
 import { DataTablePage } from '@/components/data-table'
+import { refreshLogsByIDs } from '../api'
 import { DEFAULT_LOGS_DATA, LOG_TYPE_ALL_VALUE } from '../constants'
 import { useLiveUsageLogs } from '../hooks/use-live-usage-logs'
+import { useLogReading } from '../hooks/use-log-reading'
+import { useLogSnapshot } from '../hooks/use-log-snapshot'
 import { useColumnsByCategory } from '../lib/columns'
 import { exportUsageLogsToExcel } from '../lib/export'
+import { shareLogPage, type LogPage } from '../lib/live-snapshot'
 import { getUsageLogRowClassName } from '../lib/row-style'
 import { fetchLogsByCategory } from '../lib/utils'
-import type { LogCategory } from '../types'
+import type { LogCategory, UsageLog } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
+import { UsageLogTableRow } from './usage-log-table-row'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
@@ -65,10 +68,20 @@ interface UsageLogsTableProps {
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
-  useLiveUsageLogs(logCategory === 'common', isAdmin)
+  const { sensitiveVisible, autoRefresh, manualRefreshVersion } =
+    useUsageLogsContext()
+  const isCommon = logCategory === 'common'
+  const containerRef = useRef<HTMLDivElement>(null)
+  const displayedRows = useRef<{
+    scope: string
+    items: UsageLog[]
+    frozen: boolean
+  }>({ scope: '', items: [], frozen: false })
+  const { reading, scrollToTop } = useLogReading(containerRef, isCommon)
+  const navigate = route.useNavigate()
+  useLiveUsageLogs(logCategory === 'common' && autoRefresh, isAdmin)
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
-  const { sensitiveVisible } = useUsageLogsContext()
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState<{
     current: number
@@ -118,18 +131,29 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ],
   })
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: [
-      'logs',
-      logCategory,
-      isAdmin,
-      pagination.pageIndex + 1,
-      pagination.pageSize,
-      columnFilters,
-      searchParams,
-      t,
-    ],
-    queryFn: async () => {
+  const queryKey = [
+    'logs',
+    logCategory,
+    isAdmin,
+    pagination.pageIndex + 1,
+    pagination.pageSize,
+    columnFilters,
+    searchParams,
+    t,
+  ]
+  const scope = hashKey(queryKey)
+  // Pinned rows supplement this page; they must not change its cache identity
+  // whenever a background response updates the visible snapshot.
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
+  const query = useQuery<LogPage>({
+    refetchOnWindowFocus:
+      import.meta.env.PROD && (logCategory !== 'common' || autoRefresh),
+    refetchOnReconnect: logCategory !== 'common' || autoRefresh,
+    queryKey,
+    structuralSharing: (previous, next) =>
+      shareLogPage(previous as LogPage | undefined, next as LogPage),
+    queryFn: async ({ queryKey: requestKey }) => {
+      const requestScope = hashKey(requestKey)
       const result = await fetchLogsByCategory({
         logCategory,
         isAdmin,
@@ -140,11 +164,36 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       })
 
       if (!result?.success) {
-        toast.error(result?.message || t('Failed to load logs'))
-        return DEFAULT_LOGS_DATA
+        throw new Error(result?.message || t('Failed to load logs'))
       }
 
-      return result.data || DEFAULT_LOGS_DATA
+      const displayed = displayedRows.current
+      const page = result.data || {
+        ...DEFAULT_LOGS_DATA,
+        page: pagination.pageIndex + 1,
+        page_size: pagination.pageSize,
+      }
+      if (
+        logCategory !== 'common' ||
+        displayed.scope !== requestScope ||
+        !displayed.frozen
+      )
+        return page
+      const returnedIDs = new Set(page.items.map((item) => item.id))
+      const missingIDs = displayed.items
+        .filter((item) => !returnedIDs.has(item.id))
+        .map((item) => item.id)
+      // Refresh pinned rows that no longer occur in this offset page.
+      const updates: UsageLog[] = []
+      for (let offset = 0; offset < missingIDs.length; offset += 1000) {
+        updates.push(
+          ...(await refreshLogsByIDs(
+            missingIDs.slice(offset, offset + 1000),
+            isAdmin
+          ))
+        )
+      }
+      return { ...page, updates }
     },
     placeholderData: (previousData, previousQuery) => {
       if (previousQuery?.queryKey[1] === logCategory) {
@@ -154,9 +203,36 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     },
   })
 
-  const logs = data?.items || []
+  const snapshot = useLogSnapshot({
+    scope,
+    data: query.data,
+    updatedAt: query.dataUpdatedAt,
+    manualVersion: manualRefreshVersion,
+    hold: isCommon && (reading || pagination.pageIndex > 0),
+    placeholder: query.isPlaceholderData,
+  })
+  const data = isCommon ? snapshot.data : query.data
+  useEffect(() => {
+    displayedRows.current = {
+      scope,
+      items:
+        isCommon && !query.isPlaceholderData
+          ? ((data?.items as UsageLog[]) ?? [])
+          : [],
+      frozen: reading || pagination.pageIndex > 0 || snapshot.hasUpdates,
+    }
+  }, [
+    scope,
+    data,
+    isCommon,
+    query.isPlaceholderData,
+    reading,
+    pagination.pageIndex,
+    snapshot.hasUpdates,
+  ])
+  const logs = data?.items || DEFAULT_LOGS_DATA.items
   const columns = useColumnsByCategory(logCategory, isAdmin)
-  const isLoadingData = isLoading || (isFetching && !data)
+  const isLoadingData = query.isLoading
 
   const table = useReactTable({
     data: logs as Record<string, unknown>[],
@@ -175,6 +251,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     manualPagination: true,
+    manualFiltering: isCommon,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
@@ -183,7 +260,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
-  const isCommon = logCategory === 'common'
+  const visibleColumns = table
+    .getVisibleLeafColumns()
+    .map((column) => column.id)
+    .join('|')
   const exportColumns = table.getVisibleLeafColumns().map((column) => ({
     id: column.id,
     label: column.columnDef.meta?.label || column.id,
@@ -259,48 +339,69 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     </Button>
   )
 
+  const showLatest = () => {
+    snapshot.acceptLatest()
+    scrollToTop()
+    if (pagination.pageIndex > 0) {
+      void navigate({ search: (previous) => ({ ...previous, page: 1 }) })
+    }
+  }
+
   return (
-    <DataTablePage
-      table={table}
-      columns={columns as ColumnDef<Record<string, unknown>>[]}
-      isLoading={isLoadingData}
-      isFetching={isFetching}
-      emptyTitle={t('No Logs Found')}
-      emptyDescription={t(
-        'No usage logs available. Logs will appear here once API calls are made.'
-      )}
-      skeletonKeyPrefix='usage-log-skeleton'
-      tableClassName='overflow-x-auto'
-      tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
-      getRowClassName={(row) =>
-        getUsageLogRowClassName(row.original, logCategory)
-      }
-      toolbar={
-        isCommon ? (
-          <CommonLogsFilterBar table={table} actions={exportAction} />
-        ) : (
-          <TaskLogsFilterBar
-            table={table}
-            logCategory={logCategory}
-            actions={exportAction}
-          />
-        )
-      }
-      renderRow={(row) => (
-        <TableRow
-          key={row.id}
-          className={cn(
-            'transition-colors',
+    <div ref={containerRef} className='usage-log-table'>
+      <DataTablePage
+        table={table}
+        columns={columns as ColumnDef<Record<string, unknown>>[]}
+        isLoading={isLoadingData}
+        isFetching={!isCommon && query.isFetching}
+        emptyTitle={t('No Logs Found')}
+        emptyDescription={t(
+          'No usage logs available. Logs will appear here once API calls are made.'
+        )}
+        skeletonKeyPrefix='usage-log-skeleton'
+        tableClassName='overflow-x-auto'
+        tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
+        getRowClassName={(row) =>
+          cn(
+            'usage-log-row',
             getUsageLogRowClassName(row.original, logCategory)
-          )}
-        >
-          {row.getVisibleCells().map((cell) => (
-            <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </TableCell>
-          ))}
-        </TableRow>
+          )
+        }
+        toolbar={
+          isCommon ? (
+            <CommonLogsFilterBar table={table} actions={exportAction} />
+          ) : (
+            <TaskLogsFilterBar
+              table={table}
+              logCategory={logCategory}
+              actions={exportAction}
+            />
+          )
+        }
+        renderRow={(row) => (
+          <UsageLogTableRow
+            key={row.id}
+            row={row}
+            category={logCategory}
+            columns={columns as ColumnDef<Record<string, unknown>>[]}
+            visibleColumns={visibleColumns}
+          />
+        )}
+      />
+      {isCommon && snapshot.hasUpdates && (
+        <div className='pointer-events-none fixed inset-x-0 bottom-20 z-30 flex justify-center px-3'>
+          <Button
+            type='button'
+            onClick={showLatest}
+            className='pointer-events-auto max-w-full shadow-lg'
+          >
+            <ArrowUp aria-hidden='true' />
+            {snapshot.pendingCount > 0
+              ? t('usageLogs.newLogs', { count: snapshot.pendingCount })
+              : t('usageLogs.updatesAvailable')}
+          </Button>
+        </div>
       )}
-    />
+    </div>
   )
 }

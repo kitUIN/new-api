@@ -71,9 +71,11 @@ export function CommonLogsStats() {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const searchParams = route.useSearch()
-  const { sensitiveVisible } = useUsageLogsContext()
+  const { sensitiveVisible, autoRefresh } = useUsageLogsContext()
 
   const { data: stats, isLoading } = useQuery({
+    refetchOnWindowFocus: import.meta.env.PROD && autoRefresh,
+    refetchOnReconnect: autoRefresh,
     queryKey: ['usage-logs-stats', isAdmin, searchParams],
     queryFn: async () => {
       const params = buildApiParams({

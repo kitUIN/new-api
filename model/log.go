@@ -484,6 +484,17 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		return nil, 0, err
 	}
 
+	if err = fillLogChannelNames(logs); err != nil {
+		return logs, total, err
+	}
+	if err = fillLogQQIds(logs); err != nil {
+		return logs, total, err
+	}
+
+	return logs, total, err
+}
+
+func fillLogChannelNames(logs []*Log) error {
 	channelIds := types.NewSet[int]()
 	for _, log := range logs {
 		if log.ChannelId != 0 {
@@ -511,8 +522,8 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			}
 		} else {
 			// Bulk query channels from DB
-			if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
-				return logs, total, err
+			if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
+				return err
 			}
 		}
 		channelMap := make(map[int]string, len(channels))
@@ -523,11 +534,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			logs[i].ChannelName = channelMap[logs[i].ChannelId]
 		}
 	}
-	if err = fillLogQQIds(logs); err != nil {
-		return logs, total, err
-	}
-
-	return logs, total, err
+	return nil
 }
 
 const logSearchCountLimit = 10000

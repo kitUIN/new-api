@@ -5401,6 +5401,8 @@
     "Wednesday": "Thứ tư",
     "Thursday": "Thứ năm",
     "Friday": "Thứ sáu",
+    "usageLogs.newLogs": "Có {{count}} nhật ký mới · Xem mới nhất",
+    "usageLogs.updatesAvailable": "Nhật ký đã cập nhật · Xem mới nhất",
     "Saturday": "Thứ bảy"
   }
 }

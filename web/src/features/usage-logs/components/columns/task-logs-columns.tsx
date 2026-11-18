@@ -95,6 +95,13 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
 
 export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   const { t } = useTranslation()
+  return useMemo(() => createTaskLogsColumns(isAdmin, t), [isAdmin, t])
+}
+
+function createTaskLogsColumns(
+  isAdmin: boolean,
+  t: ReturnType<typeof useTranslation>['t']
+): ColumnDef<TaskLog>[] {
   const columns: ColumnDef<TaskLog>[] = [
     {
       accessorKey: 'submit_time',

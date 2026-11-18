@@ -41,13 +41,18 @@ export function useLiveUsageLogs(enabled: boolean, isAdmin: boolean) {
       refreshTimer = setTimeout(
         () => {
           refreshTimer = undefined
+          if (disposed || document.hidden) return
           lastRefresh = Date.now()
-          void queryClient.invalidateQueries({ queryKey: ['logs', 'common'] })
+          void queryClient.invalidateQueries(
+            { queryKey: ['logs', 'common'] },
+            { cancelRefetch: false }
+          )
           if (lastRefresh - lastStatsRefresh >= 15000) {
             lastStatsRefresh = lastRefresh
-            void queryClient.invalidateQueries({
-              queryKey: ['usage-logs-stats'],
-            })
+            void queryClient.invalidateQueries(
+              { queryKey: ['usage-logs-stats'] },
+              { cancelRefetch: false }
+            )
           }
         },
         Math.max(0, 2000 - (Date.now() - lastRefresh))
@@ -65,26 +70,39 @@ export function useLiveUsageLogs(enabled: boolean, isAdmin: boolean) {
     }
     const connect = () => {
       if (disposed || document.hidden) return
-      source = new SSE(isAdmin ? '/api/log/events' : '/api/log/self/events', {
-        method: 'GET',
-        headers: getCommonHeaders(),
-        withCredentials: true,
-        start: false,
-      })
+      const connection = new SSE(
+        isAdmin ? '/api/log/events' : '/api/log/self/events',
+        {
+          method: 'GET',
+          headers: getCommonHeaders(),
+          withCredentials: true,
+          start: false,
+        }
+      )
+      source = connection
       source.addEventListener('changed', refresh)
-      source.addEventListener('reconnect', reconnect)
-      source.addEventListener('error', reconnect)
+      const reconnectCurrent = () => {
+        if (source === connection) reconnect()
+      }
+      source.addEventListener('reconnect', reconnectCurrent)
+      source.addEventListener('error', reconnectCurrent)
       source.addEventListener(
         'readystatechange',
         (event: { readyState: number }) => {
-          if (event.readyState === 2) reconnect()
+          if (event.readyState === 2) reconnectCurrent()
         }
       )
       source.stream()
     }
     const onVisibility = () => {
       if (document.hidden) {
-        source?.close()
+        const previous = source
+        source = undefined
+        previous?.close()
+        if (refreshTimer) clearTimeout(refreshTimer)
+        refreshTimer = undefined
+        if (reconnectTimer) clearTimeout(reconnectTimer)
+        reconnectTimer = undefined
       } else {
         if (reconnectTimer) clearTimeout(reconnectTimer)
         reconnectTimer = undefined

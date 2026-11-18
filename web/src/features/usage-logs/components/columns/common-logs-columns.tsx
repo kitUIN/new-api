@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Layers01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -763,6 +763,13 @@ export function buildDetailSegments(
 
 export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const { t } = useTranslation()
+  return useMemo(() => createCommonLogsColumns(isAdmin, t), [isAdmin, t])
+}
+
+function createCommonLogsColumns(
+  isAdmin: boolean,
+  t: ReturnType<typeof useTranslation>['t']
+): ColumnDef<UsageLog>[] {
   const sessionKeyColumn: ColumnDef<UsageLog> = {
     id: 'session_key',
     header: ({ column }) => (

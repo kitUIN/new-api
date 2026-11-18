@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   Blend,
@@ -84,6 +84,13 @@ export function useDrawingLogsColumns(
   isAdmin: boolean
 ): ColumnDef<MidjourneyLog>[] {
   const { t } = useTranslation()
+  return useMemo(() => createDrawingLogsColumns(isAdmin, t), [isAdmin, t])
+}
+
+function createDrawingLogsColumns(
+  isAdmin: boolean,
+  t: ReturnType<typeof useTranslation>['t']
+): ColumnDef<MidjourneyLog>[] {
   const columns: ColumnDef<MidjourneyLog>[] = [
     {
       accessorKey: 'submit_time',

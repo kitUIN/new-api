@@ -382,6 +382,8 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/events", middleware.AdminAuth(), controller.StreamAllLogs)
 		logRoute.GET("/self/events", middleware.UserAuth(), controller.StreamUserLogs)
+		logRoute.GET("/refresh", middleware.AdminAuth(), controller.RefreshAllLogs)
+		logRoute.GET("/self/refresh", middleware.UserAuth(), controller.RefreshUserLogs)
 		logRoute.GET("/sessions", middleware.AdminAuth(), controller.GetAllRelaySessions)
 		logRoute.GET("/self/sessions", middleware.UserAuth(), controller.GetSelfRelaySessions)
 		logRoute.GET("/sessions/:id/groups", middleware.AdminAuth(), controller.GetRelaySessionGroups)

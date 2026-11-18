@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+/* Live updates should not replay entrance animations or move existing text. */
+.usage-log-table [data-slot='table'] tbody tr:not(.usage-log-fast-ultra) {
+  animation: none;
+}
+
 .usage-log-fast-ultra {
   --fast-ultra-blue: rgb(79 70 229 / 8%);
   --fast-ultra-violet: rgb(139 92 246 / 13%);

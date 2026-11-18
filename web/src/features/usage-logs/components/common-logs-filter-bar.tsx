@@ -16,18 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  type ReactNode,
-} from 'react'
-import { useQueryClient, useIsFetching } from '@tanstack/react-query'
+import { useState, useCallback, useMemo, type ReactNode } from 'react'
+import { hashKey, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
 import {
@@ -78,8 +73,14 @@ export function CommonLogsFilterBar<TData>(
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const isAdmin = useIsAdmin()
-  const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
-  const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
+  const {
+    sensitiveVisible,
+    setSensitiveVisible,
+    autoRefresh,
+    setAutoRefresh,
+    markManualRefresh,
+  } = useUsageLogsContext()
+  const [searching, setSearching] = useState(false)
 
   const [filters, setFilters] = useState<CommonLogFilters>(() => {
     const { start, end } = getDefaultTimeRange()
@@ -87,7 +88,22 @@ export function CommonLogsFilterBar<TData>(
   })
   const [logType, setLogType] = useState<LogTypeValue>(LOG_TYPE_ALL_VALUE)
 
-  useEffect(() => {
+  const nextFilterScope = hashKey([
+    searchParams.startTime,
+    searchParams.endTime,
+    searchParams.channel,
+    searchParams.model,
+    searchParams.token,
+    searchParams.group,
+    searchParams.username,
+    searchParams.requestId,
+    searchParams.upstreamRequestId,
+    searchParams.sessionKey,
+    searchParams.type,
+  ])
+  const [filterScope, setFilterScope] = useState('')
+  if (filterScope !== nextFilterScope) {
+    setFilterScope(nextFilterScope)
     const { start, end } = getDefaultTimeRange()
     setFilters({
       startTime: searchParams.startTime
@@ -112,19 +128,7 @@ export function CommonLogsFilterBar<TData>(
         ? typeArr[0]
         : LOG_TYPE_ALL_VALUE
     setLogType(nextLogType)
-  }, [
-    searchParams.startTime,
-    searchParams.endTime,
-    searchParams.channel,
-    searchParams.model,
-    searchParams.token,
-    searchParams.group,
-    searchParams.username,
-    searchParams.requestId,
-    searchParams.upstreamRequestId,
-    searchParams.sessionKey,
-    searchParams.type,
-  ])
+  }
 
   const handleChange = useCallback(
     (field: keyof CommonLogFilters, value: Date | string | undefined) => {
@@ -133,40 +137,56 @@ export function CommonLogsFilterBar<TData>(
     []
   )
 
-  const handleApply = useCallback(() => {
-    const filterParams = buildSearchParams(filters, 'common')
-    navigate({
-      to: '/usage-logs/$section',
-      params: { section: 'common' },
-      search: {
-        ...filterParams,
-        type: [logType],
-        page: 1,
-      },
-    })
-    queryClient.invalidateQueries({ queryKey: ['logs'] })
-    queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [filters, logType, navigate, queryClient])
+  const handleApply = useCallback(async () => {
+    markManualRefresh()
+    setSearching(true)
+    try {
+      const filterParams = buildSearchParams(filters, 'common')
+      await navigate({
+        to: '/usage-logs/$section',
+        params: { section: 'common' },
+        search: {
+          ...filterParams,
+          type: [logType],
+          page: 1,
+        },
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] }),
+      ])
+    } finally {
+      setSearching(false)
+    }
+  }, [filters, logType, navigate, queryClient, markManualRefresh])
 
-  const handleReset = useCallback(() => {
-    const { start, end } = getDefaultTimeRange()
-    const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
-    setFilters(resetFilters)
-    setLogType(LOG_TYPE_ALL_VALUE)
+  const handleReset = useCallback(async () => {
+    markManualRefresh()
+    setSearching(true)
+    try {
+      const { start, end } = getDefaultTimeRange()
+      const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
+      setFilters(resetFilters)
+      setLogType(LOG_TYPE_ALL_VALUE)
 
-    navigate({
-      to: '/usage-logs/$section',
-      params: { section: 'common' },
-      search: {
-        page: 1,
-        type: [LOG_TYPE_ALL_VALUE],
-        startTime: start.getTime(),
-        endTime: end.getTime(),
-      },
-    })
-    queryClient.invalidateQueries({ queryKey: ['logs'] })
-    queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [navigate, queryClient])
+      await navigate({
+        to: '/usage-logs/$section',
+        params: { section: 'common' },
+        search: {
+          page: 1,
+          type: [LOG_TYPE_ALL_VALUE],
+          startTime: start.getTime(),
+          endTime: end.getTime(),
+        },
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] }),
+      ])
+    } finally {
+      setSearching(false)
+    }
+  }, [navigate, queryClient, markManualRefresh])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -352,7 +372,36 @@ export function CommonLogsFilterBar<TData>(
   return (
     <LogsFilterToolbar
       table={props.table}
-      actions={props.actions}
+      actions={
+        <>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type='button'
+                  variant={autoRefresh ? 'default' : 'outline'}
+                  onClick={() => {
+                    if (!autoRefresh) markManualRefresh()
+                    setAutoRefresh(!autoRefresh)
+                  }}
+                  aria-pressed={autoRefresh}
+                >
+                  <RefreshCw
+                    data-icon='inline-start'
+                    className={cn(autoRefresh && 'motion-safe:animate-spin')}
+                    aria-hidden='true'
+                  />
+                  {t('Auto refresh')}
+                </Button>
+              }
+            />
+            <TooltipContent>
+              {autoRefresh ? t('Auto refresh is on') : t('Auto refresh is off')}
+            </TooltipContent>
+          </Tooltip>
+          {props.actions}
+        </>
+      }
       stats={statsBar}
       primaryFilters={
         <>
@@ -380,7 +429,7 @@ export function CommonLogsFilterBar<TData>(
       advancedFilterCount={expandedFilterCount}
       hasActiveFilters={hasAdditionalFilters}
       onSearch={handleApply}
-      searchLoading={fetchingLogs > 0}
+      searchLoading={searching}
       onReset={handleReset}
     />
   )
