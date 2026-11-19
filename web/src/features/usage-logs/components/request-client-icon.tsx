@@ -17,15 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, type ReactNode } from 'react'
-import {
-  ClaudeCode,
-  CodeBuddy,
-  DeepSeek,
-  OpenAI,
-  OpenCode,
-  Pi,
-} from '@lobehub/icons'
-import { Monitor, Terminal } from 'lucide-react'
+import { ClaudeCode, CodeBuddy, DeepSeek, OpenAI, OpenCode } from '@lobehub/icons'
+import { Monitor, Pi, Terminal } from 'lucide-react'
 import { VscVscode } from 'react-icons/vsc'
 import {
   Tooltip,

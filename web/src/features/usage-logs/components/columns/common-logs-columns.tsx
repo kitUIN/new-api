@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Layers01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -96,14 +96,26 @@ export interface DetailSegment {
   danger?: boolean
 }
 
-function FastModeIcon({ label }: { label: string }) {
+function renderFastModeIcon(
+  other: LogOtherData | null,
+  t: (key: string) => string
+) {
+  const label = getFastModeLabel(other, t)
+  if (!label) return null
+
+  const isUltrafast = getServiceTierLabel(other) === 'ultrafast'
   return (
     <span
-      className='inline-flex shrink-0 items-center text-amber-500'
+      className={cn(
+        'inline-flex shrink-0 items-center',
+        isUltrafast ? 'text-purple-400 dark:text-purple-300' : 'text-amber-500'
+      )}
+      role='img'
       aria-label={label}
       title={label}
     >
       <Zap className='size-3 fill-current' aria-hidden='true' />
+      {isUltrafast && <Zap className='size-3 fill-current' aria-hidden='true' />}
     </span>
   )
 }
@@ -117,7 +129,7 @@ const DETAIL_TOOLTIP_BORDER_ROW_CLASS = cn(
 )
 const DETAIL_TOOLTIP_VALUE_CLASS = 'text-right font-mono tabular-nums'
 
-function UnitPriceValue(props: { value: string; fastLabel: string }) {
+function UnitPriceValue(props: { value: string; tierIcon: ReactNode }) {
   return (
     <span
       className={cn(
@@ -126,7 +138,7 @@ function UnitPriceValue(props: { value: string; fastLabel: string }) {
       )}
     >
       {props.value}
-      {props.fastLabel && <FastModeIcon label={props.fastLabel} />}
+      {props.tierIcon}
     </span>
   )
 }
@@ -1218,7 +1230,6 @@ function createCommonLogsColumns(
         if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
-        const fastLabel = getFastModeLabel(parseLogOther(log.other), t)
 
         return (
           <div className='flex max-w-[220px] items-center gap-1'>
@@ -1226,7 +1237,7 @@ function createCommonLogsColumns(
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
             />
-            {fastLabel && <FastModeIcon label={fastLabel} />}
+            {renderFastModeIcon(parseLogOther(log.other), t)}
           </div>
         )
       },
@@ -1582,7 +1593,7 @@ function createCommonLogsColumns(
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
         const costDetail = buildCostDetail(log, other)
-        const fastLabel = getFastModeLabel(other, t)
+        const tierIcon = renderFastModeIcon(other, t)
 
         const costTooltip = (
           <TooltipContent className={DETAIL_TOOLTIP_CONTENT_CLASS}>
@@ -1651,7 +1662,7 @@ function createCommonLogsColumns(
                   <span>{t('Input price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.inputUnitPrice)}
-                    fastLabel={fastLabel}
+                    tierIcon={tierIcon}
                   />
                 </div>
               )}
@@ -1660,7 +1671,7 @@ function createCommonLogsColumns(
                   <span>{t('Output price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.outputUnitPrice)}
-                    fastLabel={fastLabel}
+                    tierIcon={tierIcon}
                   />
                 </div>
               )}
@@ -1669,7 +1680,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache read price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheReadUnitPrice)}
-                    fastLabel={fastLabel}
+                    tierIcon={tierIcon}
                   />
                 </div>
               )}
@@ -1678,7 +1689,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache write price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheWriteUnitPrice)}
-                    fastLabel={fastLabel}
+                    tierIcon={tierIcon}
                   />
                 </div>
               )}
@@ -1687,7 +1698,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache create price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheWriteUnitPrice5m)}
-                    fastLabel={fastLabel}
+                    tierIcon={tierIcon}
                   />
                 </div>
               )}
@@ -1696,7 +1707,7 @@ function createCommonLogsColumns(
                   <span>{t('Cache create (1h) price')}</span>
                   <UnitPriceValue
                     value={formatUnitPrice(costDetail.cacheWriteUnitPrice1h)}
-                    fastLabel={fastLabel}
+                    tierIcon={tierIcon}
                   />
                 </div>
               )}
@@ -1810,7 +1821,7 @@ function createCommonLogsColumns(
               >
                 <span className='border-border/80 bg-muted/60 inline-flex w-fit items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-semibold'>
                   {formatLogQuota(quota)}
-                  {fastLabel && <FastModeIcon label={fastLabel} />}
+                  {tierIcon}
                 </span>
               </TooltipTrigger>
               {costTooltip}
