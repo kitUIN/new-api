@@ -185,6 +185,19 @@
     ]
   },
   {
+    "id": "ohmyapi",
+    "name": "ohmyapi",
+    "icon": "/images/clients/ohmyapi.svg",
+    "url": "https://github.com/Wesley-Young/ohmyapi",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^ohmyapi(?:/|$)"
+      }
+    ]
+  },
+  {
     "id": "claude-code",
     "name": "Claude Code",
     "icon": "claude-code",
