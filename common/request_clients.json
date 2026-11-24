@@ -1,5 +1,18 @@
 [
   {
+    "id": "openidea",
+    "name": "OpenIDEA",
+    "icon": "/images/clients/openidea.svg",
+    "url": "https://github.com/l0ng-ai/openidea",
+    "enabled": true,
+    "rules": [
+      {
+        "header": "User-Agent",
+        "pattern": "(?i)^openidea/"
+      }
+    ]
+  },
+  {
     "id": "codex-tui-vscode",
     "name": "Codex TUI (VS Code)",
     "icon": "codex-tui-vscode",

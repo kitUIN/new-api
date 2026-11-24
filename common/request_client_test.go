@@ -10,6 +10,9 @@ import (
 func TestDetectRequestClientDefaults(t *testing.T) {
 	require.NoError(t, UpdateRequestClientRules(DefaultRequestClientRules))
 	for _, tc := range []struct{ ua, want string }{
+		{"openidea/0.171.0 (Windows 10.0.26200; x86_64) unknown (openidea; 0.1.50)", "openidea"},
+		{"OpenIDEA/0.172.0 (Linux; aarch64)", "openidea"},
+		{"other/1.0 (openidea; 0.1.50)", ""},
 		{"Codex Desktop/0.169.0 (Windows; x86_64)", "codex-desktop"},
 		{"codex_desktop/1.0", "codex-desktop"},
 		{"codex_app/1.0", "codex-desktop"},
@@ -47,6 +50,7 @@ func TestDetectRequestClientDefaults(t *testing.T) {
 			require.Equal(t, tc.want, DetectRequestClient(h))
 		})
 	}
+	require.Equal(t, "openidea", DetectRequestClient(http.Header{"User-Agent": {"openidea/0.171.0"}, "Originator": {"codex_cli_rs"}}))
 	require.Equal(t, "codex-desktop", DetectRequestClient(http.Header{"Originator": {"CODEX_DESKTOP"}}))
 	require.Equal(t, "codex-vscode", DetectRequestClient(http.Header{"Originator": {"codex_vscode"}}))
 	require.Equal(t, "codex-tui", DetectRequestClient(http.Header{"Originator": {"codex_cli_rs"}}))
