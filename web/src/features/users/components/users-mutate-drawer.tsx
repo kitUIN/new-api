@@ -60,6 +60,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   SideDrawerSection,
@@ -158,8 +159,11 @@ export function UsersMutateDrawer({
     setIsSubmitting(true)
     try {
       const payload = transformFormDataToPayload(data, currentRow?.id)
-      const result = isUpdate
-        ? await updateUser(payload as typeof payload & { id: number })
+      if (currentRow && form.getFieldState('allow_negative_balance').isDirty) {
+        payload.allow_negative_balance = data.allow_negative_balance
+      }
+      const result = currentRow
+        ? await updateUser({ ...payload, id: currentRow.id })
         : await createUser(payload)
 
       if (result.success) {
@@ -407,6 +411,29 @@ export function UsersMutateDrawer({
                           {formatQuota(parseQuotaFromDollars(field.value || 0))}
                         </FormDescription>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='allow_negative_balance'
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className='flex items-center justify-between gap-4'>
+                          <FormLabel>{t('允许负余额')}</FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormDescription>
+                          {t(
+                            '开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。'
+                          )}
+                        </FormDescription>
                       </FormItem>
                     )}
                   />

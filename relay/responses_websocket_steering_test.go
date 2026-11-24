@@ -174,6 +174,38 @@ func assertSteeringBilling(t *testing.T, db *gorm.DB, prompts, completions []int
 	require.Equal(t, total, token.UsedQuota)
 }
 
+func TestResponsesWebSocketWalletNegativeBalance(t *testing.T) {
+	s, client, provider, db := newSteeringTestSession(t)
+	user := db.Model(&model.User{}).Where("id = ?", 1)
+	require.NoError(t, user.Update("quota", 1).Error)
+
+	create := []byte(`{"type":"response.create","model":"gpt-4o","input":"Hello"}`)
+	apiErr := s.handleClientFrame(websocket.TextMessage, create)
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+
+	require.NoError(t, user.Update("allow_negative_balance", true).Error)
+	startSteeringTestRound(t, s, client, provider)
+	sendSteeringUpstreamEvent(t, s, client, `{"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":20,"output_tokens":3,"total_tokens":23}}}`)
+	var charged model.User
+	require.NoError(t, db.First(&charged, 1).Error)
+	require.Positive(t, charged.UsedQuota)
+	require.Equal(t, 1-charged.UsedQuota, charged.Quota)
+	require.Negative(t, charged.Quota)
+
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", 1).Update("remain_quota", 0).Error)
+	apiErr = s.handleClientFrame(websocket.TextMessage, create)
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodePreConsumeTokenQuotaFailed, apiErr.GetErrorCode())
+
+	require.NoError(t, user.Update("allow_negative_balance", false).Error)
+	apiErr = s.handleClientFrame(websocket.TextMessage, create)
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+	require.NoError(t, db.First(&charged, 1).Error)
+	require.Equal(t, 1-charged.UsedQuota, charged.Quota)
+}
+
 func TestResponsesWebSocketSteeringAutomaticSuccessorsBilledSeparately(t *testing.T) {
 	s, client, provider, db := newSteeringTestSession(t)
 	startSteeringTestRound(t, s, client, provider)

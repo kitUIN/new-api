@@ -201,7 +201,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}
 
-	userQuota, err := model.GetUserQuota(info.UserId, false)
+	_, allowed, err := model.CheckWalletQuota(info.UserId, priceData.Quota)
 	if err != nil {
 		return &dto.MidjourneyResponse{
 			Code:        4,
@@ -209,7 +209,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}
 
-	if userQuota-priceData.Quota < 0 {
+	if !allowed {
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "quota_not_enough",
@@ -522,18 +522,19 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
-	if err != nil {
-		return &dto.MidjourneyResponse{
-			Code:        4,
-			Description: err.Error(),
+	if consumeQuota {
+		_, allowed, err := model.CheckWalletQuota(relayInfo.UserId, priceData.Quota)
+		if err != nil {
+			return &dto.MidjourneyResponse{
+				Code:        4,
+				Description: err.Error(),
+			}
 		}
-	}
-
-	if consumeQuota && userQuota-priceData.Quota < 0 {
-		return &dto.MidjourneyResponse{
-			Code:        4,
-			Description: "quota_not_enough",
+		if !allowed {
+			return &dto.MidjourneyResponse{
+				Code:        4,
+				Description: "quota_not_enough",
+			}
 		}
 	}
 

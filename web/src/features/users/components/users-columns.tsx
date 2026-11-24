@@ -194,9 +194,10 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const used = user.used_quota
         const remaining = user.quota
         const total = used + remaining
-        const percentage = total > 0 ? (remaining / total) * 100 : 0
+        const percentage =
+          total > 0 ? (Math.max(0, remaining) / total) * 100 : 0
 
-        if (total === 0) {
+        if (remaining === 0 && used === 0) {
           return (
             <StatusBadge
               label={t('No Quota')}

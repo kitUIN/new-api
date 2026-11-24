@@ -1,5 +1,7 @@
 {
   "translation": {
+    "允许负余额": "Autoriser un solde négatif",
+    "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "Permet à cet utilisateur de continuer à utiliser le service même si le solde de son portefeuille est insuffisant. Les frais sont calculés selon la consommation réelle.",
     "usageLogs.inProgress": "En cours",
     "usageLogs.interrupted": "Interrompu",
     "usageLogs.retryErrors": "Erreurs de nouvelle tentative",

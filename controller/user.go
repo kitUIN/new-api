@@ -651,9 +651,15 @@ func UpdateUser(c *gin.Context) {
 		updatedUser.Password = "" // rollback to what it should be
 	}
 	updatePassword := updatedUser.Password != ""
-	if err := updatedUser.Edit(updatePassword); err != nil {
+	_, updateNegativeBalance := requestData["allow_negative_balance"]
+	if err := updatedUser.Edit(updatePassword, updateNegativeBalance); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if updateNegativeBalance && updatedUser.AllowNegativeBalance != originUser.AllowNegativeBalance {
+		model.RecordLogWithAdminInfo(updatedUser.Id, model.LogTypeManage,
+			fmt.Sprintf("管理员将允许负余额设为 %t", updatedUser.AllowNegativeBalance),
+			map[string]interface{}{"admin_id": c.GetInt("id"), "admin_username": c.GetString("username")})
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -1015,49 +1021,46 @@ func ManageUser(c *gin.Context) {
 			}
 			adminInfo["amount_usd"] = decimal.NewFromInt(int64(req.Value)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).String()
 		}
+		value := req.Value
+		logType, content := model.LogTypeManage, ""
 		switch req.Mode {
 		case "add", "recharge":
-			if req.Value <= 0 {
-				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
-				return
-			}
-			if err := model.IncreaseUserQuota(user.Id, req.Value, true); err != nil {
-				common.ApiError(c, err)
-				return
-			}
-			logType, content := model.LogTypeManage, "管理员增加用户额度 %s"
+			content = "管理员增加用户额度 %s"
 			if req.Mode == "recharge" {
 				logType, content = model.LogTypeTopup, "管理员充值用户额度 %s"
 			}
-			model.RecordLogWithAdminInfo(user.Id, logType,
-				fmt.Sprintf(content, logger.LogQuota(req.Value)), adminInfo)
 		case "subtract", "refund":
-			if req.Value <= 0 {
-				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
-				return
-			}
-			if err := model.DecreaseUserQuota(user.Id, req.Value, true); err != nil {
-				common.ApiError(c, err)
-				return
-			}
-			logType, content := model.LogTypeManage, "管理员减少用户额度 %s"
+			value = -req.Value
+			content = "管理员减少用户额度 %s"
 			if req.Mode == "refund" {
 				logType, content = model.LogTypeRefund, "管理员退款扣减用户额度 %s"
 			}
-			model.RecordLogWithAdminInfo(user.Id, logType,
-				fmt.Sprintf(content, logger.LogQuota(req.Value)), adminInfo)
 		case "override":
-			oldQuota := user.Quota
-			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
-				common.ApiError(c, err)
-				return
-			}
-			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)), adminInfo)
+			content = "管理员覆盖用户额度从 %s 为 %s"
 		default:
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 			return
 		}
+		override := req.Mode == "override"
+		if !override && req.Value <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
+			return
+		}
+		oldQuota, err := model.AdjustQuotaByAdmin(user.Id, value, override)
+		if errors.Is(err, model.ErrNegativeBalanceDisabled) {
+			common.ApiErrorI18n(c, i18n.MsgUserNegativeBalanceDisabled)
+			return
+		}
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if override {
+			content = fmt.Sprintf(content, logger.LogQuota(oldQuota), logger.LogQuota(req.Value))
+		} else {
+			content = fmt.Sprintf(content, logger.LogQuota(req.Value))
+		}
+		model.RecordLogWithAdminInfo(user.Id, logType, content, adminInfo)
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",

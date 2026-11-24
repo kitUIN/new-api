@@ -1,5 +1,7 @@
 {
   "translation": {
+    "允许负余额": "允许负余额",
+    "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。",
     "usageLogs.inProgress": "进行中",
     "usageLogs.interrupted": "已中断",
     "usageLogs.retryErrors": "重试错误",

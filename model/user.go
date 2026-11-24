@@ -13,6 +13,7 @@ import (
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const UserNameMaxLength = 20
@@ -52,6 +53,8 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+
+	AllowNegativeBalance bool `json:"allow_negative_balance" gorm:"not null;default:false"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -339,7 +342,7 @@ func inviteUser(inviterId int) (err error) {
 	user.AffCount++
 	user.AffQuota += common.QuotaForInviter
 	user.AffHistoryQuota += common.QuotaForInviter
-	return DB.Save(user).Error
+	return DB.Omit("AllowNegativeBalance").Save(user).Error
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
@@ -371,7 +374,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	user.Quota += quota
 
 	// 保存用户状态
-	if err := tx.Save(user).Error; err != nil {
+	if err := tx.Omit("AllowNegativeBalance").Save(user).Error; err != nil {
 		return err
 	}
 
@@ -514,7 +517,7 @@ func (user *User) Update(updatePassword bool) error {
 	}
 	newUser := *user
 	DB.First(&user, user.Id)
-	if err = DB.Model(user).Updates(newUser).Error; err != nil {
+	if err = DB.Model(user).Omit("AllowNegativeBalance").Updates(newUser).Error; err != nil {
 		return err
 	}
 
@@ -529,7 +532,7 @@ func UpdateUserAccessedTime(id int, accessedTime int64) error {
 	return DB.Model(&User{}).Where("id = ?", id).Update("accessed_time", accessedTime).Error
 }
 
-func (user *User) Edit(updatePassword bool) error {
+func (user *User) Edit(updatePassword bool, updateNegativeBalance bool) error {
 	var err error
 	if updatePassword {
 		user.Password, err = common.Password2Hash(user.Password)
@@ -545,6 +548,9 @@ func (user *User) Edit(updatePassword bool) error {
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
 		"qq_id":        newUser.QQId,
+	}
+	if updateNegativeBalance {
+		updates["allow_negative_balance"] = newUser.AllowNegativeBalance
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -862,6 +868,21 @@ func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	return quota, nil
 }
 
+// CheckWalletQuota reads the admin permission from the database only when the
+// balance is insufficient, so a cached permission cannot outlive revocation.
+func CheckWalletQuota(id, required int) (balance int, allowed bool, err error) {
+	balance, err = GetUserQuota(id, false)
+	if err != nil {
+		return 0, false, err
+	}
+	if balance >= required {
+		return balance, true, nil
+	}
+	var user User
+	err = DB.Select("allow_negative_balance").First(&user, id).Error
+	return balance, user.AllowNegativeBalance, err
+}
+
 func GetUserUsedQuota(id int) (quota int, err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Select("used_quota").Find(&quota).Error
 	return quota, err
@@ -986,6 +1007,43 @@ func decreaseUserQuota(id int, quota int) (err error) {
 		return err
 	}
 	return err
+}
+
+var ErrNegativeBalanceDisabled = errors.New("negative wallet balance is disabled")
+
+// AdjustQuotaByAdmin checks the saved permission and updates the wallet under
+// the same row lock. The previous balance is returned for the management log.
+func AdjustQuotaByAdmin(id, value int, override bool) (previous int, err error) {
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "quota", "allow_negative_balance").First(&user, id).Error; err != nil {
+			return err
+		}
+		previous = user.Quota
+		if override {
+			if value < 0 && !user.AllowNegativeBalance {
+				return ErrNegativeBalanceDisabled
+			}
+			return tx.Model(&user).Update("quota", value).Error
+		}
+		if value < 0 && user.Quota < -value && !user.AllowNegativeBalance {
+			return ErrNegativeBalanceDisabled
+		}
+		return tx.Model(&user).Update("quota", gorm.Expr("quota + ?", value)).Error
+	})
+	if err != nil {
+		return previous, err
+	}
+	if override {
+		err = invalidateUserCache(id)
+	} else {
+		err = cacheIncrUserQuota(id, int64(value))
+	}
+	if err != nil {
+		common.SysLog("failed to update user quota cache: " + err.Error())
+	}
+	return previous, nil
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {

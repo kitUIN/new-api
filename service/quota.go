@@ -92,11 +92,6 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if relayInfo.UsePrice {
 		return nil
 	}
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
-	if err != nil {
-		return err
-	}
-
 	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
 	if err != nil {
 		return err
@@ -127,7 +122,11 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 
 	quota := calculateAudioQuota(quotaInfo)
 
-	if userQuota < quota {
+	userQuota, allowed, err := model.CheckWalletQuota(relayInfo.UserId, quota)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
 	}
 

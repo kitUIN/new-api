@@ -261,17 +261,17 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 	// 钱包路径需要先检查用户额度
 	tryWallet := func() (*BillingSession, *types.NewAPIError) {
-		userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+		userQuota, allowed, err := model.CheckWalletQuota(relayInfo.UserId, max(1, preConsumedQuota))
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
-		if userQuota <= 0 {
+		if !allowed && userQuota <= 0 {
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
-		if userQuota-preConsumedQuota < 0 {
+		if !allowed {
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("预扣费额度失败, 用户剩余额度: %s, 需要预扣费额度: %s", logger.FormatQuota(userQuota), logger.FormatQuota(preConsumedQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,

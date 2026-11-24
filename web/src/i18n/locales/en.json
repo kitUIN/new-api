@@ -1,5 +1,7 @@
 {
   "translation": {
+    "允许负余额": "Allow negative balance",
+    "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "Allow this user to keep spending when their wallet balance is insufficient. Charges are based on actual usage.",
     "usageLogs.inProgress": "In progress",
     "usageLogs.interrupted": "Interrupted",
     "usageLogs.retryErrors": "Retry errors",
