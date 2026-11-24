@@ -222,8 +222,9 @@ export function UpdateCheckerSection(props: UpdateCheckerSectionProps) {
   }
 
   const waitForRestart = useCallback(
-    async (expectedVersion: string) => {
-      const deadline = Date.now() + RESTART_TIMEOUT_MS
+    async (expectedVersion: string, estimatedCompletion = 0) => {
+      const deadline =
+        Math.max(Date.now(), estimatedCompletion * 1000) + RESTART_TIMEOUT_MS
       await delay(1000)
 
       while (Date.now() < deadline) {
@@ -267,7 +268,10 @@ export function UpdateCheckerSection(props: UpdateCheckerSectionProps) {
       }
 
       toast.info(t('Update installed. Waiting for the service to restart...'))
-      void waitForRestart(updateInfo.latest_version)
+      void waitForRestart(
+        updateInfo.latest_version,
+        response.data?.estimated_completion
+      )
       return response
     } catch (error) {
       setUpdating(false)

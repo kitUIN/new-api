@@ -52,6 +52,7 @@ export type SystemUpdateInfo = {
   release_notes?: string
   published_at?: string
   prerelease: boolean
+  estimated_completion?: number
 }
 
 export type SystemUpdateResponse = {

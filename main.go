@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/updatemaint"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
@@ -43,6 +44,9 @@ var buildFS embed.FS
 var indexPage []byte
 
 func main() {
+	if updatemaint.HandleCommand(os.Args[1:]) {
+		return
+	}
 	startTime := time.Now()
 
 	err := InitResources()
@@ -209,7 +213,7 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
+	err = updatemaint.Serve(":"+port, server.Handler())
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}

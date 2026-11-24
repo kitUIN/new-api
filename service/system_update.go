@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/updatemaint"
 )
 
 const (
@@ -49,18 +50,19 @@ type githubRelease struct {
 }
 
 type SystemUpdateInfo struct {
-	Repository      string `json:"repository"`
-	CurrentVersion  string `json:"current_version"`
-	LatestVersion   string `json:"latest_version"`
-	UpdateAvailable bool   `json:"update_available"`
-	CanUpdate       bool   `json:"can_update"`
-	AssetName       string `json:"asset_name,omitempty"`
-	AssetSize       int64  `json:"asset_size,omitempty"`
-	Platform        string `json:"platform"`
-	ReleaseURL      string `json:"release_url,omitempty"`
-	ReleaseNotes    string `json:"release_notes,omitempty"`
-	PublishedAt     string `json:"published_at,omitempty"`
-	Prerelease      bool   `json:"prerelease"`
+	Repository          string `json:"repository"`
+	CurrentVersion      string `json:"current_version"`
+	LatestVersion       string `json:"latest_version"`
+	UpdateAvailable     bool   `json:"update_available"`
+	CanUpdate           bool   `json:"can_update"`
+	AssetName           string `json:"asset_name,omitempty"`
+	AssetSize           int64  `json:"asset_size,omitempty"`
+	Platform            string `json:"platform"`
+	ReleaseURL          string `json:"release_url,omitempty"`
+	ReleaseNotes        string `json:"release_notes,omitempty"`
+	PublishedAt         string `json:"published_at,omitempty"`
+	Prerelease          bool   `json:"prerelease"`
+	EstimatedCompletion int64  `json:"estimated_completion,omitempty"`
 }
 
 var systemUpdateMutex sync.Mutex
@@ -378,19 +380,24 @@ func downloadUpdateBinary(ctx context.Context, asset githubReleaseAsset, targetP
 	return stagedPath, nil
 }
 
-func binaryReportsVersion(ctx context.Context, binaryPath string, expectedVersion string) error {
+func binaryReportsVersion(ctx context.Context, binaryPath string, expectedVersion string) (supportsHandoff bool, err error) {
 	commandContext, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(commandContext, binaryPath, "--version").CombinedOutput()
+	// Older releases ignore the positional capability argument and print only their version.
+	output, err := exec.CommandContext(commandContext, binaryPath, "--version", updatemaint.HandoffVersion).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("downloaded binary failed its version check: %w", err)
+		return false, fmt.Errorf("downloaded binary failed its version check: %w", err)
 	}
+	versionMatched := false
 	for _, line := range strings.Split(string(output), "\n") {
-		if strings.TrimSpace(line) == expectedVersion {
-			return nil
-		}
+		line = strings.TrimSpace(line)
+		versionMatched = versionMatched || line == expectedVersion
+		supportsHandoff = supportsHandoff || line == updatemaint.HandoffVersion
 	}
-	return fmt.Errorf("downloaded binary reported an unexpected version: %s", strings.TrimSpace(string(output)))
+	if !versionMatched {
+		return false, fmt.Errorf("downloaded binary reported an unexpected version: %s", strings.TrimSpace(string(output)))
+	}
+	return supportsHandoff, nil
 }
 
 func installStagedBinary(stagedPath string, targetPath string) (string, error) {
@@ -475,11 +482,14 @@ func scheduleSystemdRestart(systemctlPath string, targetPath string, backupPath 
 		if rollbackErr := rollbackInstalledBinary(targetPath, backupPath); rollbackErr != nil {
 			common.SysError("failed to roll back system update: " + rollbackErr.Error())
 		}
+		updatemaint.Resume()
 	}()
 }
 
 func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion string) (*SystemUpdateInfo, error) {
-	systemUpdateMutex.Lock()
+	if !systemUpdateMutex.TryLock() {
+		return nil, errors.New("a system update is already in progress")
+	}
 	defer systemUpdateMutex.Unlock()
 
 	info, binaryAsset, checksumsAsset, err := checkSystemUpdate(ctx, repository)
@@ -507,6 +517,22 @@ func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion s
 		return nil, err
 	}
 
+	minutes := common.GetEnvOrDefault("SYSTEM_UPDATE_ESTIMATE_MINUTES", 3)
+	if minutes <= 0 || minutes > int((1<<63-1)/time.Minute) {
+		minutes = 3
+	}
+	deadline := time.Now().Add(time.Duration(minutes) * time.Minute)
+	if err := updatemaint.Start(targetPath, deadline); err != nil {
+		return nil, err
+	}
+	restartScheduled := false
+	defer func() {
+		if !restartScheduled {
+			updatemaint.Resume()
+		}
+	}()
+	info.EstimatedCompletion = deadline.Unix()
+
 	checksums, err := downloadUpdateBytes(ctx, checksumsAsset.BrowserDownloadURL, maxChecksumsBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download release checksums: %w", err)
@@ -527,8 +553,16 @@ func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion s
 		}
 	}()
 
-	if err := binaryReportsVersion(ctx, stagedPath, info.LatestVersion); err != nil {
+	supportsHandoff, err := binaryReportsVersion(ctx, stagedPath, info.LatestVersion)
+	if err != nil {
 		return nil, err
+	}
+	// Legacy releases bind the port themselves. The old gateway continues to return
+	// the maintenance notice until systemd stops it.
+	if !supportsHandoff {
+		if err := updatemaint.StopHelper(); err != nil {
+			return nil, err
+		}
 	}
 	backupPath, err := installStagedBinary(stagedPath, targetPath)
 	if err != nil {
@@ -537,5 +571,6 @@ func ApplySystemUpdate(ctx context.Context, repository string, expectedVersion s
 	removeStaged = false
 
 	scheduleSystemdRestart(systemctlPath, targetPath, backupPath)
+	restartScheduled = true
 	return info, nil
 }
