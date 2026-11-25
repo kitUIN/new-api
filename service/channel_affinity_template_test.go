@@ -324,6 +324,43 @@ func TestAutoGroupAffinityUsesResetSecondsAsDefaultTTL(t *testing.T) {
 	require.Equal(t, 18000, ttlSeconds)
 }
 
+func TestChatCompletionsPromptCacheKeyAffinity(t *testing.T) {
+	const modelName = "custom-chat-model"
+	group := fmt.Sprintf("chat-affinity-%d", time.Now().UnixNano())
+	request := func(body string) *gin.Context {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+		t.Cleanup(func() { common.CleanupBodyStorage(ctx) })
+		return ctx
+	}
+
+	const body = `{"prompt_cache_key":"session-one"}`
+	first := request(body)
+	_, found := GetPreferredChannelByAffinity(first, modelName, group)
+	require.False(t, found)
+	meta, matched := getChannelAffinityMeta(first)
+	require.True(t, matched)
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(first))
+	t.Cleanup(func() { _, _ = getChannelAffinityCache().DeleteMany([]string{meta.CacheKeySuffix}) })
+	RecordChannelAffinity(first, 42)
+
+	channelID, found := GetPreferredChannelByAffinity(request(body), modelName, group)
+	require.True(t, found)
+	require.Equal(t, 42, channelID)
+	_, found = GetPreferredChannelByAffinity(request(body), modelName, group+"-other")
+	require.False(t, found)
+	_, found = GetPreferredChannelByAffinity(request(`{"prompt_cache_key":"session-two"}`), modelName, group)
+	require.False(t, found)
+
+	for _, body := range []string{`{}`, `{"prompt_cache_key":" "}`, `{"prompt_cache_key":null}`} {
+		ctx := request(body)
+		_, found := GetPreferredChannelByAffinity(ctx, modelName, group)
+		require.False(t, found, body)
+		_, matched := getChannelAffinityMeta(ctx)
+		require.False(t, matched, body)
+	}
+}
+
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

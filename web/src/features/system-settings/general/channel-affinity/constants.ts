@@ -87,6 +87,17 @@ export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     include_model_name: false,
     include_rule_name: true,
   },
+  chatCompletions: {
+    name: 'chat completions',
+    model_regex: ['.*'],
+    path_regex: ['^/v1/chat/completions$'],
+    key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
+    ttl_seconds: 0,
+    skip_retry_on_failure: false,
+    include_using_group: true,
+    include_model_name: false,
+    include_rule_name: true,
+  },
 }
 
 export function makeUniqueName(

@@ -320,7 +320,7 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 			return ""
 		}
 		res := gjson.GetBytes(body, src.Path)
-		if !res.Exists() {
+		if res.Type == gjson.Null {
 			return ""
 		}
 		switch res.Type {

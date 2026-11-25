@@ -175,7 +175,7 @@ export function ChannelAffinitySection(props: Props) {
     refreshCache()
   }, [refreshCache])
 
-  const appendCliTemplates = () => {
+  const appendTemplates = () => {
     const existingNames = new Set(
       rules.map((r) => (r.name || '').trim()).filter((x) => x.length > 0)
     )
@@ -196,7 +196,7 @@ export function ChannelAffinitySection(props: Props) {
 
   const handleFillTemplates = () => {
     if (rules.length === 0) {
-      appendCliTemplates()
+      appendTemplates()
     } else {
       setFillTemplateDialogOpen(true)
     }
@@ -255,9 +255,7 @@ export function ChannelAffinitySection(props: Props) {
         })
       if (
         autoGroupResetSeconds !==
-        props.defaultValues[
-          'channel_affinity_setting.auto_group_reset_seconds'
-        ]
+        props.defaultValues['channel_affinity_setting.auto_group_reset_seconds']
       )
         updates.push({
           key: 'channel_affinity_setting.auto_group_reset_seconds',
@@ -409,9 +407,7 @@ export function ChannelAffinitySection(props: Props) {
               type='number'
               min={0}
               value={autoGroupResetSeconds}
-              onChange={(e) =>
-                setAutoGroupResetSeconds(Number(e.target.value))
-              }
+              onChange={(e) => setAutoGroupResetSeconds(Number(e.target.value))}
             />
           </div>
         </div>
@@ -476,6 +472,15 @@ export function ChannelAffinitySection(props: Props) {
                 }}
               >
                 Claude CLI
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingRule(null)
+                  setRuleTemplateKey('chatCompletions')
+                  setRuleEditorOpen(true)
+                }}
+              >
+                Chat Completions
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -671,11 +676,11 @@ export function ChannelAffinitySection(props: Props) {
       <ConfirmDialog
         open={fillTemplateDialogOpen}
         onOpenChange={setFillTemplateDialogOpen}
-        title={t('Fill Codex CLI / Claude CLI Templates')}
+        title={t('Fill Templates')}
         desc={t(
-          'This will append 2 template rules (Codex CLI and Claude CLI) to the existing rule list.'
+          'Append the built-in channel affinity rules to the current list?'
         )}
-        handleConfirm={appendCliTemplates}
+        handleConfirm={appendTemplates}
       />
     </>
   )

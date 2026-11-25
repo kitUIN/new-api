@@ -111,6 +111,16 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			IncludeRuleName:       true,
 			UserAgentInclude:      nil,
 		},
+		{
+			Name:       "chat completions",
+			ModelRegex: []string{".*"},
+			PathRegex:  []string{"^/v1/chat/completions$"},
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "gjson", Path: "prompt_cache_key"},
+			},
+			IncludeUsingGroup: true,
+			IncludeRuleName:   true,
+		},
 	},
 }
 
