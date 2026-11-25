@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -200,10 +201,11 @@ func resolveGroupCombinationRuntimeChannel(c *gin.Context, runtime *groupCombina
 	if runtime == nil {
 		return nil, "", fmt.Errorf("%s 运行状态未初始化", combinationName)
 	}
+	preferredID, _ := cachedAffinityChannelID(c)
 	for i := runtime.CurrentIndex; i < len(runtime.Members); i++ {
 		member := runtime.Members[i]
 		runtime.SelectedIndex = i
-		channel, err := getRandomChannelForRequest(c, member.Group, modelName, 0, excludedChannelIDs)
+		channel, err := getGroupCombinationMemberChannel(c, member.Group, modelName, preferredID, excludedChannelIDs)
 		if err != nil {
 			return nil, member.Group, fmt.Errorf("%s 从成员分组 %s 选择渠道失败: %w", combinationName, member.Group, err)
 		}
@@ -216,6 +218,17 @@ func resolveGroupCombinationRuntimeChannel(c *gin.Context, runtime *groupCombina
 		}
 	}
 	return nil, "", fmt.Errorf("%s 的成员分组均没有模型 %s 的可用渠道", combinationName, modelName)
+}
+
+func getGroupCombinationMemberChannel(c *gin.Context, group, modelName string, preferredID int, excludedChannelIDs []int) (*model.Channel, error) {
+	if preferredID > 0 && !slices.Contains(excludedChannelIDs, preferredID) && model.IsChannelEnabledForConcreteGroupModel(group, modelName, preferredID) {
+		channel, err := model.CacheGetChannel(preferredID)
+		if err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled && !IsChannelBlockedForClient(c, channel) {
+			MarkChannelAffinityUsed(c, group, channel.Id)
+			return channel, nil
+		}
+	}
+	return getRandomChannelForRequest(c, group, modelName, 0, excludedChannelIDs)
 }
 
 // ResolveGroupCombinationChannel selects the first member group that has an

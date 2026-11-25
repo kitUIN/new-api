@@ -640,21 +640,31 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		return 0, false
 	}
 	setChannelAffinityContext(c, meta)
+	return cachedAffinityChannelID(c)
+}
 
-	cache := getChannelAffinityCache()
-	channelID, found, err := cache.Get(meta.CacheKeySuffix)
+func cachedAffinityChannelID(c *gin.Context) (int, bool) {
+	if c == nil {
+		return 0, false
+	}
+	meta, ok := getChannelAffinityMeta(c)
+	if !ok || meta.SessionKeyOnly {
+		return 0, false
+	}
+	channelID, found, err := getChannelAffinityCache().Get(meta.CacheKeySuffix)
 	if err != nil {
 		common.SysError(fmt.Sprintf("channel affinity cache get failed: key=%s, err=%v", meta.CacheKey, err))
 		return 0, false
 	}
-	if found {
-		return channelID, true
-	}
-	return 0, false
+	return channelID, found
 }
 
 func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	if c == nil {
+		return false
+	}
+	// Member combinations own their failover even when the selected channel was an affinity hit.
+	if _, ok := c.Get(ginKeyGroupCombinationRuntime); ok {
 		return false
 	}
 	v, ok := c.Get(ginKeyChannelAffinitySkipRetry)

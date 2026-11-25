@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	channels := []model.Channel{
 		{Id: 12, Name: "virtual-root", Key: "test-root", Status: common.ChannelStatusEnabled, Models: "missing,gpt-5.6-luna", Group: "codex", Priority: &highPriority},
 		{Id: 2, Name: "luna-primary", Key: "sk-luna-primary", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-luna", Group: "cheap", Priority: &highPriority},
-		{Id: 3, Name: "luna-fallback", Key: "sk-luna-fallback", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-luna", Group: "cheap", Priority: &lowPriority},
+		{Id: 3, Name: "luna-fallback", Key: "sk-luna-fallback", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-luna", Group: "cheap", Priority: &lowPriority, OtherSettings: `{"client_restrictions":{"claude_code":"deny"}}`},
 		{Id: 4, Name: "sol-cheap", Key: "sk-sol-cheap", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-sol", Group: "cheap", Priority: &highPriority},
 		{Id: 7, Name: "sol", Key: "sk-sol", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-sol", Group: "premium", Priority: &highPriority},
 		{Id: 9, Name: "luna-premium", Key: "sk-luna-premium", Status: common.ChannelStatusEnabled, Models: "gpt-5.6-luna", Group: "premium", Priority: &highPriority},
@@ -71,6 +72,7 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	require.NoError(t, ratio_setting.UpdateGroupCombinationsByJSONString(
 		`{"codex":[{"group":"cheap","models":["gpt-5.6-luna"]},{"group":"premium","models":["gpt-5.6-luna","gpt-5.6-sol"]}]}`,
 	))
+	t.Run("channel affinity within the current member", testGroupCombinationChannelAffinity)
 
 	channel, selectedGroup, enabled, err := ResolveGroupCombinationChannel("codex", "gpt-5.6-sol")
 	require.NoError(t, err)
@@ -329,6 +331,50 @@ func TestResolveGroupCombinationChannel(t *testing.T) {
 	_, _, enabled, err = ResolveGroupCombinationChannelWithExclusions("legacy", "gpt-5.6-sol", []int{7})
 	require.True(t, enabled)
 	require.ErrorContains(t, err, "固定渠道 #7 已被排除")
+}
+
+func testGroupCombinationChannelAffinity(t *testing.T) {
+	const group, modelName = "codex", "gpt-5.6-luna"
+	body := fmt.Sprintf(`{"prompt_cache_key":"combo-%d"}`, time.Now().UnixNano())
+	request := func() *RetryParam {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest("POST", "/v1/responses", strings.NewReader(body))
+		t.Cleanup(func() { common.CleanupBodyStorage(c) })
+		EnsureChannelAffinitySessionKey(c, modelName, group)
+		return &RetryParam{Ctx: c, TokenGroup: group, ModelName: modelName}
+	}
+	checkRoute := func(p *RetryParam, wantGroup string, wantID int) {
+		t.Helper()
+		channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(p)
+		require.NoError(t, err)
+		require.Equal(t, wantGroup, selectedGroup)
+		require.Equal(t, wantID, channel.Id)
+	}
+
+	// Only the lower-priority channel is eligible on the first request.
+	first := request()
+	first.ExcludeChannel(2)
+	checkRoute(first, "cheap", 3)
+	RecordChannelAffinity(first.Ctx, 3)
+
+	next := request()
+	checkRoute(next, "cheap", 3)
+	admin := map[string]interface{}{}
+	AppendChannelAffinityAdminInfo(next.Ctx, admin)
+	hit := admin["channel_affinity"].(map[string]interface{})
+	require.Equal(t, 3, hit["channel_id"])
+	require.Equal(t, "cheap", hit["selected_group"])
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(next.Ctx))
+
+	blocked := request()
+	blocked.Ctx.Request.Header.Set("User-Agent", "claude-cli/2.0")
+	checkRoute(blocked, "cheap", 2)
+	next.ExcludeChannel(3)
+	checkRoute(next, "cheap", 2)
+
+	// A cached channel in a later member cannot bypass the first eligible member.
+	RecordChannelAffinity(first.Ctx, 9)
+	checkRoute(request(), "cheap", 2)
 }
 
 func TestGroupCombinationRatioUsesMemberGroups(t *testing.T) {
