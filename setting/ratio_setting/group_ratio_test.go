@@ -457,3 +457,23 @@ func TestCompareGroupSpecialUsableChanges(t *testing.T) {
 		"+ 用户分组 vip: 可见 media (Media)",
 	}, FormatGroupSpecialUsableChangeLines(changes))
 }
+
+func TestSubscriptionModelRatiosRequireExactModels(t *testing.T) {
+	for _, invalid := range []string{`null`, `{"":{}}`, `{"vip":null}`, `{"vip":{"gpt-*":1.2}}`, `{"vip":{"":2}}`, `{"vip":{"gpt-4":null}}`, `{"vip":{"gpt-4":-1}}`} {
+		require.Error(t, CheckSubscriptionModelRatios(invalid), invalid)
+	}
+	value := `{"vip":{"gpt-4":1.2,"free":0,"standard":1}}`
+	require.NoError(t, CheckSubscriptionModelRatios(value))
+	cfg := GetGroupRatioSetting()
+	old := cfg.SubscriptionModelRatios.MarshalJSONString()
+	t.Cleanup(func() { require.NoError(t, common.UnmarshalJsonStr(old, cfg.SubscriptionModelRatios)) })
+	require.NoError(t, settingconfig.UpdateConfigFromMap(cfg, map[string]string{"subscription_model_ratios": value}))
+	ratio := SubscriptionModelRatio("vip", "gpt-4")
+	require.Equal(t, 1.2, *ratio)
+	require.Equal(t, 0.0, *SubscriptionModelRatio("vip", "free"))
+	require.Nil(t, SubscriptionModelRatio("vip", "standard"))
+	require.Nil(t, SubscriptionModelRatio("other", "gpt-4"))
+	require.Nil(t, SubscriptionModelRatio("vip", "gpt-4-mini"))
+	require.NoError(t, common.UnmarshalJsonStr(`{}`, cfg.SubscriptionModelRatios))
+	require.Equal(t, 1.2, *ratio)
+}

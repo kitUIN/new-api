@@ -240,6 +240,7 @@ var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 
 type GroupRatioSetting struct {
 	GroupDrawingResolutions    *GroupDrawingResolutionsConfig                  `json:"group_drawing_resolutions"`
+	SubscriptionModelRatios    *types.RWMap[string, map[string]float64]        `json:"subscription_model_ratios"`
 	GroupTimedRatios           *GroupTimedRatioConfig                          `json:"group_timed_ratios"`
 	GroupOpeningHours          *GroupOpeningHoursConfig                        `json:"group_opening_hours"`
 	GroupRatio                 *types.RWMap[string, float64]                   `json:"group_ratio"`
@@ -261,6 +262,7 @@ func init() {
 
 	groupRatioSetting = GroupRatioSetting{
 		GroupDrawingResolutions:    &GroupDrawingResolutionsConfig{},
+		SubscriptionModelRatios:    types.NewRWMap[string, map[string]float64](),
 		GroupTimedRatios:           &GroupTimedRatioConfig{},
 		GroupOpeningHours:          &GroupOpeningHoursConfig{},
 		GroupSpecialUsableGroup:    groupSpecialUsableGroup,
@@ -300,6 +302,40 @@ func GetGroupType(name string) string {
 		return GroupTypeBilling
 	}
 	return t
+}
+
+// SubscriptionModelRatio returns a request-local copy of an exact model override.
+func SubscriptionModelRatio(group, model string) *float64 {
+	if groupRatioSetting.SubscriptionModelRatios == nil {
+		return nil
+	}
+	ratios, _ := groupRatioSetting.SubscriptionModelRatios.Get(group)
+	ratio, ok := ratios[model]
+	if !ok || ratio == 1 {
+		return nil
+	}
+	return &ratio
+}
+
+func CheckSubscriptionModelRatios(value string) error {
+	var groups map[string]map[string]*float64
+	if err := common.UnmarshalJsonStr(value, &groups); err != nil {
+		return err
+	}
+	if groups == nil {
+		return errors.New("正价订阅倍率必须为 JSON 对象")
+	}
+	for group, models := range groups {
+		if strings.TrimSpace(group) == "" || group != strings.TrimSpace(group) || models == nil {
+			return errors.New("请指定分组和模型倍率")
+		}
+		for model, ratio := range models {
+			if strings.TrimSpace(model) == "" || model != strings.TrimSpace(model) || strings.Contains(model, "*") || ratio == nil || *ratio < 0 {
+				return fmt.Errorf("分组 %s 需要指定具体模型和非负的正价订阅倍率", group)
+			}
+		}
+	}
+	return nil
 }
 
 func GetGroupTypesCopy() map[string]string {

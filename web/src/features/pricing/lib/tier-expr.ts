@@ -92,6 +92,27 @@ export function createDefaultVisualConfig(): VisualConfig {
   }
 }
 
+export function createLongContextDoubleConfig(
+  base: Partial<VisualTier>
+): VisualConfig {
+  const standard = normalizeVisualTier({
+    ...base,
+    label: 'standard',
+    conditions: [{ var: 'len', op: '<=', value: 272_000 }],
+  })
+  const long: VisualTier = {
+    ...standard,
+    label: 'long_context',
+    conditions: [],
+    input_unit_cost: standard.input_unit_cost * 2,
+    output_unit_cost: standard.output_unit_cost * 2,
+  }
+  for (const { field } of BILLING_CACHE_VAR_MAP) {
+    long[field] = Number(standard[field] ?? 0) * 2
+  }
+  return { tiers: [standard, long] }
+}
+
 export function normalizeVisualConfig(
   config: VisualConfig | null | undefined
 ): VisualConfig {

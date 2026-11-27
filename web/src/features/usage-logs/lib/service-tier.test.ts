@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  getModelPriceMultiplier,
   getFastModeLabel,
   getServiceTierBillingMultiplier,
   getServiceTierLabel,
@@ -23,4 +24,17 @@ test('log prices use the recorded multiplier ahead of tier defaults', () => {
   )
   assert.equal(getServiceTierBillingMultiplier({ service_tier: 'fast' }), 2)
   assert.equal(getServiceTierLabel({ service_tier: 'priority' }), 'fast')
+})
+
+test('model prices use the recorded subscription and service tier multipliers once', () => {
+  assert.equal(getModelPriceMultiplier(null), 1)
+  assert.equal(getModelPriceMultiplier({ subscription_model_ratio: 1.2 }), 1.2)
+  assert.equal(
+    getModelPriceMultiplier({
+      subscription_model_ratio: 1.2,
+      service_tier_multiplier: 2.5,
+    }),
+    3
+  )
+  assert.equal(getModelPriceMultiplier({ subscription_model_ratio: 0 }), 0)
 })

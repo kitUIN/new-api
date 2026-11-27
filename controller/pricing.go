@@ -23,6 +23,12 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 		groups := make([]string, 0, len(item.EnableGroup))
 		for _, group := range item.EnableGroup {
 			if _, ok := usableGroup[group]; ok || group == "all" {
+				if ratio := ratio_setting.SubscriptionModelRatio(group, item.ModelName); ratio != nil {
+					if item.SubscriptionModelRatios == nil {
+						item.SubscriptionModelRatios = make(map[string]float64)
+					}
+					item.SubscriptionModelRatios[group] = *ratio
+				}
 				groups = append(groups, group)
 			}
 		}

@@ -64,6 +64,7 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import { getGroupPriceMultiplier } from '../lib/group-price'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
@@ -702,7 +703,7 @@ function GroupPricingSection(props: {
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <div className='space-y-3'>
           {availableGroups.map((group) => {
-            const ratio = props.groupRatio[group] || 1
+            const ratio = props.groupRatio[group] ?? 1
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
@@ -731,7 +732,11 @@ function GroupPricingSection(props: {
                           showRechargePrice,
                           priceRate: props.priceRate,
                           usdExchangeRate: props.usdExchangeRate,
-                          groupRatioMultiplier: ratio,
+                          groupRatioMultiplier: getGroupPriceMultiplier(
+                            props.model,
+                            group,
+                            ratio
+                          ),
                         })
                         const entryMap = new Map(
                           entries.map((entry) => [entry.field, entry])
@@ -806,7 +811,7 @@ function GroupPricingSection(props: {
           </TableHeader>
           <TableBody>
             {availableGroups.map((group) => {
-              const ratio = props.groupRatio[group] || 1
+              const ratio = props.groupRatio[group] ?? 1
               return (
                 <TableRow key={group}>
                   <TableCell className='py-2.5'>

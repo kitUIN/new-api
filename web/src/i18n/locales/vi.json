@@ -1,5 +1,10 @@
 {
   "translation": {
+    "pricing.longContextDouble": "Nhân đôi đơn giá cho ngữ cảnh dài",
+    "subscriptionModelRatio.title": "Hệ số thuê bao nguyên giá",
+    "subscriptionModelRatio.help": "Chọn các mô hình trong nhóm này và đặt hệ số đơn giá cho từng mô hình. Các mô hình khác dùng hệ số 1,0x.",
+    "subscriptionModelRatio.invalid": "Nhập tên chính xác của từng mô hình và một hệ số không âm.",
+    "subscriptionModelRatio.applied": "Đơn giá mô hình đã bao gồm hệ số tiêu hao {{ratio}}x của tài khoản thuê bao nguyên giá.",
     "允许负余额": "Cho phép số dư âm",
     "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "Người dùng có thể tiếp tục sử dụng khi số dư ví không đủ. Phí được tính theo mức sử dụng thực tế.",
     "usageLogs.inProgress": "Đang xử lý",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -43,7 +44,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
-	appendTimedGroupRatio(other, info.PriceData.GroupRatioInfo.TimedRatio)
+	appendGroupPricingSnapshot(other, info.PriceData.GroupRatioInfo.TimedRatio, info.PriceData.GroupRatioInfo.SubscriptionModelRatio)
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
@@ -126,7 +127,7 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			other["model_ratio"] = bc.ModelRatio
 		}
 		other["group_ratio"] = bc.GroupRatio
-		appendTimedGroupRatio(other, bc.TimedRatio)
+		appendGroupPricingSnapshot(other, bc.TimedRatio, bc.SubscriptionModelRatio)
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
@@ -256,43 +257,37 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	modelName := taskModelName(task)
 
-	// 获取模型价格和倍率
-	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
-	if !hasRatioSetting || modelRatio <= 0 {
-		return
-	}
-
-	// 获取用户和组的倍率信息
-	group := task.Group
-	if group == "" {
-		user, err := model.GetUserById(task.UserId, false)
-		if err == nil {
+	// Use submission-time prices for queued tasks; older records may lack a snapshot.
+	bc := task.PrivateData.BillingContext
+	var modelRatio, finalGroupRatio float64
+	if bc != nil {
+		modelRatio = bc.ModelRatio
+		finalGroupRatio = bc.GroupRatio
+	} else {
+		group := task.Group
+		if group == "" {
+			user, err := model.GetUserById(task.UserId, false)
+			if err != nil || user.Group == "" {
+				return
+			}
 			group = user.Group
 		}
+		finalGroupRatio = ratio_setting.ResolveGroupRatioAt(group, group, time.Now()).GroupRatio
 	}
-	if group == "" {
-		return
+	if modelRatio <= 0 {
+		var ok bool
+		modelRatio, ok, _ = ratio_setting.GetModelRatio(modelName)
+		if !ok || modelRatio <= 0 {
+			return
+		}
 	}
-
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
-	} else {
-		finalGroupRatio = groupRatio
-	}
-
-	// Retain the submitted price even if a timed rule has since expired.
-	if bc := task.PrivateData.BillingContext; bc != nil {
-		finalGroupRatio = bc.GroupRatio
+	if bc != nil && bc.SubscriptionModelRatio != nil {
+		modelRatio *= *bc.SubscriptionModelRatio
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）
 	otherMultiplier := 1.0
-	if bc := task.PrivateData.BillingContext; bc != nil {
+	if bc != nil {
 		for _, r := range bc.OtherRatios {
 			if r != 1.0 && r > 0 {
 				otherMultiplier *= r

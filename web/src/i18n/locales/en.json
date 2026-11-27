@@ -1,5 +1,10 @@
 {
   "translation": {
+    "pricing.longContextDouble": "Double long-context prices",
+    "subscriptionModelRatio.title": "Full-price subscription multiplier",
+    "subscriptionModelRatio.help": "Select models in this group and set a unit price multiplier for each. Other models use 1.0x.",
+    "subscriptionModelRatio.invalid": "Specify exact model names and a nonnegative multiplier for each.",
+    "subscriptionModelRatio.applied": "The model unit price includes the {{ratio}}x multiplier for full-price subscription accounts.",
     "允许负余额": "Allow negative balance",
     "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "Allow this user to keep spending when their wallet balance is insufficient. Charges are based on actual usage.",
     "usageLogs.inProgress": "In progress",

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
-import { getDisplayGroupRatio } from './group-price'
+import { getDisplayGroupRatio, getGroupPriceMultiplier } from './group-price'
 
 // ----------------------------------------------------------------------------
 // Price Calculation Utilities
@@ -188,7 +188,7 @@ export function formatGroupPrice(
     return '-'
   }
 
-  const ratio = groupRatio[group] || 1
+  const ratio = getGroupPriceMultiplier(model, group, groupRatio[group] ?? 1)
   let priceInUSD = calculateTokenPrice(model, type, ratio)
 
   priceInUSD = applyRechargeRate(
@@ -221,7 +221,7 @@ export function formatFixedPrice(
     return '-'
   }
 
-  const ratio = groupRatio[group] || 1
+  const ratio = getGroupPriceMultiplier(model, group, groupRatio[group] ?? 1)
   let priceInUSD = (model.model_price || 0) * ratio
 
   priceInUSD = applyRechargeRate(

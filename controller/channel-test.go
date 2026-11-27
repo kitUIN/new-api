@@ -695,7 +695,7 @@ func calculateChannelTestQuota(usage *dto.Usage, priceData types.PriceData) int 
 	if usage == nil {
 		return 0
 	}
-	groupRatio := priceData.GroupRatioInfo.GroupRatio
+	groupRatio := priceData.GroupRatioInfo.GroupRatio * priceData.GroupRatioInfo.ModelMultiplier()
 	if !priceData.UsePrice {
 		quota := usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
 		ratio := priceData.ModelRatio * groupRatio

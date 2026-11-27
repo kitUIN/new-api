@@ -94,6 +94,10 @@ func TestRefreshPricingForSelectedGroupReevaluatesTieredExpr(t *testing.T) {
 	})
 
 	modelName := "tiered-group-switch-test-model"
+	modelRatios := ratio_setting.GetGroupRatioSetting().SubscriptionModelRatios
+	original := modelRatios.MarshalJSONString()
+	t.Cleanup(func() { require.NoError(t, common.UnmarshalJsonStr(original, modelRatios)) })
+	modelRatios.Set("premium", map[string]float64{modelName: 1.2})
 	expr := `group == "premium" ? tier("premium", p * 2) : tier("combo", p)`
 	updateBillingSettingForTest(t, map[string]string{
 		modelName: billing_setting.BillingModeTieredExpr,
@@ -125,12 +129,13 @@ func TestRefreshPricingForSelectedGroupReevaluatesTieredExpr(t *testing.T) {
 	require.Equal(t, 3.0, info.TieredBillingSnapshot.GroupRatio)
 
 	require.NoError(t, RefreshPricingForSelectedGroup(ctx, info, "premium"))
-	expectedBeforeGroup := float64(promptTokens*2) / 1_000_000 * info.TieredBillingSnapshot.QuotaPerUnit
+	expectedBeforeGroup := float64(promptTokens*2) / 1_000_000 * info.TieredBillingSnapshot.QuotaPerUnit * 1.2
 	require.Equal(t, "premium", info.UsingGroup)
 	require.Equal(t, "premium", info.BillingRequestInput.Group)
 	require.Equal(t, "premium", info.TieredBillingSnapshot.Group)
 	require.Equal(t, "premium", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, 0.5, info.TieredBillingSnapshot.GroupRatio)
+	require.Equal(t, 1.2, info.PriceData.GroupRatioInfo.ModelMultiplier())
 	require.Equal(t, 0.5, info.PriceData.GroupRatioInfo.GroupRatio)
 	require.InDelta(t, expectedBeforeGroup, info.TieredBillingSnapshot.EstimatedQuotaBeforeGroup, 0.000001)
 	require.Equal(t, billingexpr.QuotaRound(expectedBeforeGroup*0.5), info.TieredBillingSnapshot.EstimatedQuotaAfterGroup)

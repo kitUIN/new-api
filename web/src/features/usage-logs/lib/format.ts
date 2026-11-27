@@ -117,6 +117,13 @@ export function getServiceTierBillingMultiplier(
   return tier === 'fast' || tier === 'priority' ? 2 : 1
 }
 
+export function getModelPriceMultiplier(other: LogOtherData | null): number {
+  return (
+    getServiceTierBillingMultiplier(other) *
+    (other?.subscription_model_ratio ?? 1)
+  )
+}
+
 export function getServiceTierLabel(
   other: LogOtherData | null
 ): 'fast' | 'ultrafast' | 'default' | null {

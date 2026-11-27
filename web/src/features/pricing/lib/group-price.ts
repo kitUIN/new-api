@@ -19,6 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { FILTER_ALL } from '../constants'
 import type { PricingModel } from '../types'
 
+export function getGroupPriceMultiplier(
+  model: PricingModel,
+  group: string,
+  groupRatio: number
+): number {
+  return groupRatio * (model.subscription_model_ratios?.[group] ?? 1)
+}
+
 export function getDisplayGroupRatio(
   model: PricingModel,
   selectedGroup?: string
@@ -31,14 +39,23 @@ export function getDisplayGroupRatio(
     selectedGroup !== FILTER_ALL &&
     groups.includes(selectedGroup)
   ) {
-    return ratios[selectedGroup] ?? 1
+    return getGroupPriceMultiplier(
+      model,
+      selectedGroup,
+      ratios[selectedGroup] ?? 1
+    )
   }
 
   let minRatio = Number.POSITIVE_INFINITY
   for (const group of groups) {
-    const ratio = ratios[group]
-    if (ratio !== undefined && ratio < minRatio) {
-      minRatio = ratio
+    if (
+      ratios[group] !== undefined ||
+      model.subscription_model_ratios?.[group] !== undefined
+    ) {
+      minRatio = Math.min(
+        minRatio,
+        getGroupPriceMultiplier(model, group, ratios[group] ?? 1)
+      )
     }
   }
 

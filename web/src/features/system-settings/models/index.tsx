@@ -62,6 +62,7 @@ const defaultModelSettings: ModelSettings = {
   GroupTypes: '{}',
   'group_ratio_setting.group_drawing_resolutions': '{}',
   'group_ratio_setting.group_opening_hours': '{}',
+  'group_ratio_setting.subscription_model_ratios': '{}',
   'group_ratio_setting.group_timed_ratios': '{}',
   'group_ratio_setting.group_combinations': '{}',
   AutoGroups: '',

@@ -22,6 +22,8 @@ func TestTaskTimedRatioSnapshotSurvivesExpiry(t *testing.T) {
 	task := makeTask(userID, 0, 5000, 0, BillingSourceWallet, 0)
 	bc := task.PrivateData.BillingContext
 	bc.OriginModelName = "gpt-4"
+	ratio := 1.2
+	bc.SubscriptionModelRatio = &ratio
 	bc.GroupRatio = 0.25
 	bc.TimedRatio = &types.GroupTimedRatioSnapshot{
 		OriginalRatio: 2, Ratio: 0.25, Start: time.Now().Add(-2 * time.Hour).Unix(), End: time.Now().Add(-time.Hour).Unix(), Remark: "expired promotion",
@@ -32,7 +34,7 @@ func TestTaskTimedRatioSnapshotSurvivesExpiry(t *testing.T) {
 	require.NoError(t, common.Unmarshal(encoded, &task.PrivateData))
 	modelRatio, exists, _ := ratio_setting.GetModelRatio("gpt-4")
 	require.True(t, exists)
-	expected := int(100 * modelRatio * 0.25)
+	expected := int(100 * modelRatio * 0.25 * ratio)
 	RecalculateTaskQuotaByTokens(context.Background(), task, 100)
 	require.Equal(t, expected, task.Quota)
 	require.Equal(t, 10000+5000-expected, getUserQuota(t, userID))
@@ -42,8 +44,10 @@ func TestTaskTimedRatioSnapshotSurvivesExpiry(t *testing.T) {
 	var record model.Log
 	require.NoError(t, model.LOG_DB.Where("user_id = ?", userID).First(&record).Error)
 	var logged struct {
-		TimedRatio *types.GroupTimedRatioSnapshot `json:"timed_group_ratio"`
+		SubscriptionRatio float64                        `json:"subscription_model_ratio"`
+		TimedRatio        *types.GroupTimedRatioSnapshot `json:"timed_group_ratio"`
 	}
 	require.NoError(t, common.UnmarshalJsonStr(record.Other, &logged))
+	require.Equal(t, ratio, logged.SubscriptionRatio)
 	require.Equal(t, bc.TimedRatio, logged.TimedRatio)
 }

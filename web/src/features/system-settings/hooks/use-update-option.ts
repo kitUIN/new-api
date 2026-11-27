@@ -53,6 +53,10 @@ export function useUpdateOption() {
         // Always refresh system-options
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
+        if (variables.key === 'group_ratio_setting.subscription_model_ratios') {
+          queryClient.invalidateQueries({ queryKey: ['pricing'] })
+        }
+
         if (variables.key === 'RuleAutoGroupsEnabled') {
           queryClient.invalidateQueries({ queryKey: ['user-groups'] })
         }

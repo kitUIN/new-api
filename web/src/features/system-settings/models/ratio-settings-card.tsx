@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { groupOpeningHoursSchema } from '@/features/system-settings/models/group-opening-hours'
+import { subscriptionModelRatiosSchema } from '@/features/system-settings/models/subscription-model-ratios'
 import { groupTimedRatiosSchema } from '@/features/system-settings/models/group-timed-ratios'
 import { resetModelRatios } from '../api'
 import { SettingsSection } from '../components/settings-section'
@@ -183,6 +184,7 @@ const groupSchema = z.object({
   }),
   GroupDrawingResolutions: groupDrawingResolutionsSchema,
   GroupOpeningHours: groupOpeningHoursSchema,
+  SubscriptionModelRatios: subscriptionModelRatiosSchema,
   GroupTimedRatios: groupTimedRatiosSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
@@ -360,6 +362,9 @@ export function RatioSettingsCard({
       groupDefaults.GroupDrawingResolutions
     ),
     GroupOpeningHours: normalizeJsonString(groupDefaults.GroupOpeningHours),
+    SubscriptionModelRatios: normalizeJsonString(
+      groupDefaults.SubscriptionModelRatios
+    ),
     GroupTimedRatios: normalizeJsonString(groupDefaults.GroupTimedRatios),
     GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
@@ -408,6 +413,9 @@ export function RatioSettingsCard({
         groupDefaults.GroupDrawingResolutions
       ),
       GroupOpeningHours: formatJsonForTextarea(groupDefaults.GroupOpeningHours),
+      SubscriptionModelRatios: formatJsonForTextarea(
+        groupDefaults.SubscriptionModelRatios
+      ),
       GroupTimedRatios: formatJsonForTextarea(groupDefaults.GroupTimedRatios),
       GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
@@ -465,6 +473,9 @@ export function RatioSettingsCard({
         groupDefaults.GroupDrawingResolutions
       ),
       GroupOpeningHours: normalizeJsonString(groupDefaults.GroupOpeningHours),
+      SubscriptionModelRatios: normalizeJsonString(
+        groupDefaults.SubscriptionModelRatios
+      ),
       GroupTimedRatios: normalizeJsonString(groupDefaults.GroupTimedRatios),
       GroupCombinations: normalizeJsonString(groupDefaults.GroupCombinations),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
@@ -490,6 +501,9 @@ export function RatioSettingsCard({
         groupDefaults.GroupDrawingResolutions
       ),
       GroupOpeningHours: formatJsonForTextarea(groupDefaults.GroupOpeningHours),
+      SubscriptionModelRatios: formatJsonForTextarea(
+        groupDefaults.SubscriptionModelRatios
+      ),
       GroupTimedRatios: formatJsonForTextarea(groupDefaults.GroupTimedRatios),
       GroupCombinations: formatJsonForTextarea(groupDefaults.GroupCombinations),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
@@ -565,6 +579,9 @@ export function RatioSettingsCard({
           values.GroupDrawingResolutions
         ),
         GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
+        SubscriptionModelRatios: normalizeJsonString(
+          values.SubscriptionModelRatios
+        ),
         GroupTimedRatios: normalizeJsonString(values.GroupTimedRatios),
         GroupCombinations: normalizeJsonString(values.GroupCombinations),
         AutoGroups: normalizeJsonString(values.AutoGroups),
@@ -586,6 +603,8 @@ export function RatioSettingsCard({
         GroupDrawingResolutions:
           'group_ratio_setting.group_drawing_resolutions',
         GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
+        SubscriptionModelRatios:
+          'group_ratio_setting.subscription_model_ratios',
         GroupTimedRatios: 'group_ratio_setting.group_timed_ratios',
         GroupCombinations: 'group_ratio_setting.group_combinations',
       }

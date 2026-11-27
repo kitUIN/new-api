@@ -921,6 +921,29 @@ export function ModelPricingEditorPanel({
                   className='flex flex-col gap-5'
                 >
                   <TieredPricingEditor
+                    tokenPrices={
+                      promptPrice === ''
+                        ? undefined
+                        : {
+                            input_unit_cost: Number(promptPrice),
+                            output_unit_cost: Number(
+                              lanePrices.completion || promptPrice
+                            ),
+                            cache_read_unit_cost: Number(lanePrices.cache),
+                            cache_create_unit_cost: Number(
+                              lanePrices.createCache
+                            ),
+                            cache_create_1h_unit_cost:
+                              Number(lanePrices.createCache) * 1.6,
+                            image_unit_cost: Number(lanePrices.image),
+                            audio_input_unit_cost: Number(
+                              lanePrices.audioInput
+                            ),
+                            audio_output_unit_cost: Number(
+                              lanePrices.audioOutput
+                            ),
+                          }
+                    }
                     modelName={watchedValues.name}
                     billingExpr={billingExpr}
                     requestRuleExpr={requestRuleExpr}

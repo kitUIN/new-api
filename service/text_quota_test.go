@@ -452,10 +452,12 @@ func TestApplyTieredTextQuotaAppliesFastMultiplierOnceBeforeToolSurcharge(t *tes
 		TotalTokens:  1000,
 	}
 
+	subscriptionRatio := 1.2
+	relayInfo.PriceData.GroupRatioInfo.SubscriptionModelRatio = &subscriptionRatio
 	result := applyTieredTextQuota(relayInfo, &summary, usage)
 	require.NotNil(t, result)
 
-	expectedBeforeGroup := float64(usage.PromptTokens) / 1_000_000 * common.QuotaPerUnit * relaycommon.OpenAIFastModeBillingMultiplier
+	expectedBeforeGroup := float64(usage.PromptTokens) / 1_000_000 * common.QuotaPerUnit * relaycommon.OpenAIFastModeBillingMultiplier * subscriptionRatio
 	expectedTokenQuota := billingexpr.QuotaRound(expectedBeforeGroup)
 	toolSurcharge := calculateTieredToolSurchargeQuota(summary)
 	require.Greater(t, toolSurcharge, 0)
@@ -542,4 +544,29 @@ func TestApplyTieredTextQuotaIncludesConfiguredCustomToolCalls(t *testing.T) {
 	expectedTokenQuota := billingexpr.QuotaRound(float64(usage.PromptTokens) / 1_000_000 * common.QuotaPerUnit)
 	expectedToolQuota := int(4.0 / 1000 * common.QuotaPerUnit)
 	require.Equal(t, expectedTokenQuota+expectedToolQuota, summary.Quota)
+}
+
+func TestSubscriptionModelRatioScalesModelCost(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	usage := &dto.Usage{PromptTokens: 100, CompletionTokens: 10}
+	ratio := 1.2
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "test-model",
+		ChannelMeta:     &relaycommon.ChannelMeta{},
+		PriceData: types.PriceData{
+			ModelRatio: 2, CompletionRatio: 5, ModelPrice: -1,
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.5, SubscriptionModelRatio: &ratio},
+		},
+	}
+	require.Equal(t, 180, calculateTextQuotaSummary(ctx, info, usage).Quota)
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.02
+	require.Equal(t, int(common.QuotaPerUnit*0.02*0.5*ratio), calculateTextQuotaSummary(ctx, info, usage).Quota)
+	other := GenerateTextOtherInfo(ctx, info, 2, 0.5, 5, 0, 0, 0.02, -1)
+	require.Equal(t, 1.2, other["subscription_model_ratio"])
+	require.Equal(t, 0.5, other["group_ratio"])
+	info.PriceData.GroupRatioInfo.SubscriptionModelRatio = nil
+	other = GenerateTextOtherInfo(ctx, info, 2, 0.5, 5, 0, 0, 0.02, -1)
+	require.NotContains(t, other, "subscription_model_ratio")
 }

@@ -54,6 +54,7 @@ import {
   parseAuditLine,
   decodeBillingExprB64,
   getTieredBillingSummary,
+  getModelPriceMultiplier,
   getServiceTierBillingMultiplier,
   getServiceTierLabel,
   hasAnyCacheTokens,
@@ -152,7 +153,7 @@ function BillingBreakdown(props: {
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
-  const billingMultiplier = getServiceTierBillingMultiplier(other)
+  const billingMultiplier = getModelPriceMultiplier(other)
   const serviceTier = getServiceTierLabel(other)
 
   const rows: Array<{ label: string; value: React.ReactNode }> = []
@@ -216,7 +217,17 @@ function BillingBreakdown(props: {
     })
     rows.push({
       label: t('Service Tier Multiplier'),
-      value: `${billingMultiplier}x`,
+      value: `${getServiceTierBillingMultiplier(other)}x`,
+    })
+  }
+
+  if (
+    other.subscription_model_ratio != null &&
+    other.subscription_model_ratio !== 1
+  ) {
+    rows.push({
+      label: t('subscriptionModelRatio.title'),
+      value: `${other.subscription_model_ratio}x`,
     })
   }
 
@@ -1045,7 +1056,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   billingExpr={decodeBillingExprB64(other.expr_b64)}
                   matchedTierLabel={other.matched_tier}
                   hideCacheColumns={!hasAnyCacheTokens(other)}
-                  priceMultiplier={getServiceTierBillingMultiplier(other)}
+                  priceMultiplier={getModelPriceMultiplier(other)}
                 />
               </div>
             )}

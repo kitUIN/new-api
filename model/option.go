@@ -302,6 +302,10 @@ func UpdateOption(key string, value string) error {
 		if err := ratio_setting.CheckGroupOpeningHours(value); err != nil {
 			return err
 		}
+	case "group_ratio_setting.subscription_model_ratios":
+		if err := ratio_setting.CheckSubscriptionModelRatios(value); err != nil {
+			return err
+		}
 	case "group_ratio_setting.group_timed_ratios":
 		if err := ratio_setting.CheckGroupTimedRatios(value); err != nil {
 			return err

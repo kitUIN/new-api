@@ -65,6 +65,7 @@ import {
   getResponseTimeColor,
   getTieredBillingSummary,
   getFastModeLabel,
+  getModelPriceMultiplier,
   getServiceTierBillingMultiplier,
   getServiceTierLabel,
   hasAnyCacheTokens,
@@ -312,7 +313,6 @@ interface CostDetail {
   billedQuota: number
   groupRatio: number
   serviceTier: string
-  billingMultiplier: number
   billingMode?: string
   matchedTier?: string
   crossedTier?: boolean
@@ -346,7 +346,7 @@ function buildCostDetail(
   )
   const billedQuota = toPositiveNumber(log.quota)
   const serviceTier = getServiceTierLabel(other) || ''
-  const billingMultiplier = getServiceTierBillingMultiplier(other)
+  const billingMultiplier = getModelPriceMultiplier(other)
 
   if (other?.billing_mode === 'tiered_expr') {
     const tieredSummary = getTieredBillingSummary(other)
@@ -499,7 +499,6 @@ function buildCostDetail(
         calculatedOriginalAmount,
       billedQuota,
       serviceTier,
-      billingMultiplier,
     }
   }
 
@@ -510,7 +509,6 @@ function buildCostDetail(
       originalAmount: modelPrice * billingMultiplier,
       billedQuota,
       serviceTier,
-      billingMultiplier,
     }
   }
 
@@ -520,7 +518,6 @@ function buildCostDetail(
       groupRatio,
       billedQuota,
       serviceTier,
-      billingMultiplier,
     }
   }
 
@@ -573,7 +570,6 @@ function buildCostDetail(
     originalAmount,
     billedQuota,
     serviceTier,
-    billingMultiplier,
   }
 }
 
@@ -641,7 +637,7 @@ export function buildDetailSegments(
   }
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
-  const billingMultiplier = getServiceTierBillingMultiplier(other)
+  const billingMultiplier = getModelPriceMultiplier(other)
   const serviceTier = getServiceTierLabel(other)
   let acceleratedTierLabel: string | undefined
   if (serviceTier === 'ultrafast') acceleratedTierLabel = t('Ultrafast')
@@ -1229,6 +1225,8 @@ function createCommonLogsColumns(
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
+        const other = parseLogOther(log.other)
+        const subscriptionRatio = other?.subscription_model_ratio ?? 1
         const modelInfo = formatModelName(log)
 
         return (
@@ -1237,7 +1235,29 @@ function createCommonLogsColumns(
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
             />
-            {renderFastModeIcon(parseLogOther(log.other), t)}
+            {subscriptionRatio !== 1 && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type='button'
+                      className='text-muted-foreground shrink-0 font-mono text-xs'
+                    />
+                  }
+                  aria-label={t('subscriptionModelRatio.applied', {
+                    ratio: subscriptionRatio,
+                  })}
+                >
+                  {subscriptionRatio}x
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t('subscriptionModelRatio.applied', {
+                    ratio: subscriptionRatio,
+                  })}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {renderFastModeIcon(other, t)}
           </div>
         )
       },
@@ -1592,6 +1612,7 @@ function createCommonLogsColumns(
           return <span className='text-muted-foreground text-xs'>—</span>
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
+        const subscriptionRatio = other?.subscription_model_ratio ?? 1
         const costDetail = buildCostDetail(log, other)
         const tierIcon = renderFastModeIcon(other, t)
 
@@ -1736,9 +1757,17 @@ function createCommonLogsColumns(
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
                   <span>{t('Service Tier Multiplier')}</span>
                   <span className={DETAIL_TOOLTIP_VALUE_CLASS}>
-                    {formatRatioCompact(costDetail.billingMultiplier)}x
+                    {formatRatioCompact(getServiceTierBillingMultiplier(other))}
+                    x
                   </span>
                 </div>
+              )}
+              {subscriptionRatio !== 1 && (
+                <p className={DETAIL_TOOLTIP_BORDER_ROW_CLASS}>
+                  {t('subscriptionModelRatio.applied', {
+                    ratio: subscriptionRatio,
+                  })}
+                </p>
               )}
               {costDetail.crossedTier === true && (
                 <div className={DETAIL_TOOLTIP_ROW_CLASS}>
@@ -1756,7 +1785,7 @@ function createCommonLogsColumns(
               )}
               <div
                 className={
-                  costDetail.serviceTier || costDetail.billingMultiplier > 1
+                  costDetail.serviceTier || subscriptionRatio !== 1
                     ? DETAIL_TOOLTIP_ROW_CLASS
                     : DETAIL_TOOLTIP_BORDER_ROW_CLASS
                 }

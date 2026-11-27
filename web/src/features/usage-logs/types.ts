@@ -195,6 +195,7 @@ export interface LogOtherData {
   user_group_ratio?: number
   service_tier?: string
   tier?: string
+  subscription_model_ratio?: number
   service_tier_multiplier?: number
   cache_ratio?: number
   cache_creation_ratio?: number

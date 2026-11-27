@@ -186,7 +186,7 @@ func applyTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary *textQuotaSu
 	}
 
 	if tieredResult != nil {
-		tieredResult.ActualQuotaBeforeGroup *= relayInfo.GetServiceTierBillingMultiplier()
+		tieredResult.ActualQuotaBeforeGroup *= relayInfo.PriceData.GroupRatioInfo.ModelMultiplier() * relayInfo.GetServiceTierBillingMultiplier()
 		tieredResult.ActualQuotaAfterGroup = billingexpr.QuotaRound(
 			tieredResult.ActualQuotaBeforeGroup * relayInfo.TieredBillingSnapshot.GroupRatio,
 		)
@@ -270,9 +270,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	dCompletionRatio := decimal.NewFromFloat(summary.CompletionRatio)
 	dCacheRatio := decimal.NewFromFloat(summary.CacheRatio)
 	dImageRatio := decimal.NewFromFloat(summary.ImageRatio)
-	dModelRatio := decimal.NewFromFloat(summary.ModelRatio)
+	modelMultiplier := decimal.NewFromFloat(relayInfo.PriceData.GroupRatioInfo.ModelMultiplier())
+	dModelRatio := decimal.NewFromFloat(summary.ModelRatio).Mul(modelMultiplier)
 	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
-	dModelPrice := decimal.NewFromFloat(summary.ModelPrice)
+	dModelPrice := decimal.NewFromFloat(summary.ModelPrice).Mul(modelMultiplier)
 	dCacheCreationRatio := decimal.NewFromFloat(summary.CacheCreationRatio)
 	dCacheCreationRatio5m := decimal.NewFromFloat(summary.CacheCreationRatio5m)
 	dCacheCreationRatio1h := decimal.NewFromFloat(summary.CacheCreationRatio1h)
@@ -370,7 +371,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		}
 
 		if !dAudioTokens.IsZero() {
-			summary.AudioInputPrice = operation_setting.GetGeminiInputAudioPricePerMillionTokens(summary.ModelName)
+			summary.AudioInputPrice = operation_setting.GetGeminiInputAudioPricePerMillionTokens(summary.ModelName) * relayInfo.PriceData.GroupRatioInfo.ModelMultiplier()
 			if summary.AudioInputPrice > 0 {
 				baseTokens = baseTokens.Sub(dAudioTokens)
 				audioInputQuota = decimal.NewFromFloat(summary.AudioInputPrice).

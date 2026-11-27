@@ -50,6 +50,7 @@ export type PricingModel = {
   tags?: string
   supported_endpoint_types?: string[]
   key?: string
+  subscription_model_ratios?: Record<string, number>
   group_ratio?: Record<string, number>
   /** Billing mode (e.g. "tiered_expr") used to flag dynamic pricing */
   billing_mode?: string

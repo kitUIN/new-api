@@ -1,5 +1,10 @@
 {
   "translation": {
+    "pricing.longContextDouble": "Doubler le tarif des contextes longs",
+    "subscriptionModelRatio.title": "Multiplicateur d’abonnement plein tarif",
+    "subscriptionModelRatio.help": "Sélectionnez les modèles de ce groupe et fixez un multiplicateur de prix unitaire pour chacun. Les autres modèles restent à 1,0x.",
+    "subscriptionModelRatio.invalid": "Indiquez le nom exact de chaque modèle et un multiplicateur positif ou nul.",
+    "subscriptionModelRatio.applied": "Le prix unitaire du modèle inclut le multiplicateur de {{ratio}}x des abonnements plein tarif.",
     "允许负余额": "Autoriser un solde négatif",
     "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "Permet à cet utilisateur de continuer à utiliser le service même si le solde de son portefeuille est insuffisant. Les frais sont calculés selon la consommation réelle.",
     "usageLogs.inProgress": "En cours",

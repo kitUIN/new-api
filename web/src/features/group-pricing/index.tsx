@@ -33,6 +33,7 @@ import { useUpdateOption } from '@/features/system-settings/hooks/use-update-opt
 import { groupDrawingResolutionsSchema } from '@/features/system-settings/models/group-drawing-resolutions'
 import { groupOpeningHoursSchema } from '@/features/system-settings/models/group-opening-hours'
 import { GroupRatioForm } from '@/features/system-settings/models/group-ratio-form'
+import { subscriptionModelRatiosSchema } from '@/features/system-settings/models/subscription-model-ratios'
 import { groupTimedRatiosSchema } from '@/features/system-settings/models/group-timed-ratios'
 import {
   normalizeJsonString,
@@ -87,6 +88,7 @@ const groupSchema = z.object({
   }),
   GroupDrawingResolutions: groupDrawingResolutionsSchema,
   GroupOpeningHours: groupOpeningHoursSchema,
+  SubscriptionModelRatios: subscriptionModelRatiosSchema,
   GroupTimedRatios: groupTimedRatiosSchema,
   GroupCombinations: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
@@ -189,6 +191,9 @@ export function GroupPricingPage() {
     GroupOpeningHours: normalizeJsonString(
       getValue('group_ratio_setting.group_opening_hours', '{}')
     ),
+    SubscriptionModelRatios: normalizeJsonString(
+      getValue('group_ratio_setting.subscription_model_ratios', '{}')
+    ),
     GroupTimedRatios: normalizeJsonString(
       getValue('group_ratio_setting.group_timed_ratios', '{}')
     ),
@@ -226,6 +231,9 @@ export function GroupPricingPage() {
         ),
         GroupOpeningHours: normalizeJsonString(
           getValue('group_ratio_setting.group_opening_hours', '{}')
+        ),
+        SubscriptionModelRatios: normalizeJsonString(
+          getValue('group_ratio_setting.subscription_model_ratios', '{}')
         ),
         GroupTimedRatios: normalizeJsonString(
           getValue('group_ratio_setting.group_timed_ratios', '{}')
@@ -274,6 +282,9 @@ export function GroupPricingPage() {
             values.GroupDrawingResolutions
           ),
           GroupOpeningHours: normalizeJsonString(values.GroupOpeningHours),
+          SubscriptionModelRatios: normalizeJsonString(
+            values.SubscriptionModelRatios
+          ),
           GroupTimedRatios: normalizeJsonString(values.GroupTimedRatios),
           GroupCombinations: normalizeJsonString(values.GroupCombinations),
           AutoGroups: normalizeJsonString(values.AutoGroups),
@@ -294,6 +305,8 @@ export function GroupPricingPage() {
           GroupDrawingResolutions:
             'group_ratio_setting.group_drawing_resolutions',
           GroupOpeningHours: 'group_ratio_setting.group_opening_hours',
+          SubscriptionModelRatios:
+            'group_ratio_setting.subscription_model_ratios',
           GroupTimedRatios: 'group_ratio_setting.group_timed_ratios',
           GroupCombinations: 'group_ratio_setting.group_combinations',
         }

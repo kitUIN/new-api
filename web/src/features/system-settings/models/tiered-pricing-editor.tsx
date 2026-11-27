@@ -89,6 +89,7 @@ import {
   type TierConditionInput,
   type VisualConfig,
   type VisualTier,
+  createLongContextDoubleConfig,
   createDefaultVisualConfig,
   evalExprLocally,
   exprUsesExtraVars,
@@ -1363,10 +1364,14 @@ function RuleGroupCard({
 // ---------------------------------------------------------------------------
 
 type PresetSectionProps = {
+  applyLongContextTemplate: () => void
   applyPreset: (preset: Preset) => void
 }
 
-function PresetSection({ applyPreset }: PresetSectionProps) {
+function PresetSection({
+  applyPreset,
+  applyLongContextTemplate,
+}: PresetSectionProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? PRESET_GROUPS : PRESET_GROUPS.slice(0, 2)
@@ -1398,6 +1403,17 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
             <Badge variant='secondary' className='min-w-[60px] justify-center'>
               {t(presetGroup.group)}
             </Badge>
+            {presetGroup.group === 'Tiered' && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                className='h-7 text-xs'
+                onClick={applyLongContextTemplate}
+              >
+                {t('pricing.longContextDouble')}
+              </Button>
+            )}
             {presetGroup.presets.map((preset) => (
               <Button
                 key={preset.key}
@@ -1692,6 +1708,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 // ---------------------------------------------------------------------------
 
 export type TieredPricingEditorProps = {
+  tokenPrices?: Partial<VisualTier>
   modelName?: string
   billingExpr: string
   requestRuleExpr: string
@@ -1703,6 +1720,7 @@ export type TieredPricingEditorProps = {
 type EditorMode = 'visual' | 'raw'
 
 export const TieredPricingEditor = memo(function TieredPricingEditor({
+  tokenPrices,
   modelName,
   billingExpr: currentExpr,
   requestRuleExpr: currentRequestRuleExpr,
@@ -1837,6 +1855,24 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
     [onRequestRuleExprChange]
   )
 
+  const applyLongContextTemplate = () => {
+    const firstTier = tryParseVisualConfig(effectiveExpr)?.tiers[0]
+    const hasTierPrices =
+      firstTier &&
+      Object.entries(firstTier).some(
+        ([field, price]) => field.endsWith('_unit_cost') && Number(price) > 0
+      )
+    const base = hasTierPrices
+      ? firstTier
+      : (tokenPrices ?? { input_unit_cost: 1, output_unit_cost: 2 })
+    const config = createLongContextDoubleConfig(base)
+    const expr = generateExprFromVisualConfig(config)
+    setVisualConfig(config)
+    setRawExpr(combineBillingExpr(expr, currentRequestRuleExpr) || expr)
+    setRequestRuleGroups(tryParseRequestRuleExpr(currentRequestRuleExpr) ?? [])
+    setEditorMode(canUseVisualRules ? 'visual' : 'raw')
+  }
+
   const handleRuleGroupsChange = useCallback((next: RequestRuleGroup[]) => {
     setRequestRuleGroups(next)
   }, [])
@@ -1867,7 +1903,10 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
 
       <div className='flex flex-wrap items-start gap-x-4 gap-y-1'>
         <div className='flex-1'>
-          <PresetSection applyPreset={applyPreset} />
+          <PresetSection
+            applyPreset={applyPreset}
+            applyLongContextTemplate={applyLongContextTemplate}
+          />
         </div>
         {editorMode === 'raw' && <LlmPromptHelper modelName={modelName} />}
       </div>

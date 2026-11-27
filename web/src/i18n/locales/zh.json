@@ -1,5 +1,10 @@
 {
   "translation": {
+    "pricing.longContextDouble": "长上下文双倍",
+    "subscriptionModelRatio.title": "正价订阅倍率",
+    "subscriptionModelRatio.help": "选择此分组的模型，分别设置模型单价倍率。未选模型按 1.0x 计费。",
+    "subscriptionModelRatio.invalid": "请指定具体模型，并为每个模型填写非负数倍率。",
+    "subscriptionModelRatio.applied": "正价订阅号的模型消耗倍率为 {{ratio}}x，已计入模型单价。",
     "允许负余额": "允许负余额",
     "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。",
     "usageLogs.inProgress": "进行中",

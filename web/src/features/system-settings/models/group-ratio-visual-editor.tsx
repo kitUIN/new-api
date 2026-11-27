@@ -87,6 +87,7 @@ import {
 } from './group-combination-dialog'
 import { GroupDrawingResolutionsEditor } from './group-drawing-resolutions-editor'
 import { GroupOpeningHoursEditor } from './group-opening-hours-editor'
+import { SubscriptionModelRatiosEditor } from './subscription-model-ratios-editor'
 import { GroupTimedRatiosEditor } from './group-timed-ratios-editor'
 
 type GroupRatioVisualEditorProps = {
@@ -98,6 +99,8 @@ type GroupRatioVisualEditorProps = {
   groupCombinations: string
   autoGroups: string
   upstreamGroupRatioBindings: string
+  subscriptionModelRatios: string
+  subscriptionRatiosError?: string
   groupTimedRatios: string
   timedRatiosError?: string
   groupDrawingResolutions: string
@@ -393,6 +396,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   groupCombinations,
   autoGroups,
   upstreamGroupRatioBindings,
+  subscriptionModelRatios,
+  subscriptionRatiosError,
   groupTimedRatios,
   timedRatiosError,
   groupDrawingResolutions,
@@ -644,6 +649,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         groupTypes={groupTypes}
         groupCombinations={groupCombinations}
         upstreamGroupRatioBindings={upstreamGroupRatioBindings}
+        subscriptionModelRatios={subscriptionModelRatios}
+        subscriptionRatiosError={subscriptionRatiosError}
         groupTimedRatios={groupTimedRatios}
         timedRatiosError={timedRatiosError}
         groupDrawingResolutions={groupDrawingResolutions}
@@ -992,6 +999,8 @@ type GroupPricingTableProps = {
   groupTypes: string
   groupCombinations: string
   upstreamGroupRatioBindings: string
+  subscriptionModelRatios: string
+  subscriptionRatiosError?: string
   groupTimedRatios: string
   timedRatiosError?: string
   groupDrawingResolutions: string
@@ -1006,6 +1015,8 @@ function GroupPricingTable({
   groupTypes,
   groupCombinations,
   upstreamGroupRatioBindings,
+  subscriptionModelRatios,
+  subscriptionRatiosError,
   groupTimedRatios,
   timedRatiosError,
   groupDrawingResolutions,
@@ -1147,6 +1158,21 @@ function GroupPricingTable({
       if (field === 'name' && typeof value === 'string') {
         const previous = rows.find((row) => row._id === id)?.name.trim()
         const next = value.trim()
+        const ratios = safeJsonParse<Record<string, Record<string, number>>>(
+          subscriptionModelRatios,
+          { fallback: {} }
+        )
+        if (
+          previous &&
+          next &&
+          previous !== next &&
+          Object.hasOwn(ratios, previous) &&
+          !Object.hasOwn(ratios, next)
+        ) {
+          const renamed = { ...ratios, [next]: ratios[previous] }
+          delete renamed[previous]
+          onChange('SubscriptionModelRatios', JSON.stringify(renamed))
+        }
         const config = safeJsonParse<Record<string, string[]>>(
           groupDrawingResolutions,
           { fallback: {} }
@@ -1166,7 +1192,7 @@ function GroupPricingTable({
         rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
       )
     },
-    [emitRows, rows, groupDrawingResolutions, onChange]
+    [emitRows, rows, groupDrawingResolutions, subscriptionModelRatios, onChange]
   )
 
   const addRow = useCallback(() => {
@@ -1203,6 +1229,14 @@ function GroupPricingTable({
         removedRow &&
         !nextRows.some((row) => row.name.trim() === removedRow.name.trim())
       ) {
+        const ratios = safeJsonParse<Record<string, Record<string, number>>>(
+          subscriptionModelRatios,
+          { fallback: {} }
+        )
+        if (Object.hasOwn(ratios, removedRow.name.trim())) {
+          delete ratios[removedRow.name.trim()]
+          onChange('SubscriptionModelRatios', JSON.stringify(ratios))
+        }
         removeBinding(removedRow.name)
         const config = safeJsonParse<Record<string, string[]>>(
           groupDrawingResolutions,
@@ -1213,7 +1247,14 @@ function GroupPricingTable({
       }
       emitRows(nextRows)
     },
-    [emitRows, removeBinding, rows, groupDrawingResolutions, onChange]
+    [
+      emitRows,
+      removeBinding,
+      rows,
+      groupDrawingResolutions,
+      subscriptionModelRatios,
+      onChange,
+    ]
   )
 
   const duplicateNames = useMemo(() => {
@@ -1614,6 +1655,27 @@ function GroupPricingTable({
                           </Button>
                         )}
                       </div>
+                      {row.mode === 'standard' && row.type === 'billing' && (
+                        <SubscriptionModelRatiosEditor
+                          value={subscriptionModelRatios}
+                          group={groupName}
+                          models={Array.from(
+                            new Set(
+                              (channelBindings[groupName] ?? []).flatMap(
+                                (channel) => channel.models ?? []
+                              )
+                            )
+                          ).sort()}
+                          onChange={(value) =>
+                            onChange('SubscriptionModelRatios', value)
+                          }
+                        />
+                      )}
+                      {subscriptionRatiosError && (
+                        <p role='alert' className='text-destructive text-sm'>
+                          {t(subscriptionRatiosError)}
+                        </p>
+                      )}
                       <GroupTimedRatiosEditor
                         value={groupTimedRatios}
                         group={groupName}

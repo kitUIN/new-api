@@ -87,6 +87,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   GroupTypes: string
+  SubscriptionModelRatios: string
   GroupTimedRatios: string
   GroupDrawingResolutions: string
   GroupOpeningHours: string
@@ -196,6 +197,10 @@ export const GroupRatioForm = memo(function GroupRatioForm({
         {editMode === 'visual' ? (
           <div className='space-y-6'>
             <GroupRatioVisualEditor
+              subscriptionModelRatios={form.watch('SubscriptionModelRatios')}
+              subscriptionRatiosError={
+                form.formState.errors.SubscriptionModelRatios?.message
+              }
               groupTimedRatios={form.watch('GroupTimedRatios')}
               timedRatiosError={form.formState.errors.GroupTimedRatios?.message}
               groupDrawingResolutions={form.watch('GroupDrawingResolutions')}
@@ -252,6 +257,35 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           </div>
         ) : (
           <SettingsForm onSubmit={form.handleSubmit(onSave)}>
+            <FormField
+              control={form.control}
+              name='SubscriptionModelRatios'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('subscriptionModelRatio.title')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      rows={10}
+                      onChange={(event) =>
+                        handleFieldChange(
+                          'SubscriptionModelRatios',
+                          event.target.value
+                        )
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('subscriptionModelRatio.help')}
+                  </FormDescription>
+                  {form.formState.errors.SubscriptionModelRatios && (
+                    <p role='alert' className='text-destructive text-sm'>
+                      {t('subscriptionModelRatio.invalid')}
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name='GroupTimedRatios'

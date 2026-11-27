@@ -1,5 +1,10 @@
 {
   "translation": {
+    "pricing.longContextDouble": "長いコンテキストの単価を2倍にする",
+    "subscriptionModelRatio.title": "定価サブスクリプション倍率",
+    "subscriptionModelRatio.help": "このグループのモデルを選び、それぞれの単価倍率を設定します。未選択のモデルは1.0倍です。",
+    "subscriptionModelRatio.invalid": "モデル名を正確に指定し、それぞれに0以上の倍率を入力してください。",
+    "subscriptionModelRatio.applied": "モデル単価には定価サブスクリプションアカウントの消費倍率 {{ratio}}x が適用されています。",
     "允许负余额": "マイナス残高を許可",
     "开启后，即使钱包余额不足，该用户仍可继续使用并按实际用量扣费。": "ウォレットの残高が不足していても、このユーザーは引き続きサービスを利用でき、実際の利用量に応じて課金されます。",
     "usageLogs.inProgress": "処理中",

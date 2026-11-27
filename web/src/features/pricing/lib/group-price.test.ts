@@ -53,3 +53,9 @@ describe('getDisplayGroupRatio', () => {
     assert.equal(getDisplayGroupRatio(modelWithoutRatio, 'missing'), 1)
   })
 })
+
+test('the lowest quoted price includes the model multiplier for each group', () => {
+  const priced = { ...model, subscription_model_ratios: { '0.1': 3 } }
+  assert.equal(getDisplayGroupRatio(priced), 0.2)
+  assert.equal(getDisplayGroupRatio(priced, '0.1'), 0.1 * 3)
+})

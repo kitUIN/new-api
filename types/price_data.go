@@ -3,10 +3,18 @@ package types
 import "fmt"
 
 type GroupRatioInfo struct {
-	TimedRatio        *GroupTimedRatioSnapshot `json:",omitempty"`
-	GroupRatio        float64
-	GroupSpecialRatio float64
-	HasSpecialRatio   bool
+	SubscriptionModelRatio *float64                 `json:",omitempty"`
+	TimedRatio             *GroupTimedRatioSnapshot `json:",omitempty"`
+	GroupRatio             float64
+	GroupSpecialRatio      float64
+	HasSpecialRatio        bool
+}
+
+func (g GroupRatioInfo) ModelMultiplier() float64 {
+	if g.SubscriptionModelRatio == nil {
+		return 1
+	}
+	return *g.SubscriptionModelRatio
 }
 
 type GroupTimedRatioSnapshot struct {
