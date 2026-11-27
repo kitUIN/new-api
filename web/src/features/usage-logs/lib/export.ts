@@ -43,7 +43,6 @@ import {
   formatDuration,
   formatModelName,
   getFastModeLabel,
-  getLogTokensPerSecond,
   parseLogOther,
 } from './format'
 import {
@@ -191,7 +190,10 @@ function getCommonLogCell(
       if (!isTimingLogType(log.type)) return ''
       if (log.type === LOG_TYPE_ENUM.PENDING)
         return context.t('usageLogs.inProgress')
-      const tokensPerSecond = getLogTokensPerSecond(log, other)
+      const tokensPerSecond =
+        log.use_time > 0 && log.completion_tokens > 0
+          ? `${(log.completion_tokens / log.use_time).toFixed(1)} t/s`
+          : undefined
       const mode = getLogRequestModeLabel(log.is_stream, other, context.t)
       const ttft =
         log.is_stream && other?.frt
@@ -208,12 +210,7 @@ function getCommonLogCell(
       return joinLines([
         formatUseTime(log.use_time),
         ttft,
-        joinLines([
-          mode,
-          tokensPerSecond === null
-            ? undefined
-            : `${tokensPerSecond.toFixed(1)} t/s`,
-        ]),
+        joinLines([mode, tokensPerSecond]),
         streamError,
       ])
     }

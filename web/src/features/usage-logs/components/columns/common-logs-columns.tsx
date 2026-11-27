@@ -62,7 +62,6 @@ import { LOG_TYPE_ALL_VALUE, LOG_TYPE_ENUM } from '../../constants'
 import {
   formatModelName,
   getFirstResponseTimeColor,
-  getLogTokensPerSecond,
   getResponseTimeColor,
   getTieredBillingSummary,
   getFastModeLabel,
@@ -1303,8 +1302,11 @@ function createCommonLogsColumns(
         const useTime = row.getValue('use_time') as number
         const other = parseLogOther(log.other)
         const frt = other?.frt
-        const tokensPerSecond = getLogTokensPerSecond(log, other)
-        const timeVariant = getResponseTimeColor(log, tokensPerSecond)
+        const tokensPerSecond =
+          useTime > 0 && log.completion_tokens > 0
+            ? log.completion_tokens / useTime
+            : null
+        const timeVariant = getResponseTimeColor(useTime, log.completion_tokens)
         const frtVariant = frt ? getFirstResponseTimeColor(frt / 1000) : null
         const streamStatus = other?.stream_status
         const hasStreamError =

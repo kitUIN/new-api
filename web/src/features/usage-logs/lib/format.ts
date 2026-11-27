@@ -172,21 +172,6 @@ export function getFirstResponseTimeColor(
   return 'danger'
 }
 
-export function getLogTokensPerSecond(
-  log: Pick<UsageLog, 'use_time' | 'completion_tokens'>,
-  other: LogOtherData | null
-): number | null {
-  const totalMs = other?.total_ms ?? log.use_time * 1000
-  // Older logs can carry a negative frt when no first response was recorded.
-  const firstResponseMs = Math.max(
-    other?.first_response_ms ?? other?.frt ?? 0,
-    0
-  )
-  const generationMs = totalMs - firstResponseMs
-  if (generationMs <= 0 || log.completion_tokens <= 0) return null
-  return (log.completion_tokens * 1000) / generationMs
-}
-
 /**
  * Get throughput color based on generated tokens per second
  */
@@ -202,12 +187,11 @@ export function getThroughputColor(
  * Get response color using throughput only when enough output tokens exist.
  */
 export function getResponseTimeColor(
-  log: UsageLog,
-  tokensPerSecond: number | null
+  seconds: number,
+  completionTokens: number
 ): 'success' | 'warning' | 'danger' {
-  if (log.completion_tokens < 100 || tokensPerSecond === null)
-    return getTimeColor(log.use_time)
-  return getThroughputColor(tokensPerSecond)
+  if (completionTokens < 100 || seconds <= 0) return getTimeColor(seconds)
+  return getThroughputColor(completionTokens / seconds)
 }
 
 /**
