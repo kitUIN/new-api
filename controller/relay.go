@@ -76,6 +76,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	var (
 		newAPIError *types.NewAPIError
+		relayInfo   *relaycommon.RelayInfo
 		ws          *websocket.Conn
 	)
 
@@ -91,7 +92,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
-			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
+			if model.RelayInterruptionStatus(c, relayInfo, newAPIError) != "" {
+				logger.LogInfo(c, "relay interrupted: "+newAPIError.Error())
+			} else {
+				logger.LogError(c, "relay error: "+newAPIError.Error())
+			}
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			if newAPIError.ResponseMessage != "" {
 				newAPIError.ResponseMessage = common.MessageWithRequestId(newAPIError.ResponseMessage, requestId)
@@ -125,7 +130,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
@@ -223,7 +228,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			if channelErr.GetErrorCode() == types.ErrorCodeGetChannelFailed && relayInfo.LastError != nil && relayInfo.LastError.ResponseMessage != "" {
 				newAPIError = relayInfo.LastError
 			}
-			if service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupFailure(channelErr, relayInfo), 0, false) {
+			statsErr := channelErr
+			if channelErr.GetErrorCode() == types.ErrorCodeGetChannelFailed && relayInfo.LastError != nil {
+				statsErr = relayInfo.LastError
+			}
+			if !model.SkipRelayHealthStats(c, relayInfo, statsErr) &&
+				service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupFailure(channelErr, relayInfo), 0, false) {
 				retryParam.SetRetry(0)
 				retryParam.ResetRetryNextTry()
 				continue
@@ -260,9 +270,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			ttftMs, hasTTFT := relayTTFT(relayInfo)
-			service.RecordRuleAutoGroupResult(c, true, false, ttftMs, hasTTFT)
-			service.RecordSessionGroupFailoverResult(c, true)
+			service.RecordRelayGroupOutcome(c, relayInfo, nil, false)
 			service.RecordGroupCombinationSuccess(c)
 			return
 		}
@@ -278,10 +286,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			groupCombinationSwitched = service.PrepareGroupCombinationFailover(c, retryParam)
 		}
 		if !shouldRetryNow {
-			service.RecordSessionGroupFailoverResult(c, false)
-			if !relayInfo.HasSendResponse() {
-				ruleAutoGroupSwitched = service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupFailure(newAPIError, relayInfo), 0, false)
-			}
+			ruleAutoGroupSwitched = service.RecordRelayGroupOutcome(c, relayInfo, newAPIError, shouldRecordRuleAutoGroupFailure(newAPIError, relayInfo))
 		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
 
@@ -425,13 +430,6 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
-func relayTTFT(info *relaycommon.RelayInfo) (int64, bool) {
-	if info == nil || !info.FirstResponseTime.After(info.StartTime) {
-		return 0, false
-	}
-	return info.FirstResponseTime.Sub(info.StartTime).Milliseconds(), true
-}
-
 func shouldRecordRuleAutoGroupFailure(err *types.NewAPIError, info *relaycommon.RelayInfo) bool {
 	if err == nil || (info != nil && info.HasSendResponse()) {
 		return false
@@ -446,31 +444,44 @@ func shouldRecordRuleAutoGroupFailure(err *types.NewAPIError, info *relaycommon.
 	return statusCode == http.StatusUnauthorized ||
 		statusCode == http.StatusForbidden ||
 		statusCode == http.StatusRequestTimeout ||
-		statusCode == http.StatusTooManyRequests ||
 		statusCode >= http.StatusInternalServerError
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo ...*relaycommon.RelayInfo) {
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
-	if err.ResponseBody != "" {
-		logger.LogError(c, fmt.Sprintf("channel error response body: %s", err.ResponseBody))
+	var info *relaycommon.RelayInfo
+	if len(relayInfo) > 0 {
+		info = relayInfo[0]
 	}
-	if len(relayInfo) > 0 && relayInfo[0] != nil {
-		model.RecordRelayPerfMetric(c, relayInfo[0], model.PerfMetricSample{
-			ModelName: c.GetString("original_model"),
-			Group:     c.GetString("group"),
-			Success:   false,
+	interrupted := model.RelayInterruptionStatus(c, info, err) != ""
+	if interrupted {
+		logger.LogInfo(c, fmt.Sprintf("channel #%d interrupted: %s", channelError.ChannelId, err.Error()))
+	} else {
+		logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
+		if err.ResponseBody != "" {
+			logger.LogError(c, fmt.Sprintf("channel error response body: %s", err.ResponseBody))
+		}
+	}
+	recordLog := constant.ErrorLogEnabled && types.IsRecordErrorLog(err)
+	if info != nil {
+		info.LastError = err
+	}
+	if !recordLog {
+		model.RecordRelayPerfMetric(c, info, model.PerfMetricSample{
+			RelayError: err,
+			ModelName:  c.GetString("original_model"),
+			Group:      c.GetString("group"),
+			Success:    false,
 		})
 	}
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldDisableChannel(err) && channelError.AutoBan {
+	if !interrupted && service.ShouldDisableChannel(err) && channelError.AutoBan {
 		gopool.Go(func() {
 			service.DisableChannel(channelError, err.ErrorWithStatusCode())
 		})
 	}
 
-	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
+	if recordLog {
 		// 保存错误日志到mysql中
 		userId := c.GetInt("id")
 		tokenName := c.GetString("token_name")
@@ -488,9 +499,9 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
-		if len(relayInfo) > 0 && relayInfo[0] != nil {
-			service.AppendRelayTransportInfo(relayInfo[0], other)
-			service.AppendRelayTimingInfo(c, relayInfo[0], other)
+		if info != nil {
+			service.AppendRelayTransportInfo(info, other)
+			service.AppendRelayTimingInfo(c, info, other)
 		}
 		adminInfo := make(map[string]interface{})
 		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
@@ -512,7 +523,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other, relayInfo...)
 	}
 
 }
@@ -551,10 +562,11 @@ func RelayMidjourney(c *gin.Context) {
 
 	var mjErr *dto.MidjourneyResponse
 	mjCompleted := false
+	statusCode := http.StatusBadRequest
 	defer func() {
 		var apiErr *types.NewAPIError
 		if mjErr != nil {
-			apiErr = types.NewError(errors.New(mjErr.Description), types.ErrorCodeBadResponse)
+			apiErr = types.NewErrorWithStatusCode(errors.New(mjErr.Description), types.ErrorCodeBadResponse, statusCode)
 		} else if mjCompleted {
 			model.DiscardRequestLog(c, relayInfo)
 		}
@@ -578,7 +590,6 @@ func RelayMidjourney(c *gin.Context) {
 	mjCompleted = true
 	log.Println(mjErr)
 	if mjErr != nil {
-		statusCode := http.StatusBadRequest
 		if mjErr.Code == 30 {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
@@ -654,7 +665,10 @@ func RelayTask(c *gin.Context) {
 	defer func() {
 		var apiErr *types.NewAPIError
 		if taskErr != nil {
-			apiErr = types.NewError(errors.New(taskErr.Message), types.ErrorCodeBadResponse)
+			apiErr = taskErrorForLog(taskErr)
+			if taskErr.Code == "get_channel_failed" && relayInfo.LastError != nil && model.SkipRelayHealthStats(c, relayInfo, relayInfo.LastError) {
+				apiErr = relayInfo.LastError
+			}
 		}
 		model.FinishRequestLog(c, relayInfo, apiErr)
 	}()
@@ -688,7 +702,11 @@ func RelayTask(c *gin.Context) {
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
 				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
-				if service.RecordRuleAutoGroupResult(c, false, true, 0, false) {
+				statsErr := channelErr
+				if channelErr.GetErrorCode() == types.ErrorCodeGetChannelFailed && relayInfo.LastError != nil {
+					statsErr = relayInfo.LastError
+				}
+				if !model.SkipRelayHealthStats(c, relayInfo, statsErr) && service.RecordRuleAutoGroupResult(c, false, true, 0, false) {
 					retryParam.SetRetry(0)
 					retryParam.ResetRetryNextTry()
 					continue
@@ -711,22 +729,21 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
-			service.RecordRuleAutoGroupResult(c, true, false, 0, false)
-			service.RecordSessionGroupFailoverResult(c, true)
+			service.RecordRelayGroupOutcome(c, relayInfo, nil, false)
 			break
 		}
 
 		shouldRetryNow := shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry())
 		ruleAutoGroupSwitched := false
+		relayInfo.LastError = taskErrorForLog(taskErr)
 		if !shouldRetryNow {
-			service.RecordSessionGroupFailoverResult(c, false)
-			ruleAutoGroupSwitched = service.RecordRuleAutoGroupResult(c, false, shouldRecordRuleAutoGroupTaskFailure(taskErr), 0, false)
+			ruleAutoGroupSwitched = service.RecordRelayGroupOutcome(c, relayInfo, relayInfo.LastError, shouldRecordRuleAutoGroupTaskFailure(taskErr))
 		}
 		if !taskErr.LocalError {
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
-				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+				relayInfo.LastError, relayInfo)
 		}
 
 		if !shouldRetryNow && !ruleAutoGroupSwitched {
@@ -833,6 +850,14 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	return true
 }
 
+func taskErrorForLog(taskErr *dto.TaskError) *types.NewAPIError {
+	err := taskErr.Error
+	if err == nil {
+		err = errors.New(taskErr.Message)
+	}
+	return types.NewOpenAIError(err, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
+}
+
 func shouldRecordRuleAutoGroupTaskFailure(taskErr *dto.TaskError) bool {
 	if taskErr == nil || taskErr.LocalError {
 		return false
@@ -840,6 +865,5 @@ func shouldRecordRuleAutoGroupTaskFailure(taskErr *dto.TaskError) bool {
 	return taskErr.StatusCode == http.StatusUnauthorized ||
 		taskErr.StatusCode == http.StatusForbidden ||
 		taskErr.StatusCode == http.StatusRequestTimeout ||
-		taskErr.StatusCode == http.StatusTooManyRequests ||
 		taskErr.StatusCode >= http.StatusInternalServerError
 }

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
 )
 
 func startTestUsageLog(t *testing.T, requestID string) (*gin.Context, *relaycommon.RelayInfo, int) {
@@ -64,7 +67,8 @@ func TestUsageLogVisibleBeforeSettlementAndUpdatedInPlace(t *testing.T) {
 func TestUsageLogRetriesDoNotCompleteOrDuplicateRequest(t *testing.T) {
 	truncateTables(t)
 	c, info, id := startTestUsageLog(t, "request-2")
-	RecordErrorLog(c, 42, 7, "test-model", "", "upstream busy", 7, 1, true, "default", nil)
+	message := "status_code=502, Upstream HTTP/2 stream failed"
+	RecordErrorLog(c, 42, 7, "test-model", "", message, 7, 1, true, "default", nil)
 	var pending Log
 	require.NoError(t, LOG_DB.First(&pending, id).Error)
 	require.Equal(t, LogTypePending, pending.Type)
@@ -76,38 +80,125 @@ func TestUsageLogRetriesDoNotCompleteOrDuplicateRequest(t *testing.T) {
 	require.Equal(t, 8, logs[0].ChannelId)
 	require.Zero(t, logs[0].Quota)
 	require.False(t, logs[0].IsStream)
-	require.Contains(t, logs[0].Other, "upstream busy")
-	require.Contains(t, logs[0].Other, "retry_errors")
+	require.Equal(t, "completed", logs[0].Status)
+	attempt := gjson.Get(logs[0].Other, "admin_info.retry_errors.0")
+	require.Equal(t, message, attempt.Get("message").String())
+	require.Equal(t, "stream_interrupted", attempt.Get("status").String())
 }
 
 func TestUsageLogFailureDisconnectAndStreamInterruption(t *testing.T) {
-	for _, state := range []string{"failed", "interrupted", "stream"} {
-		t.Run(state, func(t *testing.T) {
+	for _, tc := range []struct {
+		name, message, endReason, want string
+		cancelRequest                  bool
+	}{
+		{name: "unattributed", want: "interrupted"},
+		{name: "user cancels HTTP request", cancelRequest: true, want: "user_interrupted"},
+		{name: "unrelated 502", message: "Bad Gateway", want: "failed"},
+		{name: "HTTP2 failure", message: "Upstream HTTP/2 stream failed", want: "stream_interrupted"},
+		{name: "upstream adds request ID", message: "Upstream HTTP/2 stream failed (request id: abc)", want: "stream_interrupted"},
+		{name: "upstream interruption", message: "Upstream response stream was interrupted", want: "stream_interrupted"},
+		{name: "client closes SSE", endReason: "client_gone", want: "user_interrupted"},
+		{name: "SSE read failure", endReason: "scanner_error", want: "stream_interrupted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			truncateTables(t)
-			c, info, id := startTestUsageLog(t, state)
+			c, info, id := startTestUsageLog(t, tc.name)
 			var apiErr *types.NewAPIError
-			if state == "failed" {
-				apiErr = types.NewError(errors.New("bad request"), types.ErrorCodeInvalidRequest)
+			if tc.message != "" {
+				apiErr = types.NewErrorWithStatusCode(errors.New(tc.message), types.ErrorCodeBadResponse, 502)
 			}
-			if state == "stream" {
-				RecordConsumeLog(c, 42, RecordConsumeLogParams{Quota: 3, Other: map[string]interface{}{"stream_status": map[string]interface{}{"status": "error"}}})
+			if tc.cancelRequest {
+				ctx, cancel := context.WithCancel(c.Request.Context())
+				c.Request = c.Request.WithContext(ctx)
+				cancel()
+			}
+			if tc.endReason != "" {
+				RecordConsumeLog(c, 42, RecordConsumeLogParams{Quota: 3, Other: map[string]interface{}{
+					"stream_status": map[string]interface{}{"status": "error", "end_reason": tc.endReason},
+				}})
 			}
 			FinishRequestLog(c, info, apiErr)
 			var log Log
-			require.NoError(t, LOG_DB.First(&log, id).Error)
-			if state == "failed" {
-				require.Equal(t, "failed", log.Status)
-			} else {
-				require.Equal(t, "interrupted", log.Status)
-			}
-			if state == "stream" {
+			require.NoError(t, LOG_DB.Session(&gorm.Session{SkipHooks: true}).First(&log, id).Error)
+			require.Equal(t, tc.want, log.Status)
+			if tc.endReason != "" {
+				require.Equal(t, LogTypeConsume, log.Type)
 				require.Equal(t, 3, log.Quota)
 			} else {
+				if tc.want == "failed" {
+					require.Equal(t, LogTypeError, log.Type)
+				} else {
+					require.Equal(t, LogTypeInterrupted, log.Type)
+				}
 				require.Zero(t, log.Quota)
 			}
 			require.Positive(t, log.FinishedAt)
 		})
 	}
+}
+
+func TestHistoricalUsageLogInterruptions(t *testing.T) {
+	truncateTables(t)
+	rows := []Log{
+		{Type: LogTypeError, Status: "failed", Content: "status_code=502, Upstream HTTP/2 stream failed"},
+		{Type: LogTypeError, Content: "status_code=502, Upstream response stream was interrupted"},
+		{Type: LogTypeError, Status: "failed", Content: "status_code=503, Upstream HTTP/2 stream failed"},
+		{Type: LogTypeError, Status: "interrupted", Content: "Request interrupted before completion", Other: `{"ws":true}`},
+		{Type: LogTypeConsume, Status: "interrupted", Other: `{"stream_status":{"status":"error","end_reason":"client_gone"}}`},
+		{Type: LogTypeConsume, Status: "completed", Other: `{"admin_info":{"retry_errors":[{"channel":134,"message":"status_code=502, Upstream response stream was interrupted"}]}}`},
+	}
+	require.NoError(t, LOG_DB.Create(&rows).Error)
+	var logs []Log
+	require.NoError(t, LOG_DB.Order("id").Find(&logs).Error)
+	for i, status := range []string{"stream_interrupted", "stream_interrupted", "failed", "interrupted", "user_interrupted", "completed"} {
+		require.Equal(t, status, logs[i].Status)
+	}
+	require.Equal(t, "stream_interrupted", gjson.Get(logs[5].Other, "admin_info.retry_errors.0.status").String())
+}
+
+func TestUsageLogTypeFiltersIncludeLegacyRowsBeforePagination(t *testing.T) {
+	truncateTables(t)
+	rows := []Log{
+		{UserId: 42, Type: LogTypeError, Content: "status_code=502,  Upstream HTTP/2 stream failed (request id: test)"},
+		{UserId: 42, Type: LogTypeError, Content: "status_code=429, rate limited"},
+		{UserId: 42, Type: LogTypeError, Content: "status_code=502, Bad Gateway"},
+		{UserId: 42, Type: LogTypeInterrupted, Status: logUserInterrupted},
+		{UserId: 42, Type: LogTypeConsume, Status: logStreamInterrupted, Quota: 7},
+		{UserId: 43, Type: LogTypeRateLimited},
+		{UserId: 43, Type: LogTypeInterrupted},
+	}
+	require.NoError(t, LOG_DB.Create(&rows).Error)
+	for _, tc := range []struct{ kind, self, all int }{
+		{LogTypeError, 1, 1}, {LogTypeInterrupted, 3, 4}, {LogTypeRateLimited, 1, 2},
+	} {
+		logs, total, err := GetUserLogs(42, tc.kind, 0, 0, "", "", 0, 1, "", "", "")
+		require.NoError(t, err)
+		require.EqualValues(t, tc.self, total)
+		require.Len(t, logs, 1)
+		require.Equal(t, 42, logs[0].UserId)
+		logs, total, err = GetAllLogs(tc.kind, 0, 0, "", "", "", 0, 20, 0, "", "", "")
+		require.NoError(t, err)
+		require.EqualValues(t, tc.all, total)
+		require.Len(t, logs, tc.all)
+		for _, log := range logs {
+			if log.Type != LogTypeConsume {
+				require.Equal(t, tc.kind, log.Type)
+			}
+		}
+	}
+}
+
+func TestUsageLogRateLimitAfterChannelExhaustion(t *testing.T) {
+	truncateTables(t)
+	c, info, id := startTestUsageLog(t, "mapped-429")
+	info.LastError = types.NewErrorWithStatusCode(errors.New("upstream rate limit"), types.ErrorCodeBadResponse, 503)
+	info.LastError.UpstreamStatusCode = 429
+	RecordErrorLog(c, 42, 7, "model", "", info.LastError.ErrorWithStatusCode(), 1, 0, false, "default", nil, info)
+	FinishRequestLog(c, info, types.NewError(errors.New("no further channels"), types.ErrorCodeGetChannelFailed))
+	var log Log
+	require.NoError(t, LOG_DB.Session(&gorm.Session{SkipHooks: true}).First(&log, id).Error)
+	require.Equal(t, LogTypeRateLimited, log.Type)
+	require.Equal(t, info.LastError.ErrorWithStatusCode(), log.Content)
 }
 
 func TestUsageLogLeasesPreserveLiveRequestsAcrossNodes(t *testing.T) {
@@ -126,6 +217,7 @@ func TestUsageLogLeasesPreserveLiveRequestsAcrossNodes(t *testing.T) {
 		require.Equal(t, LogTypePending, log.Type)
 	}
 	require.NoError(t, LOG_DB.First(&stale, stale.Id).Error)
+	require.Equal(t, LogTypeInterrupted, stale.Type)
 	require.Equal(t, "interrupted", stale.Status)
 	FinishRequestLog(c, info, nil)
 }

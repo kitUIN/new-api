@@ -63,6 +63,7 @@ type PerfGroupHealthMetricBucket struct {
 }
 
 type PerfMetricSample struct {
+	RelayError         *types.NewAPIError
 	Timestamp          int64
 	ModelName          string
 	Group              string

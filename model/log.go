@@ -50,14 +50,16 @@ type Log struct {
 
 // don't use iota, avoid change log type value
 const (
-	LogTypeUnknown = 0
-	LogTypeTopup   = 1
-	LogTypeConsume = 2
-	LogTypeManage  = 3
-	LogTypeSystem  = 4
-	LogTypeError   = 5
-	LogTypeRefund  = 6
-	LogTypePending = 7
+	LogTypeUnknown     = 0
+	LogTypeTopup       = 1
+	LogTypeConsume     = 2
+	LogTypeManage      = 3
+	LogTypeSystem      = 4
+	LogTypeError       = 5
+	LogTypeRefund      = 6
+	LogTypePending     = 7
+	LogTypeInterrupted = 8
+	LogTypeRateLimited = 9
 )
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
@@ -196,14 +198,6 @@ func appendRequestLogInfo(c *gin.Context, other map[string]interface{}) map[stri
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}, relayInfo ...*relaycommon.RelayInfo) {
-	if len(relayInfo) > 0 && relayInfo[0] != nil {
-		RecordRelayPerfMetric(c, relayInfo[0], PerfMetricSample{
-			ModelName: modelName,
-			Group:     group,
-			Success:   false,
-		})
-	}
-
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
@@ -227,6 +221,18 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		Ip:               c.ClientIP(),
 		RequestId:        requestId,
 		Other:            otherStr,
+	}
+	log.classifyInterruption()
+	if len(relayInfo) > 0 && relayInfo[0] != nil {
+		info := relayInfo[0]
+		if info.LastError.IsRateLimited() {
+			log.Type, log.Status = LogTypeRateLimited, logRateLimited
+		} else if status := RelayInterruptionStatus(c, info, info.LastError); status != "" {
+			log.Type, log.Status = LogTypeInterrupted, status
+		}
+		if log.Type == LogTypeError {
+			RecordRelayPerfMetric(c, info, PerfMetricSample{ModelName: modelName, Group: group, RelayError: info.LastError})
+		}
 	}
 	if recordPendingLogAttempt(c, log) {
 		return
@@ -297,6 +303,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		RequestId:           requestId,
 		Other:               otherStr,
 	}
+	log.classifyInterruption()
 	handled, err := completePendingLog(c, log)
 	if !handled {
 		err = LOG_DB.Create(log).Error
@@ -346,6 +353,9 @@ func RecordChannelTestPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInf
 }
 
 func recordRelayPerfMetric(c *gin.Context, relayInfo *relaycommon.RelayInfo, sample PerfMetricSample) {
+	if SkipRelayHealthStats(c, relayInfo, sample.RelayError) {
+		return
+	}
 	if strings.TrimSpace(sample.ModelName) == "" {
 		sample.ModelName = relayInfo.OriginModelName
 	}
@@ -439,13 +449,39 @@ func applyChannelAffinityLogFilter(tx *gorm.DB, channelAffinityKey string) (*gor
 	return tx.Where("logs.other LIKE ? ESCAPE '!'", pattern), nil
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, channelAffinityKey string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+// Older releases stored all non-billable failures and interruptions as type 5.
+// Resolve those rows before counting and paging, including on a rolling upgrade.
+func filterUsageLogType(tx *gorm.DB, logType int) *gorm.DB {
+	switch logType {
+	case LogTypeUnknown:
+		return tx
+	case LogTypeError, LogTypeInterrupted, LogTypeRateLimited:
+	default:
+		return tx.Where("logs.type = ?", logType)
 	}
+	interrupted := []string{"interrupted", logUserInterrupted, logStreamInterrupted}
+	// Only inspect old error rows. Settled consumption keeps its original billing type.
+	const msg = "LOWER(TRIM(SUBSTR(logs.content, 17)))"
+	const historicalType = `CASE
+		WHEN logs.status IN ? OR (SUBSTR(logs.content, 1, 16) = 'status_code=502,' AND
+			(` + msg + ` IN ? OR ` + msg + ` LIKE ? OR ` + msg + ` LIKE ?)) THEN ?
+		WHEN logs.content = 'status_code=429' OR SUBSTR(logs.content, 1, 16) = 'status_code=429,' THEN ?
+		ELSE logs.type END`
+	messages := []string{strings.ToLower(upstreamHTTP2Failure), strings.ToLower(upstreamStreamFailure)}
+	match := tx.Session(&gorm.Session{NewDB: true}).Where("logs.type = ? AND "+historicalType+" = ?",
+		LogTypeError, interrupted, messages, messages[0]+" (request id: %", messages[1]+" (request id: %",
+		LogTypeInterrupted, LogTypeRateLimited, logType)
+	if logType != LogTypeError {
+		match = match.Or("logs.type = ?", logType)
+	}
+	if logType == LogTypeInterrupted {
+		match = match.Or("logs.type = ? AND logs.status IN ?", LogTypeConsume, interrupted)
+	}
+	return tx.Where(match)
+}
+
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, channelAffinityKey string) (logs []*Log, total int64, err error) {
+	tx := filterUsageLogType(LOG_DB, logType)
 
 	if modelName != "" {
 		tx = tx.Where("logs.model_name like ?", modelName)
@@ -540,12 +576,7 @@ func fillLogChannelNames(logs []*Log) error {
 const logSearchCountLimit = 10000
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, channelAffinityKey string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
-	}
+	tx := filterUsageLogType(LOG_DB.Where("logs.user_id = ?", userId), logType)
 
 	if modelName != "" {
 		modelNamePattern, err := sanitizeLikePattern(modelName)

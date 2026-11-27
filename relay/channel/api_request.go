@@ -359,8 +359,13 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
 	conn, response, err := dialWebSocket(a, c, info)
-	if err != nil && response != nil && response.Body != nil {
-		_ = response.Body.Close()
+	if err != nil && response != nil {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+		apiErr := types.NewError(err, types.ErrorCodeDoRequestFailed)
+		apiErr.UpstreamStatusCode = response.StatusCode
+		return nil, apiErr
 	}
 	return conn, err
 }

@@ -48,6 +48,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RatioBadge } from '@/components/ratio-badge'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { LOG_TYPE_ENUM } from '../../constants'
 import {
   parseLogOther,
   getParamOverrideActionLabel,
@@ -438,12 +439,16 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const details = props.log.content ?? ''
   const other = parseLogOther(props.log.other)
-  const typeConfig = getLogTypeConfig(props.log.type)
+  const typeConfig = getLogTypeConfig(props.log.type, props.log.status)
 
   const isViolation = isViolationFeeLog(other)
   const isRefund = props.log.type === 6
   const isConsume = props.log.type === 2
   const isError = props.log.type === 5
+  const hasRelayDiagnostics =
+    isError ||
+    props.log.type === LOG_TYPE_ENUM.INTERRUPTED ||
+    props.log.type === LOG_TYPE_ENUM.RATE_LIMITED
   const isTopup = props.log.type === 1
   const isManage = props.log.type === 3
   const isSubscription = other?.billing_source === 'subscription'
@@ -540,11 +545,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           <DialogTitle className='flex items-center gap-2 text-base'>
             {t('Log Details')}
             <StatusBadge
-              label={
-                props.log.status === 'interrupted'
-                  ? t('usageLogs.interrupted')
-                  : t(typeConfig.label)
-              }
+              label={t(typeConfig.label)}
               variant={typeConfig.color as StatusBadgeProps['variant']}
               size='sm'
               copyable={false}
@@ -758,10 +759,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {props.isAdmin &&
               Boolean(other?.admin_info?.retry_errors?.length) && (
-                <DetailSection label={t('usageLogs.retryErrors')}>
+                <DetailSection label={t('usageLogs.retryHistory')}>
                   {other?.admin_info?.retry_errors?.map((attempt, index) => (
                     <p key={index} className='text-xs break-all'>
-                      #{attempt.channel}: {attempt.message}
+                      #{attempt.channel}:{' '}
+                      {attempt.status &&
+                        `${t(getLogTypeConfig(LOG_TYPE_ENUM.ERROR, attempt.status).label)} · `}
+                      {attempt.message}
                     </p>
                   ))}
                 </DetailSection>
@@ -819,7 +823,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
 
             {/* Relay error metadata */}
-            {isError &&
+            {hasRelayDiagnostics &&
               (other?.status_code ||
                 other?.error_code ||
                 other?.error_type ||
@@ -829,7 +833,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     <AlertTriangle className='size-3.5' aria-hidden='true' />
                   }
                   label={t('Upstream Response')}
-                  variant='danger'
+                  variant={isError ? 'danger' : 'default'}
                 >
                   {other?.status_code != null && (
                     <DetailRow
@@ -985,7 +989,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
 
             {/* Reasoning effort */}
-            {(isConsume || isError) && !other?.reasoning_effort && (
+            {(isConsume || hasRelayDiagnostics) && !other?.reasoning_effort && (
               <DetailRow
                 label={t('Reasoning Effort')}
                 value={t('未记录')}
@@ -1094,8 +1098,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     label={t('Status')}
                     value={
                       <StatusBadge
-                        label={other.stream_status.status || t('Error')}
-                        variant='red'
+                        label={t(typeConfig.label)}
+                        variant={
+                          typeConfig.color as StatusBadgeProps['variant']
+                        }
                         size='sm'
                         copyable={false}
                       />

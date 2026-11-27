@@ -89,6 +89,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		newApiErr.UpstreamStatusCode = resp.StatusCode
 		return
 	}
 	CloseResponseBodyGracefully(resp)

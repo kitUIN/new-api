@@ -41,6 +41,7 @@ import type {
   GetTaskLogsParams,
   ChannelAffinityInfo,
   LogOtherData,
+  UsageLog,
 } from '../types'
 
 // ============================================================================
@@ -75,8 +76,24 @@ export function getLogRequestModeLabel(
 /**
  * Get log type configuration by type number
  */
-export function getLogTypeConfig(type: number) {
-  return LOG_TYPES.find((t) => t.value === type) || LOG_TYPES[0]
+export function getLogTypeConfig(type: number, status?: UsageLog['status']) {
+  const config = LOG_TYPES.find((entry) => entry.value === type) || LOG_TYPES[0]
+  switch (status) {
+    case 'rate_limited':
+      return { ...config, label: 'Rate Limited', color: 'warning' }
+    case 'user_interrupted':
+      return { ...config, label: 'usageLogs.userInterrupted', color: 'neutral' }
+    case 'stream_interrupted':
+      return {
+        ...config,
+        label: 'usageLogs.streamInterrupted',
+        color: 'neutral',
+      }
+    case 'interrupted':
+      return { ...config, label: 'usageLogs.interrupted', color: 'neutral' }
+    default:
+      return config
+  }
 }
 
 /**

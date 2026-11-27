@@ -26,7 +26,15 @@ export interface UsageLog {
   id: number
   user_id: number
   created_at: number
-  status?: 'in_progress' | 'completed' | 'failed' | 'interrupted' | ''
+  status?:
+    | 'in_progress'
+    | 'completed'
+    | 'failed'
+    | 'interrupted'
+    | 'user_interrupted'
+    | 'stream_interrupted'
+    | 'rate_limited'
+    | ''
   finished_at?: number
   type: number
   content?: string
@@ -137,6 +145,7 @@ export interface LogOtherData {
   admin_info?: {
     retry_errors?: Array<{
       channel: number
+      status?: UsageLog['status']
       message: string
       created_at: number
     }>

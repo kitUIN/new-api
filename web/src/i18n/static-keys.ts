@@ -20,6 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
   'usageLogs.inProgress',
+  'usageLogs.interrupted',
+  'usageLogs.userInterrupted',
+  'usageLogs.streamInterrupted',
+  'Rate Limited',
   'serviceProbe.settings.saveFailed',
   'serviceProbe.invalidConfig',
   'serviceProbe.invalidRequest',

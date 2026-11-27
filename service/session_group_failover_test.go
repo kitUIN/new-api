@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -9,8 +10,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -65,6 +68,26 @@ func promoteFailoverTestToken(t *testing.T, token *model.Token) {
 		RecordSessionGroupFailoverResult(failoverTestContext(t, token), false)
 	}
 	require.Equal(t, 1, GetApiKeyGroupFailoverRuntime(token).CurrentLevel)
+}
+
+func TestApiKeyFailoverIgnoresRateLimitsAndInterruptions(t *testing.T) {
+	setupApiKeyFailoverRedis(t)
+	token := failoverTestToken(123)
+	require.NoError(t, TouchApiKeyGroupFailoverState(token))
+	info := &relaycommon.RelayInfo{}
+	failure := types.NewError(errors.New("internal error"), types.ErrorCodeBadResponse)
+	RecordRelayGroupOutcome(failoverTestContext(t, token), info, failure, true)
+	RecordRelayGroupOutcome(failoverTestContext(t, token), info, types.NewErrorWithStatusCode(errors.New("rate limited"), types.ErrorCodeBadResponse, 429), true)
+	RecordRelayGroupOutcome(failoverTestContext(t, token), info, types.NewErrorWithStatusCode(errors.New("Upstream HTTP/2 stream failed"), types.ErrorCodeBadResponse, 502), true)
+	info.StreamStatus = relaycommon.NewStreamStatus()
+	info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	RecordRelayGroupOutcome(failoverTestContext(t, token), info, nil, false)
+	runtime := GetApiKeyGroupFailoverRuntime(token)
+	require.Equal(t, 0, runtime.CurrentLevel)
+	require.Equal(t, 1, runtime.FailureCount)
+	info.StreamStatus = nil
+	RecordRelayGroupOutcome(failoverTestContext(t, token), info, nil, false)
+	require.Zero(t, GetApiKeyGroupFailoverRuntime(token).FailureCount)
 }
 
 func TestApiKeyFailoverResetsAfterTwoIdleHours(t *testing.T) {

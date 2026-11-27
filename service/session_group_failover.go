@@ -10,8 +10,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
@@ -467,6 +469,24 @@ func ApplySessionGroupFailover(c *gin.Context, modelName string) {
 		RedisKey:      redisKey,
 		Generation:    state.Generation,
 	})
+}
+
+// RecordRelayGroupOutcome updates both routing counters for a finished attempt.
+func RecordRelayGroupOutcome(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError, breakerFailure bool) bool {
+	if model.SkipRelayHealthStats(c, info, apiErr) {
+		return false
+	}
+	success := apiErr == nil
+	RecordSessionGroupFailoverResult(c, success)
+	if !success && info != nil && info.HasSendResponse() {
+		return false
+	}
+	hasTTFT := success && info != nil && info.TaskRelayInfo == nil && info.FirstResponseTime.After(info.StartTime)
+	var ttftMs int64
+	if hasTTFT {
+		ttftMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
+	}
+	return RecordRuleAutoGroupResult(c, success, breakerFailure, ttftMs, hasTTFT)
 }
 
 func RecordSessionGroupFailoverResult(c *gin.Context, success bool) {

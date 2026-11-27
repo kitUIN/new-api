@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"reflect"
 	"strings"
@@ -110,8 +112,15 @@ func DialResponsesWebSocketUpstream(c *gin.Context, info *relaycommon.RelayInfo)
 	adaptor.Init(info)
 	target, err := channel.DoWssRequest(adaptor, c, info, nil)
 	if err != nil {
-		responsesWebSocketStats.upstreamDialFails.Add(1)
-		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
+		dialErr := types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
+		var upstream *types.NewAPIError
+		if errors.As(err, &upstream) {
+			dialErr.UpstreamStatusCode = upstream.UpstreamStatusCode
+		}
+		if !model.SkipRelayHealthStats(c, info, dialErr) {
+			responsesWebSocketStats.upstreamDialFails.Add(1)
+		}
+		return nil, dialErr
 	}
 	info.TargetWs = target
 	return target, nil
@@ -193,6 +202,7 @@ func RunResponsesWebSocket(c *gin.Context, info *relaycommon.RelayInfo, firstFra
 		select {
 		case frame := <-clientFrames:
 			if frame.err != nil {
+				session.markRoundDisconnect(relaycommon.StreamEndReasonClientGone, frame.err)
 				_ = writeWebSocketClose(session.upstream, websocket.CloseGoingAway, "client disconnected")
 				return frame.err
 			}
@@ -201,6 +211,7 @@ func RunResponsesWebSocket(c *gin.Context, info *relaycommon.RelayInfo, firstFra
 			}
 		case frame := <-upstreamFrames:
 			if frame.err != nil {
+				session.markRoundDisconnect(relaycommon.StreamEndReasonUpstreamDisconnect, frame.err)
 				session.refundRound()
 				if !websocket.IsCloseError(frame.err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 					_ = WriteResponsesWebSocketError(c, session.client, http.StatusBadGateway, string(types.ErrorCodeBadResponse), errors.New("upstream websocket disconnected"))
@@ -221,9 +232,11 @@ func RunResponsesWebSocket(c *gin.Context, info *relaycommon.RelayInfo, firstFra
 		case <-pingTicker.C:
 			deadline := time.Now().Add(10 * time.Second)
 			if err := session.client.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				session.markRoundDisconnect(relaycommon.StreamEndReasonClientGone, err)
 				return err
 			}
 			if err := session.upstream.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				session.markRoundDisconnect(relaycommon.StreamEndReasonUpstreamDisconnect, err)
 				return err
 			}
 		case <-lifetime.C:
@@ -323,6 +336,7 @@ func (s *responsesWebSocketSession) handleClientFrame(messageType int, data []by
 	// generated from a fresh RelayInfo for each response.create.
 	s.round.MarkUpstreamRequestStart()
 	if err = s.upstream.WriteMessage(websocket.TextMessage, payload); err != nil {
+		s.markRoundDisconnect(relaycommon.StreamEndReasonUpstreamDisconnect, err)
 		s.refundRound()
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeChannelResponsesWebSocketDialFailed, http.StatusBadGateway)
 	}
@@ -366,7 +380,6 @@ func (s *responsesWebSocketSession) startRound(event *dto.OpenAIResponsesWebSock
 	}
 	s.roundNumber++
 	s.round = round
-	responsesWebSocketStats.rounds.Add(1)
 	if generate {
 		s.state = responsesWebSocketStateGenerating
 	} else {
@@ -404,7 +417,11 @@ func (s *responsesWebSocketSession) handleUpstreamFrame(messageType int, data []
 		s.handleUpstreamEvent(event.ResponsesStreamResponse)
 	}
 	_ = s.client.SetWriteDeadline(time.Now().Add(30 * time.Second))
-	return s.client.WriteMessage(messageType, data)
+	err := s.client.WriteMessage(messageType, data)
+	if err != nil {
+		s.markRoundDisconnect(relaycommon.StreamEndReasonClientGone, err)
+	}
+	return err
 }
 
 func (s *responsesWebSocketSession) observeFirstToken(event dto.ResponsesStreamResponse) {
@@ -449,7 +466,14 @@ func (s *responsesWebSocketSession) handleUpstreamEvent(event dto.ResponsesStrea
 		if message == "" {
 			message = "upstream response failed"
 		}
-		model.FinishRequestLog(s.c, s.round, types.NewError(errors.New(message), types.ErrorCodeBadResponse))
+		apiErr := types.NewError(errors.New(message), types.ErrorCodeBadResponse)
+		if event.Status >= 400 && event.Status < 600 {
+			apiErr.StatusCode = event.Status
+		}
+		if s.round != nil && !model.SkipRelayHealthStats(s.c, s.round, apiErr) {
+			responsesWebSocketStats.rounds.Add(1)
+		}
+		model.FinishRequestLog(s.c, s.round, apiErr)
 		s.refundRound()
 	}
 }
@@ -498,14 +522,9 @@ func (s *responsesWebSocketSession) completeRound(response *dto.OpenAIResponsesR
 		service.PostTextConsumeQuota(s.c, s.round, usage, []string{"Responses WebSocket 回合"})
 		s.c.Set(common.RequestIdKey, baseRequestID)
 	}
+	responsesWebSocketStats.rounds.Add(1)
 	responsesWebSocketStats.successfulRounds.Add(1)
-	ttftMs := int64(0)
-	hasTTFT := s.round.FirstResponseTime.After(s.round.StartTime)
-	if hasTTFT {
-		ttftMs = s.round.FirstResponseTime.Sub(s.round.StartTime).Milliseconds()
-	}
-	service.RecordRuleAutoGroupResult(s.c, true, false, ttftMs, hasTTFT)
-	service.RecordSessionGroupFailoverResult(s.c, true)
+	service.RecordRelayGroupOutcome(s.c, s.round, nil, false)
 	s.round = nil
 	s.state = responsesWebSocketStateIdle
 	s.connectionInfo.ResponsesWebSocketState = s.state
@@ -513,6 +532,26 @@ func (s *responsesWebSocketSession) completeRound(response *dto.OpenAIResponsesR
 
 func shouldRecordResponsesWebSocketConsumption(state string, usage *dto.Usage) bool {
 	return state != responsesWebSocketStateWarming || (usage != nil && usage.TotalTokens > 0)
+}
+
+func isResponsesWebSocketClientDisconnect(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return !netErr.Timeout()
+	}
+	return websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway,
+		websocket.CloseNoStatusReceived, websocket.CloseAbnormalClosure) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+func (s *responsesWebSocketSession) markRoundDisconnect(reason relaycommon.StreamEndReason, err error) {
+	if s.round == nil || (reason == relaycommon.StreamEndReasonClientGone && !isResponsesWebSocketClientDisconnect(err)) {
+		return
+	}
+	if s.round.StreamStatus == nil {
+		s.round.StreamStatus = relaycommon.NewStreamStatus()
+	}
+	s.round.StreamStatus.SetEndReason(reason, err)
 }
 
 func (s *responsesWebSocketSession) refundRound() {

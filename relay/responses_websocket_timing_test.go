@@ -84,11 +84,12 @@ func TestResponsesWebSocketTimingEndsOnFailure(t *testing.T) {
 			assertSteeringBilling(t, db, nil, nil)
 			var log model.Log
 			require.NoError(t, db.First(&log).Error)
-			require.Equal(t, model.LogTypeError, log.Type)
 			require.Positive(t, log.FinishedAt)
 			if event == "disconnect" {
+				require.Equal(t, model.LogTypeInterrupted, log.Type)
 				require.Equal(t, "interrupted", log.Status)
 			} else {
+				require.Equal(t, model.LogTypeError, log.Type)
 				require.Equal(t, "failed", log.Status)
 			}
 		})

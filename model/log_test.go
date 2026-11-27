@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -211,6 +213,45 @@ func TestRecordChannelTestPerfMetricIncludesChannelTestSamples(t *testing.T) {
 	require.Equal(t, 0.0, defaultGroup.AvgTps)
 	require.Zero(t, defaultGroup.RecentRequestCount)
 	require.EqualValues(t, 0, defaultGroup.Buckets[len(defaultGroup.Buckets)-1].NonTestRequestCount)
+}
+
+func TestIgnoredAttemptsDoNotReachPerformanceBuckets(t *testing.T) {
+	truncateTables(t)
+	ResetPerfMetricsForTest()
+	common.SetPerfMetricsConfig(common.PerfMetricsConfig{Enabled: true, BucketTime: "10min", FlushInterval: 5})
+	insertEnabledChannel(t, 1, "default")
+	info := &relaycommon.RelayInfo{OriginModelName: "test", UsingGroup: "default", StartTime: time.Now()}
+	mapped := types.NewErrorWithStatusCode(errors.New("overloaded"), types.ErrorCodeBadResponse, 503)
+	mapped.UpstreamStatusCode = 429
+	for _, apiErr := range []*types.NewAPIError{
+		mapped,
+		types.NewErrorWithStatusCode(errors.New("rate limited"), types.ErrorCodeBadResponse, 429),
+		types.NewErrorWithStatusCode(errors.New(upstreamHTTP2Failure), types.ErrorCodeBadResponse, 502),
+		types.NewErrorWithStatusCode(errors.New(upstreamStreamFailure), types.ErrorCodeBadResponse, 502),
+	} {
+		sample := PerfMetricSample{RelayError: apiErr}
+		RecordRelayPerfMetric(nil, info, sample)
+		RecordChannelTestPerfMetric(nil, info, sample)
+	}
+	info.StreamStatus = relaycommon.NewStreamStatus()
+	info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	RecordRelayPerfMetric(nil, info, PerfMetricSample{Success: true, CompletionTokens: 50})
+	info.StreamStatus = nil
+	RecordRelayPerfMetric(nil, info, PerfMetricSample{Success: true})
+	RecordRelayPerfMetric(nil, info, PerfMetricSample{RelayError: types.NewError(errors.New("server failure"), types.ErrorCodeBadResponse)})
+	summary, err := GetPerfGroupHealthSummary(1, 10)
+	require.NoError(t, err)
+	group := requirePerfGroupHealth(t, summary.Groups, "default")
+	require.EqualValues(t, 2, group.RequestCount)
+	require.EqualValues(t, 2, group.RecentRequestCount)
+	require.Equal(t, 50.0, group.SuccessRate)
+	require.NoError(t, FlushPerfMetrics())
+	var bucket PerfMetricBucket
+	require.NoError(t, LOG_DB.Where("model_name = ?", "test").First(&bucket).Error)
+	require.EqualValues(t, 2, bucket.RequestCount)
+	require.EqualValues(t, 1, bucket.SuccessCount)
+	require.Zero(t, bucket.TestRequestCount)
+	require.Zero(t, bucket.CompletionTokens)
 }
 
 func TestRecordChannelTestPerfMetricFlushesToBuckets(t *testing.T) {

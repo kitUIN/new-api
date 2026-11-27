@@ -2,6 +2,10 @@ package model
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -9,9 +13,117 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
+	"gorm.io/gorm"
 )
 
 const pendingLogContextKey = "pending_usage_log"
+
+const (
+	logUserInterrupted    = "user_interrupted"
+	logRateLimited        = "rate_limited"
+	logStreamInterrupted  = "stream_interrupted"
+	upstreamHTTP2Failure  = "Upstream HTTP/2 stream failed"
+	upstreamStreamFailure = "Upstream response stream was interrupted"
+)
+
+func isUpstreamStreamInterruption(content string) bool {
+	msg, ok := strings.CutPrefix(content, "status_code=502,")
+	return ok && isUpstreamInterruptedMessage(msg)
+}
+
+func isUpstreamInterruptedMessage(msg string) bool {
+	msg, _, _ = strings.Cut(msg, " (request id: ")
+	msg = strings.TrimSpace(msg)
+	return strings.EqualFold(msg, upstreamHTTP2Failure) || strings.EqualFold(msg, upstreamStreamFailure)
+}
+
+func RelayInterruptionStatus(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) string {
+	if apiErr != nil && (apiErr.StatusCode == http.StatusBadGateway || apiErr.UpstreamStatusCode == http.StatusBadGateway) &&
+		(isUpstreamInterruptedMessage(apiErr.Error()) || isUpstreamInterruptedMessage(apiErr.ToOpenAIError().Message)) {
+		return logStreamInterrupted
+	}
+	if info != nil && info.StreamStatus != nil {
+		ss := info.StreamStatus
+		switch ss.EndReason {
+		case relaycommon.StreamEndReasonClientGone:
+			if !errors.Is(ss.EndError, context.DeadlineExceeded) {
+				return logUserInterrupted
+			}
+			return logStreamInterrupted
+		case relaycommon.StreamEndReasonUpstreamDisconnect, relaycommon.StreamEndReasonScannerErr,
+			relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonPingFail:
+			return logStreamInterrupted
+		}
+		if apiErr == nil && (!ss.IsNormalEnd() || ss.HasErrors()) {
+			return logStreamInterrupted
+		}
+	}
+	if (info == nil || info.ClientWs == nil) && c != nil && c.Request != nil && c.Request.Context().Err() == context.Canceled &&
+		(apiErr == nil || errors.Is(apiErr, context.Canceled) || apiErr.GetErrorCode() == types.ErrorCodeDoRequestFailed) {
+		return logUserInterrupted
+	}
+	return ""
+}
+
+// Both dashboards and routing failure counters sample the same eligible attempts.
+func SkipRelayHealthStats(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) bool {
+	return apiErr.IsRateLimited() || RelayInterruptionStatus(c, info, apiErr) != ""
+}
+
+func (log *Log) classifyInterruption() {
+	switch log.Type {
+	case LogTypeInterrupted, LogTypeError:
+		if isUpstreamStreamInterruption(log.Content) {
+			log.Status = logStreamInterrupted
+		}
+		switch log.Status {
+		case "interrupted", logUserInterrupted, logStreamInterrupted:
+			log.Type = LogTypeInterrupted
+		default:
+			if log.Content == "status_code=429" || strings.HasPrefix(log.Content, "status_code=429,") {
+				log.Type, log.Status = LogTypeRateLimited, logRateLimited
+			}
+		}
+	case LogTypeConsume:
+		stream := gjson.Get(log.Other, "stream_status")
+		if stream.Get("end_reason").String() == string(relaycommon.StreamEndReasonClientGone) &&
+			stream.Get("end_error").String() != context.DeadlineExceeded.Error() {
+			log.Status = logUserInterrupted
+		} else if stream.Get("status").String() == "error" {
+			log.Status = logStreamInterrupted
+		}
+	}
+}
+
+// Classify historical rows and retry attempts from their recorded evidence.
+// Retry failures describe individual channels, even when the request succeeded.
+func (log *Log) AfterFind(_ *gorm.DB) error {
+	if log.Type == LogTypeError || log.Status == "" || log.Status == "interrupted" {
+		log.classifyInterruption()
+	}
+	if !strings.Contains(log.Other, `"retry_errors"`) {
+		return nil
+	}
+	for i, attempt := range gjson.Get(log.Other, "admin_info.retry_errors").Array() {
+		if attempt.Get("status").Exists() {
+			continue
+		}
+		legacy := Log{Type: LogTypeError, Content: attempt.Get("message").String()}
+		legacy.classifyInterruption()
+		if legacy.Status == "" {
+			continue
+		}
+		path := "admin_info.retry_errors." + strconv.Itoa(i) + ".status"
+		other, err := sjson.Set(log.Other, path, legacy.Status)
+		if err != nil {
+			return err
+		}
+		log.Other = other
+	}
+	return nil
+}
 
 // A context has one active request (or one Responses WebSocket round). Updates
 // use the database ID, never a client-supplied request ID, to isolate requests.
@@ -82,9 +194,13 @@ func recordPendingLogAttempt(c *gin.Context, log *Log) bool {
 	}
 	pending.lastError = log
 	if len(pending.attempts) < 20 {
-		pending.attempts = append(pending.attempts, map[string]interface{}{
+		attempt := map[string]interface{}{
 			"channel": log.ChannelId, "message": log.Content, "created_at": log.CreatedAt,
-		})
+		}
+		if log.Status != "" {
+			attempt["status"] = log.Status
+		}
+		pending.attempts = append(pending.attempts, attempt)
 	}
 	return true
 }
@@ -121,15 +237,6 @@ func completePendingLog(c *gin.Context, log *Log) (bool, error) {
 	log.HeartbeatAt = 0
 	if log.Status == "" {
 		log.Status = "completed"
-		var other struct {
-			StreamStatus *struct {
-				Status string `json:"status"`
-			} `json:"stream_status"`
-		}
-		_ = common.UnmarshalJsonStr(log.Other, &other)
-		if other.StreamStatus != nil && other.StreamStatus.Status != "ok" {
-			log.Status = "interrupted"
-		}
 	}
 	appendPendingAttempts(pending, log)
 	// Select all writable fields so explicit zero usage/false values replace
@@ -155,12 +262,30 @@ func FinishRequestLog(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types
 		log = *pending.lastError
 	}
 	log.RequestId = info.RequestId
+	if apiErr != nil && apiErr.GetErrorCode() == types.ErrorCodeGetChannelFailed && info.LastError != nil &&
+		SkipRelayHealthStats(c, info, info.LastError) {
+		apiErr = info.LastError
+	}
 	log.Type = LogTypeError
 	log.Status = "interrupted"
 	log.Content = "Request interrupted before completion"
 	if apiErr != nil {
 		log.Status = "failed"
 		log.Content = apiErr.MaskSensitiveErrorWithStatusCode()
+	}
+	if apiErr.IsRateLimited() {
+		log.Type, log.Status = LogTypeRateLimited, logRateLimited
+	} else if status := RelayInterruptionStatus(c, info, apiErr); status != "" {
+		log.Status = status
+	}
+	log.classifyInterruption()
+	if apiErr == nil {
+		switch log.Status {
+		case logUserInterrupted:
+			log.Content = "Client disconnected before completion"
+		case logStreamInterrupted:
+			log.Content = "Upstream stream disconnected before completion"
+		}
 	}
 	if info.ChannelMeta != nil {
 		log.ChannelId = info.ChannelId
@@ -209,7 +334,7 @@ func maintainUsageLogLeases(now int64) error {
 	// pending row on startup, which would interrupt healthy nodes' requests.
 	return LOG_DB.Model(&Log{}).Where("type = ? AND heartbeat_at < ?", LogTypePending, now-120).
 		Updates(map[string]interface{}{
-			"type": LogTypeError, "status": "interrupted", "finished_at": now,
+			"type": LogTypeInterrupted, "status": "interrupted", "finished_at": now,
 			"content": "Request worker stopped reporting progress", "heartbeat_at": 0,
 		}).Error
 }

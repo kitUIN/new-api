@@ -40,10 +40,11 @@ import (
 )
 
 type testResult struct {
-	context      *gin.Context
-	localErr     error
-	newAPIError  *types.NewAPIError
-	responseBody []byte
+	skipHealthStats bool
+	context         *gin.Context
+	localErr        error
+	newAPIError     *types.NewAPIError
+	responseBody    []byte
 }
 
 type channelTestOptions struct {
@@ -200,10 +201,12 @@ func testChannelWithOptions(channel *model.Channel, testModel string, endpointTy
 	var perfRelayInfo *relaycommon.RelayInfo
 	var perfCompletionTokens int64
 	defer func() {
-		if !options.recordPerfMetric || perfRelayInfo == nil {
+		result.skipHealthStats = model.SkipRelayHealthStats(result.context, perfRelayInfo, result.newAPIError)
+		if result.skipHealthStats || !options.recordPerfMetric || perfRelayInfo == nil {
 			return
 		}
 		model.RecordChannelTestPerfMetric(result.context, perfRelayInfo, model.PerfMetricSample{
+			RelayError:       result.newAPIError,
 			ModelName:        perfRelayInfo.OriginModelName,
 			Group:            perfRelayInfo.UsingGroup,
 			Success:          result.localErr == nil && result.newAPIError == nil,
@@ -992,7 +995,9 @@ func TestChannel(c *gin.Context) {
 	}
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
-	go channel.UpdateResponseTime(milliseconds)
+	if !result.skipHealthStats {
+		go channel.UpdateResponseTime(milliseconds)
+	}
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -1284,6 +1289,9 @@ func finishChannelTestRun() {
 }
 
 func evaluateChannelTestResult(channel *model.Channel, result testResult, milliseconds int64, wasChannelEnabled bool) {
+	if result.skipHealthStats && !result.newAPIError.IsRateLimited() {
+		return
+	}
 	shouldBanChannel := false
 	newAPIError := result.newAPIError
 	usingKey := ""
@@ -1314,7 +1322,9 @@ func evaluateChannelTestResult(channel *model.Channel, result testResult, millis
 		service.EnableChannel(channel.Id, usingKey, channel.Name)
 	}
 
-	channel.UpdateResponseTime(milliseconds)
+	if !result.skipHealthStats {
+		channel.UpdateResponseTime(milliseconds)
+	}
 }
 
 func testAllChannels(notify bool) error {

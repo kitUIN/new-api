@@ -859,7 +859,7 @@ function createCommonLogsColumns(
       cell: ({ row }) => {
         const log = row.original
         const timestamp = row.getValue('created_at') as number
-        const config = getLogTypeConfig(log.type)
+        const config = getLogTypeConfig(log.type, log.status)
 
         return (
           <div className='flex flex-col gap-0.5'>
@@ -867,11 +867,7 @@ function createCommonLogsColumns(
               {formatTimestampToDate(timestamp)}
             </span>
             <StatusBadge
-              label={
-                log.status === 'interrupted'
-                  ? t('usageLogs.interrupted')
-                  : t(config.label)
-              }
+              label={t(config.label)}
               variant={config.color as StatusBadgeProps['variant']}
               size='sm'
               copyable={false}
@@ -1384,12 +1380,15 @@ function createCommonLogsColumns(
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger
-                      render={<CircleAlert className='size-3 text-red-500' />}
+                      render={
+                        <CircleAlert className='text-muted-foreground size-3' />
+                      }
                     />
                     <TooltipContent>
                       <div className='space-y-0.5 text-xs'>
                         <p>
-                          {t('Stream Status')}: {t('Error')}
+                          {t('Stream Status')}:{' '}
+                          {t(getLogTypeConfig(log.type, log.status).label)}
                         </p>
                         <p>{streamStatus.end_reason || 'unknown'}</p>
                         {(streamStatus.error_count ?? 0) > 0 && (

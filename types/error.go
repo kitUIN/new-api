@@ -145,6 +145,10 @@ func (e *NewAPIError) Error() string {
 	return e.Err.Error()
 }
 
+func (e *NewAPIError) IsRateLimited() bool {
+	return e != nil && (e.StatusCode == http.StatusTooManyRequests || e.UpstreamStatusCode == http.StatusTooManyRequests)
+}
+
 func (e *NewAPIError) ErrorWithStatusCode() string {
 	if e == nil {
 		return ""

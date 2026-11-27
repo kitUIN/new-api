@@ -21,8 +21,28 @@ import { test } from 'node:test'
 import {
   formatChannelAffinitySessionKey,
   getChannelAffinitySessionKey,
+  getLogTypeConfig,
   getUsageLogSessionKeyInfo,
 } from './utils'
+
+test('usage log labels distinguish client, stream and unattributed interruptions', () => {
+  assert.equal(
+    getLogTypeConfig(2, 'user_interrupted').label,
+    'usageLogs.userInterrupted'
+  )
+  assert.equal(
+    getLogTypeConfig(5, 'stream_interrupted').label,
+    'usageLogs.streamInterrupted'
+  )
+  assert.equal(
+    getLogTypeConfig(5, 'interrupted').label,
+    'usageLogs.interrupted'
+  )
+  assert.equal(getLogTypeConfig(5, 'failed').label, 'Error')
+  assert.equal(getLogTypeConfig(2, 'completed').label, 'Consume')
+  assert.equal(getLogTypeConfig(8, 'stream_interrupted').color, 'neutral')
+  assert.equal(getLogTypeConfig(9, 'rate_limited').label, 'Rate Limited')
+})
 
 test('session keys retain the complete value for copying while display stays compact', () => {
   const fullKey = 'session-abcdefghijklmnopqrstuvwxyz'

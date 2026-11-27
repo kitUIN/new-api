@@ -118,9 +118,7 @@ function getCommonLogCell(
     case 'created_at':
       return joinLines([
         formatTimestampToDate(log.created_at),
-        log.status === 'interrupted'
-          ? context.t('usageLogs.interrupted')
-          : context.t(getLogTypeConfig(log.type).label),
+        context.t(getLogTypeConfig(log.type, log.status).label),
       ])
     case 'channel': {
       if (!displayable) return ''
@@ -200,9 +198,11 @@ function getCommonLogCell(
           ? `TTFT ${formatUseTime(other.frt / 1000)}`
           : undefined
       const streamError =
-        log.is_stream && other?.stream_status?.status !== 'ok'
+        log.is_stream &&
+        other?.stream_status &&
+        other.stream_status.status !== 'ok'
           ? joinLines([
-              `${context.t('Stream Status')}: ${context.t('Error')}`,
+              `${context.t('Stream Status')}: ${context.t(getLogTypeConfig(log.type, log.status).label)}`,
               other?.stream_status?.end_reason,
               other?.stream_status?.end_error,
             ])

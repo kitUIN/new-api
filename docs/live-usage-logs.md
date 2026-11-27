@@ -2,17 +2,19 @@
 
 普通请求在通过认证、路由和请求解析后，在上游调用之前创建 `type=7`、`status=in_progress` 的日志。页面立即可查询，Token 和费用尚未确定，显示为 `—`。开始日志不扣费、不计入消费、RPM 或 TPM 统计。
 
-结算沿用原有逻辑，`RecordConsumeLog` 更新同一条日志的数据库 ID，填入最终用量、费用及 `status=completed`。流式响应异常结束但已产生用量时，保留原有计费结果并标记 `interrupted`。正常 HTTP、SSE、Realtime、异步任务提交均使用对应请求的生命周期；异步任务提交完成后的补扣、退款仍保留独立记录。
+结算沿用原有逻辑，`RecordConsumeLog` 更新同一条日志的数据库 ID，填入最终用量、费用及 `status=completed`。流式响应异常结束但已产生用量时，日志保留计费结果，并按结束原因标记“用户中断”或“流中断”。正常 HTTP、SSE、Realtime、异步任务提交均使用对应请求的生命周期；异步任务提交完成后的补扣、退款仍保留独立记录。
 
 Responses WebSocket 在第一个生成回合连接上游前创建日志；回合开始后接管该记录。后续回合分别创建记录。无用量的预热不创建记录，预热意外产生用量时沿用原有消费记录逻辑。
 
 ## 重试和失败
 
 - 内部重试期间保持同一条日志为进行中。开启 `ERROR_LOG_ENABLED` 时，在 `other.admin_info.retry_errors` 保留最多 20 次失败尝试的渠道、时间和脱敏错误，管理员可在详情中查看。
-- 最终失败更新为 `type=5, status=failed`；断连或未完成的异常退出更新为 `type=5, status=interrupted`。这些请求终态由消费日志开关 `LogConsumeEnabled` 控制，不依赖错误尝试日志开关。未接入生命周期的原有错误日志仍遵循原有开关。
+- 最终失败记为 `type=5, status=failed`。客户端取消请求或在生成中关闭 Responses WebSocket，记为“用户中断”（`user_interrupted`）。上游在回合中断开连接，或返回 502 并报告 `Upstream HTTP/2 stream failed` 或 `Upstream response stream was interrupted`，记为“流中断”（`stream_interrupted`）。重试详情单独标记每次流中断，最终状态取决于整个请求的结果。
+- 无法确定来源的异常退出保留 `interrupted`，包括只记录了 `Request interrupted before completion` 的旧 WS 日志。请求终态由消费日志开关 `LogConsumeEnabled` 控制，未接入生命周期的原有错误日志仍遵循错误日志开关。
+- 未结算的中断使用日志类型 8，HTTP 429 使用类型 9（限流），均可单独筛选。已结算的中断保留消费类型、用量和金额。分组和模型的可用性统计跳过中断和 429，包括渠道测试样本。它们也不会增加或清零 API 密钥和自动分组的连续失败次数。重试成功后计入一次成功。旧的性能汇总桶只保存总数，无法按状态码重新计算。
 - 关闭消费日志时不创建进行中记录。认证失败、路由拒绝和请求解析失败发生在生命周期开始之前，不新增此类占位日志。纯 Token 计数、任务查询接口不创建消费占位记录。
 - Midjourney 提交成功但按原有规则无需生成消费日志时，移除临时记录；已结算的记录继续保留。
-- 日志 `created_at` 保持请求开始时间，`finished_at` 为记录结束时间；旧日志的 `status` 为空，按原有日志类型显示。
+- 日志 `created_at` 保持请求开始时间，`finished_at` 为记录结束时间。读取旧日志时，可以从原始 502 报错或已记录的流结束原因识别中断，其余记录沿用原有状态或日志类型。
 
 ## 页面刷新
 
